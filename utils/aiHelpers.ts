@@ -1,6 +1,7 @@
 
 import { Message } from '@/types/database.types';
 import { supabase } from '@/lib/supabase';
+import { showErrorToast } from './toast';
 
 /**
  * Generate AI reply by calling the Supabase Edge Function
@@ -36,18 +37,21 @@ export const generateAIReply = async (
 
     if (error) {
       console.error('Error invoking Edge Function:', error);
+      showErrorToast('Failed to generate AI response. Please try again.');
       return null;
     }
 
     if (!data?.reply) {
       console.error('No reply received from Edge Function');
+      showErrorToast('AI response was empty. Please try again.');
       return null;
     }
 
     console.log('AI reply received successfully');
     return data.reply;
-  } catch (err) {
+  } catch (err: any) {
     console.error('Unexpected error generating AI reply:', err);
+    showErrorToast(`AI Error: ${err.message || 'Unknown error'}`);
     return null;
   }
 };

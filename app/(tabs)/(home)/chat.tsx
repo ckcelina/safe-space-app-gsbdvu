@@ -7,10 +7,8 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,7 +18,9 @@ import { Message } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { ChatBubble } from '@/components/ui/ChatBubble';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { generateAIReply } from '@/utils/aiHelpers';
+import { showErrorToast } from '@/utils/toast';
 
 export default function ChatScreen() {
   const { personId, personName, relationshipType } = useLocalSearchParams<{
@@ -35,6 +35,7 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [aiTyping, setAiTyping] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Character limits
@@ -62,14 +63,16 @@ export default function ChatScreen() {
       if (fetchError) {
         console.error('Error fetching messages:', fetchError);
         setError('Failed to load messages');
+        showErrorToast('Failed to load messages');
       } else {
         console.log('Messages loaded:', data?.length || 0);
         setMessages(data || []);
         setTimeout(() => scrollToBottom(), 100);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Unexpected error fetching messages:', err);
       setError('An unexpected error occurred');
+      showErrorToast('Failed to load messages');
     } finally {
       setLoading(false);
     }
@@ -125,7 +128,7 @@ export default function ChatScreen() {
 
       if (userError) {
         console.error('Error inserting user message:', userError);
-        Alert.alert('Error', 'Failed to send message. Please try again.');
+        showErrorToast('Failed to send message. Please try again.');
         setInputText(messageContent); // Restore the message
         setSending(false);
         return;
@@ -137,24 +140,26 @@ export default function ChatScreen() {
       setMessages((prev) => [...prev, userMessage]);
       setTimeout(() => scrollToBottom(), 100);
 
-      // 3. Generate AI reply via Edge Function
+      // 3. Show AI typing indicator
+      setAiTyping(true);
+
+      // 4. Generate AI reply via Edge Function
       const aiReplyText = await generateAIReply(personId, [...messages, userMessage]);
       
-      // 4. Handle AI reply error
+      // 5. Hide AI typing indicator
+      setAiTyping(false);
+
+      // 6. Handle AI reply error
       if (!aiReplyText) {
         console.error('Failed to generate AI reply');
-        Alert.alert(
-          'AI Response Error',
-          'Unable to generate a response right now. Please try again.',
-          [{ text: 'OK', style: 'cancel' }]
-        );
+        showErrorToast('Unable to generate AI response. Please try again.');
         setSending(false);
         return;
       }
 
       console.log('AI reply generated:', aiReplyText);
 
-      // 5. Insert AI message
+      // 7. Insert AI message
       const { data: aiMessage, error: aiError } = await supabase
         .from('messages')
         .insert([
@@ -170,173 +175,168 @@ export default function ChatScreen() {
 
       if (aiError) {
         console.error('Error inserting AI message:', aiError);
-        Alert.alert(
-          'Error',
-          'AI response generated but failed to save. Please try again.',
-          [{ text: 'OK', style: 'cancel' }]
-        );
+        showErrorToast('AI response generated but failed to save.');
       } else {
         console.log('AI message inserted:', aiMessage.id);
-        // 6. Append AI message to the list
+        // 8. Append AI message to the list
         setMessages((prev) => [...prev, aiMessage]);
         setTimeout(() => scrollToBottom(), 100);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Unexpected error sending message:', err);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      showErrorToast('An unexpected error occurred');
       setInputText(messageContent); // Restore the message
+      setAiTyping(false);
     } finally {
       setSending(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.card }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <IconSymbol
-            ios_icon_name="chevron.left"
-            android_material_icon_name="arrow_back"
-            size={24}
-            color={theme.textPrimary}
-          />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{personName}</Text>
-          {relationshipType && (
-            <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-              {relationshipType}
-            </Text>
-          )}
-        </View>
-        <View style={{ width: 40 }} />
-      </View>
-
-      {/* Messages */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
-            Loading messages...
-          </Text>
-        </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <View style={[styles.errorCard, { backgroundColor: theme.card }]}>
+    <>
+      <KeyboardAvoidingView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        {/* Header */}
+        <View style={[styles.header, { backgroundColor: theme.card }]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <IconSymbol
-              ios_icon_name="exclamationmark.triangle.fill"
-              android_material_icon_name="error"
-              size={32}
-              color="#FF3B30"
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow_back"
+              size={24}
+              color={theme.textPrimary}
             />
-            <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
-            <TouchableOpacity
-              onPress={handleRetry}
-              style={[styles.retryButton, { backgroundColor: theme.primary }]}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
-                Try Again
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{personName}</Text>
+            {relationshipType && (
+              <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+                {relationshipType}
               </Text>
-            </TouchableOpacity>
+            )}
           </View>
+          <View style={{ width: 40 }} />
         </View>
-      ) : (
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => scrollToBottom()}
-        >
-          {messages.length === 0 ? (
-            <View style={styles.emptyChat}>
-              <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-                <IconSymbol
-                  ios_icon_name="bubble.left.and.bubble.right.fill"
-                  android_material_icon_name="chat"
-                  size={40}
-                  color={theme.primary}
-                />
+
+        {/* Messages */}
+        {error ? (
+          <View style={styles.errorContainer}>
+            <View style={[styles.errorCard, { backgroundColor: theme.card }]}>
+              <IconSymbol
+                ios_icon_name="exclamationmark.triangle.fill"
+                android_material_icon_name="error"
+                size={32}
+                color="#FF3B30"
+              />
+              <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
+              <TouchableOpacity
+                onPress={handleRetry}
+                style={[styles.retryButton, { backgroundColor: theme.primary }]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
+                  Try Again
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => scrollToBottom()}
+            keyboardShouldPersistTaps="handled"
+          >
+            {messages.length === 0 && !loading ? (
+              <View style={styles.emptyChat}>
+                <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
+                  <IconSymbol
+                    ios_icon_name="bubble.left.and.bubble.right.fill"
+                    android_material_icon_name="chat"
+                    size={40}
+                    color={theme.primary}
+                  />
+                </View>
+                <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
+                  Start the conversation
+                </Text>
+                <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
+                  Share your thoughts and feelings about {personName}
+                </Text>
               </View>
-              <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
-                Start the conversation
-              </Text>
-              <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-                Share your thoughts and feelings about {personName}
-              </Text>
+            ) : (
+              <>
+                {messages.map((message, index) => (
+                  <ChatBubble
+                    key={index}
+                    message={message.content}
+                    isUser={message.role === 'user'}
+                    timestamp={message.created_at}
+                    animate={index === messages.length - 1}
+                  />
+                ))}
+              </>
+            )}
+
+            {/* AI Typing Indicator */}
+            {aiTyping && <TypingIndicator />}
+          </ScrollView>
+        )}
+
+        {/* Input Bar */}
+        <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+          <View style={styles.inputColumn}>
+            <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
+              <TextInput
+                style={[styles.input, { color: theme.textPrimary }]}
+                placeholder="Tell me what's going on…"
+                placeholderTextColor={theme.textSecondary}
+                value={inputText}
+                onChangeText={handleTextChange}
+                multiline
+                editable={!sending && !loading && !aiTyping}
+              />
             </View>
-          ) : (
-            <>
-              {messages.map((message, index) => (
-                <ChatBubble
-                  key={index}
-                  message={message.content}
-                  isUser={message.role === 'user'}
-                  timestamp={message.created_at}
-                  animate={index === messages.length - 1}
-                />
-              ))}
-            </>
-          )}
 
-          {/* Typing Indicator */}
-          {sending && <TypingIndicator />}
-        </ScrollView>
-      )}
-
-      {/* Input Bar */}
-      <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-        <View style={styles.inputColumn}>
-          <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
-            <TextInput
-              style={[styles.input, { color: theme.textPrimary }]}
-              placeholder="Tell me what's going on…"
-              placeholderTextColor={theme.textSecondary}
-              value={inputText}
-              onChangeText={handleTextChange}
-              multiline
-              editable={!sending && !loading}
-            />
+            {/* Character limit warning for free users */}
+            {!isPremium && inputText.length >= MAX_CHARS * 0.8 && (
+              <View style={styles.limitWarning}>
+                <Text style={[styles.limitWarningText, { color: inputText.length >= MAX_CHARS ? '#FF3B30' : theme.textSecondary }]}>
+                  {inputText.length >= MAX_CHARS 
+                    ? 'Upgrade to Premium to send longer messages.'
+                    : `${inputText.length}/${MAX_CHARS} characters`
+                  }
+                </Text>
+              </View>
+            )}
           </View>
 
-          {/* Character limit warning for free users */}
-          {!isPremium && inputText.length >= MAX_CHARS * 0.8 && (
-            <View style={styles.limitWarning}>
-              <Text style={[styles.limitWarningText, { color: inputText.length >= MAX_CHARS ? '#FF3B30' : theme.textSecondary }]}>
-                {inputText.length >= MAX_CHARS 
-                  ? 'Upgrade to Premium to send longer messages.'
-                  : `${inputText.length}/${MAX_CHARS} characters`
-                }
-              </Text>
-            </View>
-          )}
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              { backgroundColor: theme.primary },
+              (!inputText.trim() || sending || loading || isOverLimit || aiTyping) && styles.sendButtonDisabled,
+            ]}
+            onPress={sendMessage}
+            disabled={!inputText.trim() || sending || loading || isOverLimit || aiTyping}
+            activeOpacity={0.7}
+          >
+            <IconSymbol
+              ios_icon_name="paperplane.fill"
+              android_material_icon_name="send"
+              size={20}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
         </View>
-
-        <TouchableOpacity
-          style={[
-            styles.sendButton,
-            { backgroundColor: theme.primary },
-            (!inputText.trim() || sending || loading || isOverLimit) && styles.sendButtonDisabled,
-          ]}
-          onPress={sendMessage}
-          disabled={!inputText.trim() || sending || loading || isOverLimit}
-          activeOpacity={0.7}
-        >
-          <IconSymbol
-            ios_icon_name="paperplane.fill"
-            android_material_icon_name="send"
-            size={20}
-            color="#FFFFFF"
-          />
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+      
+      <LoadingOverlay visible={loading && !error} />
+    </>
   );
 }
 
@@ -369,15 +369,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
     textTransform: 'capitalize',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 14,
-    marginTop: 12,
   },
   errorContainer: {
     flex: 1,

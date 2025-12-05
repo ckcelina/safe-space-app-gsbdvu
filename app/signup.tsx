@@ -1,14 +1,16 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
 import { SafeSpaceTitle, SafeSpaceCaption } from '@/components/ui/SafeSpaceText';
 import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
+import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 export default function SignupScreen() {
   const { signUp } = useAuth();
@@ -22,145 +24,155 @@ export default function SignupScreen() {
 
   const handleSignup = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showErrorToast('Please fill in all fields');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      showErrorToast('Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      showErrorToast('Password must be at least 6 characters');
       return;
     }
 
     if (!termsAccepted || !privacyAccepted) {
-      Alert.alert('Error', 'Please accept Terms and Privacy Policy');
+      showErrorToast('Please accept Terms and Privacy Policy');
       return;
     }
 
     setLoading(true);
-    const { error } = await signUp(email, password);
-    setLoading(false);
+    
+    try {
+      const { error } = await signUp(email, password);
 
-    if (error) {
-      Alert.alert('Signup Error', error.message || 'An error occurred during signup');
-    } else {
-      Alert.alert(
-        'Success! 🎉',
-        'Account created successfully!\n\nPlease check your email to verify your account before logging in.',
-        [{ text: 'OK', onPress: () => router.replace('/login') }]
-      );
+      if (error) {
+        showErrorToast(error.message || 'An error occurred during signup');
+      } else {
+        showSuccessToast('Account created! Please check your email to verify.');
+        setTimeout(() => {
+          router.replace('/login');
+        }, 1500);
+      }
+    } catch (err: any) {
+      console.error('Unexpected signup error:', err);
+      showErrorToast('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <SafeSpaceScreen scrollable={true} keyboardAware={true} useGradient={true}>
-      <View style={styles.content}>
-        {/* Theme Preview */}
-        <View style={styles.themePreview}>
-          <SafeSpaceCaption align="center">Your Theme</SafeSpaceCaption>
-          <View style={styles.themePreviewRow}>
-            <View style={[styles.themeCircle, { backgroundColor: theme.primaryGradient[0] }]} />
-            <View style={[styles.themeCircle, { backgroundColor: theme.primary }]} />
-            <View style={[styles.themeCircle, { backgroundColor: theme.primaryGradient[1] }]} />
-          </View>
-        </View>
-
-        <View style={styles.titleContainer}>
-          <SafeSpaceTitle>Create Account</SafeSpaceTitle>
-        </View>
-
-        <View style={styles.form}>
-          <SafeSpaceTextInput
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            editable={!loading}
-          />
-
-          <SafeSpaceTextInput
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            editable={!loading}
-          />
-
-          <SafeSpaceTextInput
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            editable={!loading}
-          />
-
-          <View style={styles.checkboxSection}>
-            {/* Checkboxes */}
-            <TouchableOpacity
-              style={styles.checkboxContainer}
-              onPress={() => setTermsAccepted(!termsAccepted)}
-              disabled={loading}
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  { borderColor: theme.primary },
-                  termsAccepted && { backgroundColor: theme.primary },
-                ]}
-              >
-                {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-              <Text style={[styles.checkboxLabel, { color: theme.textPrimary }]}>
-                I accept the Terms & Conditions
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.checkboxContainer}
-              onPress={() => setPrivacyAccepted(!privacyAccepted)}
-              disabled={loading}
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  { borderColor: theme.primary },
-                  privacyAccepted && { backgroundColor: theme.primary },
-                ]}
-              >
-                {privacyAccepted && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-              <Text style={[styles.checkboxLabel, { color: theme.textPrimary }]}>
-                I accept the Privacy Policy
-              </Text>
-            </TouchableOpacity>
+    <>
+      <SafeSpaceScreen scrollable={true} keyboardAware={true} useGradient={true}>
+        <View style={styles.content}>
+          {/* Theme Preview */}
+          <View style={styles.themePreview}>
+            <SafeSpaceCaption align="center">Your Theme</SafeSpaceCaption>
+            <View style={styles.themePreviewRow}>
+              <View style={[styles.themeCircle, { backgroundColor: theme.primaryGradient[0] }]} />
+              <View style={[styles.themeCircle, { backgroundColor: theme.primary }]} />
+              <View style={[styles.themeCircle, { backgroundColor: theme.primaryGradient[1] }]} />
+            </View>
           </View>
 
-          <View style={styles.buttonSpacing} />
+          <View style={styles.titleContainer}>
+            <SafeSpaceTitle>Create Account</SafeSpaceTitle>
+          </View>
 
-          <SafeSpaceButton onPress={handleSignup} loading={loading} disabled={loading}>
-            Sign Up
-          </SafeSpaceButton>
+          <View style={styles.form}>
+            <SafeSpaceTextInput
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              editable={!loading}
+            />
 
-          <View style={styles.linkSpacing} />
+            <SafeSpaceTextInput
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              editable={!loading}
+            />
 
-          <SafeSpaceLinkButton onPress={() => router.replace('/login')} disabled={loading}>
-            Already have an account? Log In
-          </SafeSpaceLinkButton>
+            <SafeSpaceTextInput
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              editable={!loading}
+            />
+
+            <View style={styles.checkboxSection}>
+              {/* Checkboxes */}
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setTermsAccepted(!termsAccepted)}
+                disabled={loading}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    { borderColor: theme.primary },
+                    termsAccepted && { backgroundColor: theme.primary },
+                  ]}
+                >
+                  {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={[styles.checkboxLabel, { color: theme.textPrimary }]}>
+                  I accept the Terms & Conditions
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setPrivacyAccepted(!privacyAccepted)}
+                disabled={loading}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    { borderColor: theme.primary },
+                    privacyAccepted && { backgroundColor: theme.primary },
+                  ]}
+                >
+                  {privacyAccepted && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={[styles.checkboxLabel, { color: theme.textPrimary }]}>
+                  I accept the Privacy Policy
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.buttonSpacing} />
+
+            <SafeSpaceButton onPress={handleSignup} loading={loading} disabled={loading}>
+              Sign Up
+            </SafeSpaceButton>
+
+            <View style={styles.linkSpacing} />
+
+            <SafeSpaceLinkButton onPress={() => router.replace('/login')} disabled={loading}>
+              Already have an account? Log In
+            </SafeSpaceLinkButton>
+          </View>
+
+          {/* Disclaimer */}
+          <View style={styles.disclaimerContainer}>
+            <SafeSpaceCaption align="center">
+              By continuing, you agree this is a supportive AI coach, not a substitute for professional care.
+            </SafeSpaceCaption>
+          </View>
         </View>
-
-        {/* Disclaimer */}
-        <View style={styles.disclaimerContainer}>
-          <SafeSpaceCaption align="center">
-            By continuing, you agree this is a supportive AI coach, not a substitute for professional care.
-          </SafeSpaceCaption>
-        </View>
-      </View>
-    </SafeSpaceScreen>
+      </SafeSpaceScreen>
+      
+      <LoadingOverlay visible={loading} />
+    </>
   );
 }
 

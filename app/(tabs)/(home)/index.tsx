@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Platform, ScrollView, Modal, TouchableOpacity, KeyboardAvoidingView, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
@@ -8,7 +8,9 @@ import { supabase } from '@/lib/supabase';
 import { Person } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
+import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 interface PersonWithLastMessage extends Person {
   lastMessage?: string;
@@ -29,6 +31,11 @@ export default function HomeScreen() {
   const [saving, setSaving] = useState(false);
 
   const fetchPersonsWithLastMessage = useCallback(async () => {
+    if (!userId) {
+      console.log('No userId available');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -43,7 +50,7 @@ export default function HomeScreen() {
       if (personsError) {
         console.error('Error fetching persons:', personsError);
         setError('Failed to load your people. Please try again.');
-        setLoading(false);
+        showErrorToast('Failed to load your people');
         return;
       }
 
@@ -51,27 +58,37 @@ export default function HomeScreen() {
 
       const personsWithMessages = await Promise.all(
         (personsData || []).map(async (person) => {
-          const { data: messages } = await supabase
-            .from('messages')
-            .select('content, created_at, role')
-            .eq('user_id', userId)
-            .eq('person_id', person.id)
-            .order('created_at', { ascending: false })
-            .limit(1);
+          try {
+            const { data: messages } = await supabase
+              .from('messages')
+              .select('content, created_at, role')
+              .eq('user_id', userId)
+              .eq('person_id', person.id)
+              .order('created_at', { ascending: false })
+              .limit(1);
 
-          const lastMessage = messages?.[0];
-          return {
-            ...person,
-            lastMessage: lastMessage?.content || 'No messages yet',
-            lastMessageTime: lastMessage?.created_at,
-          };
+            const lastMessage = messages?.[0];
+            return {
+              ...person,
+              lastMessage: lastMessage?.content || 'No messages yet',
+              lastMessageTime: lastMessage?.created_at,
+            };
+          } catch (err) {
+            console.error('Error fetching messages for person:', person.id, err);
+            return {
+              ...person,
+              lastMessage: 'No messages yet',
+              lastMessageTime: undefined,
+            };
+          }
         })
       );
 
       setPersons(personsWithMessages);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Unexpected error fetching persons:', error);
       setError('An unexpected error occurred. Please try again.');
+      showErrorToast('Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -133,16 +150,17 @@ export default function HomeScreen() {
 
       if (error) {
         console.error('Error creating person:', error);
-        Alert.alert('Error', 'Failed to add person. Please try again.');
+        showErrorToast('Failed to add person. Please try again.');
       } else {
         console.log('Person created:', data);
+        showSuccessToast('Person added successfully!');
         handleCloseModal();
         // Refresh the list
         await fetchPersonsWithLastMessage();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Unexpected error creating person:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      showErrorToast('An unexpected error occurred');
     } finally {
       setSaving(false);
     }
@@ -160,11 +178,7 @@ export default function HomeScreen() {
   };
 
   if (authLoading) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
-    );
+    return <LoadingOverlay visible={true} />;
   }
 
   if (!currentUser) {
@@ -172,284 +186,280 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Safe Space</Text>
-          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-            Who would you like to talk about today?
-          </Text>
-        </View>
-
-        {/* Plan Chip */}
-        <View style={[styles.planChip, { backgroundColor: theme.card }]}>
-          <IconSymbol
-            ios_icon_name={isPremium ? 'star.fill' : 'lock.fill'}
-            android_material_icon_name={isPremium ? 'star' : 'lock'}
-            size={16}
-            color={isPremium ? '#FFD700' : theme.textSecondary}
-          />
-          <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
-            {isPremium ? 'Plan: Premium – Full access' : 'Plan: Free – Some features are locked'}
-          </Text>
-        </View>
-
-        {/* Add Person Button */}
-        <View style={styles.addButtonContainer}>
-          <TouchableOpacity
-            onPress={handleAddPerson}
-            activeOpacity={0.8}
-            style={styles.addButton}
-          >
-            <LinearGradient
-              colors={theme.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.addButtonGradient}
-            >
-              <Text style={[styles.addButtonText, { color: theme.buttonText }]}>
-                Add Person
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        {/* Error State */}
-        {error && (
-          <View style={styles.errorContainer}>
-            <View style={[styles.errorCard, { backgroundColor: theme.card }]}>
-              <IconSymbol
-                ios_icon_name="exclamationmark.triangle.fill"
-                android_material_icon_name="error"
-                size={32}
-                color="#FF3B30"
-              />
-              <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
-              <TouchableOpacity
-                onPress={fetchPersonsWithLastMessage}
-                style={[styles.retryButton, { backgroundColor: theme.primary }]}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
-                  Try Again
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Persons List */}
-        {loading && !error ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
-          </View>
-        ) : !error && persons.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-              <Text style={styles.emptyEmoji}>🤗</Text>
-            </View>
-            <Text style={[styles.emptyText, { color: theme.textPrimary }]}>No one added yet</Text>
-            <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-              Tap &apos;Add Person&apos; to start
+    <>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Safe Space</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+              Who would you like to talk about today?
             </Text>
           </View>
-        ) : !error ? (
-          <View style={styles.cardList}>
-            {persons.map((person, index) => (
-              <PersonCard
-                key={index}
-                person={person}
-                onPress={() => handlePersonPress(person)}
-              />
-            ))}
+
+          {/* Plan Chip */}
+          <View style={[styles.planChip, { backgroundColor: theme.card }]}>
+            <IconSymbol
+              ios_icon_name={isPremium ? 'star.fill' : 'lock.fill'}
+              android_material_icon_name={isPremium ? 'star' : 'lock'}
+              size={16}
+              color={isPremium ? '#FFD700' : theme.textSecondary}
+            />
+            <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
+              {isPremium ? 'Plan: Premium – Full access' : 'Plan: Free – Some features are locked'}
+            </Text>
           </View>
-        ) : null}
-      </ScrollView>
 
-      {/* Add Person Modal */}
-      <Modal
-        visible={showAddModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={handleCloseModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={handleCloseModal}
-          />
-          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
-              <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
-                <IconSymbol
-                  ios_icon_name="xmark"
-                  android_material_icon_name="close"
-                  size={24}
-                  color={theme.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* Modal Body */}
-            <ScrollView
-              style={styles.modalBody}
-              contentContainerStyle={styles.modalBodyContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
+          {/* Add Person Button */}
+          <View style={styles.addButtonContainer}>
+            <TouchableOpacity
+              onPress={handleAddPerson}
+              activeOpacity={0.8}
+              style={styles.addButton}
             >
-              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                Name <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
-                <TextInput
-                  style={[styles.textInput, { color: theme.textPrimary }]}
-                  placeholder="Enter their name"
-                  placeholderTextColor={theme.textSecondary}
-                  value={name}
-                  onChangeText={(text) => {
-                    setName(text);
-                    if (nameError && text.trim()) {
-                      setNameError('');
-                    }
-                  }}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  maxLength={50}
-                />
-              </View>
-              {nameError ? (
-                <Text style={styles.errorTextSmall}>{nameError}</Text>
-              ) : null}
-
-              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                Relationship Type
-              </Text>
-              <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
-                <TextInput
-                  style={[styles.textInput, { color: theme.textPrimary }]}
-                  placeholder="partner, ex, friend, parent..."
-                  placeholderTextColor={theme.textSecondary}
-                  value={relationshipType}
-                  onChangeText={setRelationshipType}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  maxLength={50}
-                />
-              </View>
-            </ScrollView>
-
-            {/* Modal Footer */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                onPress={handleCloseModal}
-                style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
-                disabled={saving}
+              <LinearGradient
+                colors={theme.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.addButtonGradient}
               >
-                <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
-                  Cancel
+                <Text style={[styles.addButtonText, { color: theme.buttonText }]}>
+                  Add Person
                 </Text>
-              </TouchableOpacity>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
 
-              <TouchableOpacity
-                onPress={handleSave}
-                style={styles.primaryButton}
-                disabled={saving}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={theme.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.primaryButtonGradient}
+          {/* Error State */}
+          {error && (
+            <View style={styles.errorContainer}>
+              <View style={[styles.errorCard, { backgroundColor: theme.card }]}>
+                <IconSymbol
+                  ios_icon_name="exclamationmark.triangle.fill"
+                  android_material_icon_name="error"
+                  size={32}
+                  color="#FF3B30"
+                />
+                <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
+                <TouchableOpacity
+                  onPress={fetchPersonsWithLastMessage}
+                  style={[styles.retryButton, { backgroundColor: theme.primary }]}
+                  activeOpacity={0.8}
                 >
-                  {saving ? (
-                    <ActivityIndicator color={theme.buttonText} />
-                  ) : (
+                  <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
+                    Try Again
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Persons List */}
+          {!error && persons.length === 0 && !loading ? (
+            <View style={styles.emptyState}>
+              <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
+                <Text style={styles.emptyEmoji}>🤗</Text>
+              </View>
+              <Text style={[styles.emptyText, { color: theme.textPrimary }]}>No one added yet</Text>
+              <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
+                Tap &apos;Add Person&apos; to start
+              </Text>
+            </View>
+          ) : !error && !loading ? (
+            <View style={styles.cardList}>
+              {persons.map((person, index) => (
+                <PersonCard
+                  key={index}
+                  person={person}
+                  onPress={() => handlePersonPress(person)}
+                />
+              ))}
+            </View>
+          ) : null}
+        </ScrollView>
+
+        {/* Add Person Modal */}
+        <Modal
+          visible={showAddModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={handleCloseModal}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalOverlay}
+          >
+            <TouchableOpacity
+              style={styles.modalBackdrop}
+              activeOpacity={1}
+              onPress={handleCloseModal}
+            />
+            <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
+                <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
+                  <IconSymbol
+                    ios_icon_name="xmark"
+                    android_material_icon_name="close"
+                    size={24}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Modal Body */}
+              <ScrollView
+                style={styles.modalBody}
+                contentContainerStyle={styles.modalBodyContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                  Name <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
+                  <TextInput
+                    style={[styles.textInput, { color: theme.textPrimary }]}
+                    placeholder="Enter their name"
+                    placeholderTextColor={theme.textSecondary}
+                    value={name}
+                    onChangeText={(text) => {
+                      setName(text);
+                      if (nameError && text.trim()) {
+                        setNameError('');
+                      }
+                    }}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    maxLength={50}
+                  />
+                </View>
+                {nameError ? (
+                  <Text style={styles.errorTextSmall}>{nameError}</Text>
+                ) : null}
+
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                  Relationship Type
+                </Text>
+                <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
+                  <TextInput
+                    style={[styles.textInput, { color: theme.textPrimary }]}
+                    placeholder="partner, ex, friend, parent..."
+                    placeholderTextColor={theme.textSecondary}
+                    value={relationshipType}
+                    onChangeText={setRelationshipType}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    maxLength={50}
+                  />
+                </View>
+              </ScrollView>
+
+              {/* Modal Footer */}
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  onPress={handleCloseModal}
+                  style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                  disabled={saving}
+                >
+                  <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleSave}
+                  style={styles.primaryButton}
+                  disabled={saving}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={theme.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.primaryButtonGradient}
+                  >
                     <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
                       Save
                     </Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          </KeyboardAvoidingView>
+        </Modal>
 
-      {/* Premium Feature Modal */}
-      <Modal
-        visible={showPremiumModal}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={handleClosePremiumModal}
-      >
-        <View style={styles.premiumModalOverlay}>
-          <TouchableOpacity
-            style={styles.premiumModalBackdrop}
-            activeOpacity={1}
-            onPress={handleClosePremiumModal}
-          />
-          <View style={[styles.premiumModalContent, { backgroundColor: theme.card }]}>
-            <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
-              <IconSymbol
-                ios_icon_name="star.fill"
-                android_material_icon_name="star"
-                size={48}
-                color="#FFD700"
-              />
-            </View>
-            
-            <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
-              Premium feature
-            </Text>
-            
-            <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
-              Upgrade your plan to add more people.
-            </Text>
+        {/* Premium Feature Modal */}
+        <Modal
+          visible={showPremiumModal}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={handleClosePremiumModal}
+        >
+          <View style={styles.premiumModalOverlay}>
+            <TouchableOpacity
+              style={styles.premiumModalBackdrop}
+              activeOpacity={1}
+              onPress={handleClosePremiumModal}
+            />
+            <View style={[styles.premiumModalContent, { backgroundColor: theme.card }]}>
+              <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
+                <IconSymbol
+                  ios_icon_name="star.fill"
+                  android_material_icon_name="star"
+                  size={48}
+                  color="#FFD700"
+                />
+              </View>
+              
+              <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
+                Premium feature
+              </Text>
+              
+              <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
+                Upgrade your plan to add more people.
+              </Text>
 
-            <View style={styles.premiumModalButtons}>
-              <TouchableOpacity
-                onPress={handleClosePremiumModal}
-                style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
-                  Not now
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleClosePremiumModal}
-                style={styles.premiumPrimaryButton}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#FFD700', '#FFA500']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.premiumPrimaryButtonGradient}
+              <View style={styles.premiumModalButtons}>
+                <TouchableOpacity
+                  onPress={handleClosePremiumModal}
+                  style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.premiumPrimaryButtonText}>
-                    Learn about Premium
+                  <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
+                    Not now
                   </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleClosePremiumModal}
+                  style={styles.premiumPrimaryButton}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#FFD700', '#FFA500']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.premiumPrimaryButtonGradient}
+                  >
+                    <Text style={styles.premiumPrimaryButtonText}>
+                      Learn about Premium
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
-    </View>
+        </Modal>
+      </View>
+      
+      <LoadingOverlay visible={loading && !error} />
+    </>
   );
 }
 
@@ -537,10 +547,6 @@ const styles = StyleSheet.create({
   retryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  loadingContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
   },
   emptyState: {
     alignItems: 'center',
