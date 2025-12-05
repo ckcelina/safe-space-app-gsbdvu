@@ -255,8 +255,8 @@ export default function HomeScreen() {
   const getPlanInfo = () => {
     if (role === 'premium') {
       return {
-        text: 'Plan: PREMIUM',
-        subtext: 'You have full access',
+        text: 'Plan: Premium',
+        subtext: 'Full access',
         icon: 'star.fill' as const,
         iconColor: '#FFD700',
         badgeColor: '#FFD700',
@@ -264,7 +264,7 @@ export default function HomeScreen() {
       };
     } else if (role === 'admin') {
       return {
-        text: 'Plan: ADMIN',
+        text: 'Plan: Admin',
         subtext: 'Full access',
         icon: 'shield.fill' as const,
         iconColor: '#FF6B6B',
@@ -330,11 +330,6 @@ export default function HomeScreen() {
               {/* Header */}
               <View style={styles.header}>
                 <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
-                {isPremium && (
-                  <View style={styles.premiumBadge}>
-                    <Text style={styles.premiumBadgeText}>⭐ Premium</Text>
-                  </View>
-                )}
                 <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
                   Who would you like to talk about today?
                 </Text>
@@ -358,11 +353,6 @@ export default function HomeScreen() {
                       >
                         {planInfo.text}
                       </Text>
-                      {planInfo.showBadge && (
-                        <View style={[styles.premiumPillBadge, { backgroundColor: planInfo.badgeColor }]}>
-                          <Text style={styles.premiumPillBadgeText}>PREMIUM</Text>
-                        </View>
-                      )}
                     </View>
                   </View>
                   {planInfo.subtext && (
@@ -702,20 +692,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  premiumBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 215, 0, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
     marginBottom: 8,
-  },
-  premiumBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFD700',
   },
   headerSubtitle: {
     fontSize: 16,
@@ -747,24 +724,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 8,
     minWidth: 0,
   },
   planText: {
     fontSize: 14,
     fontWeight: '600',
     flexShrink: 1,
-  },
-  premiumPillBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  premiumPillBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
   },
   planSubtext: {
     fontSize: 12,
