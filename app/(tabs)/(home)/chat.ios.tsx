@@ -35,8 +35,11 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const [aiTyping, setAiTyping] = useState(false);
+  
+  // Local state as per requirements
+  const [isSendingUserMessage, setIsSendingUserMessage] = useState(false);
+  const [isWaitingForAI, setIsWaitingForAI] = useState(false);
+  
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Character limits
@@ -85,6 +88,13 @@ export default function ChatScreen() {
     }
   }, [userId, personId, fetchMessages]);
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => scrollToBottom(), 100);
+    }
+  }, [messages.length]);
+
   const scrollToBottom = () => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   };
@@ -102,18 +112,26 @@ export default function ChatScreen() {
 
   const sendMessage = async () => {
     const trimmedText = inputText.trim();
-    if (!trimmedText || sending || !userId || !personId || isOverLimit) {
+    
+    // Step 1: If trimmed text is empty OR isWaitingForAI is true → do nothing
+    if (!trimmedText || isWaitingForAI || !userId || !personId || isOverLimit) {
+      console.log('Send blocked:', { 
+        emptyText: !trimmedText, 
+        waitingForAI: isWaitingForAI,
+        overLimit: isOverLimit 
+      });
       return;
     }
 
     const messageContent = trimmedText;
-    setInputText('');
-    setSending(true);
+    
+    // Step 2: Set isSendingUserMessage = true
+    setIsSendingUserMessage(true);
 
     try {
       console.log('Sending user message:', messageContent);
 
-      // 1. Insert user message
+      // Step 3: Insert the user message into public.messages
       const { data: userMessage, error: userError } = await supabase
         .from('messages')
         .insert([
@@ -130,37 +148,35 @@ export default function ChatScreen() {
       if (userError) {
         console.error('Error inserting user message:', userError);
         showErrorToast('Failed to send message. Please try again.');
-        setInputText(messageContent); // Restore the message
-        setSending(false);
+        setIsSendingUserMessage(false);
         return;
       }
 
       console.log('User message inserted:', userMessage.id);
       
-      // 2. Optimistically append user message to the list
+      // Step 4: Clear the input, scroll to bottom
+      setInputText('');
       setMessages((prev) => [...prev, userMessage]);
       setTimeout(() => scrollToBottom(), 100);
 
-      // 3. Show AI typing indicator
-      setAiTyping(true);
+      // Step 5: Set isSendingUserMessage = false and isWaitingForAI = true
+      setIsSendingUserMessage(false);
+      setIsWaitingForAI(true);
 
-      // 4. Generate AI reply via Edge Function
+      // Generate AI reply via Edge Function
       const aiReplyText = await generateAIReply(personId, [...messages, userMessage]);
       
-      // 5. Hide AI typing indicator
-      setAiTyping(false);
-
-      // 6. Handle AI reply error
+      // Handle AI reply error
       if (!aiReplyText) {
         console.error('Failed to generate AI reply');
         showErrorToast('I had trouble replying. Please try again.');
-        setSending(false);
+        setIsWaitingForAI(false);
         return;
       }
 
       console.log('AI reply generated:', aiReplyText);
 
-      // 7. Insert AI message
+      // Insert AI message
       const { data: aiMessage, error: aiError } = await supabase
         .from('messages')
         .insert([
@@ -177,21 +193,26 @@ export default function ChatScreen() {
       if (aiError) {
         console.error('Error inserting AI message:', aiError);
         showErrorToast('AI response generated but failed to save.');
+        setIsWaitingForAI(false);
       } else {
         console.log('AI message inserted:', aiMessage.id);
-        // 8. Append AI message to the list
+        // When AI reply is inserted: Set isWaitingForAI = false and auto-scroll
         setMessages((prev) => [...prev, aiMessage]);
+        setIsWaitingForAI(false);
         setTimeout(() => scrollToBottom(), 100);
       }
     } catch (err: any) {
       console.error('Unexpected error sending message:', err);
       showErrorToast('An unexpected error occurred');
-      setInputText(messageContent); // Restore the message
-      setAiTyping(false);
-    } finally {
-      setSending(false);
+      setIsSendingUserMessage(false);
+      setIsWaitingForAI(false);
     }
   };
+
+  // Send button should be disabled when:
+  // - the input is empty OR only spaces
+  // - an AI reply is currently pending
+  const isSendDisabled = !inputText.trim() || isWaitingForAI || loading || isOverLimit;
 
   return (
     <KeyboardAvoidingView
@@ -284,8 +305,8 @@ export default function ChatScreen() {
             </>
           )}
 
-          {/* AI Typing Indicator */}
-          {aiTyping && <TypingIndicator />}
+          {/* AI Typing Indicator - shown while isWaitingForAI is true */}
+          {isWaitingForAI && <TypingIndicator />}
         </ScrollView>
       )}
 
@@ -300,7 +321,7 @@ export default function ChatScreen() {
               value={inputText}
               onChangeText={handleTextChange}
               multiline
-              editable={!sending && !loading && !aiTyping}
+              editable={!isSendingUserMessage && !loading && !isWaitingForAI}
             />
           </View>
 
@@ -317,14 +338,15 @@ export default function ChatScreen() {
           )}
         </View>
 
+        {/* Send button: Dimmed + non-pressable when disabled, uses theme color when active */}
         <TouchableOpacity
           style={[
             styles.sendButton,
             { backgroundColor: theme.primary },
-            (!inputText.trim() || sending || loading || isOverLimit || aiTyping) && styles.sendButtonDisabled,
+            isSendDisabled && styles.sendButtonDisabled,
           ]}
           onPress={sendMessage}
-          disabled={!inputText.trim() || sending || loading || isOverLimit || aiTyping}
+          disabled={isSendDisabled}
           activeOpacity={0.7}
         >
           <IconSymbol
@@ -476,6 +498,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   sendButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
 });
