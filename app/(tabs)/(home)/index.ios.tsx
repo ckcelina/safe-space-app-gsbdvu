@@ -159,6 +159,10 @@ export default function HomeScreen() {
     });
   };
 
+  const handleSettingsPress = () => {
+    router.push('/(tabs)/settings');
+  };
+
   if (authLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -173,6 +177,23 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Header with Settings Icon */}
+      <View style={styles.topHeader}>
+        <View style={styles.headerSpacer} />
+        <TouchableOpacity 
+          onPress={handleSettingsPress} 
+          style={styles.settingsButton}
+          activeOpacity={0.7}
+        >
+          <IconSymbol
+            ios_icon_name="gearshape.fill"
+            android_material_icon_name="settings"
+            size={24}
+            color={theme.textPrimary}
+          />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -457,11 +478,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  topHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 8,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  settingsButton: {
+    padding: 8,
+    borderRadius: 20,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 20,
     paddingHorizontal: 24,
     paddingBottom: 120,
   },
