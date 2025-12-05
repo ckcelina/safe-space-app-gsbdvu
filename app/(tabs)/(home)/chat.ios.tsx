@@ -28,7 +28,7 @@ export default function ChatScreen() {
     personName: string;
     relationshipType?: string;
   }>();
-  const { userId } = useAuth();
+  const { userId, isPremium } = useAuth();
   const { theme } = useThemeContext();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -36,6 +36,10 @@ export default function ChatScreen() {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Character limits
+  const MAX_CHARS = isPremium ? 1500 : 400;
+  const isOverLimit = inputText.length > MAX_CHARS;
 
   const fetchMessages = useCallback(async () => {
     if (!userId || !personId) {
@@ -85,9 +89,16 @@ export default function ChatScreen() {
     fetchMessages();
   };
 
+  const handleTextChange = (text: string) => {
+    // Prevent typing beyond the limit
+    if (text.length <= MAX_CHARS) {
+      setInputText(text);
+    }
+  };
+
   const sendMessage = async () => {
     const trimmedText = inputText.trim();
-    if (!trimmedText || sending || !userId || !personId) {
+    if (!trimmedText || sending || !userId || !personId || isOverLimit) {
       return;
     }
 
@@ -281,27 +292,40 @@ export default function ChatScreen() {
 
       {/* Input Bar */}
       <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-        <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
-          <TextInput
-            style={[styles.input, { color: theme.textPrimary }]}
-            placeholder="Tell me what's going on…"
-            placeholderTextColor={theme.textSecondary}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            maxLength={1000}
-            editable={!sending && !loading}
-          />
+        <View style={styles.inputColumn}>
+          <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
+            <TextInput
+              style={[styles.input, { color: theme.textPrimary }]}
+              placeholder="Tell me what's going on…"
+              placeholderTextColor={theme.textSecondary}
+              value={inputText}
+              onChangeText={handleTextChange}
+              multiline
+              editable={!sending && !loading}
+            />
+          </View>
+
+          {/* Character limit warning for free users */}
+          {!isPremium && inputText.length >= MAX_CHARS * 0.8 && (
+            <View style={styles.limitWarning}>
+              <Text style={[styles.limitWarningText, { color: inputText.length >= MAX_CHARS ? '#FF3B30' : theme.textSecondary }]}>
+                {inputText.length >= MAX_CHARS 
+                  ? 'Upgrade to Premium to send longer messages.'
+                  : `${inputText.length}/${MAX_CHARS} characters`
+                }
+              </Text>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity
           style={[
             styles.sendButton,
             { backgroundColor: theme.primary },
-            (!inputText.trim() || sending || loading) && styles.sendButtonDisabled,
+            (!inputText.trim() || sending || loading || isOverLimit) && styles.sendButtonDisabled,
           ]}
           onPress={sendMessage}
-          disabled={!inputText.trim() || sending || loading}
+          disabled={!inputText.trim() || sending || loading || isOverLimit}
           activeOpacity={0.7}
         >
           <IconSymbol
@@ -430,8 +454,10 @@ const styles = StyleSheet.create({
     boxShadow: '0px -2px 4px rgba(0, 0, 0, 0.08)',
     elevation: 4,
   },
-  inputWrapper: {
+  inputColumn: {
     flex: 1,
+  },
+  inputWrapper: {
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -440,6 +466,14 @@ const styles = StyleSheet.create({
   input: {
     fontSize: 16,
     lineHeight: 20,
+  },
+  limitWarning: {
+    marginTop: 6,
+    paddingHorizontal: 4,
+  },
+  limitWarningText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   sendButton: {
     width: 44,

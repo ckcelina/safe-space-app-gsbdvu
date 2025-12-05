@@ -16,12 +16,13 @@ interface PersonWithLastMessage extends Person {
 }
 
 export default function HomeScreen() {
-  const { currentUser, userId, loading: authLoading } = useAuth();
+  const { currentUser, userId, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
   const [persons, setPersons] = useState<PersonWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [name, setName] = useState('');
   const [relationshipType, setRelationshipType] = useState('');
   const [nameError, setNameError] = useState('');
@@ -83,6 +84,12 @@ export default function HomeScreen() {
   }, [userId, fetchPersonsWithLastMessage]);
 
   const handleAddPerson = () => {
+    // Check if free user has reached the limit
+    if (!isPremium && persons.length >= 2) {
+      setShowPremiumModal(true);
+      return;
+    }
+
     setShowAddModal(true);
     setName('');
     setRelationshipType('');
@@ -94,6 +101,10 @@ export default function HomeScreen() {
     setName('');
     setRelationshipType('');
     setNameError('');
+  };
+
+  const handleClosePremiumModal = () => {
+    setShowPremiumModal(false);
   };
 
   const handleSave = async () => {
@@ -172,6 +183,19 @@ export default function HomeScreen() {
           <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Safe Space</Text>
           <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
             Who would you like to talk about today?
+          </Text>
+        </View>
+
+        {/* Plan Chip */}
+        <View style={[styles.planChip, { backgroundColor: theme.card }]}>
+          <IconSymbol
+            ios_icon_name={isPremium ? 'star.fill' : 'lock.fill'}
+            android_material_icon_name={isPremium ? 'star' : 'lock'}
+            size={16}
+            color={isPremium ? '#FFD700' : theme.textSecondary}
+          />
+          <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
+            {isPremium ? 'Plan: Premium – Full access' : 'Plan: Free – Some features are locked'}
           </Text>
         </View>
 
@@ -362,6 +386,69 @@ export default function HomeScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Premium Feature Modal */}
+      <Modal
+        visible={showPremiumModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={handleClosePremiumModal}
+      >
+        <View style={styles.premiumModalOverlay}>
+          <TouchableOpacity
+            style={styles.premiumModalBackdrop}
+            activeOpacity={1}
+            onPress={handleClosePremiumModal}
+          />
+          <View style={[styles.premiumModalContent, { backgroundColor: theme.card }]}>
+            <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
+              <IconSymbol
+                ios_icon_name="star.fill"
+                android_material_icon_name="star"
+                size={48}
+                color="#FFD700"
+              />
+            </View>
+            
+            <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
+              Premium feature
+            </Text>
+            
+            <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
+              Upgrade your plan to add more people.
+            </Text>
+
+            <View style={styles.premiumModalButtons}>
+              <TouchableOpacity
+                onPress={handleClosePremiumModal}
+                style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
+                  Not now
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleClosePremiumModal}
+                style={styles.premiumPrimaryButton}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.premiumPrimaryButtonGradient}
+                >
+                  <Text style={styles.premiumPrimaryButtonText}>
+                    Learn about Premium
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -379,7 +466,7 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   headerTitle: {
     fontSize: 32,
@@ -389,6 +476,22 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 16,
     lineHeight: 22,
+  },
+  planChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginBottom: 24,
+    gap: 8,
+    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
+    elevation: 2,
+  },
+  planChipText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   addButtonContainer: {
     marginBottom: 32,
@@ -567,6 +670,80 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Premium Modal styles
+  premiumModalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  premiumModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  premiumModalContent: {
+    borderRadius: 24,
+    padding: 32,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.2)',
+    elevation: 10,
+  },
+  premiumIconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
+  },
+  premiumModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  premiumModalText: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  premiumModalButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  premiumSecondaryButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 50,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumSecondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  premiumPrimaryButton: {
+    flex: 1,
+    borderRadius: 50,
+    overflow: 'hidden',
+  },
+  premiumPrimaryButtonGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: 'bold',
   },
 });

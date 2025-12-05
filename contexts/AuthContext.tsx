@@ -18,6 +18,7 @@ interface AuthContextType {
   userId: string | null;
   email: string | null;
   role: 'free' | 'premium' | 'admin';
+  isPremium: boolean;
   loading: boolean;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
@@ -202,6 +203,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Compute isPremium based on role
+  const userRole = user?.role ?? 'free';
+  const isPremium = userRole === 'premium' || userRole === 'admin';
+
   return (
     <AuthContext.Provider
       value={{
@@ -210,7 +215,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         userId: currentUser?.id ?? null,
         email: currentUser?.email ?? null,
-        role: user?.role ?? 'free',
+        role: userRole,
+        isPremium,
         loading,
         signUp,
         signIn,
