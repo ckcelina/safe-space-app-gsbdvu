@@ -41,7 +41,7 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
         </View>
 
         <IconSymbol
-          ios_icon_name="ellipsis.circle.fill"
+          ios_icon_name="ellipsis"
           android_material_icon_name="more_vert"
           size={24}
           color={theme.textSecondary}
