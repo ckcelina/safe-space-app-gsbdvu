@@ -31,7 +31,9 @@ export default function LoginScreen() {
 
     try {
       console.log('Attempting to sign in:', email);
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      
+      // Step 1: Sign in with Supabase Auth
+      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -39,15 +41,64 @@ export default function LoginScreen() {
       if (signInError) {
         console.error('Sign in error:', signInError);
         setError('Invalid email or password. Please try again.');
+        setIsLoading(false);
         return;
       }
 
-      console.log('Sign in successful:', data.user?.email);
+      if (!authData.user) {
+        console.error('No user returned from sign in');
+        setError('Login failed. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Sign in successful:', authData.user.email);
+
+      // Step 2: Fetch or create user profile in public.users
+      const userId = authData.user.id;
+      console.log('Fetching user profile for:', userId);
+
+      const { data: userProfile, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        // PGRST116 is "not found" error, which is expected for new users
+        console.error('Error fetching user profile:', fetchError);
+      }
+
+      // Step 3: If user profile doesn't exist, create it
+      if (!userProfile) {
+        console.log('User profile not found, creating one...');
+        const { data: newProfile, error: insertError } = await supabase
+          .from('users')
+          .insert([{
+            id: userId,
+            email: authData.user.email,
+            role: 'free',
+          }])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.warn('Failed to create user profile:', insertError);
+          // Don't block login if profile creation fails
+        } else {
+          console.log('User profile created successfully:', newProfile);
+        }
+      } else {
+        console.log('User profile found:', userProfile);
+      }
+
+      // Step 4: Navigate to Home screen
+      console.log('Navigating to Home screen...');
       router.replace('/(tabs)/(home)/');
+      
     } catch (err: any) {
       console.error('Unexpected login error:', err);
-      setError('Invalid email or password. Please try again.');
-    } finally {
+      setError('An unexpected error occurred. Please try again.');
       setIsLoading(false);
     }
   };
@@ -173,6 +224,7 @@ const styles = StyleSheet.create({
     color: '#FF4444',
     fontSize: 14,
     textAlign: 'center',
+    fontWeight: '500',
   },
   buttonSpacing: {
     height: 8,

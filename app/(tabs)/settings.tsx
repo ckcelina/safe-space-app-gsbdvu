@@ -23,7 +23,7 @@ import { deleteUserAccount } from '@/utils/accountDeletion';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 export default function SettingsScreen() {
-  const { email, role, userId } = useAuth();
+  const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -37,12 +37,12 @@ export default function SettingsScreen() {
     { key: 'OceanBlue', name: 'Ocean Blue' },
     { key: 'SoftRose', name: 'Soft Rose' },
     { key: 'ForestGreen', name: 'Forest Green' },
-    { key: 'SunnyYellow', name: 'Sunny Yellow' },
   ];
 
   const handleThemeSelect = async (themeKey: ThemeKey) => {
     setSelectedTheme(themeKey);
     await setTheme(themeKey);
+    showSuccessToast('Theme updated!');
   };
 
   const handleSignOut = () => {
@@ -55,11 +55,8 @@ export default function SettingsScreen() {
           text: 'Log Out',
           style: 'destructive',
           onPress: async () => {
-            const { signOut } = useAuth.getState?.() || {};
-            if (signOut) {
-              await signOut();
-            }
-            router.replace('/login');
+            await signOut();
+            router.replace('/onboarding');
           },
         },
       ]
@@ -112,21 +109,27 @@ export default function SettingsScreen() {
   const getPlanDisplay = () => {
     if (role === 'admin') {
       return { 
-        text: 'Plan: Admin – full access + management', 
+        text: 'Admin', 
+        fullText: 'Full access + management',
         icon: 'shield.fill', 
-        androidIcon: 'shield' 
+        androidIcon: 'shield',
+        color: '#FF6B6B'
       };
     } else if (role === 'premium') {
       return { 
-        text: 'Plan: Premium – full access', 
-        icon: 'crown.fill', 
-        androidIcon: 'workspace_premium' 
+        text: 'Premium', 
+        fullText: 'Full access',
+        icon: 'star.fill', 
+        androidIcon: 'star',
+        color: '#FFD700'
       };
     }
     return { 
-      text: 'Plan: Free', 
-      icon: null, 
-      androidIcon: null 
+      text: 'Free', 
+      fullText: 'Limited features',
+      icon: 'lock.fill', 
+      androidIcon: 'lock',
+      color: theme.textSecondary
     };
   };
 
@@ -185,31 +188,24 @@ export default function SettingsScreen() {
                   <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
                     Email
                   </Text>
-                  <Text style={[styles.rowValue, { color: theme.textPrimary }]}>
+                  <Text style={[styles.rowValue, { color: theme.textPrimary }]} numberOfLines={1}>
                     {email || 'Not available'}
                   </Text>
                 </View>
 
                 {/* Plan Row */}
                 <View style={[styles.row, { borderBottomWidth: 0 }]}>
-                  <View style={styles.planContainer}>
-                    {planInfo.icon && (
-                      <IconSymbol
-                        ios_icon_name={planInfo.icon}
-                        android_material_icon_name={planInfo.androidIcon || 'star'}
-                        size={18}
-                        color={role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary}
-                        style={styles.planIcon}
-                      />
-                    )}
-                    <Text
-                      style={[
-                        styles.planText,
-                        {
-                          color: role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary,
-                        },
-                      ]}
-                    >
+                  <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
+                    Current Plan
+                  </Text>
+                  <View style={styles.planBadge}>
+                    <IconSymbol
+                      ios_icon_name={planInfo.icon}
+                      android_material_icon_name={planInfo.androidIcon}
+                      size={16}
+                      color={planInfo.color}
+                    />
+                    <Text style={[styles.planBadgeText, { color: planInfo.color }]}>
                       {planInfo.text}
                     </Text>
                   </View>
@@ -270,7 +266,13 @@ export default function SettingsScreen() {
                 onPress={handleSignOut}
                 activeOpacity={0.8}
               >
-                <Text style={styles.logoutText}>Log out</Text>
+                <IconSymbol
+                  ios_icon_name="arrow.right.square.fill"
+                  android_material_icon_name="logout"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.logoutText}>Log Out</Text>
               </TouchableOpacity>
 
               {/* Danger Zone */}
@@ -439,19 +441,22 @@ const styles = StyleSheet.create({
   rowValue: {
     fontSize: 16,
     fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: 16,
   },
-  planContainer: {
+  planBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
   },
-  planIcon: {
-    marginRight: 8,
-  },
-  planText: {
-    fontSize: 16,
+  planBadgeText: {
+    fontSize: 15,
     fontWeight: '600',
-    flex: 1,
   },
   label: {
     fontSize: 16,
@@ -480,6 +485,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 16,
     marginTop: 32,
+    gap: 8,
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
     elevation: 3,
   },
