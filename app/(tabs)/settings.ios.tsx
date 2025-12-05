@@ -38,6 +38,7 @@ export default function SettingsScreen() {
     { key: 'OceanBlue', name: 'Ocean Blue' },
     { key: 'SoftRose', name: 'Soft Rose' },
     { key: 'ForestGreen', name: 'Forest Green' },
+    { key: 'SunnyYellow', name: 'Sunny Yellow' },
   ];
 
   const handleThemeSelect = async (themeKey: ThemeKey) => {
@@ -267,7 +268,7 @@ export default function SettingsScreen() {
                             selectedTheme === themeOption.key
                               ? theme.primary
                               : theme.background,
-                          borderColor: theme.primary,
+                          borderColor: selectedTheme === themeOption.key ? theme.primary : '#E0E0E0',
                         },
                       ]}
                       onPress={() => handleThemeSelect(themeOption.key)}
