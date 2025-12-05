@@ -24,11 +24,24 @@ export default function TabLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: 'none',
+          animation: 'default',
+          gestureEnabled: true,
         }}
       >
-        <Stack.Screen key="home" name="(home)" />
-        <Stack.Screen key="settings" name="settings" />
+        <Stack.Screen 
+          key="home" 
+          name="(home)" 
+          options={{
+            gestureEnabled: false,
+          }}
+        />
+        <Stack.Screen 
+          key="settings" 
+          name="settings"
+          options={{
+            gestureEnabled: false,
+          }}
+        />
       </Stack>
       <FloatingTabBar tabs={tabs} />
     </>

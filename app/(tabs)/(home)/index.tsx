@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 import { router, Redirect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -9,7 +10,7 @@ import { Person } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
-import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 interface PersonWithLastMessage extends Person {
@@ -188,6 +189,7 @@ export default function HomeScreen() {
   return (
     <>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <StatusBarGradient />
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}

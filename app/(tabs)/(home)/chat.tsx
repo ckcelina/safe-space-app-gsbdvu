@@ -19,6 +19,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { ChatBubble } from '@/components/ui/ChatBubble';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { generateAIReply } from '@/utils/aiHelpers';
 import { showErrorToast } from '@/utils/toast';
 
@@ -199,6 +200,8 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
+        <StatusBarGradient />
+        
         {/* Header */}
         <View style={[styles.header, { backgroundColor: theme.card }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>

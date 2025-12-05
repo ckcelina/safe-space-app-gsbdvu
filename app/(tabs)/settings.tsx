@@ -8,13 +8,13 @@ import {
   ScrollView,
   Alert,
   Platform,
-  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 
 export default function SettingsScreen() {
   const { currentUser, email, role, signOut } = useAuth();
@@ -92,6 +92,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBarGradient />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

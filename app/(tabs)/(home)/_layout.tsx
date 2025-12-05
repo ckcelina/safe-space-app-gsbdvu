@@ -4,12 +4,18 @@ import { Stack } from 'expo-router';
 
 export default function HomeLayout() {
   return (
-    <Stack>
+    <Stack
+      screenOptions={{
+        gestureEnabled: true,
+        animation: 'default',
+      }}
+    >
       <Stack.Screen
         name="index"
         options={{
           headerShown: false,
-          title: 'Home'
+          title: 'Home',
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen
@@ -18,6 +24,7 @@ export default function HomeLayout() {
           headerShown: false,
           title: 'Add Person',
           presentation: 'modal',
+          gestureEnabled: true,
         }}
       />
       <Stack.Screen
@@ -25,6 +32,7 @@ export default function HomeLayout() {
         options={{
           headerShown: false,
           title: 'Chat',
+          gestureEnabled: true,
         }}
       />
     </Stack>

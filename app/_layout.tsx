@@ -81,7 +81,7 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style="auto" animated />
+      <StatusBar style="dark" animated translucent={false} />
       <ThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
       >
@@ -89,17 +89,53 @@ export default function RootLayout() {
           <AuthProvider>
             <WidgetProvider>
               <GestureHandlerRootView>
-                <Stack>
-                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                  <Stack.Screen name="theme-selection" options={{ headerShown: false }} />
-                  <Stack.Screen name="signup" options={{ headerShown: false }} />
-                  <Stack.Screen name="login" options={{ headerShown: false }} />
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack
+                  screenOptions={{
+                    gestureEnabled: true,
+                    animation: 'default',
+                  }}
+                >
+                  <Stack.Screen 
+                    name="onboarding" 
+                    options={{ 
+                      headerShown: false,
+                      gestureEnabled: false,
+                    }} 
+                  />
+                  <Stack.Screen 
+                    name="theme-selection" 
+                    options={{ 
+                      headerShown: false,
+                      gestureEnabled: true,
+                    }} 
+                  />
+                  <Stack.Screen 
+                    name="signup" 
+                    options={{ 
+                      headerShown: false,
+                      gestureEnabled: true,
+                    }} 
+                  />
+                  <Stack.Screen 
+                    name="login" 
+                    options={{ 
+                      headerShown: false,
+                      gestureEnabled: true,
+                    }} 
+                  />
+                  <Stack.Screen 
+                    name="(tabs)" 
+                    options={{ 
+                      headerShown: false,
+                      gestureEnabled: false,
+                    }} 
+                  />
                   <Stack.Screen
                     name="modal"
                     options={{
                       presentation: "modal",
                       title: "Standard Modal",
+                      gestureEnabled: true,
                     }}
                   />
                   <Stack.Screen
@@ -110,6 +146,7 @@ export default function RootLayout() {
                       sheetGrabberVisible: true,
                       sheetAllowedDetents: [0.5, 0.8, 1.0],
                       sheetCornerRadius: 20,
+                      gestureEnabled: true,
                     }}
                   />
                   <Stack.Screen
@@ -117,6 +154,14 @@ export default function RootLayout() {
                     options={{
                       presentation: "transparentModal",
                       headerShown: false,
+                      gestureEnabled: true,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="edit-profile"
+                    options={{
+                      headerShown: false,
+                      gestureEnabled: true,
                     }}
                   />
                 </Stack>

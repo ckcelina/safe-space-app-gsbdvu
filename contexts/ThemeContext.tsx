@@ -12,6 +12,7 @@ export interface Theme {
   textPrimary: string;
   textSecondary: string;
   buttonText: string;
+  statusBarGradient: [string, string]; // NEW: Light gradient for status bar
 }
 
 interface ThemeContextType {
@@ -33,6 +34,7 @@ const oceanBlueTheme: Theme = {
   textPrimary: '#001529',
   textSecondary: '#595959',
   buttonText: '#FFFFFF',
+  statusBarGradient: ['#F0F9FF', '#E6F7FF'], // Very light blue gradient
 };
 
 // Soft Rose Theme - Gentle and nurturing
@@ -44,6 +46,7 @@ const softRoseTheme: Theme = {
   textPrimary: '#4A1F2F',
   textSecondary: '#8B5A6B',
   buttonText: '#FFFFFF',
+  statusBarGradient: ['#FFF5F9', '#FFF0F5'], // Very light rose gradient
 };
 
 // Forest Green Theme - Grounded and peaceful
@@ -55,6 +58,7 @@ const forestGreenTheme: Theme = {
   textPrimary: '#1B4D1B',
   textSecondary: '#4A7C4A',
   buttonText: '#FFFFFF',
+  statusBarGradient: ['#F5FBF5', '#F0F8F0'], // Very light green gradient
 };
 
 // Sunny Yellow Theme - Bright and uplifting
@@ -66,6 +70,7 @@ const sunnyYellowTheme: Theme = {
   textPrimary: '#5C4A1A',
   textSecondary: '#8B7355',
   buttonText: '#FFFFFF',
+  statusBarGradient: ['#FFFEF5', '#FFFBEA'], // Very light yellow gradient
 };
 
 const themes: Record<ThemeKey, Theme> = {
