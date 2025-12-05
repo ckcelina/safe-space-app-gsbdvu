@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
+import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
 
 export default function SettingsScreen() {
   const { email, role, signOut } = useAuth();
@@ -170,6 +171,9 @@ export default function SettingsScreen() {
             ))}
           </View>
         </View>
+
+        {/* Widget Preview Card */}
+        <WidgetPreviewCard />
 
         {/* Log Out Button */}
         <TouchableOpacity
