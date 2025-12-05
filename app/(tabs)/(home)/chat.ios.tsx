@@ -20,7 +20,7 @@ import { ChatBubble } from '@/components/ui/ChatBubble';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
-import { generateAIReply } from '@/utils/aiHelpers';
+import { generateAIReply } from '@/api/ai';
 import { showErrorToast } from '@/utils/toast';
 
 export default function ChatScreen() {
@@ -120,7 +120,8 @@ export default function ChatScreen() {
 
     const messageContent = trimmedText;
     
-    // Step 2: Set isSendingUserMessage = true
+    // Step 2: Clear input immediately and set sending state
+    setInputText('');
     setIsSendingUserMessage(true);
 
     try {
@@ -149,8 +150,7 @@ export default function ChatScreen() {
 
       console.log('User message inserted:', userMessage.id);
       
-      // Step 4: Clear the input, show message immediately, scroll to bottom
-      setInputText('');
+      // Step 4: Append user message to local state and scroll to bottom
       setMessages((prev) => [...prev, userMessage]);
       setTimeout(() => scrollToBottom(), 100);
 
@@ -159,23 +159,25 @@ export default function ChatScreen() {
       setIsWaitingForAI(true);
 
       // Step 6: Call generateAIReply with the last 10 messages
+      // Map messages: role 'user' → 'user', role 'assistant' → 'assistant'
       const allMessages = [...messages, userMessage];
       const last10Messages = allMessages.slice(-10).map((m) => ({
-        role: m.role,
+        role: m.role as 'user' | 'assistant',
         content: m.content,
       }));
 
+      console.log('Calling generateAIReply with', last10Messages.length, 'messages');
       const aiReplyText = await generateAIReply({
-        user_id: userId,
-        person_id: personId,
-        person_name: personName || 'Unknown',
-        relationship_type: relationshipType || 'unknown',
+        userId: userId,
+        personId: personId,
+        personName: personName || 'Unknown',
+        relationshipType: relationshipType || null,
         messages: last10Messages,
       });
 
-      console.log('AI reply generated:', aiReplyText);
+      console.log('AI reply generated:', aiReplyText.substring(0, 50) + '...');
 
-      // Step 7: Insert AI message with sender = 'ai' (role = 'assistant')
+      // Step 7: Insert AI message with role = 'assistant'
       const { data: aiMessage, error: aiError } = await supabase
         .from('messages')
         .insert([
@@ -203,10 +205,11 @@ export default function ChatScreen() {
         setMessages((prev) => [...prev, fallbackMessage]);
       } else {
         console.log('AI message inserted:', aiMessage.id);
-        // Step 8: Hide typing indicator, add message, scroll to bottom
+        // Step 8: Append AI message to local state
         setMessages((prev) => [...prev, aiMessage]);
       }
 
+      // Hide typing indicator and scroll to bottom
       setIsWaitingForAI(false);
       setTimeout(() => scrollToBottom(), 100);
     } catch (err: any) {
@@ -223,6 +226,7 @@ export default function ChatScreen() {
       setMessages((prev) => [...prev, fallbackMessage]);
       setIsSendingUserMessage(false);
       setIsWaitingForAI(false);
+      setTimeout(() => scrollToBottom(), 100);
     }
   };
 
