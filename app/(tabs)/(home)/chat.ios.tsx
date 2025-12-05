@@ -24,67 +24,89 @@ import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { showErrorToast } from '@/utils/toast';
 
 export default function ChatScreen() {
-  const { personId, personName, relationshipType } = useLocalSearchParams<{
+  const params = useLocalSearchParams<{
     personId: string;
     personName: string;
     relationshipType?: string;
   }>();
+  
+  const personId = params.personId;
+  const personName = params.personName;
+  const relationshipType = params.relationshipType;
+
+  // Warn if params are missing but don't crash
+  useEffect(() => {
+    if (!personId) {
+      console.warn('[Chat] Missing personId param');
+    }
+    if (!personName) {
+      console.warn('[Chat] Missing personName param');
+    }
+  }, [personId, personName]);
+
   const { userId, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
+  
+  // Local state as specified
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isAITyping, setIsAITyping] = useState(false);
-  const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
-  const [showAIError, setShowAIError] = useState(false);
   
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Determine if user is free
   const isFreeUser = role === 'free';
 
-  const fetchMessages = useCallback(async () => {
-    if (!userId || !personId) {
-      console.log('Missing userId or personId');
+  const scrollToBottom = () => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  };
+
+  // Load messages on mount
+  const loadMessages = useCallback(async () => {
+    if (!personId) {
+      console.warn('[Chat] loadMessages: personId is missing');
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching messages for person:', personId, 'user:', userId);
+      console.log('[Chat] Loading messages for person:', personId);
       
-      const { data, error: fetchError } = await supabase
+      const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .eq('user_id', userId)
         .eq('person_id', personId)
         .order('created_at', { ascending: true });
 
-      if (fetchError) {
-        console.error('Error fetching messages:', fetchError);
+      if (error) {
+        console.warn('[Chat] loadMessages error', error);
         setError('Failed to load messages');
-        showErrorToast('Failed to load messages');
-      } else {
-        console.log('Messages loaded:', data?.length || 0);
-        setMessages(data || []);
-        setTimeout(() => scrollToBottom(), 100);
+        return;
       }
+
+      console.log('[Chat] Messages loaded:', data?.length || 0);
+      setMessages(data ?? []);
+      
+      // Scroll to bottom after loading messages
+      setTimeout(() => scrollToBottom(), 100);
     } catch (err: any) {
-      console.error('Unexpected error fetching messages:', err);
+      console.warn('[Chat] loadMessages unexpected error:', err);
       setError('An unexpected error occurred');
-      showErrorToast('Failed to load messages');
     } finally {
       setLoading(false);
     }
-  }, [userId, personId]);
+  }, [personId]);
 
+  // Load messages on mount and when personId changes
   useEffect(() => {
-    if (userId && personId) {
-      fetchMessages();
+    if (personId) {
+      loadMessages();
     }
-  }, [userId, personId, fetchMessages]);
+  }, [personId, loadMessages]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -93,201 +115,88 @@ export default function ChatScreen() {
     }
   }, [messages.length]);
 
-  const scrollToBottom = () => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  };
-
   const handleRetry = () => {
-    fetchMessages();
+    loadMessages();
   };
 
-  const handleTextChange = (text: string) => {
-    setInputText(text);
-  };
-
-  const handleRetryAI = async () => {
-    if (!lastUserMessage || !userId || !personId) {
-      console.log('Cannot retry: missing data');
+  // Send message handler
+  const handleSend = async () => {
+    const text = inputText.trim();
+    if (!text || !personId || isSending) {
+      console.log('[Chat] handleSend blocked:', { text: !!text, personId: !!personId, isSending });
       return;
     }
 
-    console.log('Retrying AI response for last message:', lastUserMessage);
-    setShowAIError(false);
-    setIsAITyping(true);
-
-    try {
-      // Prepare last 10 messages for AI
-      const recentMessages = messages.slice(-10).map((m) => ({
-        sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
-        content: m.content,
-      }));
-
-      console.log('Calling generateAIReply with', recentMessages.length, 'messages');
-      
-      // Call generateAIReply
-      const result = await generateAIReply(personId, recentMessages);
-
-      if (result.success) {
-        console.log('AI reply generated:', result.reply.substring(0, 50) + '...');
-
-        // Insert AI message with sender = 'ai'
-        const { data: aiMessage, error: aiError } = await supabase
-          .from('messages')
-          .insert([
-            {
-              user_id: userId,
-              person_id: personId,
-              sender: 'ai',
-              role: 'assistant',
-              content: result.reply,
-            },
-          ])
-          .select()
-          .single();
-
-        if (aiError) {
-          console.error('Error inserting AI message:', aiError);
-          showErrorToast('Failed to save AI response');
-          // Still show the AI reply locally even if insert fails
-          const fallbackMessage: Message = {
-            id: `fallback-${Date.now()}`,
-            user_id: userId,
-            person_id: personId,
-            sender: 'ai',
-            role: 'assistant',
-            content: result.reply,
-            created_at: new Date().toISOString(),
-          };
-          setMessages((prev) => [...prev, fallbackMessage]);
-        } else {
-          console.log('AI message inserted:', aiMessage.id);
-          setMessages((prev) => [...prev, aiMessage]);
-        }
-
-        setLastUserMessage(null);
-        setShowAIError(false);
-      } else {
-        console.error('AI reply failed:', result.error);
-        setShowAIError(true);
-      }
-
-      setTimeout(() => scrollToBottom(), 100);
-    } catch (err: any) {
-      console.error('Unexpected error retrying AI:', err);
-      setShowAIError(true);
-    } finally {
-      setIsAITyping(false);
-    }
-  };
-
-  const sendMessage = async () => {
-    // Step 1: Validate input
-    const trimmedText = inputText.trim();
-    
-    if (!trimmedText) {
-      console.log('Send blocked: empty text');
-      return;
-    }
-
-    if (!userId || !personId) {
-      console.log('Send blocked: missing user or person ID');
+    if (!userId) {
+      console.warn('[Chat] handleSend: userId is missing');
       showErrorToast('Unable to send message. Please try again.');
       return;
     }
 
-    const messageContent = trimmedText;
-    
-    // Step 2: Clear input immediately for responsive UX
+    setIsSending(true);
     setInputText('');
-    setShowAIError(false);
 
-    // Step 3: Create optimistic user message
-    const optimisticUserMessage: Message = {
-      id: `temp-${Date.now()}`,
-      user_id: userId,
-      person_id: personId,
-      sender: 'user',
-      role: 'user',
-      content: messageContent,
-      created_at: new Date().toISOString(),
-    };
+    console.log('[Chat] Inserting user message:', text.substring(0, 50) + '...');
 
-    // Step 4: Immediately add to chat (optimistic update)
-    setMessages((prev) => [...prev, optimisticUserMessage]);
+    // Insert user message
+    const { data: inserted, error } = await supabase
+      .from('messages')
+      .insert({
+        user_id: userId,
+        person_id: personId,
+        sender: 'user',
+        content: text,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.warn('[Chat] send message error', error);
+      showErrorToast("Couldn't send message. Please try again.");
+      setInputText(text);
+      setIsSending(false);
+      return;
+    }
+
+    console.log('[Chat] User message inserted:', inserted.id);
+
+    // Update UI immediately
+    setMessages(prev => [...prev, inserted]);
     setTimeout(() => scrollToBottom(), 50);
+    
+    // Start AI reply process
+    setIsTyping(true);
 
     try {
-      console.log('Inserting user message:', messageContent.substring(0, 50) + '...');
-
-      // Step 5: Insert user message into database
-      const { data: userMessage, error: userError } = await supabase
-        .from('messages')
-        .insert([
-          {
-            user_id: userId,
-            person_id: personId,
-            sender: 'user',
-            role: 'user',
-            content: messageContent,
-          },
-        ])
-        .select()
-        .single();
-
-      if (userError) {
-        console.error('Error inserting user message:', userError);
-        showErrorToast("Couldn't send message. Please try again.");
-        
-        // Step 6a: On error, remove optimistic message and restore input
-        setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMessage.id));
-        setInputText(messageContent);
-        return;
-      }
-
-      console.log('User message inserted successfully:', userMessage.id);
-      
-      // Step 6b: Replace optimistic message with real database message
-      setMessages((prev) => 
-        prev.map((m) => (m.id === optimisticUserMessage.id ? userMessage : m))
-      );
-
-      // Step 7: Start AI reply process
-      setIsAITyping(true);
-      setLastUserMessage(messageContent);
-
-      // Step 8: Prepare recent messages for AI context (last 10 messages)
-      const currentMessages = messages.filter((m) => m.id !== optimisticUserMessage.id);
-      const allMessages = [...currentMessages, userMessage];
+      // Prepare recent messages for AI context (last 10 messages)
+      const allMessages = [...messages, inserted];
       const recentMessages = allMessages.slice(-10).map((m) => ({
         sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
         content: m.content,
       }));
 
-      console.log('Calling AI with', recentMessages.length, 'messages for context');
+      console.log('[Chat] Calling AI with', recentMessages.length, 'messages for context');
       
-      // Step 9: Call Edge Function to generate AI response
+      // Call Edge Function to generate AI response
       const result = await generateAIReply(personId, recentMessages);
 
       if (result.success) {
-        console.log('AI reply received:', result.reply.substring(0, 50) + '...');
+        console.log('[Chat] AI reply received:', result.reply.substring(0, 50) + '...');
 
-        // Step 10: Insert AI message into database
+        // Insert AI message into database
         const { data: aiMessage, error: aiError } = await supabase
           .from('messages')
-          .insert([
-            {
-              user_id: userId,
-              person_id: personId,
-              sender: 'ai',
-              role: 'assistant',
-              content: result.reply,
-            },
-          ])
+          .insert({
+            user_id: userId,
+            person_id: personId,
+            sender: 'ai',
+            content: result.reply,
+          })
           .select()
           .single();
 
         if (aiError) {
-          console.error('Error inserting AI message:', aiError);
+          console.warn('[Chat] Error inserting AI message:', aiError);
           showErrorToast('Failed to save AI response');
           
           // Show AI reply locally even if database insert fails
@@ -296,40 +205,31 @@ export default function ChatScreen() {
             user_id: userId,
             person_id: personId,
             sender: 'ai',
-            role: 'assistant',
             content: result.reply,
             created_at: new Date().toISOString(),
           };
           setMessages((prev) => [...prev, fallbackMessage]);
         } else {
-          console.log('AI message inserted successfully:', aiMessage.id);
-          // Step 11: Add AI message to chat
+          console.log('[Chat] AI message inserted:', aiMessage.id);
           setMessages((prev) => [...prev, aiMessage]);
         }
-
-        setLastUserMessage(null);
-        setShowAIError(false);
       } else {
-        // AI generation failed
-        console.error('AI reply generation failed:', result.error);
-        setShowAIError(true);
+        console.warn('[Chat] AI reply generation failed:', result.error);
+        showErrorToast('AI had trouble replying. Please try again.');
       }
 
-      // Step 12: Auto-scroll to show new messages
       setTimeout(() => scrollToBottom(), 100);
-      
     } catch (err: any) {
-      console.error('Unexpected error in sendMessage:', err);
+      console.warn('[Chat] Unexpected error generating AI reply:', err);
       showErrorToast('Something went wrong. Please try again.');
-      setShowAIError(true);
     } finally {
-      // Step 13: Hide typing indicator
-      setIsAITyping(false);
+      setIsTyping(false);
+      setIsSending(false);
     }
   };
 
-  // Send button is enabled when there's text and not loading
-  const isSendDisabled = !inputText.trim() || loading;
+  // Send button is enabled when there's text and not sending
+  const isSendDisabled = !inputText.trim() || isSending || loading;
 
   return (
     <KeyboardAvoidingView
@@ -351,7 +251,9 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <View style={styles.headerTitleRow}>
-            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{personName}</Text>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+              {personName || 'Chat'}
+            </Text>
             {isPremium && (
               <View style={styles.premiumBadgeSmall}>
                 <Text style={styles.premiumBadgeSmallText}>⭐</Text>
@@ -428,7 +330,7 @@ export default function ChatScreen() {
                 Start the conversation
               </Text>
               <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-                Share your thoughts and feelings about {personName}
+                Share your thoughts and feelings about {personName || 'this person'}
               </Text>
             </View>
           ) : (
@@ -446,37 +348,7 @@ export default function ChatScreen() {
           )}
 
           {/* AI Typing Indicator */}
-          {isAITyping && <TypingIndicator />}
-
-          {/* AI Error Message with Retry button */}
-          {showAIError && !isAITyping && (
-            <View style={styles.aiErrorContainer}>
-              <View style={[styles.aiErrorBubble, { backgroundColor: theme.card }]}>
-                <IconSymbol
-                  ios_icon_name="exclamationmark.circle.fill"
-                  android_material_icon_name="error"
-                  size={20}
-                  color="#FF3B30"
-                />
-                <Text style={[styles.aiErrorText, { color: theme.textPrimary }]}>
-                  I had trouble replying. Please try again.
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.tryAgainButton, { backgroundColor: theme.primary }]}
-                onPress={handleRetryAI}
-                activeOpacity={0.8}
-              >
-                <IconSymbol
-                  ios_icon_name="arrow.clockwise"
-                  android_material_icon_name="refresh"
-                  size={16}
-                  color="#FFFFFF"
-                />
-                <Text style={styles.tryAgainButtonText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          {isTyping && <TypingIndicator />}
         </ScrollView>
       )}
 
@@ -489,9 +361,9 @@ export default function ChatScreen() {
               placeholder="Tell me what's going on…"
               placeholderTextColor={theme.textSecondary}
               value={inputText}
-              onChangeText={handleTextChange}
+              onChangeText={setInputText}
               multiline
-              editable={!loading}
+              editable={!isSending && !loading}
             />
           </View>
         </View>
@@ -503,7 +375,7 @@ export default function ChatScreen() {
             { backgroundColor: theme.primary },
             isSendDisabled && styles.sendButtonDisabled,
           ]}
-          onPress={sendMessage}
+          onPress={handleSend}
           disabled={isSendDisabled}
           activeOpacity={0.7}
         >
@@ -650,41 +522,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 20,
-  },
-  aiErrorContainer: {
-    alignItems: 'flex-start',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  aiErrorBubble: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    maxWidth: '80%',
-    padding: 16,
-    borderRadius: 20,
-    gap: 8,
-    boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
-  },
-  aiErrorText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
-  },
-  tryAgainButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginTop: 8,
-    gap: 6,
-  },
-  tryAgainButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
   inputContainer: {
     flexDirection: 'row',
