@@ -21,9 +21,10 @@ import { ChatBubble } from '@/components/ui/ChatBubble';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 
 export default function ChatScreen() {
-  const { personId, personName } = useLocalSearchParams<{
+  const { personId, personName, relationshipType } = useLocalSearchParams<{
     personId: string;
     personName: string;
+    relationshipType?: string;
   }>();
   const { userId } = useAuth();
   const { theme } = useThemeContext();
@@ -184,6 +185,11 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{personName}</Text>
+          {relationshipType && (
+            <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+              {relationshipType}
+            </Text>
+          )}
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -298,6 +304,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+    textTransform: 'capitalize',
   },
   loadingContainer: {
     flex: 1,

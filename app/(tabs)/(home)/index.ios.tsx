@@ -78,7 +78,11 @@ export default function HomeScreen() {
   const handlePersonPress = (person: Person) => {
     router.push({
       pathname: '/(tabs)/(home)/chat',
-      params: { personId: person.id, personName: person.name },
+      params: { 
+        personId: person.id, 
+        personName: person.name,
+        relationshipType: person.relationship_type || ''
+      },
     });
   };
 
