@@ -181,17 +181,23 @@ export default function ChatScreen() {
   };
 
   const sendMessage = async () => {
+    // Step 1: Validate input
     const trimmedText = inputText.trim();
     
-    // Step 1: Validate non-empty message
-    if (!trimmedText || !userId || !personId) {
-      console.log('Send blocked: empty text or missing user/person');
+    if (!trimmedText) {
+      console.log('Send blocked: empty text');
+      return;
+    }
+
+    if (!userId || !personId) {
+      console.log('Send blocked: missing user or person ID');
+      showErrorToast('Unable to send message. Please try again.');
       return;
     }
 
     const messageContent = trimmedText;
     
-    // Step 2: Clear input immediately (no UI freeze)
+    // Step 2: Clear input immediately for responsive UX
     setInputText('');
     setShowAIError(false);
 
@@ -206,14 +212,14 @@ export default function ChatScreen() {
       created_at: new Date().toISOString(),
     };
 
-    // Step 4: Immediately show this message in the chat list (optimistic update)
+    // Step 4: Immediately add to chat (optimistic update)
     setMessages((prev) => [...prev, optimisticUserMessage]);
-    setTimeout(() => scrollToBottom(), 100);
+    setTimeout(() => scrollToBottom(), 50);
 
     try {
-      console.log('Sending user message:', messageContent);
+      console.log('Inserting user message:', messageContent.substring(0, 50) + '...');
 
-      // Step 5: Insert into public.messages with user_id, person_id, sender='user', content, created_at
+      // Step 5: Insert user message into database
       const { data: userMessage, error: userError } = await supabase
         .from('messages')
         .insert([
@@ -231,38 +237,41 @@ export default function ChatScreen() {
       if (userError) {
         console.error('Error inserting user message:', userError);
         showErrorToast("Couldn't send message. Please try again.");
-        // Remove optimistic message on error
+        
+        // Step 6a: On error, remove optimistic message and restore input
         setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMessage.id));
+        setInputText(messageContent);
         return;
       }
 
-      console.log('User message inserted:', userMessage.id);
+      console.log('User message inserted successfully:', userMessage.id);
       
-      // Step 6: Replace optimistic message with real one (refresh chat list)
+      // Step 6b: Replace optimistic message with real database message
       setMessages((prev) => 
         prev.map((m) => (m.id === optimisticUserMessage.id ? userMessage : m))
       );
 
-      // Step 7: Show typing indicator (loading dots)
+      // Step 7: Start AI reply process
       setIsAITyping(true);
       setLastUserMessage(messageContent);
 
-      // Step 8: Prepare last 10 messages for AI
-      const allMessages = [...messages, userMessage];
+      // Step 8: Prepare recent messages for AI context (last 10 messages)
+      const currentMessages = messages.filter((m) => m.id !== optimisticUserMessage.id);
+      const allMessages = [...currentMessages, userMessage];
       const recentMessages = allMessages.slice(-10).map((m) => ({
         sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
         content: m.content,
       }));
 
-      console.log('Calling generateAIReply with', recentMessages.length, 'messages');
+      console.log('Calling AI with', recentMessages.length, 'messages for context');
       
-      // Step 9: Call edge function generate-ai-response with user_id, person_id, last 10 messages
+      // Step 9: Call Edge Function to generate AI response
       const result = await generateAIReply(personId, recentMessages);
 
       if (result.success) {
-        console.log('AI reply generated:', result.reply.substring(0, 50) + '...');
+        console.log('AI reply received:', result.reply.substring(0, 50) + '...');
 
-        // Step 10: Insert an AI message row
+        // Step 10: Insert AI message into database
         const { data: aiMessage, error: aiError } = await supabase
           .from('messages')
           .insert([
@@ -280,7 +289,8 @@ export default function ChatScreen() {
         if (aiError) {
           console.error('Error inserting AI message:', aiError);
           showErrorToast('Failed to save AI response');
-          // Still show the AI reply locally even if insert fails
+          
+          // Show AI reply locally even if database insert fails
           const fallbackMessage: Message = {
             id: `fallback-${Date.now()}`,
             user_id: userId,
@@ -292,25 +302,25 @@ export default function ChatScreen() {
           };
           setMessages((prev) => [...prev, fallbackMessage]);
         } else {
-          console.log('AI message inserted:', aiMessage.id);
-          // Step 11: Refresh chat list
+          console.log('AI message inserted successfully:', aiMessage.id);
+          // Step 11: Add AI message to chat
           setMessages((prev) => [...prev, aiMessage]);
         }
 
         setLastUserMessage(null);
         setShowAIError(false);
       } else {
-        // AI failed - show error message
-        console.error('AI reply failed:', result.error);
+        // AI generation failed
+        console.error('AI reply generation failed:', result.error);
         setShowAIError(true);
       }
 
-      // Step 12: Auto-scroll to bottom
+      // Step 12: Auto-scroll to show new messages
       setTimeout(() => scrollToBottom(), 100);
+      
     } catch (err: any) {
-      console.error('Unexpected error sending message:', err);
+      console.error('Unexpected error in sendMessage:', err);
       showErrorToast('Something went wrong. Please try again.');
-      // If any error, show error state
       setShowAIError(true);
     } finally {
       // Step 13: Hide typing indicator
@@ -318,7 +328,7 @@ export default function ChatScreen() {
     }
   };
 
-  // Send button is always active when message text length > 0
+  // Send button is enabled when there's text and not loading
   const isSendDisabled = !inputText.trim() || loading;
 
   return (
@@ -435,7 +445,7 @@ export default function ChatScreen() {
             </>
           )}
 
-          {/* AI Typing Indicator - shown while isAITyping is true */}
+          {/* AI Typing Indicator */}
           {isAITyping && <TypingIndicator />}
 
           {/* AI Error Message with Retry button */}
@@ -486,7 +496,7 @@ export default function ChatScreen() {
           </View>
         </View>
 
-        {/* Send button with arrow-up-circle icon */}
+        {/* Send button */}
         <TouchableOpacity
           style={[
             styles.sendButton,
