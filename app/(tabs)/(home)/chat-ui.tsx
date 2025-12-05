@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -20,6 +21,8 @@ interface ChatScreenUIProps {
   personId: string;
   personName: string;
   relationshipType?: string;
+  onSend?: (message: string) => void;
+  loading?: boolean;
 }
 
 interface Message {
@@ -41,9 +44,13 @@ export default function ChatScreenUI({
   personId,
   personName,
   relationshipType,
+  onSend,
+  loading = false,
 }: ChatScreenUIProps) {
   const { theme } = useThemeContext();
   const flatListRef = useRef<FlatList>(null);
+  const [inputText, setInputText] = useState('');
+  const [inputHeight, setInputHeight] = useState(0);
   
   // Get messages from the hook (currently returns empty array)
   const messages = useChatMessages(personId);
@@ -58,7 +65,16 @@ export default function ChatScreenUI({
     }
   }, [messages.length]);
 
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+  const handleSend = () => {
+    const trimmedText = inputText.trim();
+    if (trimmedText && onSend) {
+      console.log('Sending message:', trimmedText);
+      onSend(trimmedText);
+      setInputText('');
+    }
+  };
+
+  const renderMessage = ({ item }: { item: Message }) => {
     return (
       <ChatBubble
         sender={item.sender}
@@ -68,34 +84,49 @@ export default function ChatScreenUI({
     );
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-        <IconSymbol
-          ios_icon_name="bubble.left.and.bubble.right.fill"
-          android_material_icon_name="chat"
-          size={40}
-          color={theme.primary}
-        />
+  const renderEmptyState = () => {
+    if (loading) {
+      return (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+            Loading messages...
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
+          <IconSymbol
+            ios_icon_name="bubble.left.and.bubble.right.fill"
+            android_material_icon_name="chat"
+            size={40}
+            color={theme.primary}
+          />
+        </View>
+        <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
+          Start the conversation
+        </Text>
+        <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
+          Share what&apos;s on your mind about {personName}
+        </Text>
       </View>
-      <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
-        Start the conversation
-      </Text>
-      <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-        Share what&apos;s on your mind about {personName}
-      </Text>
-    </View>
-  );
+    );
+  };
+
+  const canSend = inputText.trim().length > 0 && !loading;
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
-      edges={['top', 'bottom']}
+      edges={['top']}
     >
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
       >
         {/* Header */}
         <View style={[styles.header, { backgroundColor: theme.card }]}>
@@ -138,10 +169,6 @@ export default function ChatScreenUI({
           ]}
           ListEmptyComponent={renderEmptyState}
           showsVerticalScrollIndicator={false}
-          maintainVisibleContentPosition={{
-            minIndexForVisible: 0,
-            autoscrollToTopThreshold: 10,
-          }}
           onContentSizeChange={() => {
             if (messages.length > 0) {
               flatListRef.current?.scrollToEnd({ animated: true });
@@ -153,18 +180,32 @@ export default function ChatScreenUI({
         <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
           <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
             <TextInput
-              style={[styles.input, { color: theme.textPrimary }]}
-              placeholder="Type your message..."
+              style={[
+                styles.input,
+                { color: theme.textPrimary },
+                inputHeight > 0 && { height: Math.min(inputHeight, 80) },
+              ]}
+              placeholder="Tell me what's going on…"
               placeholderTextColor={theme.textSecondary}
               multiline
               maxLength={1000}
-              editable={false}
+              value={inputText}
+              onChangeText={setInputText}
+              onContentSizeChange={(event) => {
+                setInputHeight(event.nativeEvent.contentSize.height);
+              }}
+              editable={!loading}
             />
           </View>
 
           <TouchableOpacity
-            style={[styles.sendButton, { backgroundColor: theme.primary }]}
-            disabled={true}
+            style={[
+              styles.sendButton,
+              { backgroundColor: theme.primary },
+              !canSend && styles.sendButtonDisabled,
+            ]}
+            disabled={!canSend}
+            onPress={handleSend}
             activeOpacity={0.7}
           >
             <IconSymbol
@@ -252,12 +293,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    fontSize: 14,
+    marginTop: 16,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
     boxShadow: '0px -2px 4px rgba(0, 0, 0, 0.08)',
     elevation: 4,
   },
@@ -266,11 +317,14 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    minHeight: 44,
     maxHeight: 100,
+    justifyContent: 'center',
   },
   input: {
     fontSize: 16,
     lineHeight: 20,
+    minHeight: 24,
   },
   sendButton: {
     width: 44,
@@ -279,6 +333,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
+    elevation: 3,
+  },
+  sendButtonDisabled: {
     opacity: 0.5,
   },
 });
