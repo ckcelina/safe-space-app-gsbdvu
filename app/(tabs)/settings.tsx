@@ -25,7 +25,7 @@ export default function SettingsScreen() {
     setSelectedTheme(themeKey);
   }, [themeKey]);
 
-  const themes: Array<{ key: ThemeKey; name: string }> = [
+  const themes: { key: ThemeKey; name: string }[] = [
     { key: 'OceanBlue', name: 'Ocean Blue' },
     { key: 'SoftRose', name: 'Soft Rose' },
     { key: 'ForestGreen', name: 'Forest Green' },

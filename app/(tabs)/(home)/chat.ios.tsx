@@ -20,7 +20,7 @@ import { ChatBubble } from '@/components/ui/ChatBubble';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
-import { generateAIReply } from '@/api/ai';
+import { generateAIReply } from '@/src/api/ai';
 import { showErrorToast } from '@/utils/toast';
 
 export default function ChatScreen() {
