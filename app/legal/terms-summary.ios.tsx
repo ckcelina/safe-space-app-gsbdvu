@@ -15,17 +15,29 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 
-const TERMS_SUMMARY_TEXT = `Safe Space — Terms Summary
+const TERMS_CONDITIONS_TEXT = `Terms & Conditions — Safe Space ByCelina
+Last updated: 6 December 2025
+Location: Amman, Jordan
 
-- Safe Space is an AI-based emotional support app.
-- It is not therapy, medical treatment, or crisis support.
-- You must be 13+ to use the app.
-- You are responsible for how you use the app and the responses you receive.
-- Subscriptions and billing are managed by the app store; you can cancel through your account settings.
-- You must not use Safe Space to harm, threaten, or abuse others.
-- You may request account and data deletion.
+By using Safe Space ByCelina ("Safe Space", "we", "our", "us") you agree to:
 
-Full details are available in our "Terms of Service & Use" and "Privacy Policy".`;
+• Use the app only for personal emotional reflection and support.  
+• Understand that Safe Space is not therapy, crisis help, medical care, or legal advice.  
+• Be at least 13 years old and legally allowed to use the app in your country.  
+• Keep your login details private and not share your account with others.  
+• Not use the app to harass, threaten, or harm anyone, including yourself.  
+• Not try to hack, damage, or reverse-engineer the app or its services.  
+
+Safe Space may offer a free plan and optional premium features.  
+Billing and cancellations are handled by the app store platform that you use.
+
+Your use of the app is also governed by:
+• Our full Privacy Policy  
+• Our full Terms of Service & Use
+
+If you do not agree with these conditions, please do not use the app.
+
+For questions, contact: celi.bycelina@gmail.com`;
 
 export default function TermsSummaryScreen() {
   const { theme } = useThemeContext();
@@ -59,7 +71,7 @@ export default function TermsSummaryScreen() {
               />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
-              Terms Summary
+              Terms & Conditions
             </Text>
             <View style={styles.headerSpacer} />
           </View>
@@ -72,7 +84,7 @@ export default function TermsSummaryScreen() {
           >
             <View style={[styles.contentCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
               <Text style={[styles.contentText, { color: theme.textPrimary }]}>
-                {TERMS_SUMMARY_TEXT}
+                {TERMS_CONDITIONS_TEXT}
               </Text>
             </View>
           </ScrollView>
