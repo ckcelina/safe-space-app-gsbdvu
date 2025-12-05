@@ -22,11 +22,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="settings"
         options={{
-          title: 'Profile',
+          title: 'Settings',
           tabBarIcon: ({ color }) => {
-            return { sfSymbol: 'person.fill', hierarchicalColor: [color] };
+            return { sfSymbol: 'gearshape.fill', hierarchicalColor: [color] };
           },
         }}
       />
