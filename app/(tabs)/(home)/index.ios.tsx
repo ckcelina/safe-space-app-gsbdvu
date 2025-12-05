@@ -335,27 +335,33 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              {/* Plan Chip with Premium Badge */}
-              <View style={[styles.planChip, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                <IconSymbol
-                  ios_icon_name={planInfo.icon}
-                  android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
-                  size={16}
-                  color={planInfo.iconColor}
-                />
-                <View style={styles.planChipTextContainer}>
-                  <View style={styles.planTextRow}>
-                    <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
-                      {planInfo.text}
-                    </Text>
-                    {planInfo.showBadge && (
-                      <View style={[styles.premiumPillBadge, { backgroundColor: planInfo.badgeColor }]}>
-                        <Text style={styles.premiumPillBadgeText}>PREMIUM</Text>
-                      </View>
-                    )}
+              {/* Plan Pill - Fixed to fully contain text */}
+              <View style={styles.planPillContainer}>
+                <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                  <View style={styles.planPillContent}>
+                    <IconSymbol
+                      ios_icon_name={planInfo.icon}
+                      android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
+                      size={16}
+                      color={planInfo.iconColor}
+                      style={styles.planIcon}
+                    />
+                    <View style={styles.planTextWrapper}>
+                      <Text 
+                        style={[styles.planText, { color: theme.textPrimary }]}
+                        numberOfLines={2}
+                      >
+                        {planInfo.text}
+                      </Text>
+                      {planInfo.showBadge && (
+                        <View style={[styles.premiumPillBadge, { backgroundColor: planInfo.badgeColor }]}>
+                          <Text style={styles.premiumPillBadgeText}>PREMIUM</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                   {planInfo.subtext && (
-                    <Text style={[styles.planChipSubtext, { color: theme.textSecondary }]}>
+                    <Text style={[styles.planSubtext, { color: theme.textSecondary }]}>
                       {planInfo.subtext}
                     </Text>
                   )}
@@ -697,29 +703,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
   },
-  planChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+  planPillContainer: {
     marginBottom: 16,
-    gap: 8,
+    alignItems: 'flex-start',
+  },
+  planPill: {
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
     elevation: 2,
+    minWidth: 200,
+    maxWidth: '100%',
   },
-  planChipTextContainer: {
-    flexDirection: 'column',
-  },
-  planTextRow: {
+  planPillContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    flexWrap: 'wrap',
   },
-  planChipText: {
+  planIcon: {
+    marginRight: 8,
+  },
+  planTextWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    minWidth: 0,
+  },
+  planText: {
     fontSize: 14,
     fontWeight: '600',
+    flexShrink: 1,
   },
   premiumPillBadge: {
     paddingHorizontal: 8,
@@ -732,9 +748,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
-  planChipSubtext: {
+  planSubtext: {
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 4,
   },
   searchContainer: {
     flexDirection: 'row',
