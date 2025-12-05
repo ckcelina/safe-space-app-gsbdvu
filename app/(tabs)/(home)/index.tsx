@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Platform, ScrollView, Modal, TouchableOpacity, KeyboardAvoidingView, Alert } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
@@ -9,6 +9,8 @@ import { Person } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
+import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface PersonWithLastMessage extends Person {
   lastMessage?: string;
@@ -20,6 +22,11 @@ export default function HomeScreen() {
   const { theme } = useThemeContext();
   const [persons, setPersons] = useState<PersonWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [name, setName] = useState('');
+  const [relationshipType, setRelationshipType] = useState('');
+  const [nameError, setNameError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const fetchPersonsWithLastMessage = useCallback(async () => {
     try {
@@ -72,7 +79,58 @@ export default function HomeScreen() {
   }, [userId, fetchPersonsWithLastMessage]);
 
   const handleAddPerson = () => {
-    router.push('/(tabs)/(home)/add-person');
+    setShowAddModal(true);
+    setName('');
+    setRelationshipType('');
+    setNameError('');
+  };
+
+  const handleCloseModal = () => {
+    setShowAddModal(false);
+    setName('');
+    setRelationshipType('');
+    setNameError('');
+  };
+
+  const handleSave = async () => {
+    // Validate name
+    if (!name.trim()) {
+      setNameError('Name is required');
+      return;
+    }
+
+    setNameError('');
+    setSaving(true);
+
+    try {
+      console.log('Creating person:', name, relationshipType);
+      const { data, error } = await supabase
+        .from('persons')
+        .insert([
+          {
+            user_id: userId,
+            name: name.trim(),
+            relationship_type: relationshipType.trim() || null,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating person:', error);
+        Alert.alert('Error', 'Failed to add person. Please try again.');
+      } else {
+        console.log('Person created:', data);
+        handleCloseModal();
+        // Refresh the list
+        await fetchPersonsWithLastMessage();
+      }
+    } catch (error) {
+      console.error('Unexpected error creating person:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePersonPress = (person: Person) => {
@@ -115,9 +173,22 @@ export default function HomeScreen() {
 
         {/* Add Person Button */}
         <View style={styles.addButtonContainer}>
-          <SafeSpaceButton onPress={handleAddPerson} variant="primary">
-            Add Person
-          </SafeSpaceButton>
+          <TouchableOpacity
+            onPress={handleAddPerson}
+            activeOpacity={0.8}
+            style={styles.addButton}
+          >
+            <LinearGradient
+              colors={theme.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.addButtonGradient}
+            >
+              <Text style={[styles.addButtonText, { color: theme.buttonText }]}>
+                Add Person
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
         {/* Persons List */}
@@ -147,6 +218,116 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Add Person Modal */}
+      <Modal
+        visible={showAddModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCloseModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={handleCloseModal}
+          />
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
+              <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
+                <IconSymbol
+                  ios_icon_name="xmark"
+                  android_material_icon_name="close"
+                  size={24}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Body */}
+            <ScrollView
+              style={styles.modalBody}
+              contentContainerStyle={styles.modalBodyContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                Name <Text style={styles.required}>*</Text>
+              </Text>
+              <SafeSpaceTextInput
+                placeholder="Enter their name"
+                value={name}
+                onChangeText={(text) => {
+                  setName(text);
+                  if (nameError && text.trim()) {
+                    setNameError('');
+                  }
+                }}
+                autoCapitalize="words"
+                autoCorrect={false}
+                maxLength={50}
+                containerStyle={styles.inputContainer}
+              />
+              {nameError ? (
+                <Text style={styles.errorText}>{nameError}</Text>
+              ) : null}
+
+              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                Relationship Type
+              </Text>
+              <SafeSpaceTextInput
+                placeholder="partner, ex, friend, parent..."
+                value={relationshipType}
+                onChangeText={setRelationshipType}
+                autoCapitalize="words"
+                autoCorrect={false}
+                maxLength={50}
+                containerStyle={styles.inputContainer}
+              />
+            </ScrollView>
+
+            {/* Modal Footer */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                onPress={handleCloseModal}
+                style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                disabled={saving}
+              >
+                <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleSave}
+                style={styles.primaryButton}
+                disabled={saving}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={theme.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.primaryButtonGradient}
+                >
+                  {saving ? (
+                    <ActivityIndicator color={theme.buttonText} />
+                  ) : (
+                    <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
+                      Save
+                    </Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -177,6 +358,22 @@ const styles = StyleSheet.create({
   },
   addButtonContainer: {
     marginBottom: 32,
+  },
+  addButton: {
+    borderRadius: 50,
+    overflow: 'hidden',
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
+    elevation: 6,
+  },
+  addButtonGradient: {
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   loadingContainer: {
     paddingVertical: 40,
@@ -213,5 +410,96 @@ const styles = StyleSheet.create({
   },
   cardList: {
     paddingBottom: 20,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    maxHeight: '80%',
+    boxShadow: '0px -4px 20px rgba(0, 0, 0, 0.15)',
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalBody: {
+    flex: 1,
+  },
+  modalBodyContent: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  required: {
+    color: '#FF3B30',
+  },
+  inputContainer: {
+    marginBottom: 8,
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginBottom: 16,
+    marginTop: -4,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    gap: 12,
+  },
+  secondaryButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 50,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  primaryButton: {
+    flex: 1,
+    borderRadius: 50,
+    overflow: 'hidden',
+  },
+  primaryButtonGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
