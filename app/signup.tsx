@@ -76,6 +76,18 @@ export default function SignupScreen() {
           bounces={false}
         >
           <View style={styles.content}>
+            {/* Theme Preview */}
+            <View style={styles.themePreviewContainer}>
+              <Text style={[styles.themePreviewLabel, { color: colors.textSecondary }]}>
+                Your Theme
+              </Text>
+              <View style={styles.themePreviewRow}>
+                <View style={[styles.themePreviewCircle, { backgroundColor: colors.primary }]} />
+                <View style={[styles.themePreviewCircle, { backgroundColor: colors.secondary }]} />
+                <View style={[styles.themePreviewCircle, { backgroundColor: colors.accent }]} />
+              </View>
+            </View>
+
             <Text style={[styles.title, { color: colors.text }]}>
               Create Account
             </Text>
@@ -123,9 +135,13 @@ export default function SignupScreen() {
                     { borderColor: colors.primary },
                     termsAccepted && { backgroundColor: colors.primary },
                   ]}
-                />
+                >
+                  {termsAccepted && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </View>
                 <Text style={[styles.checkboxLabel, { color: colors.text }]}>
-                  I accept the Terms of Service
+                  I accept the Terms & Conditions
                 </Text>
               </TouchableOpacity>
 
@@ -140,7 +156,11 @@ export default function SignupScreen() {
                     { borderColor: colors.primary },
                     privacyAccepted && { backgroundColor: colors.primary },
                   ]}
-                />
+                >
+                  {privacyAccepted && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </View>
                 <Text style={[styles.checkboxLabel, { color: colors.text }]}>
                   I accept the Privacy Policy
                 </Text>
@@ -165,11 +185,19 @@ export default function SignupScreen() {
               <TouchableOpacity
                 onPress={() => router.replace('/login')}
                 disabled={loading}
+                style={styles.linkContainer}
               >
                 <Text style={[styles.linkText, { color: colors.primary }]}>
                   Already have an account? Log In
                 </Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Disclaimer with proper spacing */}
+            <View style={styles.disclaimerContainer}>
+              <Text style={[styles.disclaimerText, { color: colors.textSecondary }]}>
+                By continuing, you agree this is a supportive AI coach, not a substitute for professional care.
+              </Text>
             </View>
           </View>
         </ScrollView>
@@ -188,11 +216,31 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingVertical: 20,
-    paddingBottom: 40,
+    paddingTop: 20,
+    paddingBottom: 60,
   },
   content: {
     width: '100%',
+  },
+  themePreviewContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  themePreviewLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  themePreviewRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  themePreviewCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
   },
   title: {
     fontSize: 32,
@@ -221,6 +269,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 2,
     marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   checkboxLabel: {
     fontSize: 14,
@@ -241,9 +296,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
+  linkContainer: {
+    marginBottom: 32,
+  },
   linkText: {
     textAlign: 'center',
     fontSize: 16,
     fontWeight: '500',
+  },
+  disclaimerContainer: {
+    marginTop: 24,
+    paddingHorizontal: 8,
+  },
+  disclaimerText: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });
