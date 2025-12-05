@@ -113,7 +113,8 @@ export default function SettingsScreen() {
         fullText: 'Full access + management',
         icon: 'shield.fill', 
         androidIcon: 'shield',
-        color: '#FF6B6B'
+        color: '#FF6B6B',
+        showBadge: true,
       };
     } else if (role === 'premium') {
       return { 
@@ -121,7 +122,8 @@ export default function SettingsScreen() {
         fullText: 'Full access',
         icon: 'star.fill', 
         androidIcon: 'star',
-        color: '#FFD700'
+        color: '#FFD700',
+        showBadge: true,
       };
     }
     return { 
@@ -129,7 +131,8 @@ export default function SettingsScreen() {
       fullText: 'Limited features',
       icon: 'lock.fill', 
       androidIcon: 'lock',
-      color: theme.textSecondary
+      color: theme.textSecondary,
+      showBadge: false,
     };
   };
 
@@ -193,21 +196,28 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
 
-                {/* Plan Row */}
+                {/* Plan Row with Premium Badge */}
                 <View style={[styles.row, { borderBottomWidth: 0 }]}>
                   <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
                     Current Plan
                   </Text>
-                  <View style={styles.planBadge}>
-                    <IconSymbol
-                      ios_icon_name={planInfo.icon}
-                      android_material_icon_name={planInfo.androidIcon}
-                      size={16}
-                      color={planInfo.color}
-                    />
-                    <Text style={[styles.planBadgeText, { color: planInfo.color }]}>
-                      {planInfo.text}
-                    </Text>
+                  <View style={styles.planBadgeContainer}>
+                    <View style={styles.planBadge}>
+                      <IconSymbol
+                        ios_icon_name={planInfo.icon}
+                        android_material_icon_name={planInfo.androidIcon}
+                        size={16}
+                        color={planInfo.color}
+                      />
+                      <Text style={[styles.planBadgeText, { color: planInfo.color }]}>
+                        {planInfo.text}
+                      </Text>
+                    </View>
+                    {planInfo.showBadge && (
+                      <View style={[styles.premiumPillBadge, { backgroundColor: planInfo.color }]}>
+                        <Text style={styles.premiumPillBadgeText}>PREMIUM</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
               </View>
@@ -445,6 +455,11 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginLeft: 16,
   },
+  planBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   planBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -457,6 +472,17 @@ const styles = StyleSheet.create({
   planBadgeText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  premiumPillBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  premiumPillBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   label: {
     fontSize: 16,

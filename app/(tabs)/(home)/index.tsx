@@ -260,6 +260,7 @@ export default function HomeScreen() {
         icon: 'star.fill' as const,
         iconColor: '#FFD700',
         badgeColor: '#FFD700',
+        showBadge: true,
       };
     } else if (role === 'admin') {
       return {
@@ -268,6 +269,7 @@ export default function HomeScreen() {
         icon: 'shield.fill' as const,
         iconColor: '#FF6B6B',
         badgeColor: '#FF6B6B',
+        showBadge: true,
       };
     } else {
       return {
@@ -276,6 +278,7 @@ export default function HomeScreen() {
         icon: 'lock.fill' as const,
         iconColor: theme.textSecondary,
         badgeColor: theme.textSecondary,
+        showBadge: false,
       };
     }
   };
@@ -337,7 +340,7 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              {/* Plan Chip */}
+              {/* Plan Chip with Premium Badge */}
               <View style={[styles.planChip, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 <IconSymbol
                   ios_icon_name={planInfo.icon}
@@ -346,9 +349,16 @@ export default function HomeScreen() {
                   color={planInfo.iconColor}
                 />
                 <View style={styles.planChipTextContainer}>
-                  <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
-                    {planInfo.text}
-                  </Text>
+                  <View style={styles.planTextRow}>
+                    <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
+                      {planInfo.text}
+                    </Text>
+                    {planInfo.showBadge && (
+                      <View style={[styles.premiumPillBadge, { backgroundColor: planInfo.badgeColor }]}>
+                        <Text style={styles.premiumPillBadgeText}>PREMIUM</Text>
+                      </View>
+                    )}
+                  </View>
                   {planInfo.subtext && (
                     <Text style={[styles.planChipSubtext, { color: theme.textSecondary }]}>
                       {planInfo.subtext}
@@ -720,9 +730,25 @@ const styles = StyleSheet.create({
   planChipTextContainer: {
     flexDirection: 'column',
   },
+  planTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   planChipText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  premiumPillBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  premiumPillBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   planChipSubtext: {
     fontSize: 12,

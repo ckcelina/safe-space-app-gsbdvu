@@ -26,7 +26,7 @@ interface GroupedPersons {
 }
 
 export default function HomeScreen() {
-  const { currentUser, userId, isPremium, loading: authLoading } = useAuth();
+  const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
   const [persons, setPersons] = useState<PersonWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,6 +251,40 @@ export default function HomeScreen() {
     router.push('/(tabs)/settings');
   };
 
+  // Get plan display info
+  const getPlanInfo = () => {
+    if (role === 'premium') {
+      return {
+        text: 'Plan: Premium',
+        subtext: 'Full access',
+        icon: 'star.fill' as const,
+        iconColor: '#FFD700',
+        badgeColor: '#FFD700',
+        showBadge: true,
+      };
+    } else if (role === 'admin') {
+      return {
+        text: 'Plan: Admin',
+        subtext: 'Full access',
+        icon: 'shield.fill' as const,
+        iconColor: '#FF6B6B',
+        badgeColor: '#FF6B6B',
+        showBadge: true,
+      };
+    } else {
+      return {
+        text: 'Plan: Free – Some features are locked',
+        subtext: null,
+        icon: 'lock.fill' as const,
+        iconColor: theme.textSecondary,
+        badgeColor: theme.textSecondary,
+        showBadge: false,
+      };
+    }
+  };
+
+  const planInfo = getPlanInfo();
+
   if (authLoading) {
     return <LoadingOverlay visible={true} />;
   }
@@ -301,17 +335,31 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              {/* Plan Chip */}
+              {/* Plan Chip with Premium Badge */}
               <View style={[styles.planChip, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 <IconSymbol
-                  ios_icon_name={isPremium ? 'star.fill' : 'lock.fill'}
-                  android_material_icon_name={isPremium ? 'star' : 'lock'}
+                  ios_icon_name={planInfo.icon}
+                  android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
                   size={16}
-                  color={isPremium ? '#FFD700' : theme.textSecondary}
+                  color={planInfo.iconColor}
                 />
-                <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
-                  {isPremium ? 'Plan: Premium – Full access' : 'Plan: Free – Some features are locked'}
-                </Text>
+                <View style={styles.planChipTextContainer}>
+                  <View style={styles.planTextRow}>
+                    <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
+                      {planInfo.text}
+                    </Text>
+                    {planInfo.showBadge && (
+                      <View style={[styles.premiumPillBadge, { backgroundColor: planInfo.badgeColor }]}>
+                        <Text style={styles.premiumPillBadgeText}>PREMIUM</Text>
+                      </View>
+                    )}
+                  </View>
+                  {planInfo.subtext && (
+                    <Text style={[styles.planChipSubtext, { color: theme.textSecondary }]}>
+                      {planInfo.subtext}
+                    </Text>
+                  )}
+                </View>
               </View>
 
               {/* Search Bar */}
@@ -661,9 +709,32 @@ const styles = StyleSheet.create({
     boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
     elevation: 2,
   },
+  planChipTextContainer: {
+    flexDirection: 'column',
+  },
+  planTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   planChipText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  premiumPillBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  premiumPillBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  planChipSubtext: {
+    fontSize: 12,
+    marginTop: 2,
   },
   searchContainer: {
     flexDirection: 'row',
