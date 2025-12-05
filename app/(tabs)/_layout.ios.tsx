@@ -1,35 +1,33 @@
 
 import React from 'react';
-import { Tabs } from 'expo-router/unstable-native-tabs';
-import { colors } from '@/styles/commonStyles';
+import { Stack } from 'expo-router';
 
 export default function TabLayout() {
   return (
-    <Tabs
+    <Stack
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
         headerShown: false,
+        animation: 'fade',
+        gestureEnabled: false,
       }}
     >
-      <Tabs.Screen
-        name="(home)"
+      <Stack.Screen 
+        key="home" 
+        name="(home)" 
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => {
-            return { sfSymbol: 'house.fill', hierarchicalColor: [color] };
-          },
+          gestureEnabled: false,
+          animation: 'fade',
         }}
       />
-      <Tabs.Screen
+      <Stack.Screen 
+        key="settings" 
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => {
-            return { sfSymbol: 'gearshape.fill', hierarchicalColor: [color] };
-          },
+          gestureEnabled: true,
+          animation: 'slide_from_right',
+          presentation: 'card',
         }}
       />
-    </Tabs>
+    </Stack>
   );
 }

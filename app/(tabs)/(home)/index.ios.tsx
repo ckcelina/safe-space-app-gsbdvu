@@ -1,14 +1,16 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Platform, ScrollView, Modal, TouchableOpacity, KeyboardAvoidingView, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Modal, TouchableOpacity, KeyboardAvoidingView, Alert, TextInput, Platform } from 'react-native';
 import { router, Redirect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { Person } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
-import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 
 interface PersonWithLastMessage extends Person {
   lastMessage?: string;
@@ -84,7 +86,6 @@ export default function HomeScreen() {
   }, [userId, fetchPersonsWithLastMessage]);
 
   const handleAddPerson = () => {
-    // Check if free user has reached the limit
     if (!isPremium && persons.length >= 2) {
       setShowPremiumModal(true);
       return;
@@ -108,7 +109,6 @@ export default function HomeScreen() {
   };
 
   const handleSave = async () => {
-    // Validate name
     if (!name.trim()) {
       setNameError('Name is required');
       return;
@@ -137,7 +137,6 @@ export default function HomeScreen() {
       } else {
         console.log('Person created:', data);
         handleCloseModal();
-        // Refresh the list
         await fetchPersonsWithLastMessage();
       }
     } catch (error) {
@@ -165,9 +164,16 @@ export default function HomeScreen() {
 
   if (authLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
+      <LinearGradient
+        colors={theme.primaryGradient}
+        style={styles.gradientBackground}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </View>
+      </LinearGradient>
     );
   }
 
@@ -176,305 +182,319 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header with Settings Icon */}
-      <View style={styles.topHeader}>
-        <View style={styles.headerSpacer} />
-        <TouchableOpacity 
-          onPress={handleSettingsPress} 
-          style={styles.settingsButton}
-          activeOpacity={0.7}
-        >
-          <IconSymbol
-            ios_icon_name="gearshape.fill"
-            android_material_icon_name="settings"
-            size={24}
-            color={theme.textPrimary}
-          />
-        </TouchableOpacity>
-      </View>
+    <LinearGradient
+      colors={theme.primaryGradient}
+      style={styles.gradientBackground}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+    >
+      <StatusBarGradient />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <View style={styles.container}>
+          {/* Header with Settings Icon */}
+          <View style={styles.topHeader}>
+            <View style={styles.headerSpacer} />
+            <TouchableOpacity 
+              onPress={handleSettingsPress} 
+              style={styles.settingsButton}
+              activeOpacity={0.7}
+            >
+              <IconSymbol
+                ios_icon_name="gearshape.fill"
+                android_material_icon_name="settings"
+                size={24}
+                color={theme.buttonText}
+              />
+            </TouchableOpacity>
+          </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Safe Space</Text>
-          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-            Who would you like to talk about today?
-          </Text>
-        </View>
-
-        {/* Plan Chip */}
-        <View style={[styles.planChip, { backgroundColor: theme.card }]}>
-          <IconSymbol
-            ios_icon_name={isPremium ? 'star.fill' : 'lock.fill'}
-            android_material_icon_name={isPremium ? 'star' : 'lock'}
-            size={16}
-            color={isPremium ? '#FFD700' : theme.textSecondary}
-          />
-          <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
-            {isPremium ? 'Plan: Premium – Full access' : 'Plan: Free – Some features are locked'}
-          </Text>
-        </View>
-
-        {/* Add Person Button */}
-        <View style={styles.addButtonContainer}>
-          <TouchableOpacity
-            onPress={handleAddPerson}
-            activeOpacity={0.8}
-            style={styles.addButton}
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            <LinearGradient
-              colors={theme.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.addButtonGradient}
-            >
-              <Text style={[styles.addButtonText, { color: theme.buttonText }]}>
-                Add Person
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
+              <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+                Who would you like to talk about today?
               </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+            </View>
 
-        {/* Error State */}
-        {error && (
-          <View style={styles.errorContainer}>
-            <View style={[styles.errorCard, { backgroundColor: theme.card }]}>
+            {/* Plan Chip */}
+            <View style={[styles.planChip, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
               <IconSymbol
-                ios_icon_name="exclamationmark.triangle.fill"
-                android_material_icon_name="error"
-                size={32}
-                color="#FF3B30"
+                ios_icon_name={isPremium ? 'star.fill' : 'lock.fill'}
+                android_material_icon_name={isPremium ? 'star' : 'lock'}
+                size={16}
+                color={isPremium ? '#FFD700' : theme.textSecondary}
               />
-              <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
-              <TouchableOpacity
-                onPress={fetchPersonsWithLastMessage}
-                style={[styles.retryButton, { backgroundColor: theme.primary }]}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
-                  Try Again
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Persons List */}
-        {loading && !error ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
-          </View>
-        ) : !error && persons.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-              <Text style={styles.emptyEmoji}>🤗</Text>
-            </View>
-            <Text style={[styles.emptyText, { color: theme.textPrimary }]}>No one added yet</Text>
-            <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-              Tap &apos;Add Person&apos; to start
-            </Text>
-          </View>
-        ) : !error ? (
-          <View style={styles.cardList}>
-            {persons.map((person, index) => (
-              <PersonCard
-                key={index}
-                person={person}
-                onPress={() => handlePersonPress(person)}
-              />
-            ))}
-          </View>
-        ) : null}
-      </ScrollView>
-
-      {/* Add Person Modal */}
-      <Modal
-        visible={showAddModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={handleCloseModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={handleCloseModal}
-          />
-          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
-              <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
-                <IconSymbol
-                  ios_icon_name="xmark"
-                  android_material_icon_name="close"
-                  size={24}
-                  color={theme.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* Modal Body */}
-            <ScrollView
-              style={styles.modalBody}
-              contentContainerStyle={styles.modalBodyContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                Name <Text style={styles.required}>*</Text>
+              <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
+                {isPremium ? 'Plan: Premium – Full access' : 'Plan: Free – Some features are locked'}
               </Text>
-              <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
-                <TextInput
-                  style={[styles.textInput, { color: theme.textPrimary }]}
-                  placeholder="Enter their name"
-                  placeholderTextColor={theme.textSecondary}
-                  value={name}
-                  onChangeText={(text) => {
-                    setName(text);
-                    if (nameError && text.trim()) {
-                      setNameError('');
-                    }
-                  }}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  maxLength={50}
-                />
-              </View>
-              {nameError ? (
-                <Text style={styles.errorTextSmall}>{nameError}</Text>
-              ) : null}
-
-              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                Relationship Type
-              </Text>
-              <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
-                <TextInput
-                  style={[styles.textInput, { color: theme.textPrimary }]}
-                  placeholder="partner, ex, friend, parent..."
-                  placeholderTextColor={theme.textSecondary}
-                  value={relationshipType}
-                  onChangeText={setRelationshipType}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  maxLength={50}
-                />
-              </View>
-            </ScrollView>
-
-            {/* Modal Footer */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                onPress={handleCloseModal}
-                style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
-                disabled={saving}
-              >
-                <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleSave}
-                style={styles.primaryButton}
-                disabled={saving}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={theme.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.primaryButtonGradient}
-                >
-                  {saving ? (
-                    <ActivityIndicator color={theme.buttonText} />
-                  ) : (
-                    <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
-                      Save
-                    </Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
             </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
-      {/* Premium Feature Modal */}
-      <Modal
-        visible={showPremiumModal}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={handleClosePremiumModal}
-      >
-        <View style={styles.premiumModalOverlay}>
-          <TouchableOpacity
-            style={styles.premiumModalBackdrop}
-            activeOpacity={1}
-            onPress={handleClosePremiumModal}
-          />
-          <View style={[styles.premiumModalContent, { backgroundColor: theme.card }]}>
-            <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
-              <IconSymbol
-                ios_icon_name="star.fill"
-                android_material_icon_name="star"
-                size={48}
-                color="#FFD700"
-              />
-            </View>
-            
-            <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
-              Premium feature
-            </Text>
-            
-            <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
-              Upgrade your plan to add more people.
-            </Text>
-
-            <View style={styles.premiumModalButtons}>
+            {/* Add Person Button */}
+            <View style={styles.addButtonContainer}>
               <TouchableOpacity
-                onPress={handleClosePremiumModal}
-                style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
+                onPress={handleAddPerson}
                 activeOpacity={0.8}
+                style={styles.addButton}
               >
-                <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
-                  Not now
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleClosePremiumModal}
-                style={styles.premiumPrimaryButton}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#FFD700', '#FFA500']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.premiumPrimaryButtonGradient}
-                >
-                  <Text style={styles.premiumPrimaryButtonText}>
-                    Learn about Premium
+                <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                  <Text style={[styles.addButtonText, { color: theme.primary }]}>
+                    Add Person
                   </Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </View>
-          </View>
+
+            {/* Error State */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <View style={[styles.errorCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                  <IconSymbol
+                    ios_icon_name="exclamationmark.triangle.fill"
+                    android_material_icon_name="error"
+                    size={32}
+                    color="#FF3B30"
+                  />
+                  <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
+                  <TouchableOpacity
+                    onPress={fetchPersonsWithLastMessage}
+                    style={[styles.retryButton, { backgroundColor: theme.primary }]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
+                      Try Again
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Persons List */}
+            {loading && !error ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#FFFFFF" />
+              </View>
+            ) : !error && persons.length === 0 ? (
+              <View style={styles.emptyState}>
+                <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                  <Text style={styles.emptyEmoji}>🤗</Text>
+                </View>
+                <Text style={[styles.emptyText, { color: theme.buttonText }]}>No one added yet</Text>
+                <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+                  Tap &apos;Add Person&apos; to start
+                </Text>
+              </View>
+            ) : !error ? (
+              <View style={styles.cardList}>
+                {persons.map((person, index) => (
+                  <PersonCard
+                    key={index}
+                    person={person}
+                    onPress={() => handlePersonPress(person)}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </ScrollView>
+
+          {/* Add Person Modal */}
+          <Modal
+            visible={showAddModal}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={handleCloseModal}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.modalOverlay}
+            >
+              <TouchableOpacity
+                style={styles.modalBackdrop}
+                activeOpacity={1}
+                onPress={handleCloseModal}
+              />
+              <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+                {/* Modal Header */}
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
+                  <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
+                    <IconSymbol
+                      ios_icon_name="xmark"
+                      android_material_icon_name="close"
+                      size={24}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Modal Body */}
+                <ScrollView
+                  style={styles.modalBody}
+                  contentContainerStyle={styles.modalBodyContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                    Name <Text style={styles.required}>*</Text>
+                  </Text>
+                  <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
+                    <TextInput
+                      style={[styles.textInput, { color: theme.textPrimary }]}
+                      placeholder="Enter their name"
+                      placeholderTextColor={theme.textSecondary}
+                      value={name}
+                      onChangeText={(text) => {
+                        setName(text);
+                        if (nameError && text.trim()) {
+                          setNameError('');
+                        }
+                      }}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      maxLength={50}
+                    />
+                  </View>
+                  {nameError ? (
+                    <Text style={styles.errorTextSmall}>{nameError}</Text>
+                  ) : null}
+
+                  <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                    Relationship Type
+                  </Text>
+                  <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
+                    <TextInput
+                      style={[styles.textInput, { color: theme.textPrimary }]}
+                      placeholder="partner, ex, friend, parent..."
+                      placeholderTextColor={theme.textSecondary}
+                      value={relationshipType}
+                      onChangeText={setRelationshipType}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      maxLength={50}
+                    />
+                  </View>
+                </ScrollView>
+
+                {/* Modal Footer */}
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    onPress={handleCloseModal}
+                    style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                    disabled={saving}
+                  >
+                    <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSave}
+                    style={styles.primaryButton}
+                    disabled={saving}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={theme.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.primaryButtonGradient}
+                    >
+                      {saving ? (
+                        <ActivityIndicator color={theme.buttonText} />
+                      ) : (
+                        <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
+                          Save
+                        </Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
+
+          {/* Premium Feature Modal */}
+          <Modal
+            visible={showPremiumModal}
+            animationType="fade"
+            transparent={true}
+            onRequestClose={handleClosePremiumModal}
+          >
+            <View style={styles.premiumModalOverlay}>
+              <TouchableOpacity
+                style={styles.premiumModalBackdrop}
+                activeOpacity={1}
+                onPress={handleClosePremiumModal}
+              />
+              <View style={[styles.premiumModalContent, { backgroundColor: theme.card }]}>
+                <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
+                  <IconSymbol
+                    ios_icon_name="star.fill"
+                    android_material_icon_name="star"
+                    size={48}
+                    color="#FFD700"
+                  />
+                </View>
+                
+                <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
+                  Premium feature
+                </Text>
+                
+                <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
+                  Upgrade your plan to add more people.
+                </Text>
+
+                <View style={styles.premiumModalButtons}>
+                  <TouchableOpacity
+                    onPress={handleClosePremiumModal}
+                    style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
+                      Not now
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleClosePremiumModal}
+                    style={styles.premiumPrimaryButton}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={['#FFD700', '#FFA500']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.premiumPrimaryButtonGradient}
+                    >
+                      <Text style={styles.premiumPrimaryButtonText}>
+                        Learn about Premium
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </View>
-      </Modal>
-    </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradientBackground: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   container: {
     flex: 1,
   },
@@ -483,7 +503,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 8,
     paddingBottom: 8,
   },
   headerSpacer: {
@@ -492,13 +512,14 @@ const styles = StyleSheet.create({
   settingsButton: {
     padding: 8,
     borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 120,
+    paddingBottom: 40,
   },
   header: {
     marginBottom: 16,
@@ -521,8 +542,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 24,
     gap: 8,
-    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
-    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
   planChipText: {
     fontSize: 14,
@@ -534,10 +557,12 @@ const styles = StyleSheet.create({
   addButton: {
     borderRadius: 50,
     overflow: 'hidden',
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
   },
-  addButtonGradient: {
+  addButtonInner: {
     paddingVertical: 18,
     paddingHorizontal: 32,
     alignItems: 'center',
@@ -554,8 +579,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   errorText: {
     fontSize: 16,
@@ -589,8 +616,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   emptyEmoji: {
     fontSize: 48,
@@ -609,7 +638,6 @@ const styles = StyleSheet.create({
   cardList: {
     paddingBottom: 20,
   },
-  // Modal styles
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -624,8 +652,10 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: Platform.OS === 'ios' ? 40 : 20,
     maxHeight: '80%',
-    boxShadow: '0px -4px 20px rgba(0, 0, 0, 0.15)',
-    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -707,7 +737,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  // Premium Modal styles
   premiumModalOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -724,8 +753,10 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignItems: 'center',
-    boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.2)',
-    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
   },
   premiumIconContainer: {
     width: 96,
@@ -734,8 +765,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   premiumModalTitle: {
     fontSize: 24,

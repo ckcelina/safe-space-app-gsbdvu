@@ -9,9 +9,12 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
 
 export default function SettingsScreen() {
@@ -52,6 +55,10 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleBack = () => {
+    router.back();
+  };
+
   const getPlanDisplay = () => {
     if (role === 'admin') {
       return { 
@@ -76,132 +83,183 @@ export default function SettingsScreen() {
   const planInfo = getPlanDisplay();
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.textPrimary }]}>
-            Settings
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Your account & preferences
-          </Text>
-        </View>
-
-        {/* Card 1: Account */}
-        <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-            Account
-          </Text>
-
-          {/* Email Row */}
-          <View style={styles.row}>
-            <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
-              Email
-            </Text>
-            <Text style={[styles.rowValue, { color: theme.textPrimary }]}>
-              {email || 'Not available'}
-            </Text>
+    <LinearGradient
+      colors={theme.primaryGradient}
+      style={styles.gradientBackground}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+    >
+      <StatusBarGradient />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <View style={styles.container}>
+          {/* Back Button */}
+          <View style={styles.topHeader}>
+            <TouchableOpacity 
+              onPress={handleBack} 
+              style={styles.backButton}
+              activeOpacity={0.7}
+            >
+              <IconSymbol
+                ios_icon_name="chevron.left"
+                android_material_icon_name="arrow_back"
+                size={24}
+                color={theme.buttonText}
+              />
+            </TouchableOpacity>
+            <View style={styles.headerSpacer} />
           </View>
 
-          {/* Plan Row */}
-          <View style={[styles.row, { borderBottomWidth: 0 }]}>
-            <View style={styles.planContainer}>
-              {planInfo.icon && (
-                <IconSymbol
-                  ios_icon_name={planInfo.icon}
-                  android_material_icon_name={planInfo.androidIcon || 'star'}
-                  size={18}
-                  color={role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary}
-                  style={styles.planIcon}
-                />
-              )}
-              <Text
-                style={[
-                  styles.planText,
-                  {
-                    color: role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary,
-                  },
-                ]}
-              >
-                {planInfo.text}
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={[styles.title, { color: theme.buttonText }]}>
+                Settings
+              </Text>
+              <Text style={[styles.subtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+                Your account & preferences
               </Text>
             </View>
-          </View>
-        </View>
 
-        {/* Card 2: Appearance */}
-        <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-            Appearance
-          </Text>
+            {/* Card 1: Account */}
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                Account
+              </Text>
 
-          <Text style={[styles.label, { color: theme.textSecondary }]}>
-            Theme
-          </Text>
-
-          <View style={styles.pillContainer}>
-            {themes.map((themeOption) => (
-              <TouchableOpacity
-                key={themeOption.key}
-                style={[
-                  styles.pill,
-                  {
-                    backgroundColor:
-                      selectedTheme === themeOption.key
-                        ? theme.primary
-                        : theme.background,
-                    borderColor: theme.primary,
-                  },
-                ]}
-                onPress={() => handleThemeSelect(themeOption.key)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.pillText,
-                    {
-                      color:
-                        selectedTheme === themeOption.key
-                          ? '#FFFFFF'
-                          : theme.textPrimary,
-                    },
-                  ]}
-                >
-                  {themeOption.name}
+              {/* Email Row */}
+              <View style={styles.row}>
+                <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
+                  Email
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                <Text style={[styles.rowValue, { color: theme.textPrimary }]}>
+                  {email || 'Not available'}
+                </Text>
+              </View>
+
+              {/* Plan Row */}
+              <View style={[styles.row, { borderBottomWidth: 0 }]}>
+                <View style={styles.planContainer}>
+                  {planInfo.icon && (
+                    <IconSymbol
+                      ios_icon_name={planInfo.icon}
+                      android_material_icon_name={planInfo.androidIcon || 'star'}
+                      size={18}
+                      color={role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary}
+                      style={styles.planIcon}
+                    />
+                  )}
+                  <Text
+                    style={[
+                      styles.planText,
+                      {
+                        color: role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary,
+                      },
+                    ]}
+                  >
+                    {planInfo.text}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Card 2: Appearance */}
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                Appearance
+              </Text>
+
+              <Text style={[styles.label, { color: theme.textSecondary }]}>
+                Theme
+              </Text>
+
+              <View style={styles.pillContainer}>
+                {themes.map((themeOption) => (
+                  <TouchableOpacity
+                    key={themeOption.key}
+                    style={[
+                      styles.pill,
+                      {
+                        backgroundColor:
+                          selectedTheme === themeOption.key
+                            ? theme.primary
+                            : theme.background,
+                        borderColor: theme.primary,
+                      },
+                    ]}
+                    onPress={() => handleThemeSelect(themeOption.key)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.pillText,
+                        {
+                          color:
+                            selectedTheme === themeOption.key
+                              ? '#FFFFFF'
+                              : theme.textPrimary,
+                        },
+                      ]}
+                    >
+                      {themeOption.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Widget Preview Card */}
+            <WidgetPreviewCard />
+
+            {/* Log Out Button */}
+            <TouchableOpacity
+              style={[styles.logoutButton, { backgroundColor: '#FF6B6B' }]}
+              onPress={handleSignOut}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.logoutText}>Log out</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
-
-        {/* Widget Preview Card */}
-        <WidgetPreviewCard />
-
-        {/* Log Out Button */}
-        <TouchableOpacity
-          style={[styles.logoutButton, { backgroundColor: '#FF6B6B' }]}
-          onPress={handleSignOut}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.logoutText}>Log out</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradientBackground: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   container: {
     flex: 1,
   },
-  scrollContent: {
-    paddingTop: 60,
+  topHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 24,
-    paddingBottom: 120,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  backButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
   header: {
     marginBottom: 32,
