@@ -54,11 +54,23 @@ export default function SettingsScreen() {
 
   const getPlanDisplay = () => {
     if (role === 'admin') {
-      return { text: 'Admin', icon: 'shield.fill', androidIcon: 'shield' };
+      return { 
+        text: 'Plan: Admin – full access + management', 
+        icon: 'shield.fill', 
+        androidIcon: 'shield' 
+      };
     } else if (role === 'premium') {
-      return { text: 'Premium', icon: 'crown.fill', androidIcon: 'workspace_premium' };
+      return { 
+        text: 'Plan: Premium – full access', 
+        icon: 'crown.fill', 
+        androidIcon: 'workspace_premium' 
+      };
     }
-    return { text: 'Free', icon: null, androidIcon: null };
+    return { 
+      text: 'Plan: Free', 
+      icon: null, 
+      androidIcon: null 
+    };
   };
 
   const planInfo = getPlanDisplay();
@@ -96,10 +108,7 @@ export default function SettingsScreen() {
           </View>
 
           {/* Plan Row */}
-          <View style={styles.row}>
-            <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
-              Plan
-            </Text>
+          <View style={[styles.row, { borderBottomWidth: 0 }]}>
             <View style={styles.planContainer}>
               {planInfo.icon && (
                 <IconSymbol
@@ -107,14 +116,14 @@ export default function SettingsScreen() {
                   android_material_icon_name={planInfo.androidIcon || 'star'}
                   size={18}
                   color={role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary}
+                  style={styles.planIcon}
                 />
               )}
               <Text
                 style={[
-                  styles.rowValue,
+                  styles.planText,
                   {
                     color: role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary,
-                    marginLeft: planInfo.icon ? 6 : 0,
                   },
                 ]}
               >
@@ -239,6 +248,15 @@ const styles = StyleSheet.create({
   planContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  planIcon: {
+    marginRight: 8,
+  },
+  planText: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
   },
   label: {
     fontSize: 16,

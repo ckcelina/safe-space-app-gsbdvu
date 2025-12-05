@@ -29,7 +29,7 @@ export default function ChatScreen() {
     personName: string;
     relationshipType?: string;
   }>();
-  const { userId, isPremium } = useAuth();
+  const { userId, role } = useAuth();
   const { theme } = useThemeContext();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -42,9 +42,8 @@ export default function ChatScreen() {
   
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Character limits
-  const MAX_CHARS = isPremium ? 1500 : 400;
-  const isOverLimit = inputText.length > MAX_CHARS;
+  // Determine if user is free
+  const isFreeUser = role === 'free';
 
   const fetchMessages = useCallback(async () => {
     if (!userId || !personId) {
@@ -104,21 +103,17 @@ export default function ChatScreen() {
   };
 
   const handleTextChange = (text: string) => {
-    // Prevent typing beyond the limit
-    if (text.length <= MAX_CHARS) {
-      setInputText(text);
-    }
+    setInputText(text);
   };
 
   const sendMessage = async () => {
     const trimmedText = inputText.trim();
     
     // Step 1: If trimmed text is empty OR isWaitingForAI is true → do nothing
-    if (!trimmedText || isWaitingForAI || !userId || !personId || isOverLimit) {
+    if (!trimmedText || isWaitingForAI || !userId || !personId) {
       console.log('Send blocked:', { 
         emptyText: !trimmedText, 
         waitingForAI: isWaitingForAI,
-        overLimit: isOverLimit 
       });
       return;
     }
@@ -212,7 +207,7 @@ export default function ChatScreen() {
   // Send button should be disabled when:
   // - the input is empty OR only spaces
   // - an AI reply is currently pending
-  const isSendDisabled = !inputText.trim() || isWaitingForAI || loading || isOverLimit;
+  const isSendDisabled = !inputText.trim() || isWaitingForAI || loading;
 
   return (
     <KeyboardAvoidingView
@@ -242,6 +237,22 @@ export default function ChatScreen() {
         </View>
         <View style={{ width: 40 }} />
       </View>
+
+      {/* Free User Banner */}
+      {isFreeUser && (
+        <View style={[styles.freeBanner, { backgroundColor: theme.card }]}>
+          <IconSymbol
+            ios_icon_name="info.circle.fill"
+            android_material_icon_name="info"
+            size={16}
+            color={theme.textSecondary}
+            style={styles.bannerIcon}
+          />
+          <Text style={[styles.bannerText, { color: theme.textSecondary }]}>
+            You&apos;re on the free plan. In the future, free plans may have limits on daily messages.
+          </Text>
+        </View>
+      )}
 
       {/* Messages */}
       {error ? (
@@ -324,18 +335,6 @@ export default function ChatScreen() {
               editable={!isSendingUserMessage && !loading && !isWaitingForAI}
             />
           </View>
-
-          {/* Character limit warning for free users */}
-          {!isPremium && inputText.length >= MAX_CHARS * 0.8 && (
-            <View style={styles.limitWarning}>
-              <Text style={[styles.limitWarningText, { color: inputText.length >= MAX_CHARS ? '#FF3B30' : theme.textSecondary }]}>
-                {inputText.length >= MAX_CHARS 
-                  ? 'Upgrade to Premium to send longer messages.'
-                  : `${inputText.length}/${MAX_CHARS} characters`
-                }
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* Send button: Dimmed + non-pressable when disabled, uses theme color when active */}
@@ -392,6 +391,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
     textTransform: 'capitalize',
+  },
+  freeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.05)',
+    elevation: 1,
+  },
+  bannerIcon: {
+    marginRight: 8,
+  },
+  bannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
   },
   errorContainer: {
     flex: 1,
@@ -480,14 +495,6 @@ const styles = StyleSheet.create({
   input: {
     fontSize: 16,
     lineHeight: 20,
-  },
-  limitWarning: {
-    marginTop: 6,
-    paddingHorizontal: 4,
-  },
-  limitWarningText: {
-    fontSize: 12,
-    fontWeight: '500',
   },
   sendButton: {
     width: 44,
