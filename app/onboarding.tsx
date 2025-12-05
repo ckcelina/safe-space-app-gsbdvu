@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Modal, Text } from 'react-native';
 import { router } from 'expo-router';
 import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
@@ -12,10 +12,18 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function OnboardingScreen() {
   const { theme } = useThemeContext();
-  const { signIn } = useAuth();
+  const { session, signIn, loading } = useAuth();
   const [tapCount, setTapCount] = useState(0);
   const [showReviewerModal, setShowReviewerModal] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Skip onboarding if user is already authenticated
+  useEffect(() => {
+    if (!loading && session) {
+      console.log('User already authenticated, skipping onboarding');
+      router.replace('/(tabs)/(home)');
+    }
+  }, [session, loading]);
 
   const handleCreateSpace = () => {
     router.push('/theme-selection');
@@ -60,6 +68,15 @@ export default function OnboardingScreen() {
     setShowReviewerModal(false);
     setTapCount(0);
   };
+
+  // Don't render onboarding if user is authenticated
+  if (loading) {
+    return null;
+  }
+
+  if (session) {
+    return null;
+  }
 
   return (
     <SafeSpaceScreen scrollable={true} keyboardAware={false} useGradient={true}>

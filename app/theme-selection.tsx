@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
 import { SafeSpaceTitle, SafeSpaceSubtitle } from '@/components/ui/SafeSpaceText';
@@ -8,9 +8,11 @@ import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { ThemeOptionCard } from '@/components/ui/ThemeOptionCard';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ThemeSelectionScreen() {
   const { themeKey, setTheme } = useThemeContext();
+  const { session } = useAuth();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
 
   const themes = [
@@ -54,6 +56,14 @@ export default function ThemeSelectionScreen() {
     router.back();
   };
 
+  const handleSkip = () => {
+    // If user is already authenticated, go to Home
+    if (session) {
+      console.log('User authenticated, skipping to Home');
+      router.replace('/(tabs)/(home)');
+    }
+  };
+
   return (
     <SafeSpaceScreen scrollable={true} keyboardAware={false} useGradient={true}>
       <View style={styles.content}>
@@ -84,6 +94,13 @@ export default function ThemeSelectionScreen() {
           <SafeSpaceLinkButton onPress={handleBack}>
             Back
           </SafeSpaceLinkButton>
+
+          {/* Skip for now link - only shown if user is authenticated */}
+          {session && (
+            <TouchableOpacity onPress={handleSkip} style={styles.skipLink}>
+              <Text style={styles.skipText}>Skip for now</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </SafeSpaceScreen>
@@ -105,5 +122,15 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignSelf: 'center',
+  },
+  skipLink: {
+    marginTop: 16,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  skipText: {
+    fontSize: 14,
+    color: '#666',
+    textDecorationLine: 'underline',
   },
 });

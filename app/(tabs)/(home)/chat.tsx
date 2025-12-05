@@ -150,29 +150,33 @@ export default function ChatScreen() {
 
       console.log('User message inserted:', userMessage.id);
       
-      // Step 4: Clear the input, scroll to bottom
+      // Step 4: Clear the input, show message immediately, scroll to bottom
       setInputText('');
       setMessages((prev) => [...prev, userMessage]);
       setTimeout(() => scrollToBottom(), 100);
 
-      // Step 5: Set isSendingUserMessage = false and isWaitingForAI = true
+      // Step 5: Set isSendingUserMessage = false and isWaitingForAI = true (show typing indicator)
       setIsSendingUserMessage(false);
       setIsWaitingForAI(true);
 
-      // Generate AI reply via Edge Function
-      const aiReplyText = await generateAIReply(personId, [...messages, userMessage]);
-      
-      // Handle AI reply error
-      if (!aiReplyText) {
-        console.error('Failed to generate AI reply');
-        showErrorToast('I had trouble replying. Please try again.');
-        setIsWaitingForAI(false);
-        return;
-      }
+      // Step 6: Call generateAIReply with the last 10 messages
+      const allMessages = [...messages, userMessage];
+      const last10Messages = allMessages.slice(-10).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const aiReplyText = await generateAIReply({
+        user_id: userId,
+        person_id: personId,
+        person_name: personName || 'Unknown',
+        relationship_type: relationshipType || 'unknown',
+        messages: last10Messages,
+      });
 
       console.log('AI reply generated:', aiReplyText);
 
-      // Insert AI message
+      // Step 7: Insert AI message with sender = 'ai' (role = 'assistant')
       const { data: aiMessage, error: aiError } = await supabase
         .from('messages')
         .insert([
@@ -188,18 +192,36 @@ export default function ChatScreen() {
 
       if (aiError) {
         console.error('Error inserting AI message:', aiError);
-        showErrorToast('AI response generated but failed to save.');
-        setIsWaitingForAI(false);
+        // Still insert fallback AI message locally
+        const fallbackMessage: Message = {
+          id: `fallback-${Date.now()}`,
+          user_id: userId,
+          person_id: personId,
+          role: 'assistant',
+          content: aiReplyText,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, fallbackMessage]);
       } else {
         console.log('AI message inserted:', aiMessage.id);
-        // When AI reply is inserted: Set isWaitingForAI = false and auto-scroll
+        // Step 8: Hide typing indicator, add message, scroll to bottom
         setMessages((prev) => [...prev, aiMessage]);
-        setIsWaitingForAI(false);
-        setTimeout(() => scrollToBottom(), 100);
       }
+
+      setIsWaitingForAI(false);
+      setTimeout(() => scrollToBottom(), 100);
     } catch (err: any) {
       console.error('Unexpected error sending message:', err);
-      showErrorToast('An unexpected error occurred');
+      // Step 9: If any error, still insert fallback AI message and do NOT crash
+      const fallbackMessage: Message = {
+        id: `fallback-${Date.now()}`,
+        user_id: userId,
+        person_id: personId,
+        role: 'assistant',
+        content: "I'm having trouble replying right now, but your feelings matter.",
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, fallbackMessage]);
       setIsSendingUserMessage(false);
       setIsWaitingForAI(false);
     }

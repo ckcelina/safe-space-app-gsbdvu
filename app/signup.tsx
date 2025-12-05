@@ -52,8 +52,9 @@ export default function SignupScreen() {
         showErrorToast(error.message || 'An error occurred during signup');
       } else {
         showSuccessToast('Account created! Please check your email to verify.');
+        // After successful signup, redirect to Home
         setTimeout(() => {
-          router.replace('/login');
+          router.replace('/(tabs)/(home)');
         }, 1500);
       }
     } catch (err: any) {

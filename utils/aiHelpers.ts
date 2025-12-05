@@ -1,66 +1,52 @@
 
-import { Message } from '@/types/database.types';
 import { supabase } from '@/lib/supabase';
-import { showErrorToast } from './toast';
+
+interface AIReplyParams {
+  user_id: string;
+  person_id: string;
+  person_name: string;
+  relationship_type: string;
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+}
 
 /**
- * Generate AI reply by calling the Supabase Edge Function
+ * Generate AI reply by calling the Supabase Edge Function "generate-ai-response"
  * 
- * This function calls the "generate-ai-response" Edge Function with the person ID
- * and recent messages for context. The Edge Function handles the OpenAI API call
- * and returns a contextual AI response.
- * 
- * @param personId - The ID of the person being discussed
- * @param recentMessages - Array of recent messages for context (last 20-30 messages)
- * @returns A promise that resolves to the AI reply text, or null if there's an error
+ * @param params - Object containing user_id, person_id, person_name, relationship_type, and messages
+ * @returns A promise that resolves to the AI reply text, or fallback string if there's an error
  */
-export const generateAIReply = async (
-  personId: string,
-  recentMessages: Message[]
-): Promise<string | null> => {
-  console.log('Generating AI reply for person:', personId);
-  console.log('Recent messages count:', recentMessages.length);
+export const generateAIReply = async (params: AIReplyParams): Promise<string> => {
+  const { user_id, person_id, person_name, relationship_type, messages } = params;
+  
+  console.log('Generating AI reply for person:', person_name);
+  console.log('Recent messages count:', messages.length);
   
   try {
-    // Get the last 30 messages for context
-    const contextMessages = recentMessages.slice(-30);
-    
-    // Transform messages to match Edge Function expected format
-    // Edge Function expects 'sender' field with 'user' or 'ai'
-    // Database has 'role' field with 'user' or 'assistant'
-    const formattedMessages = contextMessages.map((m) => ({
-      sender: m.role === 'assistant' ? 'ai' : m.role,
-      content: m.content,
-      createdAt: m.created_at,
-    }));
-    
-    console.log('Calling generate-ai-response Edge Function...');
-    
     // Call the Supabase Edge Function
     const { data, error } = await supabase.functions.invoke('generate-ai-response', {
       body: {
-        personId,
-        messages: formattedMessages,
+        user_id,
+        person_id,
+        person_name,
+        relationship_type,
+        messages,
       },
     });
 
     if (error) {
       console.error('Error invoking Edge Function:', error);
-      showErrorToast('Failed to generate AI response. Please try again.');
-      return null;
+      return "I'm having trouble replying right now, but your feelings matter.";
     }
 
     if (!data?.reply) {
       console.error('No reply received from Edge Function');
-      showErrorToast('AI response was empty. Please try again.');
-      return null;
+      return "I'm having trouble replying right now, but your feelings matter.";
     }
 
     console.log('AI reply received successfully');
     return data.reply;
   } catch (err: any) {
     console.error('Unexpected error generating AI reply:', err);
-    showErrorToast(`AI Error: ${err.message || 'Unknown error'}`);
-    return null;
+    return "I'm having trouble replying right now, but your feelings matter.";
   }
 };
