@@ -9,13 +9,12 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 
 export default function SettingsScreen() {
-  const { currentUser, email, role, signOut } = useAuth();
+  const { email, role, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
 
@@ -23,10 +22,10 @@ export default function SettingsScreen() {
     setSelectedTheme(themeKey);
   }, [themeKey]);
 
-  const themes: Array<{ key: ThemeKey; name: string; description: string }> = [
-    { key: 'OceanBlue', name: 'Ocean Blue', description: 'Calm and serene' },
-    { key: 'SoftRose', name: 'Soft Rose', description: 'Gentle and nurturing' },
-    { key: 'ForestGreen', name: 'Forest Green', description: 'Grounded and peaceful' },
+  const themes: Array<{ key: ThemeKey; name: string }> = [
+    { key: 'OceanBlue', name: 'Ocean Blue' },
+    { key: 'SoftRose', name: 'Soft Rose' },
+    { key: 'ForestGreen', name: 'Forest Green' },
   ];
 
   const handleThemeSelect = async (themeKey: ThemeKey) => {
@@ -34,59 +33,34 @@ export default function SettingsScreen() {
     await setTheme(themeKey);
   };
 
-  const handleEditProfile = () => {
-    router.push('/edit-profile');
-  };
-
-  const handleTermsPress = async () => {
-    try {
-      await WebBrowser.openBrowserAsync('https://safespace.app/terms');
-    } catch (error) {
-      console.error('Error opening terms:', error);
-      Alert.alert('Error', 'Could not open Terms & Conditions');
-    }
-  };
-
-  const handlePrivacyPress = async () => {
-    try {
-      await WebBrowser.openBrowserAsync('https://safespace.app/privacy');
-    } catch (error) {
-      console.error('Error opening privacy:', error);
-      Alert.alert('Error', 'Could not open Privacy Policy');
-    }
-  };
-
   const handleSignOut = () => {
     Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
+      'Log Out',
+      'Are you sure you want to log out?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: 'Log Out',
           style: 'destructive',
           onPress: async () => {
             await signOut();
-            router.replace('/onboarding');
+            router.replace('/login');
           },
         },
       ]
     );
   };
 
-  const getPlanBadge = () => {
-    if (role === 'premium' || role === 'admin') {
-      return 'Plan: Premium';
+  const getPlanDisplay = () => {
+    if (role === 'admin') {
+      return { text: 'Admin', icon: 'shield.fill', androidIcon: 'shield' };
+    } else if (role === 'premium') {
+      return { text: 'Premium', icon: 'crown.fill', androidIcon: 'workspace_premium' };
     }
-    return 'Plan: Free';
+    return { text: 'Free', icon: null, androidIcon: null };
   };
 
-  const getPlanBadgeColor = () => {
-    if (role === 'premium' || role === 'admin') {
-      return '#FFD700';
-    }
-    return theme.textSecondary;
-  };
+  const planInfo = getPlanDisplay();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -94,150 +68,104 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with App Icon, Email, and Plan */}
-        <View style={[styles.headerCard, { backgroundColor: theme.card }]}>
-          <View style={[styles.iconBackground, { backgroundColor: theme.background, borderColor: theme.primary }]}>
-            <IconSymbol
-              ios_icon_name="shield.fill"
-              android_material_icon_name="shield"
-              size={48}
-              color={theme.primary}
-            />
-          </View>
-          
-          <Text style={[styles.emailText, { color: theme.textPrimary }]}>
-            {email || 'Not available'}
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>
+            Settings
           </Text>
-          
-          <View style={[styles.planBadge, { backgroundColor: theme.background }]}>
-            <IconSymbol
-              ios_icon_name="star.fill"
-              android_material_icon_name="star"
-              size={16}
-              color={getPlanBadgeColor()}
-            />
-            <Text style={[styles.planText, { color: getPlanBadgeColor() }]}>
-              {getPlanBadge()}
-            </Text>
-          </View>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            Your account & preferences
+          </Text>
         </View>
 
-        {/* Theme Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-            Theme
-          </Text>
-          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-            Choose your preferred theme. Changes apply immediately.
-          </Text>
-
-          {themes.map((themeOption) => (
-            <TouchableOpacity
-              key={themeOption.key}
-              style={[
-                styles.themeCard,
-                {
-                  backgroundColor: theme.card,
-                  borderColor: selectedTheme === themeOption.key ? theme.primary : 'transparent',
-                  borderWidth: selectedTheme === themeOption.key ? 3 : 1,
-                },
-              ]}
-              onPress={() => handleThemeSelect(themeOption.key)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.themeCardContent}>
-                <View style={styles.themeInfo}>
-                  <Text style={[styles.themeName, { color: theme.textPrimary }]}>
-                    {themeOption.name}
-                  </Text>
-                  <Text style={[styles.themeDescription, { color: theme.textSecondary }]}>
-                    {themeOption.description}
-                  </Text>
-                </View>
-                {selectedTheme === themeOption.key && (
-                  <IconSymbol
-                    ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check_circle"
-                    size={28}
-                    color={theme.primary}
-                  />
-                )}
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Other Items Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+        {/* Card 1: Account */}
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
             Account
           </Text>
 
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: theme.card }]}
-            onPress={handleEditProfile}
-            activeOpacity={0.7}
-          >
-            <IconSymbol
-              ios_icon_name="person.circle.fill"
-              android_material_icon_name="account_circle"
-              size={24}
-              color={theme.primary}
-            />
-            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>
-              Edit Profile
+          {/* Email Row */}
+          <View style={styles.row}>
+            <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
+              Email
             </Text>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="chevron_right"
-              size={20}
-              color={theme.textSecondary}
-            />
-          </TouchableOpacity>
+            <Text style={[styles.rowValue, { color: theme.textPrimary }]}>
+              {email || 'Not available'}
+            </Text>
+          </View>
 
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: theme.card }]}
-            onPress={handleTermsPress}
-            activeOpacity={0.7}
-          >
-            <IconSymbol
-              ios_icon_name="doc.text.fill"
-              android_material_icon_name="description"
-              size={24}
-              color={theme.primary}
-            />
-            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>
-              Terms & Conditions
+          {/* Plan Row */}
+          <View style={styles.row}>
+            <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
+              Plan
             </Text>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="chevron_right"
-              size={20}
-              color={theme.textSecondary}
-            />
-          </TouchableOpacity>
+            <View style={styles.planContainer}>
+              {planInfo.icon && (
+                <IconSymbol
+                  ios_icon_name={planInfo.icon}
+                  android_material_icon_name={planInfo.androidIcon || 'star'}
+                  size={18}
+                  color={role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary}
+                />
+              )}
+              <Text
+                style={[
+                  styles.rowValue,
+                  {
+                    color: role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary,
+                    marginLeft: planInfo.icon ? 6 : 0,
+                  },
+                ]}
+              >
+                {planInfo.text}
+              </Text>
+            </View>
+          </View>
+        </View>
 
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: theme.card }]}
-            onPress={handlePrivacyPress}
-            activeOpacity={0.7}
-          >
-            <IconSymbol
-              ios_icon_name="lock.shield.fill"
-              android_material_icon_name="privacy_tip"
-              size={24}
-              color={theme.primary}
-            />
-            <Text style={[styles.menuItemText, { color: theme.textPrimary }]}>
-              Privacy Policy
-            </Text>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="chevron_right"
-              size={20}
-              color={theme.textSecondary}
-            />
-          </TouchableOpacity>
+        {/* Card 2: Appearance */}
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Appearance
+          </Text>
+
+          <Text style={[styles.label, { color: theme.textSecondary }]}>
+            Theme
+          </Text>
+
+          <View style={styles.pillContainer}>
+            {themes.map((themeOption) => (
+              <TouchableOpacity
+                key={themeOption.key}
+                style={[
+                  styles.pill,
+                  {
+                    backgroundColor:
+                      selectedTheme === themeOption.key
+                        ? theme.primary
+                        : theme.background,
+                    borderColor: theme.primary,
+                  },
+                ]}
+                onPress={() => handleThemeSelect(themeOption.key)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.pillText,
+                    {
+                      color:
+                        selectedTheme === themeOption.key
+                          ? '#FFFFFF'
+                          : theme.textPrimary,
+                    },
+                  ]}
+                >
+                  {themeOption.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* Log Out Button */}
@@ -246,13 +174,7 @@ export default function SettingsScreen() {
           onPress={handleSignOut}
           activeOpacity={0.8}
         >
-          <IconSymbol
-            ios_icon_name="arrow.right.square.fill"
-            android_material_icon_name="logout"
-            size={24}
-            color="#FFFFFF"
-          />
-          <Text style={styles.logoutText}>Log Out</Text>
+          <Text style={styles.logoutText}>Log out</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -266,110 +188,81 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 60,
     paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingBottom: 120,
   },
-  headerCard: {
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  iconBackground: {
-    width: 96,
-    height: 96,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-  },
-  emailText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  planBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-  },
-  planText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  section: {
+  header: {
     marginBottom: 32,
   },
-  sectionTitle: {
-    fontSize: 22,
+  title: {
+    fontSize: 32,
     fontWeight: 'bold',
     marginBottom: 8,
   },
-  sectionSubtitle: {
-    fontSize: 14,
-    marginBottom: 16,
-    lineHeight: 20,
+  subtitle: {
+    fontSize: 16,
+    lineHeight: 22,
   },
-  themeCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+  card: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
+    shadowRadius: 8,
   },
-  themeCardContent: {
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 20,
+  },
+  row: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  themeInfo: {
-    flex: 1,
-  },
-  themeName: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  themeDescription: {
-    fontSize: 14,
-  },
-  menuItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.05)',
   },
-  menuItemText: {
+  rowLabel: {
     fontSize: 16,
     fontWeight: '500',
-    flex: 1,
-    marginLeft: 16,
+  },
+  rowValue: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  planContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 12,
+  },
+  pillContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  pill: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 2,
+  },
+  pillText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 18,
-    borderRadius: 12,
-    marginTop: 16,
+    borderRadius: 16,
+    marginTop: 32,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -379,6 +272,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
-    marginLeft: 12,
   },
 });
