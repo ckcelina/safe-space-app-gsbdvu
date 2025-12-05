@@ -126,7 +126,7 @@ export default function SettingsScreen() {
     router.push('/legal/terms-of-service');
   };
 
-  const handleTermsSummaryPress = () => {
+  const handleTermsConditionsPress = () => {
     router.push('/legal/terms-summary');
   };
 
@@ -381,7 +381,7 @@ export default function SettingsScreen() {
 
                 <TouchableOpacity
                   style={[styles.row, { borderBottomWidth: 0 }]}
-                  onPress={handleTermsSummaryPress}
+                  onPress={handleTermsConditionsPress}
                   activeOpacity={0.7}
                 >
                   <View style={styles.rowLeft}>
@@ -392,7 +392,7 @@ export default function SettingsScreen() {
                       color={theme.primary}
                     />
                     <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
-                      Terms Summary
+                      Terms & Conditions
                     </Text>
                   </View>
                   <IconSymbol
