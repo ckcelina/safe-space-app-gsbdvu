@@ -64,12 +64,15 @@ export function SafeSpaceScreen({
     return (
       <LinearGradient
         colors={[theme.background, theme.card]}
-        style={styles.container}
+        style={styles.fullScreenContainer}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       >
         {showStatusBarGradient && <StatusBarGradient />}
-        <SafeAreaView style={styles.safeArea} edges={edges}>
+        <SafeAreaView 
+          style={[styles.safeArea, { backgroundColor: 'transparent' }]} 
+          edges={edges}
+        >
           {wrappedContent}
         </SafeAreaView>
       </LinearGradient>
@@ -77,7 +80,7 @@ export function SafeSpaceScreen({
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.fullScreenContainer, { backgroundColor: theme.background }]}>
       {showStatusBarGradient && <StatusBarGradient />}
       <SafeAreaView style={styles.safeArea} edges={edges}>
         {wrappedContent}
@@ -87,8 +90,10 @@ export function SafeSpaceScreen({
 }
 
 const styles = StyleSheet.create({
-  container: {
+  fullScreenContainer: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   safeArea: {
     flex: 1,

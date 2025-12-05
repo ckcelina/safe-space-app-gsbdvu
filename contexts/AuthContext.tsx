@@ -143,28 +143,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       console.log('Signup successful:', data.user?.email);
-
-      // Try to create user profile, but don't fail if it doesn't work
-      if (data.user) {
-        try {
-          const { error: insertError } = await supabase
-            .from('users')
-            .insert([{ 
-              id: data.user.id, 
-              email: data.user.email,
-              role: 'free' 
-            }]);
-
-          if (insertError) {
-            console.log('User profile insert failed (non-blocking):', insertError.message);
-          } else {
-            console.log('User profile created successfully');
-          }
-        } catch (profileError) {
-          console.log('User profile creation error (non-blocking):', profileError);
-        }
-      }
-
+      
+      // The user profile will be created automatically by fetchUserProfile
+      // when the auth state changes to SIGNED_IN
+      
       return { error: null };
     } catch (error) {
       console.error('Unexpected signup error:', error);

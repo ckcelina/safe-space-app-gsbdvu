@@ -54,6 +54,10 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleBack = () => {
+    router.back();
+  };
+
   const getPlanDisplay = () => {
     if (role === 'admin') {
       return { 
@@ -80,6 +84,24 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBarGradient />
+      
+      {/* Back Button */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity 
+          onPress={handleBack} 
+          style={styles.backButton}
+          activeOpacity={0.7}
+        >
+          <IconSymbol
+            ios_icon_name="chevron.left"
+            android_material_icon_name="arrow_back"
+            size={24}
+            color={theme.textPrimary}
+          />
+        </TouchableOpacity>
+        <View style={styles.headerSpacer} />
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -201,10 +223,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    paddingTop: Platform.OS === 'android' ? 48 : 60,
+  topHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 24,
-    paddingBottom: 120,
+    paddingTop: Platform.OS === 'android' ? 48 : 60,
+    paddingBottom: 8,
+  },
+  backButton: {
+    padding: 8,
+    borderRadius: 20,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
   header: {
     marginBottom: 32,
