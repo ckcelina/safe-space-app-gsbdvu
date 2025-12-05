@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeType } from '@/types/database.types';
 import { colors, softRoseColors, forestGreenColors } from '@/styles/commonStyles';
@@ -18,11 +18,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeType>('ocean-blue');
   const [currentColors, setCurrentColors] = useState(colors);
 
-  useEffect(() => {
-    loadTheme();
-  }, []);
-
-  const loadTheme = async () => {
+  const loadTheme = useCallback(async () => {
     try {
       const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
       if (savedTheme) {
@@ -33,7 +29,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error loading theme:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadTheme();
+  }, [loadTheme]);
 
   const updateColors = (themeType: ThemeType) => {
     switch (themeType) {

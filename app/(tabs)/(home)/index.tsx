@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -23,13 +23,7 @@ export default function HomeScreen() {
   const [persons, setPersons] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (userId) {
-      fetchPersons();
-    }
-  }, [userId]);
-
-  const fetchPersons = async () => {
+  const fetchPersons = useCallback(async () => {
     try {
       console.log('Fetching people for user:', userId);
       const { data, error } = await supabase
@@ -50,7 +44,13 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    if (userId) {
+      fetchPersons();
+    }
+  }, [userId, fetchPersons]);
 
   const handleAddPerson = () => {
     Alert.prompt(
