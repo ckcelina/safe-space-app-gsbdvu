@@ -126,11 +126,24 @@ export default function ChatScreen() {
       setMessages((prev) => [...prev, userMessage]);
       setTimeout(() => scrollToBottom(), 100);
 
-      // 3. Generate AI reply (placeholder)
+      // 3. Generate AI reply via Edge Function
       const aiReplyText = await generateAIReply(personId, [...messages, userMessage]);
+      
+      // 4. Handle AI reply error
+      if (!aiReplyText) {
+        console.error('Failed to generate AI reply');
+        Alert.alert(
+          'AI Response Error',
+          'Unable to generate a response right now. Please try again.',
+          [{ text: 'OK', style: 'cancel' }]
+        );
+        setSending(false);
+        return;
+      }
+
       console.log('AI reply generated:', aiReplyText);
 
-      // 4. Insert AI message
+      // 5. Insert AI message
       const { data: aiMessage, error: aiError } = await supabase
         .from('messages')
         .insert([
@@ -146,9 +159,14 @@ export default function ChatScreen() {
 
       if (aiError) {
         console.error('Error inserting AI message:', aiError);
+        Alert.alert(
+          'Error',
+          'AI response generated but failed to save. Please try again.',
+          [{ text: 'OK', style: 'cancel' }]
+        );
       } else {
         console.log('AI message inserted:', aiMessage.id);
-        // 5. Append AI message to the list
+        // 6. Append AI message to the list
         setMessages((prev) => [...prev, aiMessage]);
         setTimeout(() => scrollToBottom(), 100);
       }
