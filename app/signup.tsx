@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,11 +9,10 @@ import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
-import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase';
 
 export default function SignupScreen() {
-  const { signUp } = useAuth();
   const { theme } = useThemeContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,6 +25,7 @@ export default function SignupScreen() {
   const handleSignup = async () => {
     setErrorMessage(null);
 
+    // Validation
     if (!email || !password) {
       setErrorMessage('Please fill in all fields');
       return;
@@ -50,15 +50,68 @@ export default function SignupScreen() {
     
     try {
       console.log('Attempting to sign up:', email);
-      const { error } = await signUp(email, password);
+      
+      // Step 1: Sign up with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: 'https://natively.dev/email-confirmed'
+        }
+      });
 
-      if (error) {
-        console.error('Signup error:', error);
-        setErrorMessage(error.message || 'An error occurred during signup');
-      } else {
-        console.log('Signup successful! Redirecting to home...');
-        router.replace('/(tabs)/(home)');
+      if (authError) {
+        console.error('Signup error:', authError);
+        setErrorMessage(authError.message || 'An error occurred during signup');
+        return;
       }
+
+      if (!authData.user) {
+        console.error('No user returned from signup');
+        setErrorMessage('Failed to create account. Please try again.');
+        return;
+      }
+
+      console.log('Auth signup successful:', authData.user.id);
+
+      // Step 2: Insert into public.users
+      // If this fails, log a warning but still treat signup as successful
+      try {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: authData.user.id,
+              email: authData.user.email,
+              role: 'free',
+            },
+          ]);
+
+        if (insertError) {
+          console.warn('Warning: Failed to insert user profile:', insertError);
+          // Don't block the user - they can still use the app
+        } else {
+          console.log('User profile created successfully');
+        }
+      } catch (profileError) {
+        console.warn('Warning: Exception creating user profile:', profileError);
+        // Don't block the user
+      }
+
+      // Step 3: Show success message
+      Alert.alert(
+        'Account Created!',
+        'Please check your email to verify your account. You can still use the app while waiting for verification.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              console.log('Navigating to home screen');
+              router.replace('/(tabs)/(home)');
+            },
+          },
+        ]
+      );
     } catch (err: any) {
       console.error('Unexpected signup error:', err);
       setErrorMessage('An unexpected error occurred. Please try again.');
@@ -66,6 +119,13 @@ export default function SignupScreen() {
       setLoading(false);
     }
   };
+
+  const isFormValid = 
+    email.trim() !== '' && 
+    password.trim() !== '' && 
+    confirmPassword.trim() !== '' && 
+    termsAccepted && 
+    privacyAccepted;
 
   return (
     <LinearGradient
@@ -191,7 +251,7 @@ export default function SignupScreen() {
                 <SafeSpaceButton 
                   onPress={handleSignup} 
                   loading={loading} 
-                  disabled={loading}
+                  disabled={loading || !isFormValid}
                 >
                   {loading ? 'Creating Account…' : 'Sign Up'}
                 </SafeSpaceButton>
@@ -294,12 +354,19 @@ const styles = StyleSheet.create({
   errorContainer: {
     marginTop: 12,
     marginBottom: 4,
+    backgroundColor: 'rgba(255, 68, 68, 0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 68, 68, 0.3)',
   },
   errorText: {
     color: '#FF4444',
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+    fontWeight: '500',
   },
   buttonSpacing: {
     height: 8,

@@ -30,7 +30,7 @@ export default function ChatScreen() {
     personName: string;
     relationshipType?: string;
   }>();
-  const { userId, role } = useAuth();
+  const { userId, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -240,7 +240,14 @@ export default function ChatScreen() {
             />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{personName}</Text>
+            <View style={styles.headerTitleRow}>
+              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{personName}</Text>
+              {isPremium && (
+                <View style={styles.premiumBadgeSmall}>
+                  <Text style={styles.premiumBadgeSmallText}>⭐</Text>
+                </View>
+              )}
+            </View>
             {relationshipType && (
               <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
                 {relationshipType}
@@ -396,9 +403,23 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
+  },
+  premiumBadgeSmall: {
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  premiumBadgeSmallText: {
+    fontSize: 12,
   },
   headerSubtitle: {
     fontSize: 13,

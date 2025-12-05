@@ -102,16 +102,33 @@ export default function ProfileScreen() {
     setShowThemeModal(false);
   };
 
-  const getRoleBadgeColor = () => {
-    switch (role) {
-      case 'premium':
-        return '#FFD700';
-      case 'admin':
-        return '#FF6B6B';
-      default:
-        return colors.textSecondary;
+  // Get plan display info
+  const getPlanInfo = () => {
+    if (role === 'premium') {
+      return {
+        text: 'PREMIUM',
+        subtext: 'You have full access',
+        icon: 'star.fill' as const,
+        iconColor: '#FFD700',
+      };
+    } else if (role === 'admin') {
+      return {
+        text: 'ADMIN',
+        subtext: 'Full access',
+        icon: 'shield.fill' as const,
+        iconColor: '#FF6B6B',
+      };
+    } else {
+      return {
+        text: 'Free',
+        subtext: 'Some features are locked',
+        icon: 'lock.fill' as const,
+        iconColor: colors.textSecondary,
+      };
     }
   };
+
+  const planInfo = getPlanInfo();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -121,6 +138,36 @@ export default function ProfileScreen() {
       >
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
+        </View>
+
+        {/* Plan Card - Prominent at top */}
+        <View style={[styles.planCard, { backgroundColor: colors.card }]}>
+          <View style={styles.planHeader}>
+            <IconSymbol
+              ios_icon_name={planInfo.icon}
+              android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
+              size={32}
+              color={planInfo.iconColor}
+            />
+            <View style={styles.planInfo}>
+              <Text style={[styles.planTitle, { color: colors.text }]}>
+                Plan: {planInfo.text}
+              </Text>
+              <Text style={[styles.planSubtext, { color: colors.textSecondary }]}>
+                {planInfo.subtext}
+              </Text>
+            </View>
+          </View>
+          {role === 'premium' && (
+            <View style={styles.premiumBadge}>
+              <Text style={styles.premiumBadgeText}>⭐ Premium</Text>
+            </View>
+          )}
+          {role === 'admin' && (
+            <View style={styles.adminBadge}>
+              <Text style={styles.adminBadgeText}>🛡️ Admin</Text>
+            </View>
+          )}
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.card }]}>
@@ -137,25 +184,6 @@ export default function ProfileScreen() {
               </Text>
               <Text style={[styles.infoValue, { color: colors.text }]}>
                 {email || 'Not available'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={[styles.card, { backgroundColor: colors.card }]}>
-          <View style={styles.infoRow}>
-            <IconSymbol
-              ios_icon_name="star.fill"
-              android_material_icon_name="star"
-              size={24}
-              color={getRoleBadgeColor()}
-            />
-            <View style={styles.infoContent}>
-              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                Plan
-              </Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>
-                {role.charAt(0).toUpperCase() + role.slice(1)}
               </Text>
             </View>
           </View>
@@ -353,6 +381,56 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
+  },
+  planCard: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.12)',
+    elevation: 4,
+  },
+  planHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  planInfo: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  planTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  planSubtext: {
+    fontSize: 14,
+  },
+  premiumBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  premiumBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFD700',
+  },
+  adminBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  adminBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF6B6B',
   },
   card: {
     borderRadius: 12,

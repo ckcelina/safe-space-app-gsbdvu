@@ -26,7 +26,7 @@ interface GroupedPersons {
 }
 
 export default function HomeScreen() {
-  const { currentUser, userId, isPremium, loading: authLoading } = useAuth();
+  const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
   const [persons, setPersons] = useState<PersonWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,6 +251,37 @@ export default function HomeScreen() {
     router.push('/(tabs)/settings');
   };
 
+  // Get plan display info
+  const getPlanInfo = () => {
+    if (role === 'premium') {
+      return {
+        text: 'Plan: PREMIUM',
+        subtext: 'You have full access',
+        icon: 'star.fill' as const,
+        iconColor: '#FFD700',
+        badgeColor: '#FFD700',
+      };
+    } else if (role === 'admin') {
+      return {
+        text: 'Plan: ADMIN',
+        subtext: 'Full access',
+        icon: 'shield.fill' as const,
+        iconColor: '#FF6B6B',
+        badgeColor: '#FF6B6B',
+      };
+    } else {
+      return {
+        text: 'Plan: Free – Some features are locked',
+        subtext: null,
+        icon: 'lock.fill' as const,
+        iconColor: theme.textSecondary,
+        badgeColor: theme.textSecondary,
+      };
+    }
+  };
+
+  const planInfo = getPlanInfo();
+
   if (authLoading) {
     return <LoadingOverlay visible={true} />;
   }
@@ -296,6 +327,11 @@ export default function HomeScreen() {
               {/* Header */}
               <View style={styles.header}>
                 <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
+                {isPremium && (
+                  <View style={styles.premiumBadge}>
+                    <Text style={styles.premiumBadgeText}>⭐ Premium</Text>
+                  </View>
+                )}
                 <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
                   Who would you like to talk about today?
                 </Text>
@@ -304,14 +340,21 @@ export default function HomeScreen() {
               {/* Plan Chip */}
               <View style={[styles.planChip, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 <IconSymbol
-                  ios_icon_name={isPremium ? 'star.fill' : 'lock.fill'}
-                  android_material_icon_name={isPremium ? 'star' : 'lock'}
+                  ios_icon_name={planInfo.icon}
+                  android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
                   size={16}
-                  color={isPremium ? '#FFD700' : theme.textSecondary}
+                  color={planInfo.iconColor}
                 />
-                <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
-                  {isPremium ? 'Plan: Premium – Full access' : 'Plan: Free – Some features are locked'}
-                </Text>
+                <View style={styles.planChipTextContainer}>
+                  <Text style={[styles.planChipText, { color: theme.textPrimary }]}>
+                    {planInfo.text}
+                  </Text>
+                  {planInfo.subtext && (
+                    <Text style={[styles.planChipSubtext, { color: theme.textSecondary }]}>
+                      {planInfo.subtext}
+                    </Text>
+                  )}
+                </View>
               </View>
 
               {/* Search Bar */}
@@ -643,7 +686,20 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  premiumBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
     marginBottom: 8,
+  },
+  premiumBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFD700',
   },
   headerSubtitle: {
     fontSize: 16,
@@ -661,9 +717,16 @@ const styles = StyleSheet.create({
     boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
     elevation: 2,
   },
+  planChipTextContainer: {
+    flexDirection: 'column',
+  },
   planChipText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  planChipSubtext: {
+    fontSize: 12,
+    marginTop: 2,
   },
   searchContainer: {
     flexDirection: 'row',
