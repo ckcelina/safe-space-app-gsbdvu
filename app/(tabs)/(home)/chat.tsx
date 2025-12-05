@@ -90,22 +90,16 @@ export default function ChatScreen() {
       console.log('User message inserted:', userMessage);
       setMessages((prev) => [...prev, userMessage]);
 
-      // Get recent messages for context (last 10)
-      const recentMessages = [...messages, userMessage].slice(-10);
-      const messageHistory = recentMessages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
-
       console.log('Calling AI Edge Function...');
       
       // Call Supabase Edge Function
+      // The function will fetch the last 15 messages from the database for context
       const { data: aiResponse, error: aiError } = await supabase.functions.invoke(
         'generate-ai-response',
         {
           body: {
+            user_id: userId,
             person_id: personId,
-            messages: messageHistory,
           },
         }
       );
