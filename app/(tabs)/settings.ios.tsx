@@ -20,7 +20,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
 import { deleteUserAccount } from '@/utils/accountDeletion';
-import { openSupportEmail, openURL, LEGAL_URLS } from '@/utils/supportHelpers';
+import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 export default function SettingsScreen() {
@@ -118,22 +118,16 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleTermsPress = async () => {
-    try {
-      await openURL(LEGAL_URLS.terms);
-    } catch (error) {
-      console.error('Error opening terms:', error);
-      showErrorToast('Could not open terms');
-    }
+  const handlePrivacyPress = () => {
+    router.push('/legal/privacy-policy');
   };
 
-  const handlePrivacyPress = async () => {
-    try {
-      await openURL(LEGAL_URLS.privacy);
-    } catch (error) {
-      console.error('Error opening privacy policy:', error);
-      showErrorToast('Could not open privacy policy');
-    }
+  const handleTermsPress = () => {
+    router.push('/legal/terms-of-service');
+  };
+
+  const handleTermsSummaryPress = () => {
+    router.push('/legal/terms-summary');
   };
 
   const getPlanDisplay = () => {
@@ -339,30 +333,6 @@ export default function SettingsScreen() {
 
                 <TouchableOpacity
                   style={styles.row}
-                  onPress={handleTermsPress}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.rowLeft}>
-                    <IconSymbol
-                      ios_icon_name="doc.text.fill"
-                      android_material_icon_name="description"
-                      size={20}
-                      color={theme.primary}
-                    />
-                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
-                      Terms & Conditions
-                    </Text>
-                  </View>
-                  <IconSymbol
-                    ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron_right"
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.row, { borderBottomWidth: 0 }]}
                   onPress={handlePrivacyPress}
                   activeOpacity={0.7}
                 >
@@ -375,6 +345,54 @@ export default function SettingsScreen() {
                     />
                     <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
                       Privacy Policy
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="chevron_right"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={handleTermsPress}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="doc.text.fill"
+                      android_material_icon_name="description"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                      Terms of Service & Use
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="chevron_right"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.row, { borderBottomWidth: 0 }]}
+                  onPress={handleTermsSummaryPress}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="doc.plaintext.fill"
+                      android_material_icon_name="article"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                      Terms Summary
                     </Text>
                   </View>
                   <IconSymbol
