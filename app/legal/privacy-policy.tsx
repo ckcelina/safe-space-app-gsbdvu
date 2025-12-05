@@ -15,78 +15,59 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 
-// Placeholder text - replace with your actual privacy policy
-const PRIVACY_POLICY_TEXT = `Privacy Policy
+const PRIVACY_POLICY_TEXT = `Privacy Policy — Safe Space ByCelina
+Last updated: 6 December 2025
+Location: Amman, Jordan
 
-Last Updated: [Date]
+This Privacy Policy explains how Safe Space ByCelina ("Safe Space", "we", "our", "us") collects, uses, and protects your information when you use our mobile application ("App").
 
-Welcome to Safe Space. Your privacy is important to us. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application.
+By using Safe Space, you agree to the practices described in this Privacy Policy.
 
-1. Information We Collect
+1. Purpose of Safe Space
+Safe Space is an AI-assisted emotional support app. It helps you reflect on your emotions and relationships, but it is not a substitute for professional mental health treatment or crisis support.
 
-We collect information that you provide directly to us when you:
-- Create an account
-- Use our services
-- Communicate with us
+If you are in crisis, you must contact local emergency services or a qualified professional immediately.
 
-Personal Information may include:
-- Email address
-- Account credentials
-- Profile information
-- Conversation data
+2. Information We Collect
 
-2. How We Use Your Information
+2.1. Account Information
+We may collect your email address, password (securely stored), and basic preferences such as theme settings.
 
-We use the information we collect to:
-- Provide, maintain, and improve our services
-- Process your requests and transactions
-- Send you technical notices and support messages
-- Respond to your comments and questions
-- Protect against fraudulent or illegal activity
+2.2. Emotional & Relationship Content
+You may enter thoughts, feelings, relationship details, and personal reflections. This content is used to generate AI responses and maintain conversation history.
 
-3. Data Storage and Security
+2.3. Technical Data
+We may collect device type, anonymous usage analytics, and crash reports. We do not intentionally collect precise location unless you provide it in text.
 
-We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.
+3. How We Use Your Information
+We use your data to operate the App, generate AI reflections, improve usability, and maintain security. We do not sell your data.
 
-Your conversation data is stored securely and is only accessible to you. We use industry-standard encryption to protect data in transit and at rest.
+4. AI Processing
+Your message content may be sent to an AI provider to generate responses. Data is processed respectfully and not used for personal identification outside the service.
 
-4. Data Sharing and Disclosure
+5. Data Storage & Security
+Your data is stored using backend services applying industry-standard security. No online system can guarantee 100% security.
 
-We do not sell, trade, or rent your personal information to third parties. We may share your information only in the following circumstances:
-- With your consent
-- To comply with legal obligations
-- To protect our rights and safety
+6. How Long We Keep Data
+Data may be retained while your account is active or as needed for legal or operational purposes. You may request account deletion.
 
-5. Your Rights
+7. Sharing of Information
+We only share data with service providers necessary to operate the App, comply with law, or protect safety. We do not sell your information.
 
-You have the right to:
-- Access your personal information
-- Correct inaccurate data
-- Delete your account and associated data
-- Opt-out of certain data collection
+8. Children's Privacy
+Safe Space is for ages 13+. We do not knowingly collect data from users under 13.
 
-6. Third-Party Services
+9. Your Rights
+Where applicable, you may request access, correction, or deletion of your data by contacting: celi.bycelina@gmail.com
 
-Our app may use third-party services (such as Supabase for backend services) that have their own privacy policies. We encourage you to review their policies.
+10. International Use
+Your data may be stored or processed in different countries depending on service providers.
 
-7. Children's Privacy
+11. Changes to This Policy
+Updates may occur. Continued use after changes indicates acceptance.
 
-Our service is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13.
-
-8. Changes to This Privacy Policy
-
-We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last Updated" date.
-
-9. International Data Transfers
-
-Your information may be transferred to and maintained on servers located outside of your state, province, country, or other governmental jurisdiction where data protection laws may differ.
-
-10. Contact Us
-
-If you have questions or concerns about this Privacy Policy, please contact us at:
-Email: support@safespace.app
-
-By using Safe Space, you agree to the collection and use of information in accordance with this Privacy Policy.`;
+12. Contact
+For questions: celi.bycelina@gmail.com`;
 
 export default function PrivacyPolicyScreen() {
   const { theme } = useThemeContext();
