@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Animated,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,10 +17,14 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { Message } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
-import { LinearGradient } from 'expo-linear-gradient';
+import { ChatBubble } from '@/components/ui/ChatBubble';
+import { TypingIndicator } from '@/components/ui/TypingIndicator';
 
 export default function ChatScreen() {
-  const { personId, personName } = useLocalSearchParams<{ personId: string; personName: string }>();
+  const { personId, personName } = useLocalSearchParams<{
+    personId: string;
+    personName: string;
+  }>();
   const { userId } = useAuth();
   const { colors } = useThemeContext();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -29,43 +32,6 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
-
-  // Typing indicator animation
-  const dot1Anim = useRef(new Animated.Value(0)).current;
-  const dot2Anim = useRef(new Animated.Value(0)).current;
-  const dot3Anim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (sending) {
-      const createDotAnimation = (animValue: Animated.Value, delay: number) => {
-        return Animated.loop(
-          Animated.sequence([
-            Animated.delay(delay),
-            Animated.timing(animValue, {
-              toValue: -8,
-              duration: 400,
-              useNativeDriver: true,
-            }),
-            Animated.timing(animValue, {
-              toValue: 0,
-              duration: 400,
-              useNativeDriver: true,
-            }),
-          ])
-        );
-      };
-
-      const animation = Animated.parallel([
-        createDotAnimation(dot1Anim, 0),
-        createDotAnimation(dot2Anim, 150),
-        createDotAnimation(dot3Anim, 300),
-      ]);
-
-      animation.start();
-
-      return () => animation.stop();
-    }
-  }, [sending, dot1Anim, dot2Anim, dot3Anim]);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -110,7 +76,7 @@ export default function ChatScreen() {
 
     try {
       console.log('Sending user message:', messageContent);
-      
+
       // Insert user message
       const { data: userMessage, error: userError } = await supabase
         .from('messages')
@@ -136,7 +102,7 @@ export default function ChatScreen() {
       setTimeout(() => scrollToBottom(), 100);
 
       console.log('Calling AI Edge Function...');
-      
+
       // Call Supabase Edge Function
       const { data: aiResponse, error: aiError } = await supabase.functions.invoke(
         'generate-ai-response',
@@ -150,27 +116,27 @@ export default function ChatScreen() {
 
       if (aiError) {
         console.error('Error calling AI function:', aiError);
-        // Insert a fallback message
         const fallbackMessage = {
           user_id: userId,
           person_id: personId,
           role: 'assistant' as const,
-          content: 'I apologize, but I am having trouble responding right now. Please try again.',
+          content:
+            'I apologize, but I am having trouble responding right now. Please try again.',
         };
-        
+
         const { data: fallbackData } = await supabase
           .from('messages')
           .insert([fallbackMessage])
           .select()
           .single();
-        
+
         if (fallbackData) {
           setMessages((prev) => [...prev, fallbackData]);
           setTimeout(() => scrollToBottom(), 100);
         }
       } else {
         console.log('AI response received:', aiResponse);
-        
+
         // Insert AI message
         const { data: aiMessage, error: aiInsertError } = await supabase
           .from('messages')
@@ -200,28 +166,6 @@ export default function ChatScreen() {
     }
   };
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInMinutes = Math.floor(diffInMs / 60000);
-    const diffInHours = Math.floor(diffInMs / 3600000);
-    const diffInDays = Math.floor(diffInMs / 86400000);
-
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const getGradientColors = () => {
-    // Create a lighter version of the primary color for gradient
-    const primary = colors.primary;
-    return [primary, primary + 'CC']; // Adding alpha for lighter shade
-  };
-
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -239,9 +183,7 @@ export default function ChatScreen() {
           />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            {personName}
-          </Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{personName}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -278,93 +220,20 @@ export default function ChatScreen() {
             </View>
           ) : (
             <>
-              {messages.map((message, index) => {
-                const isUser = message.role === 'user';
-                return (
-                  <View
-                    key={index}
-                    style={[
-                      styles.messageRow,
-                      isUser ? styles.userMessageRow : styles.aiMessageRow,
-                    ]}
-                  >
-                    {!isUser && (
-                      <View style={[styles.aiIconContainer, { backgroundColor: colors.highlight }]}>
-                        <IconSymbol
-                          ios_icon_name="sparkles"
-                          android_material_icon_name="auto_awesome"
-                          size={16}
-                          color={colors.primary}
-                        />
-                      </View>
-                    )}
-                    
-                    <View style={styles.messageBubbleContainer}>
-                      {isUser ? (
-                        <LinearGradient
-                          colors={getGradientColors()}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={[styles.messageBubble, styles.userBubble]}
-                        >
-                          <Text style={styles.userMessageText}>
-                            {message.content}
-                          </Text>
-                        </LinearGradient>
-                      ) : (
-                        <View style={[styles.messageBubble, styles.aiBubble, { backgroundColor: colors.card }]}>
-                          <Text style={[styles.aiMessageText, { color: colors.text }]}>
-                            {message.content}
-                          </Text>
-                        </View>
-                      )}
-                      
-                      <Text style={[styles.timestamp, { color: colors.textSecondary }]}>
-                        {formatTimestamp(message.created_at)}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
+              {messages.map((message, index) => (
+                <ChatBubble
+                  key={index}
+                  message={message.content}
+                  isUser={message.role === 'user'}
+                  timestamp={message.created_at}
+                  animate={index === messages.length - 1}
+                />
+              ))}
             </>
           )}
 
           {/* Typing Indicator */}
-          {sending && (
-            <View style={[styles.messageRow, styles.aiMessageRow]}>
-              <View style={[styles.aiIconContainer, { backgroundColor: colors.highlight }]}>
-                <IconSymbol
-                  ios_icon_name="sparkles"
-                  android_material_icon_name="auto_awesome"
-                  size={16}
-                  color={colors.primary}
-                />
-              </View>
-              
-              <View style={[styles.typingBubble, { backgroundColor: colors.card }]}>
-                <View style={styles.typingDotsContainer}>
-                  <Animated.View
-                    style={[
-                      styles.typingDot,
-                      { backgroundColor: colors.textSecondary, transform: [{ translateY: dot1Anim }] },
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.typingDot,
-                      { backgroundColor: colors.textSecondary, transform: [{ translateY: dot2Anim }] },
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.typingDot,
-                      { backgroundColor: colors.textSecondary, transform: [{ translateY: dot3Anim }] },
-                    ]}
-                  />
-                </View>
-              </View>
-            </View>
-          )}
+          {sending && <TypingIndicator />}
         </ScrollView>
       )}
 
@@ -382,7 +251,7 @@ export default function ChatScreen() {
             editable={!sending}
           />
         </View>
-        
+
         <TouchableOpacity
           style={[
             styles.sendButton,
@@ -468,72 +337,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  messageRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    alignItems: 'flex-end',
-  },
-  userMessageRow: {
-    justifyContent: 'flex-end',
-  },
-  aiMessageRow: {
-    justifyContent: 'flex-start',
-  },
-  aiIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-    marginBottom: 4,
-  },
-  messageBubbleContainer: {
-    maxWidth: '75%',
-  },
-  messageBubble: {
-    padding: 12,
-    borderRadius: 18,
-  },
-  userBubble: {
-    borderBottomRightRadius: 4,
-  },
-  aiBubble: {
-    borderBottomLeftRadius: 4,
-    boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
-  },
-  userMessageText: {
-    fontSize: 16,
-    lineHeight: 22,
-    color: '#FFFFFF',
-  },
-  aiMessageText: {
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  timestamp: {
-    fontSize: 11,
-    marginTop: 4,
-    marginLeft: 4,
-  },
-  typingBubble: {
-    padding: 12,
-    borderRadius: 18,
-    borderBottomLeftRadius: 4,
-    boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
-  },
-  typingDotsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  typingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
   },
   inputContainer: {
     flexDirection: 'row',

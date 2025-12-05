@@ -1,7 +1,7 @@
 
-import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { StyleSheet } from 'react-native';
 
-// Ocean Blue Theme
+// Ocean Blue Theme - Calm and serene
 export const colors = {
   background: '#E6F7FF',
   text: '#001529',
@@ -13,7 +13,7 @@ export const colors = {
   highlight: '#BAE7FF',
 };
 
-// Soft Rose Theme
+// Soft Rose Theme - Gentle and nurturing
 export const softRoseColors = {
   background: '#FFF0F5',
   text: '#4A1F2F',
@@ -25,7 +25,7 @@ export const softRoseColors = {
   highlight: '#FFE4E1',
 };
 
-// Forest Green Theme
+// Forest Green Theme - Grounded and peaceful
 export const forestGreenColors = {
   background: '#F0F8F0',
   text: '#1B4D1B',
@@ -37,7 +37,7 @@ export const forestGreenColors = {
   highlight: '#E8F5E8',
 };
 
-// Sunny Yellow Theme
+// Sunny Yellow Theme - Bright and uplifting
 export const sunnyYellowColors = {
   background: '#FFFBEA',
   text: '#5C4A1A',
@@ -88,7 +88,7 @@ export const commonStyles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
     color: colors.text,
-    marginBottom: 10
+    marginBottom: 10,
   },
   text: {
     fontSize: 16,

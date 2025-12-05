@@ -1,22 +1,13 @@
 
-import React, { useEffect, useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Platform,
-} from "react-native";
-import { router, Redirect } from "expo-router";
-import { useAuth } from "@/contexts/AuthContext";
-import { useThemeContext } from "@/contexts/ThemeContext";
-import { supabase } from "@/lib/supabase";
-import { Person, Message } from "@/types/database.types";
-import { IconSymbol } from "@/components/IconSymbol";
-import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
+import { router, Redirect } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import { useThemeContext } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase';
+import { Person } from '@/types/database.types';
+import { IconSymbol } from '@/components/IconSymbol';
+import { PersonCard } from '@/components/ui/PersonCard';
 
 interface PersonWithLastMessage extends Person {
   lastMessage?: string;
@@ -24,7 +15,7 @@ interface PersonWithLastMessage extends Person {
 }
 
 export default function HomeScreen() {
-  const { currentUser, userId, role, loading: authLoading } = useAuth();
+  const { currentUser, userId, loading: authLoading } = useAuth();
   const { colors } = useThemeContext();
   const [persons, setPersons] = useState<PersonWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +38,6 @@ export default function HomeScreen() {
 
       console.log('People loaded:', peopleData?.length);
 
-      // Fetch last message for each person
       const personsWithMessages = await Promise.all(
         (peopleData || []).map(async (person) => {
           const { data: messages } = await supabase
@@ -151,13 +141,6 @@ export default function HomeScreen() {
     });
   };
 
-  const formatLastMessagePreview = (message: string) => {
-    if (message.length > 50) {
-      return message.substring(0, 50) + '...';
-    }
-    return message;
-  };
-
   if (authLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -175,10 +158,8 @@ export default function HomeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Your Safe Space
-          </Text>
-          <TouchableOpacity 
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Your Safe Space</Text>
+          <TouchableOpacity
             style={[styles.profileIcon, { backgroundColor: colors.primary }]}
             onPress={() => router.push('/(tabs)/profile')}
           >
@@ -193,11 +174,7 @@ export default function HomeScreen() {
       </View>
 
       {/* Content */}
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.scrollView}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           People You&apos;re Talking About
         </Text>
@@ -216,9 +193,7 @@ export default function HomeScreen() {
                 color={colors.primary}
               />
             </View>
-            <Text style={[styles.emptyText, { color: colors.text }]}>
-              No one added yet
-            </Text>
+            <Text style={[styles.emptyText, { color: colors.text }]}>No one added yet</Text>
             <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
               Tap the + button below to add someone you&apos;d like to talk about
             </Text>
@@ -226,43 +201,15 @@ export default function HomeScreen() {
         ) : (
           <View style={styles.cardList}>
             {persons.map((person, index) => (
-              <TouchableOpacity
+              <PersonCard
                 key={index}
-                style={[styles.personCard, { backgroundColor: colors.card }]}
+                person={person}
                 onPress={() => handlePersonPress(person)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.cardContent}>
-                  <View style={[styles.avatarCircle, { backgroundColor: colors.highlight }]}>
-                    <Text style={[styles.avatarText, { color: colors.primary }]}>
-                      {person.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.personInfo}>
-                    <Text style={[styles.personName, { color: colors.text }]}>
-                      {person.name}
-                    </Text>
-                    <Text style={[styles.relationshipType, { color: colors.textSecondary }]}>
-                      {person.relationship_type}
-                    </Text>
-                    <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
-                      {formatLastMessagePreview(person.lastMessage || 'No messages yet')}
-                    </Text>
-                  </View>
-
-                  <IconSymbol
-                    ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron_right"
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                </View>
-              </TouchableOpacity>
+              />
             ))}
           </View>
         )}
-      </ScrollView>
+      </View>
 
       {/* Floating Add Button */}
       <TouchableOpacity
@@ -308,10 +255,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-  },
-  scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 120,
   },
   sectionTitle: {
     fontSize: 18,
@@ -347,47 +291,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   cardList: {
-    gap: 12,
-  },
-  personCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-    elevation: 3,
-  },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  personInfo: {
-    flex: 1,
-  },
-  personName: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  relationshipType: {
-    fontSize: 13,
-    marginBottom: 4,
-    textTransform: 'capitalize',
-  },
-  lastMessage: {
-    fontSize: 14,
-    fontStyle: 'italic',
+    paddingBottom: 120,
   },
   floatingButton: {
     position: 'absolute',

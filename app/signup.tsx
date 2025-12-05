@@ -1,19 +1,12 @@
 
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Platform,
-  KeyboardAvoidingView,
-} from 'react-native';
+import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
+import { SafeSpaceTitle, SafeSpaceCaption } from '@/components/ui/SafeSpaceText';
+import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
+import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
+import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 
@@ -64,199 +57,127 @@ export default function SignupScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          bounces={false}
-        >
-          <View style={styles.content}>
-            {/* Theme Preview */}
-            <View style={styles.themePreviewContainer}>
-              <Text style={[styles.themePreviewLabel, { color: colors.textSecondary }]}>
-                Your Theme
-              </Text>
-              <View style={styles.themePreviewRow}>
-                <View style={[styles.themePreviewCircle, { backgroundColor: colors.primary }]} />
-                <View style={[styles.themePreviewCircle, { backgroundColor: colors.secondary }]} />
-                <View style={[styles.themePreviewCircle, { backgroundColor: colors.accent }]} />
-              </View>
-            </View>
-
-            <Text style={[styles.title, { color: colors.text }]}>
-              Create Account
-            </Text>
-
-            <View style={styles.form}>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.accent }]}
-                placeholder="Email"
-                placeholderTextColor={colors.textSecondary}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                editable={!loading}
-              />
-
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.accent }]}
-                placeholder="Password"
-                placeholderTextColor={colors.textSecondary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                editable={!loading}
-              />
-
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.accent }]}
-                placeholder="Confirm Password"
-                placeholderTextColor={colors.textSecondary}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-                editable={!loading}
-              />
-
-              <TouchableOpacity
-                style={styles.checkboxContainer}
-                onPress={() => setTermsAccepted(!termsAccepted)}
-                disabled={loading}
-              >
-                <View
-                  style={[
-                    styles.checkbox,
-                    { borderColor: colors.primary },
-                    termsAccepted && { backgroundColor: colors.primary },
-                  ]}
-                >
-                  {termsAccepted && (
-                    <Text style={styles.checkmark}>✓</Text>
-                  )}
-                </View>
-                <Text style={[styles.checkboxLabel, { color: colors.text }]}>
-                  I accept the Terms & Conditions
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.checkboxContainer}
-                onPress={() => setPrivacyAccepted(!privacyAccepted)}
-                disabled={loading}
-              >
-                <View
-                  style={[
-                    styles.checkbox,
-                    { borderColor: colors.primary },
-                    privacyAccepted && { backgroundColor: colors.primary },
-                  ]}
-                >
-                  {privacyAccepted && (
-                    <Text style={styles.checkmark}>✓</Text>
-                  )}
-                </View>
-                <Text style={[styles.checkboxLabel, { color: colors.text }]}>
-                  I accept the Privacy Policy
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  { backgroundColor: colors.primary },
-                  loading && styles.buttonDisabled,
-                ]}
-                onPress={handleSignup}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.buttonText}>Sign Up</Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => router.replace('/login')}
-                disabled={loading}
-                style={styles.linkContainer}
-              >
-                <Text style={[styles.linkText, { color: colors.primary }]}>
-                  Already have an account? Log In
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Disclaimer with proper spacing */}
-            <View style={styles.disclaimerContainer}>
-              <Text style={[styles.disclaimerText, { color: colors.textSecondary }]}>
-                By continuing, you agree this is a supportive AI coach, not a substitute for professional care.
-              </Text>
-            </View>
+    <SafeSpaceScreen scrollable={true} keyboardAware={true} useGradient={true}>
+      <View style={styles.content}>
+        {/* Theme Preview */}
+        <View style={styles.themePreview}>
+          <SafeSpaceCaption align="center">Your Theme</SafeSpaceCaption>
+          <View style={styles.themePreviewRow}>
+            <View style={[styles.themeCircle, { backgroundColor: colors.primary }]} />
+            <View style={[styles.themeCircle, { backgroundColor: colors.secondary }]} />
+            <View style={[styles.themeCircle, { backgroundColor: colors.accent }]} />
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </View>
+
+        <SafeSpaceTitle>Create Account</SafeSpaceTitle>
+
+        <View style={styles.form}>
+          <SafeSpaceTextInput
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            editable={!loading}
+          />
+
+          <SafeSpaceTextInput
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            editable={!loading}
+          />
+
+          <SafeSpaceTextInput
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            editable={!loading}
+          />
+
+          {/* Checkboxes */}
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            onPress={() => setTermsAccepted(!termsAccepted)}
+            disabled={loading}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                { borderColor: colors.primary },
+                termsAccepted && { backgroundColor: colors.primary },
+              ]}
+            >
+              {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+              I accept the Terms & Conditions
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            onPress={() => setPrivacyAccepted(!privacyAccepted)}
+            disabled={loading}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                { borderColor: colors.primary },
+                privacyAccepted && { backgroundColor: colors.primary },
+              ]}
+            >
+              {privacyAccepted && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+              I accept the Privacy Policy
+            </Text>
+          </TouchableOpacity>
+
+          <SafeSpaceButton onPress={handleSignup} loading={loading} disabled={loading}>
+            Sign Up
+          </SafeSpaceButton>
+
+          <SafeSpaceLinkButton onPress={() => router.replace('/login')} disabled={loading}>
+            Already have an account? Log In
+          </SafeSpaceLinkButton>
+        </View>
+
+        {/* Disclaimer */}
+        <View style={styles.disclaimerContainer}>
+          <SafeSpaceCaption align="center">
+            By continuing, you agree this is a supportive AI coach, not a substitute for professional care.
+          </SafeSpaceCaption>
+        </View>
+      </View>
+    </SafeSpaceScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 60,
-  },
   content: {
-    width: '100%',
+    flex: 1,
   },
-  themePreviewContainer: {
+  themePreview: {
     alignItems: 'center',
     marginBottom: 24,
-  },
-  themePreviewLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
   },
   themePreviewRow: {
     flexDirection: 'row',
     gap: 12,
+    marginTop: 8,
   },
-  themePreviewCircle: {
+  themeCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
     boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 2,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
   form: {
     width: '100%',
-  },
-  input: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    fontSize: 16,
-    borderWidth: 1,
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -281,36 +202,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     flex: 1,
   },
-  button: {
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  linkContainer: {
-    marginBottom: 32,
-  },
-  linkText: {
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '500',
-  },
   disclaimerContainer: {
     marginTop: 24,
     paddingHorizontal: 8,
-  },
-  disclaimerText: {
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 18,
   },
 });
