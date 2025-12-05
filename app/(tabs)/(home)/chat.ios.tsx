@@ -7,10 +7,8 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,7 +18,10 @@ import { Message } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { ChatBubble } from '@/components/ui/ChatBubble';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { generateAIReply } from '@/utils/aiHelpers';
+import { showErrorToast } from '@/utils/toast';
 
 export default function ChatScreen() {
   const { personId, personName, relationshipType } = useLocalSearchParams<{
@@ -35,6 +36,7 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [aiTyping, setAiTyping] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Character limits
@@ -62,14 +64,16 @@ export default function ChatScreen() {
       if (fetchError) {
         console.error('Error fetching messages:', fetchError);
         setError('Failed to load messages');
+        showErrorToast('Failed to load messages');
       } else {
         console.log('Messages loaded:', data?.length || 0);
         setMessages(data || []);
         setTimeout(() => scrollToBottom(), 100);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Unexpected error fetching messages:', err);
       setError('An unexpected error occurred');
+      showErrorToast('Failed to load messages');
     } finally {
       setLoading(false);
     }
@@ -125,7 +129,7 @@ export default function ChatScreen() {
 
       if (userError) {
         console.error('Error inserting user message:', userError);
-        Alert.alert('Error', 'Failed to send message. Please try again.');
+        showErrorToast('Failed to send message. Please try again.');
         setInputText(messageContent); // Restore the message
         setSending(false);
         return;
@@ -137,24 +141,26 @@ export default function ChatScreen() {
       setMessages((prev) => [...prev, userMessage]);
       setTimeout(() => scrollToBottom(), 100);
 
-      // 3. Generate AI reply via Edge Function
+      // 3. Show AI typing indicator
+      setAiTyping(true);
+
+      // 4. Generate AI reply via Edge Function
       const aiReplyText = await generateAIReply(personId, [...messages, userMessage]);
       
-      // 4. Handle AI reply error
+      // 5. Hide AI typing indicator
+      setAiTyping(false);
+
+      // 6. Handle AI reply error
       if (!aiReplyText) {
         console.error('Failed to generate AI reply');
-        Alert.alert(
-          'AI Response Error',
-          'Unable to generate a response right now. Please try again.',
-          [{ text: 'OK', style: 'cancel' }]
-        );
+        showErrorToast('I had trouble replying. Please try again.');
         setSending(false);
         return;
       }
 
       console.log('AI reply generated:', aiReplyText);
 
-      // 5. Insert AI message
+      // 7. Insert AI message
       const { data: aiMessage, error: aiError } = await supabase
         .from('messages')
         .insert([
@@ -170,21 +176,18 @@ export default function ChatScreen() {
 
       if (aiError) {
         console.error('Error inserting AI message:', aiError);
-        Alert.alert(
-          'Error',
-          'AI response generated but failed to save. Please try again.',
-          [{ text: 'OK', style: 'cancel' }]
-        );
+        showErrorToast('AI response generated but failed to save.');
       } else {
         console.log('AI message inserted:', aiMessage.id);
-        // 6. Append AI message to the list
+        // 8. Append AI message to the list
         setMessages((prev) => [...prev, aiMessage]);
         setTimeout(() => scrollToBottom(), 100);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Unexpected error sending message:', err);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      showErrorToast('An unexpected error occurred');
       setInputText(messageContent); // Restore the message
+      setAiTyping(false);
     } finally {
       setSending(false);
     }
@@ -196,6 +199,8 @@ export default function ChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
+      <StatusBarGradient />
+      
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.card }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -218,14 +223,7 @@ export default function ChatScreen() {
       </View>
 
       {/* Messages */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
-            Loading messages...
-          </Text>
-        </View>
-      ) : error ? (
+      {error ? (
         <View style={styles.errorContainer}>
           <View style={[styles.errorCard, { backgroundColor: theme.card }]}>
             <IconSymbol
@@ -253,8 +251,9 @@ export default function ChatScreen() {
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => scrollToBottom()}
+          keyboardShouldPersistTaps="handled"
         >
-          {messages.length === 0 ? (
+          {messages.length === 0 && !loading ? (
             <View style={styles.emptyChat}>
               <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
                 <IconSymbol
@@ -285,8 +284,8 @@ export default function ChatScreen() {
             </>
           )}
 
-          {/* Typing Indicator */}
-          {sending && <TypingIndicator />}
+          {/* AI Typing Indicator */}
+          {aiTyping && <TypingIndicator />}
         </ScrollView>
       )}
 
@@ -301,7 +300,7 @@ export default function ChatScreen() {
               value={inputText}
               onChangeText={handleTextChange}
               multiline
-              editable={!sending && !loading}
+              editable={!sending && !loading && !aiTyping}
             />
           </View>
 
@@ -322,10 +321,10 @@ export default function ChatScreen() {
           style={[
             styles.sendButton,
             { backgroundColor: theme.primary },
-            (!inputText.trim() || sending || loading || isOverLimit) && styles.sendButtonDisabled,
+            (!inputText.trim() || sending || loading || isOverLimit || aiTyping) && styles.sendButtonDisabled,
           ]}
           onPress={sendMessage}
-          disabled={!inputText.trim() || sending || loading || isOverLimit}
+          disabled={!inputText.trim() || sending || loading || isOverLimit || aiTyping}
           activeOpacity={0.7}
         >
           <IconSymbol
@@ -336,6 +335,8 @@ export default function ChatScreen() {
           />
         </TouchableOpacity>
       </View>
+      
+      <LoadingOverlay visible={loading && !error} />
     </KeyboardAvoidingView>
   );
 }
@@ -369,15 +370,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
     textTransform: 'capitalize',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 14,
-    marginTop: 12,
   },
   errorContainer: {
     flex: 1,

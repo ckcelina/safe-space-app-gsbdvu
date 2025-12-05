@@ -25,13 +25,22 @@ export const generateAIReply = async (
     // Get the last 30 messages for context
     const contextMessages = recentMessages.slice(-30);
     
+    // Transform messages to match Edge Function expected format
+    // Edge Function expects 'sender' field with 'user' or 'ai'
+    // Database has 'role' field with 'user' or 'assistant'
+    const formattedMessages = contextMessages.map((m) => ({
+      sender: m.role === 'assistant' ? 'ai' : m.role,
+      content: m.content,
+      createdAt: m.created_at,
+    }));
+    
     console.log('Calling generate-ai-response Edge Function...');
     
     // Call the Supabase Edge Function
     const { data, error } = await supabase.functions.invoke('generate-ai-response', {
       body: {
         personId,
-        messages: contextMessages,
+        messages: formattedMessages,
       },
     });
 

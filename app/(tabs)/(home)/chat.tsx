@@ -154,7 +154,7 @@ export default function ChatScreen() {
       // 6. Handle AI reply error
       if (!aiReplyText) {
         console.error('Failed to generate AI reply');
-        showErrorToast('Unable to generate AI response. Please try again.');
+        showErrorToast('I had trouble replying. Please try again.');
         setSending(false);
         return;
       }
