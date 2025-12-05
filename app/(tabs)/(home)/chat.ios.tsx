@@ -29,13 +29,15 @@ export default function ChatScreen() {
     personName: string;
     relationshipType?: string;
   }>();
-  const { userId, role } = useAuth();
+  const { userId, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAITyping, setIsAITyping] = useState(false);
+  const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
+  const [showAIError, setShowAIError] = useState(false);
   
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -103,10 +105,85 @@ export default function ChatScreen() {
     setInputText(text);
   };
 
+  const handleRetryAI = async () => {
+    if (!lastUserMessage || !userId || !personId) {
+      console.log('Cannot retry: missing data');
+      return;
+    }
+
+    console.log('Retrying AI response for last message:', lastUserMessage);
+    setShowAIError(false);
+    setIsAITyping(true);
+
+    try {
+      // Prepare recent messages (last ~20) for AI
+      const recentMessages = messages.slice(-20).map((m) => ({
+        sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
+        content: m.content,
+      }));
+
+      console.log('Calling generateAIReply with', recentMessages.length, 'messages');
+      
+      // Call generateAIReply
+      const result = await generateAIReply(personId, recentMessages);
+
+      if (result.success) {
+        console.log('AI reply generated:', result.reply.substring(0, 50) + '...');
+
+        // Insert AI message with sender = 'ai'
+        const { data: aiMessage, error: aiError } = await supabase
+          .from('messages')
+          .insert([
+            {
+              user_id: userId,
+              person_id: personId,
+              sender: 'ai',
+              role: 'assistant',
+              content: result.reply,
+            },
+          ])
+          .select()
+          .single();
+
+        if (aiError) {
+          console.error('Error inserting AI message:', aiError);
+          showErrorToast('Failed to save AI response');
+          // Still show the AI reply locally even if insert fails
+          const fallbackMessage: Message = {
+            id: `fallback-${Date.now()}`,
+            user_id: userId,
+            person_id: personId,
+            sender: 'ai',
+            role: 'assistant',
+            content: result.reply,
+            created_at: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, fallbackMessage]);
+        } else {
+          console.log('AI message inserted:', aiMessage.id);
+          setMessages((prev) => [...prev, aiMessage]);
+        }
+
+        setLastUserMessage(null);
+        setShowAIError(false);
+      } else {
+        console.error('AI reply failed:', result.error);
+        setShowAIError(true);
+      }
+
+      setTimeout(() => scrollToBottom(), 100);
+    } catch (err: any) {
+      console.error('Unexpected error retrying AI:', err);
+      setShowAIError(true);
+    } finally {
+      setIsAITyping(false);
+    }
+  };
+
   const sendMessage = async () => {
     const trimmedText = inputText.trim();
     
-    // Step 1: If input is empty, do nothing
+    // Step 1: If input is empty or only spaces, do nothing
     if (!trimmedText || !userId || !personId) {
       console.log('Send blocked: empty text or missing user/person');
       return;
@@ -116,11 +193,27 @@ export default function ChatScreen() {
     
     // Step 2: Clear input immediately
     setInputText('');
+    setShowAIError(false);
+
+    // Step 3: Create optimistic user message
+    const optimisticUserMessage: Message = {
+      id: `temp-${Date.now()}`,
+      user_id: userId,
+      person_id: personId,
+      sender: 'user',
+      role: 'user',
+      content: messageContent,
+      created_at: new Date().toISOString(),
+    };
+
+    // Step 4: Immediately show this message in the chat list (optimistic update)
+    setMessages((prev) => [...prev, optimisticUserMessage]);
+    setTimeout(() => scrollToBottom(), 100);
 
     try {
       console.log('Sending user message:', messageContent);
 
-      // Step 3: Insert the user message into public.messages
+      // Step 5: Insert the user message into public.messages
       const { data: userMessage, error: userError } = await supabase
         .from('messages')
         .insert([
@@ -128,6 +221,7 @@ export default function ChatScreen() {
             user_id: userId,
             person_id: personId,
             sender: 'user',
+            role: 'user',
             content: messageContent,
           },
         ])
@@ -136,82 +230,90 @@ export default function ChatScreen() {
 
       if (userError) {
         console.error('Error inserting user message:', userError);
-        showErrorToast("Couldn't send, please try again.");
+        showErrorToast("Couldn't send message. Please try again.");
+        // Remove optimistic message on error
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMessage.id));
         return;
       }
 
       console.log('User message inserted:', userMessage.id);
       
-      // Step 4: Immediately show this new message in the chat list
-      setMessages((prev) => [...prev, userMessage]);
-      setTimeout(() => scrollToBottom(), 100);
+      // Replace optimistic message with real one
+      setMessages((prev) => 
+        prev.map((m) => (m.id === optimisticUserMessage.id ? userMessage : m))
+      );
 
-      // Step 5: Set isAITyping flag to true
+      // Step 6: Set isAITyping flag to true and show typing indicator
       setIsAITyping(true);
+      setLastUserMessage(messageContent);
 
-      // Step 6: Prepare recent messages (last ~20) for AI
+      // Step 7: Prepare recent messages (last ~20) for AI
       const allMessages = [...messages, userMessage];
       const recentMessages = allMessages.slice(-20).map((m) => ({
-        sender: m.sender as 'user' | 'ai',
+        sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
         content: m.content,
       }));
 
       console.log('Calling generateAIReply with', recentMessages.length, 'messages');
       
-      // Step 7: Call generateAIReply
-      const aiReplyText = await generateAIReply(personId, recentMessages);
+      // Step 8: Call Supabase Edge Function "generate-ai-response"
+      const result = await generateAIReply(personId, recentMessages);
 
-      console.log('AI reply generated:', aiReplyText.substring(0, 50) + '...');
+      if (result.success) {
+        console.log('AI reply generated:', result.reply.substring(0, 50) + '...');
 
-      // Step 8: Insert AI message with sender = 'ai'
-      const { data: aiMessage, error: aiError } = await supabase
-        .from('messages')
-        .insert([
-          {
+        // Step 9: Insert AI message with sender = 'ai'
+        const { data: aiMessage, error: aiError } = await supabase
+          .from('messages')
+          .insert([
+            {
+              user_id: userId,
+              person_id: personId,
+              sender: 'ai',
+              role: 'assistant',
+              content: result.reply,
+            },
+          ])
+          .select()
+          .single();
+
+        if (aiError) {
+          console.error('Error inserting AI message:', aiError);
+          showErrorToast('Failed to save AI response');
+          // Still show the AI reply locally even if insert fails
+          const fallbackMessage: Message = {
+            id: `fallback-${Date.now()}`,
             user_id: userId,
             person_id: personId,
             sender: 'ai',
-            content: aiReplyText,
-          },
-        ])
-        .select()
-        .single();
+            role: 'assistant',
+            content: result.reply,
+            created_at: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, fallbackMessage]);
+        } else {
+          console.log('AI message inserted:', aiMessage.id);
+          // Step 10: Add AI message to the chat list
+          setMessages((prev) => [...prev, aiMessage]);
+        }
 
-      if (aiError) {
-        console.error('Error inserting AI message:', aiError);
-        // Still show the AI reply locally even if insert fails
-        const fallbackMessage: Message = {
-          id: `fallback-${Date.now()}`,
-          user_id: userId,
-          person_id: personId,
-          sender: 'ai',
-          content: aiReplyText,
-          created_at: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, fallbackMessage]);
+        setLastUserMessage(null);
+        setShowAIError(false);
       } else {
-        console.log('AI message inserted:', aiMessage.id);
-        // Step 9: Append AI message to the list
-        setMessages((prev) => [...prev, aiMessage]);
+        // AI failed - show error message
+        console.error('AI reply failed:', result.error);
+        setShowAIError(true);
       }
 
-      // Step 10: Scroll to bottom
+      // Step 11: Scroll to bottom
       setTimeout(() => scrollToBottom(), 100);
     } catch (err: any) {
       console.error('Unexpected error sending message:', err);
-      // If any error, still insert fallback AI message and do NOT crash
-      const fallbackMessage: Message = {
-        id: `fallback-${Date.now()}`,
-        user_id: userId,
-        person_id: personId,
-        sender: 'ai',
-        content: "I'm having trouble connecting to the server right now, but I'm still here with you. Try sending that again in a little while.",
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, fallbackMessage]);
-      setTimeout(() => scrollToBottom(), 100);
+      showErrorToast('Something went wrong. Please try again.');
+      // If any error, show error state
+      setShowAIError(true);
     } finally {
-      // Step 11: Always clear isAITyping in finally block
+      // Step 12: Always clear isAITyping in finally block
       setIsAITyping(false);
     }
   };
@@ -238,7 +340,14 @@ export default function ChatScreen() {
           />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{personName}</Text>
+          <View style={styles.headerTitleRow}>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{personName}</Text>
+            {isPremium && (
+              <View style={styles.premiumBadgeSmall}>
+                <Text style={styles.premiumBadgeSmallText}>⭐</Text>
+              </View>
+            )}
+          </View>
           {relationshipType && (
             <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
               {relationshipType}
@@ -316,9 +425,9 @@ export default function ChatScreen() {
             <>
               {messages.map((message, index) => (
                 <ChatBubble
-                  key={index}
+                  key={message.id || index}
                   message={message.content}
-                  isUser={message.sender === 'user'}
+                  isUser={(message.sender || message.role) === 'user'}
                   timestamp={message.created_at}
                   animate={index === messages.length - 1}
                 />
@@ -328,6 +437,36 @@ export default function ChatScreen() {
 
           {/* AI Typing Indicator - shown while isAITyping is true */}
           {isAITyping && <TypingIndicator />}
+
+          {/* AI Error Message with Retry button */}
+          {showAIError && !isAITyping && (
+            <View style={styles.aiErrorContainer}>
+              <View style={[styles.aiErrorBubble, { backgroundColor: theme.card }]}>
+                <IconSymbol
+                  ios_icon_name="exclamationmark.circle.fill"
+                  android_material_icon_name="error"
+                  size={20}
+                  color="#FF3B30"
+                />
+                <Text style={[styles.aiErrorText, { color: theme.textPrimary }]}>
+                  I had trouble replying. Please try again.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.tryAgainButton, { backgroundColor: theme.primary }]}
+                onPress={handleRetryAI}
+                activeOpacity={0.8}
+              >
+                <IconSymbol
+                  ios_icon_name="arrow.clockwise"
+                  android_material_icon_name="refresh"
+                  size={16}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.tryAgainButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       )}
 
@@ -393,9 +532,23 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
+  },
+  premiumBadgeSmall: {
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  premiumBadgeSmallText: {
+    fontSize: 12,
   },
   headerSubtitle: {
     fontSize: 13,
@@ -483,6 +636,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  aiErrorContainer: {
+    alignItems: 'flex-start',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  aiErrorBubble: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 16,
+    gap: 8,
+    boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
+  },
+  aiErrorText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  tryAgainButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 8,
+    gap: 6,
+  },
+  tryAgainButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   inputContainer: {
     flexDirection: 'row',

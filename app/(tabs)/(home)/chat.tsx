@@ -148,6 +148,7 @@ export default function ChatScreen() {
 
         if (aiError) {
           console.error('Error inserting AI message:', aiError);
+          showErrorToast('Failed to save AI response');
           // Still show the AI reply locally even if insert fails
           const fallbackMessage: Message = {
             id: `fallback-${Date.now()}`,
@@ -183,7 +184,7 @@ export default function ChatScreen() {
   const sendMessage = async () => {
     const trimmedText = inputText.trim();
     
-    // Step 1: If input is empty, do nothing
+    // Step 1: If input is empty or only spaces, do nothing
     if (!trimmedText || !userId || !personId) {
       console.log('Send blocked: empty text or missing user/person');
       return;
@@ -195,10 +196,25 @@ export default function ChatScreen() {
     setInputText('');
     setShowAIError(false);
 
+    // Step 3: Create optimistic user message
+    const optimisticUserMessage: Message = {
+      id: `temp-${Date.now()}`,
+      user_id: userId,
+      person_id: personId,
+      sender: 'user',
+      role: 'user',
+      content: messageContent,
+      created_at: new Date().toISOString(),
+    };
+
+    // Step 4: Immediately show this message in the chat list (optimistic update)
+    setMessages((prev) => [...prev, optimisticUserMessage]);
+    setTimeout(() => scrollToBottom(), 100);
+
     try {
       console.log('Sending user message:', messageContent);
 
-      // Step 3: Insert the user message into public.messages
+      // Step 5: Insert the user message into public.messages
       const { data: userMessage, error: userError } = await supabase
         .from('messages')
         .insert([
@@ -215,21 +231,24 @@ export default function ChatScreen() {
 
       if (userError) {
         console.error('Error inserting user message:', userError);
-        showErrorToast("Couldn't send, please try again.");
+        showErrorToast("Couldn't send message. Please try again.");
+        // Remove optimistic message on error
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMessage.id));
         return;
       }
 
       console.log('User message inserted:', userMessage.id);
       
-      // Step 4: Immediately show this new message in the chat list
-      setMessages((prev) => [...prev, userMessage]);
-      setTimeout(() => scrollToBottom(), 100);
+      // Replace optimistic message with real one
+      setMessages((prev) => 
+        prev.map((m) => (m.id === optimisticUserMessage.id ? userMessage : m))
+      );
 
-      // Step 5: Set isAITyping flag to true
+      // Step 6: Set isAITyping flag to true and show typing indicator
       setIsAITyping(true);
       setLastUserMessage(messageContent);
 
-      // Step 6: Prepare recent messages (last ~20) for AI
+      // Step 7: Prepare recent messages (last ~20) for AI
       const allMessages = [...messages, userMessage];
       const recentMessages = allMessages.slice(-20).map((m) => ({
         sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
@@ -238,13 +257,13 @@ export default function ChatScreen() {
 
       console.log('Calling generateAIReply with', recentMessages.length, 'messages');
       
-      // Step 7: Call generateAIReply
+      // Step 8: Call Supabase Edge Function "generate-ai-response"
       const result = await generateAIReply(personId, recentMessages);
 
       if (result.success) {
         console.log('AI reply generated:', result.reply.substring(0, 50) + '...');
 
-        // Step 8: Insert AI message with sender = 'ai'
+        // Step 9: Insert AI message with sender = 'ai'
         const { data: aiMessage, error: aiError } = await supabase
           .from('messages')
           .insert([
@@ -261,6 +280,7 @@ export default function ChatScreen() {
 
         if (aiError) {
           console.error('Error inserting AI message:', aiError);
+          showErrorToast('Failed to save AI response');
           // Still show the AI reply locally even if insert fails
           const fallbackMessage: Message = {
             id: `fallback-${Date.now()}`,
@@ -274,7 +294,7 @@ export default function ChatScreen() {
           setMessages((prev) => [...prev, fallbackMessage]);
         } else {
           console.log('AI message inserted:', aiMessage.id);
-          // Step 9: Append AI message to the list
+          // Step 10: Add AI message to the chat list
           setMessages((prev) => [...prev, aiMessage]);
         }
 
@@ -286,14 +306,15 @@ export default function ChatScreen() {
         setShowAIError(true);
       }
 
-      // Step 10: Scroll to bottom
+      // Step 11: Scroll to bottom
       setTimeout(() => scrollToBottom(), 100);
     } catch (err: any) {
       console.error('Unexpected error sending message:', err);
+      showErrorToast('Something went wrong. Please try again.');
       // If any error, show error state
       setShowAIError(true);
     } finally {
-      // Step 11: Always clear isAITyping in finally block
+      // Step 12: Always clear isAITyping in finally block
       setIsAITyping(false);
     }
   };
@@ -406,7 +427,7 @@ export default function ChatScreen() {
               <>
                 {messages.map((message, index) => (
                   <ChatBubble
-                    key={index}
+                    key={message.id || index}
                     message={message.content}
                     isUser={(message.sender || message.role) === 'user'}
                     timestamp={message.created_at}
