@@ -9,14 +9,19 @@ import { Platform } from 'react-native';
  */
 export async function openSupportEmail() {
   try {
+    // Get app version and platform info
+    const appVersion = Constants.expoConfig?.version || '1.0.0';
+    const platform = Platform.OS;
+    const platformVersion = Platform.Version;
+
     // Check if mail composer is available
     const isAvailable = await MailComposer.isAvailableAsync();
     
     if (!isAvailable) {
       // Fallback to mailto: link
-      const subject = encodeURIComponent('Safe Space App Support');
+      const subject = encodeURIComponent('Safe Space Support');
       const body = encodeURIComponent(
-        `\n\n---\nApp Version: ${Constants.expoConfig?.version || '1.0.0'}\nPlatform: ${Platform.OS} ${Platform.Version}\n`
+        `\n\n---\nApp Version: ${appVersion}\nPlatform: ${platform} ${platformVersion}\n`
       );
       await Linking.openURL(`mailto:support@example.com?subject=${subject}&body=${body}`);
       return;
@@ -25,8 +30,8 @@ export async function openSupportEmail() {
     // Compose email with pre-filled information
     await MailComposer.composeAsync({
       recipients: ['support@example.com'],
-      subject: 'Safe Space App Support',
-      body: `\n\n---\nApp Version: ${Constants.expoConfig?.version || '1.0.0'}\nPlatform: ${Platform.OS} ${Platform.Version}\n`,
+      subject: 'Safe Space Support',
+      body: `\n\n---\nApp Version: ${appVersion}\nPlatform: ${platform} ${platformVersion}\n`,
     });
   } catch (error) {
     console.error('Error opening support email:', error);

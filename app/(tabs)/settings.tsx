@@ -79,31 +79,38 @@ export default function SettingsScreen() {
   const handleConfirmDelete = async () => {
     if (!userId) {
       showErrorToast('User ID not found');
+      setShowDeleteModal(false);
       return;
     }
 
     setIsDeleting(true);
 
     try {
+      console.log('Starting account deletion process...');
       const result = await deleteUserAccount(userId);
 
       if (result.success) {
+        console.log('Account deleted successfully');
         setShowDeleteModal(false);
-        showSuccessToast('Account deleted successfully');
+        
         // Sign out the user
         await signOut();
+        
         // Navigate to onboarding after a short delay
         setTimeout(() => {
           router.replace('/onboarding');
-        }, 1000);
+        }, 500);
       } else {
+        console.error('Account deletion failed:', result.error);
         setShowDeleteModal(false);
-        showErrorToast(result.error || 'Failed to delete account');
+        // Show the exact error message as specified
+        showErrorToast('Something went wrong. Please try again.');
       }
     } catch (error: any) {
-      console.error('Error deleting account:', error);
+      console.error('Unexpected error deleting account:', error);
       setShowDeleteModal(false);
-      showErrorToast('An unexpected error occurred');
+      // Show the exact error message as specified
+      showErrorToast('Something went wrong. Please try again.');
     } finally {
       setIsDeleting(false);
     }
@@ -401,7 +408,7 @@ export default function SettingsScreen() {
                 <Text style={styles.logoutText}>Log Out</Text>
               </TouchableOpacity>
 
-              {/* Account Section (Danger Zone) */}
+              {/* Account Deletion Section */}
               <View style={styles.accountSection}>
                 <Text style={[styles.sectionTitle, { color: theme.buttonText }]}>
                   Account
@@ -418,8 +425,11 @@ export default function SettingsScreen() {
                       size={20}
                       color="#FFFFFF"
                     />
-                    <Text style={styles.deleteButtonText}>Delete my account</Text>
+                    <Text style={styles.deleteButtonText}>Delete My Account</Text>
                   </TouchableOpacity>
+                  <Text style={[styles.helperText, { color: theme.textSecondary }]}>
+                    This will permanently remove your profile and conversations.
+                  </Text>
                 </View>
               </View>
             </ScrollView>
@@ -450,7 +460,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-              This will permanently delete your Safe Space account and conversations. This action cannot be undone.
+              This action is permanent and cannot be undone.
             </Text>
 
             <View style={styles.modalButtons}>
@@ -655,11 +665,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 12,
     gap: 8,
+    marginBottom: 12,
   },
   deleteButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  helperText: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,

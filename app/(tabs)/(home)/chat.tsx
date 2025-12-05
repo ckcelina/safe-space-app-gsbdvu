@@ -119,7 +119,7 @@ export default function ChatScreen() {
     try {
       // Prepare recent messages (last ~20) for AI
       const recentMessages = messages.slice(-20).map((m) => ({
-        sender: m.sender as 'user' | 'ai',
+        sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
         content: m.content,
       }));
 
@@ -139,6 +139,7 @@ export default function ChatScreen() {
               user_id: userId,
               person_id: personId,
               sender: 'ai',
+              role: 'assistant',
               content: result.reply,
             },
           ])
@@ -153,6 +154,7 @@ export default function ChatScreen() {
             user_id: userId,
             person_id: personId,
             sender: 'ai',
+            role: 'assistant',
             content: result.reply,
             created_at: new Date().toISOString(),
           };
@@ -163,6 +165,7 @@ export default function ChatScreen() {
         }
 
         setLastUserMessage(null);
+        setShowAIError(false);
       } else {
         console.error('AI reply failed:', result.error);
         setShowAIError(true);
@@ -203,6 +206,7 @@ export default function ChatScreen() {
             user_id: userId,
             person_id: personId,
             sender: 'user',
+            role: 'user',
             content: messageContent,
           },
         ])
@@ -228,7 +232,7 @@ export default function ChatScreen() {
       // Step 6: Prepare recent messages (last ~20) for AI
       const allMessages = [...messages, userMessage];
       const recentMessages = allMessages.slice(-20).map((m) => ({
-        sender: m.sender as 'user' | 'ai',
+        sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
         content: m.content,
       }));
 
@@ -248,6 +252,7 @@ export default function ChatScreen() {
               user_id: userId,
               person_id: personId,
               sender: 'ai',
+              role: 'assistant',
               content: result.reply,
             },
           ])
@@ -262,6 +267,7 @@ export default function ChatScreen() {
             user_id: userId,
             person_id: personId,
             sender: 'ai',
+            role: 'assistant',
             content: result.reply,
             created_at: new Date().toISOString(),
           };
@@ -273,6 +279,7 @@ export default function ChatScreen() {
         }
 
         setLastUserMessage(null);
+        setShowAIError(false);
       } else {
         // AI failed - show error message
         console.error('AI reply failed:', result.error);
@@ -401,7 +408,7 @@ export default function ChatScreen() {
                   <ChatBubble
                     key={index}
                     message={message.content}
-                    isUser={message.sender === 'user'}
+                    isUser={(message.sender || message.role) === 'user'}
                     timestamp={message.created_at}
                     animate={index === messages.length - 1}
                   />
@@ -412,7 +419,7 @@ export default function ChatScreen() {
             {/* AI Typing Indicator - shown while isAITyping is true */}
             {isAITyping && <TypingIndicator />}
 
-            {/* AI Error Message with Try Again button */}
+            {/* AI Error Message with Retry button */}
             {showAIError && !isAITyping && (
               <View style={styles.aiErrorContainer}>
                 <View style={[styles.aiErrorBubble, { backgroundColor: theme.card }]}>
@@ -423,7 +430,7 @@ export default function ChatScreen() {
                     color="#FF3B30"
                   />
                   <Text style={[styles.aiErrorText, { color: theme.textPrimary }]}>
-                    I had trouble replying just now. Please check your connection and try again.
+                    I had trouble replying. Please try again.
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -437,7 +444,7 @@ export default function ChatScreen() {
                     size={16}
                     color="#FFFFFF"
                   />
-                  <Text style={styles.tryAgainButtonText}>Try again</Text>
+                  <Text style={styles.tryAgainButtonText}>Retry</Text>
                 </TouchableOpacity>
               </View>
             )}
