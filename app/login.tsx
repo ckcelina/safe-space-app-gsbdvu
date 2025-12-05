@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,7 +11,7 @@ import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { supabase } from '@/lib/supabase';
 import { useThemeContext } from '@/contexts/ThemeContext';
-import { ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 
 export default function LoginScreen() {
   const { theme } = useThemeContext();
@@ -19,6 +19,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -103,6 +105,67 @@ export default function LoginScreen() {
     }
   };
 
+  const handleForgotPassword = () => {
+    // Pre-fill with the email from the login form if available
+    const emailToReset = email || '';
+    
+    Alert.prompt(
+      'Reset Password',
+      'Enter your email address to receive a password reset link.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Send Reset Link',
+          onPress: async (inputEmail) => {
+            const emailAddress = inputEmail?.trim() || emailToReset;
+            if (!emailAddress) {
+              Alert.alert('Error', 'Please enter a valid email address.');
+              return;
+            }
+            await sendPasswordResetEmail(emailAddress);
+          },
+        },
+      ],
+      'plain-text',
+      emailToReset,
+      'email-address'
+    );
+  };
+
+  const sendPasswordResetEmail = async (emailAddress: string) => {
+    setIsResettingPassword(true);
+    console.log('Sending password reset email to:', emailAddress);
+
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(emailAddress, {
+        redirectTo: 'https://natively.dev/reset-password',
+      });
+
+      if (error) {
+        console.error('Password reset error:', error);
+        Alert.alert(
+          'Error',
+          'Failed to send password reset email. Please check your email address and try again.'
+        );
+      } else {
+        console.log('Password reset email sent successfully');
+        Alert.alert(
+          'Check Your Email',
+          'If an account exists with this email, you will receive a password reset link shortly.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (err: any) {
+      console.error('Unexpected password reset error:', err);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   return (
     <LinearGradient
       colors={theme.primaryGradient}
@@ -152,6 +215,16 @@ export default function LoginScreen() {
                   secureTextEntry
                   editable={!isLoading}
                 />
+
+                <TouchableOpacity 
+                  onPress={handleForgotPassword}
+                  disabled={isLoading || isResettingPassword}
+                  style={styles.forgotPasswordContainer}
+                >
+                  <Text style={[styles.forgotPasswordText, { color: theme.buttonText }]}>
+                    Forgot Password?
+                  </Text>
+                </TouchableOpacity>
 
                 {error && (
                   <View style={styles.errorContainer}>
@@ -215,6 +288,17 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
+  },
+  forgotPasswordContainer: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 4,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   errorContainer: {
     marginTop: 12,
