@@ -14,7 +14,6 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import { generateAIReply } from '@/lib/aiClient';
 import { Message } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { ChatBubble } from '@/components/ui/ChatBubble';
@@ -22,7 +21,6 @@ import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
-import { showErrorToast } from '@/utils/toast';
 
 export default function ChatScreen() {
   const params = useLocalSearchParams<{
@@ -130,7 +128,6 @@ export default function ChatScreen() {
 
     if (!userId) {
       console.warn('[Chat] handleSend: userId is missing');
-      showErrorToast('Unable to send message. Please try again.');
       return;
     }
 
@@ -153,7 +150,6 @@ export default function ChatScreen() {
 
     if (error) {
       console.warn('[Chat] send message error', error);
-      showErrorToast("Couldn't send message. Please try again.");
       setInputText(text);
       setIsSending(false);
       return;
@@ -169,60 +165,48 @@ export default function ChatScreen() {
     setIsTyping(true);
 
     try {
-      // Prepare recent messages for AI context (last 10 messages)
-      const allMessages = [...messages, inserted];
-      const recentMessages = allMessages.slice(-10).map((m) => ({
-        sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
-        content: m.content,
-      }));
-
-      console.log('[Chat] Calling AI with', recentMessages.length, 'messages for context');
-      
-      // Call Edge Function to generate AI response
-      const result = await generateAIReply(personId, recentMessages);
-
-      if (result.success) {
-        console.log('[Chat] AI reply received:', result.reply.substring(0, 50) + '...');
-
-        // Insert AI message into database
-        const { data: aiMessage, error: aiError } = await supabase
-          .from('messages')
-          .insert({
-            user_id: userId,
+      const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
+        'generate-ai-response',
+        {
+          body: {
             person_id: personId,
-            sender: 'ai',
-            content: result.reply,
-          })
-          .select()
-          .single();
-
-        if (aiError) {
-          console.warn('[Chat] Error inserting AI message:', aiError);
-          showErrorToast('Failed to save AI response');
-          
-          // Show AI reply locally even if database insert fails
-          const fallbackMessage: Message = {
-            id: `fallback-${Date.now()}`,
-            user_id: userId,
-            person_id: personId,
-            sender: 'ai',
-            content: result.reply,
-            created_at: new Date().toISOString(),
-          };
-          setMessages((prev) => [...prev, fallbackMessage]);
-        } else {
-          console.log('[Chat] AI message inserted:', aiMessage.id);
-          setMessages((prev) => [...prev, aiMessage]);
+            message: text,
+          },
         }
-      } else {
-        console.warn('[Chat] AI reply generation failed:', result.error);
-        showErrorToast('AI had trouble replying. Please try again.');
+      );
+
+      if (fnError) {
+        console.warn('[Chat] AI function error', fnError);
+        setIsTyping(false);
+        setIsSending(false);
+        return;
       }
 
+      const replyText =
+        aiResponse?.reply ||
+        "I'm here with you. Tell me more about how you're feeling.";
+
+      // Insert AI reply
+      const { data: aiInserted, error: aiInsertError } = await supabase
+        .from('messages')
+        .insert({
+          user_id: userId,
+          person_id: personId,
+          sender: 'ai',
+          content: replyText,
+        })
+        .select()
+        .single();
+
+      if (aiInsertError) {
+        console.warn('[Chat] insert AI message error', aiInsertError);
+        setIsTyping(false);
+        setIsSending(false);
+        return;
+      }
+
+      setMessages(prev => [...prev, aiInserted]);
       setTimeout(() => scrollToBottom(), 100);
-    } catch (err: any) {
-      console.warn('[Chat] Unexpected error generating AI reply:', err);
-      showErrorToast('Something went wrong. Please try again.');
     } finally {
       setIsTyping(false);
       setIsSending(false);
@@ -341,7 +325,7 @@ export default function ChatScreen() {
                   <ChatBubble
                     key={message.id || index}
                     message={message.content}
-                    isUser={(message.sender || message.role) === 'user'}
+                    isUser={message.sender === 'user'}
                     timestamp={message.created_at}
                     animate={index === messages.length - 1}
                   />
