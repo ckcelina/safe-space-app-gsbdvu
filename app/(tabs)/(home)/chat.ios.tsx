@@ -14,13 +14,13 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
+import { generateAIReply } from '@/lib/aiClient';
 import { Message } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { ChatBubble } from '@/components/ui/ChatBubble';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
-import { generateAIReply } from '@/src/api/ai';
 import { showErrorToast } from '@/utils/toast';
 
 export default function ChatScreen() {
@@ -35,10 +35,7 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Local state as per requirements
-  const [isSendingUserMessage, setIsSendingUserMessage] = useState(false);
-  const [isWaitingForAI, setIsWaitingForAI] = useState(false);
+  const [isAITyping, setIsAITyping] = useState(false);
   
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -109,20 +106,16 @@ export default function ChatScreen() {
   const sendMessage = async () => {
     const trimmedText = inputText.trim();
     
-    // Step 1: If trimmed text is empty OR isWaitingForAI is true → do nothing
-    if (!trimmedText || isWaitingForAI || !userId || !personId) {
-      console.log('Send blocked:', { 
-        emptyText: !trimmedText, 
-        waitingForAI: isWaitingForAI,
-      });
+    // Step 1: If input is empty, do nothing
+    if (!trimmedText || !userId || !personId) {
+      console.log('Send blocked: empty text or missing user/person');
       return;
     }
 
     const messageContent = trimmedText;
     
-    // Step 2: Clear input immediately and set sending state
+    // Step 2: Clear input immediately
     setInputText('');
-    setIsSendingUserMessage(true);
 
     try {
       console.log('Sending user message:', messageContent);
@@ -134,7 +127,7 @@ export default function ChatScreen() {
           {
             user_id: userId,
             person_id: personId,
-            role: 'user',
+            sender: 'user',
             content: messageContent,
           },
         ])
@@ -143,48 +136,41 @@ export default function ChatScreen() {
 
       if (userError) {
         console.error('Error inserting user message:', userError);
-        showErrorToast('Failed to send message. Please try again.');
-        setIsSendingUserMessage(false);
+        showErrorToast("Couldn't send, please try again.");
         return;
       }
 
       console.log('User message inserted:', userMessage.id);
       
-      // Step 4: Append user message to local state and scroll to bottom
+      // Step 4: Immediately show this new message in the chat list
       setMessages((prev) => [...prev, userMessage]);
       setTimeout(() => scrollToBottom(), 100);
 
-      // Step 5: Set isSendingUserMessage = false and isWaitingForAI = true (show typing indicator)
-      setIsSendingUserMessage(false);
-      setIsWaitingForAI(true);
+      // Step 5: Set isAITyping flag to true
+      setIsAITyping(true);
 
-      // Step 6: Call generateAIReply with the last 10 messages
-      // Map messages: role 'user' → 'user', role 'assistant' → 'assistant'
+      // Step 6: Prepare recent messages (last ~20) for AI
       const allMessages = [...messages, userMessage];
-      const last10Messages = allMessages.slice(-10).map((m) => ({
-        role: m.role as 'user' | 'assistant',
+      const recentMessages = allMessages.slice(-20).map((m) => ({
+        sender: m.sender as 'user' | 'ai',
         content: m.content,
       }));
 
-      console.log('Calling generateAIReply with', last10Messages.length, 'messages');
-      const aiReplyText = await generateAIReply({
-        userId: userId,
-        personId: personId,
-        personName: personName || 'Unknown',
-        relationshipType: relationshipType || null,
-        messages: last10Messages,
-      });
+      console.log('Calling generateAIReply with', recentMessages.length, 'messages');
+      
+      // Step 7: Call generateAIReply
+      const aiReplyText = await generateAIReply(personId, recentMessages);
 
       console.log('AI reply generated:', aiReplyText.substring(0, 50) + '...');
 
-      // Step 7: Insert AI message with role = 'assistant'
+      // Step 8: Insert AI message with sender = 'ai'
       const { data: aiMessage, error: aiError } = await supabase
         .from('messages')
         .insert([
           {
             user_id: userId,
             person_id: personId,
-            role: 'assistant',
+            sender: 'ai',
             content: aiReplyText,
           },
         ])
@@ -193,47 +179,45 @@ export default function ChatScreen() {
 
       if (aiError) {
         console.error('Error inserting AI message:', aiError);
-        // Still insert fallback AI message locally
+        // Still show the AI reply locally even if insert fails
         const fallbackMessage: Message = {
           id: `fallback-${Date.now()}`,
           user_id: userId,
           person_id: personId,
-          role: 'assistant',
+          sender: 'ai',
           content: aiReplyText,
           created_at: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, fallbackMessage]);
       } else {
         console.log('AI message inserted:', aiMessage.id);
-        // Step 8: Append AI message to local state
+        // Step 9: Append AI message to the list
         setMessages((prev) => [...prev, aiMessage]);
       }
 
-      // Hide typing indicator and scroll to bottom
-      setIsWaitingForAI(false);
+      // Step 10: Scroll to bottom
       setTimeout(() => scrollToBottom(), 100);
     } catch (err: any) {
       console.error('Unexpected error sending message:', err);
-      // Step 9: If any error, still insert fallback AI message and do NOT crash
+      // If any error, still insert fallback AI message and do NOT crash
       const fallbackMessage: Message = {
         id: `fallback-${Date.now()}`,
         user_id: userId,
         person_id: personId,
-        role: 'assistant',
-        content: "I'm having trouble replying right now, but your feelings matter.",
+        sender: 'ai',
+        content: "I'm having trouble connecting to the server right now, but I'm still here with you. Try sending that again in a little while.",
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, fallbackMessage]);
-      setIsSendingUserMessage(false);
-      setIsWaitingForAI(false);
       setTimeout(() => scrollToBottom(), 100);
+    } finally {
+      // Step 11: Always clear isAITyping in finally block
+      setIsAITyping(false);
     }
   };
 
-  // Send button should be disabled when:
-  // - the input is empty OR only spaces
-  // - an AI reply is currently pending
-  const isSendDisabled = !inputText.trim() || isWaitingForAI || loading;
+  // Send button should be disabled when input is empty or AI is typing
+  const isSendDisabled = !inputText.trim() || isAITyping || loading;
 
   return (
     <KeyboardAvoidingView
@@ -334,7 +318,7 @@ export default function ChatScreen() {
                 <ChatBubble
                   key={index}
                   message={message.content}
-                  isUser={message.role === 'user'}
+                  isUser={message.sender === 'user'}
                   timestamp={message.created_at}
                   animate={index === messages.length - 1}
                 />
@@ -342,8 +326,8 @@ export default function ChatScreen() {
             </>
           )}
 
-          {/* AI Typing Indicator - shown while isWaitingForAI is true */}
-          {isWaitingForAI && <TypingIndicator />}
+          {/* AI Typing Indicator - shown while isAITyping is true */}
+          {isAITyping && <TypingIndicator />}
         </ScrollView>
       )}
 
@@ -358,7 +342,7 @@ export default function ChatScreen() {
               value={inputText}
               onChangeText={handleTextChange}
               multiline
-              editable={!isSendingUserMessage && !loading && !isWaitingForAI}
+              editable={!loading && !isAITyping}
             />
           </View>
         </View>
