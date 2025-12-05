@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Platform, ScrollView, Modal, TouchableOpacity, KeyboardAvoidingView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Platform, ScrollView, Modal, TouchableOpacity, KeyboardAvoidingView, Alert, TextInput } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
@@ -8,8 +8,6 @@ import { supabase } from '@/lib/supabase';
 import { Person } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
-import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
-import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface PersonWithLastMessage extends Person {
@@ -22,6 +20,7 @@ export default function HomeScreen() {
   const { theme } = useThemeContext();
   const [persons, setPersons] = useState<PersonWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');
   const [relationshipType, setRelationshipType] = useState('');
@@ -30,7 +29,10 @@ export default function HomeScreen() {
 
   const fetchPersonsWithLastMessage = useCallback(async () => {
     try {
+      setLoading(true);
+      setError(null);
       console.log('Fetching persons for user:', userId);
+      
       const { data: personsData, error: personsError } = await supabase
         .from('persons')
         .select('*')
@@ -39,6 +41,7 @@ export default function HomeScreen() {
 
       if (personsError) {
         console.error('Error fetching persons:', personsError);
+        setError('Failed to load your people. Please try again.');
         setLoading(false);
         return;
       }
@@ -67,6 +70,7 @@ export default function HomeScreen() {
       setPersons(personsWithMessages);
     } catch (error) {
       console.error('Unexpected error fetching persons:', error);
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -191,12 +195,36 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Error State */}
+        {error && (
+          <View style={styles.errorContainer}>
+            <View style={[styles.errorCard, { backgroundColor: theme.card }]}>
+              <IconSymbol
+                ios_icon_name="exclamationmark.triangle.fill"
+                android_material_icon_name="error"
+                size={32}
+                color="#FF3B30"
+              />
+              <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
+              <TouchableOpacity
+                onPress={fetchPersonsWithLastMessage}
+                style={[styles.retryButton, { backgroundColor: theme.primary }]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
+                  Try Again
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Persons List */}
-        {loading ? (
+        {loading && !error ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.primary} />
           </View>
-        ) : persons.length === 0 ? (
+        ) : !error && persons.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
               <Text style={styles.emptyEmoji}>🤗</Text>
@@ -206,7 +234,7 @@ export default function HomeScreen() {
               Tap &apos;Add Person&apos; to start
             </Text>
           </View>
-        ) : (
+        ) : !error ? (
           <View style={styles.cardList}>
             {persons.map((person, index) => (
               <PersonCard
@@ -216,7 +244,7 @@ export default function HomeScreen() {
               />
             ))}
           </View>
-        )}
+        ) : null}
       </ScrollView>
 
       {/* Add Person Modal */}
@@ -259,36 +287,42 @@ export default function HomeScreen() {
               <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
                 Name <Text style={styles.required}>*</Text>
               </Text>
-              <SafeSpaceTextInput
-                placeholder="Enter their name"
-                value={name}
-                onChangeText={(text) => {
-                  setName(text);
-                  if (nameError && text.trim()) {
-                    setNameError('');
-                  }
-                }}
-                autoCapitalize="words"
-                autoCorrect={false}
-                maxLength={50}
-                containerStyle={styles.inputContainer}
-              />
+              <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
+                <TextInput
+                  style={[styles.textInput, { color: theme.textPrimary }]}
+                  placeholder="Enter their name"
+                  placeholderTextColor={theme.textSecondary}
+                  value={name}
+                  onChangeText={(text) => {
+                    setName(text);
+                    if (nameError && text.trim()) {
+                      setNameError('');
+                    }
+                  }}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  maxLength={50}
+                />
+              </View>
               {nameError ? (
-                <Text style={styles.errorText}>{nameError}</Text>
+                <Text style={styles.errorTextSmall}>{nameError}</Text>
               ) : null}
 
               <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
                 Relationship Type
               </Text>
-              <SafeSpaceTextInput
-                placeholder="partner, ex, friend, parent..."
-                value={relationshipType}
-                onChangeText={setRelationshipType}
-                autoCapitalize="words"
-                autoCorrect={false}
-                maxLength={50}
-                containerStyle={styles.inputContainer}
-              />
+              <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
+                <TextInput
+                  style={[styles.textInput, { color: theme.textPrimary }]}
+                  placeholder="partner, ex, friend, parent..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={relationshipType}
+                  onChangeText={setRelationshipType}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  maxLength={50}
+                />
+              </View>
             </ScrollView>
 
             {/* Modal Footer */}
@@ -374,6 +408,32 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  errorContainer: {
+    marginBottom: 24,
+  },
+  errorCard: {
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    elevation: 3,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 12,
+    marginBottom: 16,
+    lineHeight: 22,
+  },
+  retryButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   loadingContainer: {
     paddingVertical: 40,
@@ -461,10 +521,17 @@ const styles = StyleSheet.create({
   required: {
     color: '#FF3B30',
   },
-  inputContainer: {
+  textInputWrapper: {
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 8,
   },
-  errorText: {
+  textInput: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  errorTextSmall: {
     color: '#FF3B30',
     fontSize: 12,
     marginBottom: 16,
