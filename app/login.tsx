@@ -44,7 +44,9 @@ export default function LoginScreen() {
   return (
     <SafeSpaceScreen scrollable={true} keyboardAware={true} useGradient={true}>
       <View style={styles.content}>
-        <SafeSpaceTitle>Welcome Back</SafeSpaceTitle>
+        <View style={styles.titleContainer}>
+          <SafeSpaceTitle>Welcome Back</SafeSpaceTitle>
+        </View>
 
         <View style={styles.form}>
           <SafeSpaceTextInput
@@ -64,9 +66,13 @@ export default function LoginScreen() {
             editable={!loading}
           />
 
+          <View style={styles.buttonSpacing} />
+
           <SafeSpaceButton onPress={handleLogin} loading={loading} disabled={loading}>
             Log In
           </SafeSpaceButton>
+
+          <View style={styles.linkSpacing} />
 
           <SafeSpaceLinkButton onPress={() => router.replace('/signup')} disabled={loading}>
             Don&apos;t have an account? Sign Up
@@ -81,8 +87,18 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  titleContainer: {
+    marginBottom: 32,
   },
   form: {
     width: '100%',
+  },
+  buttonSpacing: {
+    height: 8,
+  },
+  linkSpacing: {
+    height: 8,
   },
 });

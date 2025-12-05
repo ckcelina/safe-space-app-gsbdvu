@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
 import { SafeSpaceTitle, SafeSpaceSubtitle, SafeSpaceCaption } from '@/components/ui/SafeSpaceText';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
+import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useThemeContext } from '@/contexts/ThemeContext';
 
@@ -48,12 +49,12 @@ export default function OnboardingScreen() {
             Create My Safe Space
           </SafeSpaceButton>
 
-          <SafeSpaceButton variant="outline" onPress={handleLogin}>
+          <SafeSpaceLinkButton variant="outline" onPress={handleLogin}>
             Log In
-          </SafeSpaceButton>
+          </SafeSpaceLinkButton>
         </View>
 
-        {/* Spacer */}
+        {/* Spacer to push disclaimer to bottom */}
         <View style={styles.spacer} />
 
         {/* Footer Disclaimer */}
@@ -70,9 +71,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: 40,
   },
   iconContainer: {
-    marginBottom: 24,
+    marginBottom: 32,
   },
   iconBackground: {
     width: 120,
@@ -86,23 +88,24 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 40,
+    marginBottom: 16,
   },
   subtitle: {
     maxWidth: 400,
     paddingHorizontal: 8,
+    marginBottom: 40,
   },
   buttonContainer: {
     width: '100%',
     maxWidth: 400,
-    marginTop: 24,
   },
   spacer: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 60,
   },
   disclaimer: {
     maxWidth: 350,
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 16,
   },
 });

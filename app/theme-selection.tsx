@@ -62,11 +62,13 @@ export default function ThemeSelectionScreen() {
   return (
     <SafeSpaceScreen scrollable={true} keyboardAware={false} useGradient={true}>
       <View style={styles.content}>
-        <SafeSpaceTitle>Choose Your Theme</SafeSpaceTitle>
-        
-        <SafeSpaceSubtitle>
-          Select a color theme that resonates with you. You can change this later in settings.
-        </SafeSpaceSubtitle>
+        <View style={styles.titleContainer}>
+          <SafeSpaceTitle>Choose Your Theme</SafeSpaceTitle>
+          
+          <SafeSpaceSubtitle>
+            Select a color theme that resonates with you. You can change this later in settings.
+          </SafeSpaceSubtitle>
+        </View>
 
         <View style={styles.themeSection}>
           {themes.map((theme) => (
@@ -96,9 +98,13 @@ export default function ThemeSelectionScreen() {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
+    paddingVertical: 20,
+  },
+  titleContainer: {
+    marginBottom: 32,
   },
   themeSection: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
   buttonContainer: {
     width: '100%',

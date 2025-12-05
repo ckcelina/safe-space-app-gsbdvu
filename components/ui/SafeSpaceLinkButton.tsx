@@ -9,6 +9,7 @@ interface SafeSpaceLinkButtonProps {
   disabled?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  variant?: 'default' | 'outline';
 }
 
 export function SafeSpaceLinkButton({
@@ -17,8 +18,31 @@ export function SafeSpaceLinkButton({
   disabled = false,
   style,
   textStyle,
+  variant = 'default',
 }: SafeSpaceLinkButtonProps) {
   const { colors } = useThemeContext();
+
+  if (variant === 'outline') {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled}
+        activeOpacity={0.7}
+        style={[
+          styles.outlineContainer,
+          { 
+            borderColor: colors.primary,
+            backgroundColor: colors.card,
+          },
+          style,
+        ]}
+      >
+        <Text style={[styles.outlineText, { color: colors.primary }, textStyle]}>
+          {children}
+        </Text>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <TouchableOpacity
@@ -39,9 +63,22 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: 'center',
+    marginBottom: 8,
   },
   text: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  outlineContainer: {
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    borderRadius: 50,
+    borderWidth: 2,
+    marginBottom: 16,
+  },
+  outlineText: {
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });

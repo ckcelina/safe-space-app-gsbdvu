@@ -252,6 +252,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   scrollView: {
     flex: 1,

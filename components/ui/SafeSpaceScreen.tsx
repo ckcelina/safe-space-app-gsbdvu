@@ -49,6 +49,7 @@ export function SafeSpaceScreen({
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.keyboardView}
+      keyboardVerticalOffset={0}
     >
       {content}
     </KeyboardAvoidingView>

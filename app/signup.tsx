@@ -69,7 +69,9 @@ export default function SignupScreen() {
           </View>
         </View>
 
-        <SafeSpaceTitle>Create Account</SafeSpaceTitle>
+        <View style={styles.titleContainer}>
+          <SafeSpaceTitle>Create Account</SafeSpaceTitle>
+        </View>
 
         <View style={styles.form}>
           <SafeSpaceTextInput
@@ -97,48 +99,54 @@ export default function SignupScreen() {
             editable={!loading}
           />
 
-          {/* Checkboxes */}
-          <TouchableOpacity
-            style={styles.checkboxContainer}
-            onPress={() => setTermsAccepted(!termsAccepted)}
-            disabled={loading}
-          >
-            <View
-              style={[
-                styles.checkbox,
-                { borderColor: colors.primary },
-                termsAccepted && { backgroundColor: colors.primary },
-              ]}
+          <View style={styles.checkboxSection}>
+            {/* Checkboxes */}
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => setTermsAccepted(!termsAccepted)}
+              disabled={loading}
             >
-              {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
-            </View>
-            <Text style={[styles.checkboxLabel, { color: colors.text }]}>
-              I accept the Terms & Conditions
-            </Text>
-          </TouchableOpacity>
+              <View
+                style={[
+                  styles.checkbox,
+                  { borderColor: colors.primary },
+                  termsAccepted && { backgroundColor: colors.primary },
+                ]}
+              >
+                {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+                I accept the Terms & Conditions
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.checkboxContainer}
-            onPress={() => setPrivacyAccepted(!privacyAccepted)}
-            disabled={loading}
-          >
-            <View
-              style={[
-                styles.checkbox,
-                { borderColor: colors.primary },
-                privacyAccepted && { backgroundColor: colors.primary },
-              ]}
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => setPrivacyAccepted(!privacyAccepted)}
+              disabled={loading}
             >
-              {privacyAccepted && <Text style={styles.checkmark}>✓</Text>}
-            </View>
-            <Text style={[styles.checkboxLabel, { color: colors.text }]}>
-              I accept the Privacy Policy
-            </Text>
-          </TouchableOpacity>
+              <View
+                style={[
+                  styles.checkbox,
+                  { borderColor: colors.primary },
+                  privacyAccepted && { backgroundColor: colors.primary },
+                ]}
+              >
+                {privacyAccepted && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+                I accept the Privacy Policy
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.buttonSpacing} />
 
           <SafeSpaceButton onPress={handleSignup} loading={loading} disabled={loading}>
             Sign Up
           </SafeSpaceButton>
+
+          <View style={styles.linkSpacing} />
 
           <SafeSpaceLinkButton onPress={() => router.replace('/login')} disabled={loading}>
             Already have an account? Log In
@@ -159,6 +167,7 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
+    paddingVertical: 20,
   },
   themePreview: {
     alignItems: 'center',
@@ -176,8 +185,15 @@ const styles = StyleSheet.create({
     boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 2,
   },
+  titleContainer: {
+    marginBottom: 24,
+  },
   form: {
     width: '100%',
+  },
+  checkboxSection: {
+    marginTop: 8,
+    marginBottom: 8,
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -202,8 +218,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     flex: 1,
   },
+  buttonSpacing: {
+    height: 8,
+  },
+  linkSpacing: {
+    height: 8,
+  },
   disclaimerContainer: {
-    marginTop: 24,
+    marginTop: 32,
     paddingHorizontal: 8,
+    paddingBottom: 16,
   },
 });
