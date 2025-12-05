@@ -5,7 +5,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 
 export function TypingIndicator() {
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
   const dot1Anim = useRef(new Animated.Value(0)).current;
   const dot2Anim = useRef(new Animated.Value(0)).current;
   const dot3Anim = useRef(new Animated.Value(0)).current;
@@ -42,22 +42,22 @@ export function TypingIndicator() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.aiIcon, { backgroundColor: colors.highlight }]}>
+      <View style={[styles.aiIcon, { backgroundColor: theme.background }]}>
         <IconSymbol
           ios_icon_name="sparkles"
           android_material_icon_name="auto_awesome"
           size={16}
-          color={colors.primary}
+          color={theme.primary}
         />
       </View>
 
-      <View style={[styles.bubble, { backgroundColor: colors.card }]}>
+      <View style={[styles.bubble, { backgroundColor: theme.card }]}>
         <View style={styles.dotsContainer}>
           <Animated.View
             style={[
               styles.dot,
               {
-                backgroundColor: colors.textSecondary,
+                backgroundColor: theme.textSecondary,
                 transform: [{ translateY: dot1Anim }],
               },
             ]}
@@ -66,7 +66,7 @@ export function TypingIndicator() {
             style={[
               styles.dot,
               {
-                backgroundColor: colors.textSecondary,
+                backgroundColor: theme.textSecondary,
                 transform: [{ translateY: dot2Anim }],
               },
             ]}
@@ -75,7 +75,7 @@ export function TypingIndicator() {
             style={[
               styles.dot,
               {
-                backgroundColor: colors.textSecondary,
+                backgroundColor: theme.textSecondary,
                 transform: [{ translateY: dot3Anim }],
               },
             ]}

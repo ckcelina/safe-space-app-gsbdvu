@@ -19,12 +19,12 @@ export function SafeSpaceTitle({
   align = 'center',
   numberOfLines,
 }: Omit<SafeSpaceTextProps, 'variant'>) {
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
   return (
     <Text
       style={[
         styles.title,
-        { color: color || colors.text, textAlign: align },
+        { color: color || theme.textPrimary, textAlign: align },
         style,
       ]}
       numberOfLines={numberOfLines}
@@ -41,12 +41,12 @@ export function SafeSpaceSubtitle({
   align = 'center',
   numberOfLines,
 }: Omit<SafeSpaceTextProps, 'variant'>) {
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
   return (
     <Text
       style={[
         styles.subtitle,
-        { color: color || colors.textSecondary, textAlign: align },
+        { color: color || theme.textSecondary, textAlign: align },
         style,
       ]}
       numberOfLines={numberOfLines}
@@ -63,12 +63,12 @@ export function SafeSpaceBody({
   align = 'left',
   numberOfLines,
 }: Omit<SafeSpaceTextProps, 'variant'>) {
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
   return (
     <Text
       style={[
         styles.body,
-        { color: color || colors.text, textAlign: align },
+        { color: color || theme.textPrimary, textAlign: align },
         style,
       ]}
       numberOfLines={numberOfLines}
@@ -85,12 +85,12 @@ export function SafeSpaceCaption({
   align = 'left',
   numberOfLines,
 }: Omit<SafeSpaceTextProps, 'variant'>) {
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
   return (
     <Text
       style={[
         styles.caption,
-        { color: color || colors.textSecondary, textAlign: align },
+        { color: color || theme.textSecondary, textAlign: align },
         style,
       ]}
       numberOfLines={numberOfLines}

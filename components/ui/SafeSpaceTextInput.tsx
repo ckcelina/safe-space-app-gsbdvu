@@ -18,7 +18,7 @@ export function SafeSpaceTextInput({
   style,
   ...props
 }: SafeSpaceTextInputProps) {
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -26,13 +26,13 @@ export function SafeSpaceTextInput({
         style={[
           styles.input,
           {
-            backgroundColor: colors.card,
-            color: colors.text,
-            borderColor: colors.accent,
+            backgroundColor: theme.card,
+            color: theme.textPrimary,
+            borderColor: theme.primary,
           },
           style,
         ]}
-        placeholderTextColor={colors.textSecondary}
+        placeholderTextColor={theme.textSecondary}
         {...props}
       />
     </View>

@@ -16,7 +16,7 @@ interface PersonWithLastMessage extends Person {
 
 export default function HomeScreen() {
   const { currentUser, userId, loading: authLoading } = useAuth();
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
   const [persons, setPersons] = useState<PersonWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -143,8 +143,8 @@ export default function HomeScreen() {
 
   if (authLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -154,13 +154,13 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Your Safe Space</Text>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Your Safe Space</Text>
           <TouchableOpacity
-            style={[styles.profileIcon, { backgroundColor: colors.primary }]}
+            style={[styles.profileIcon, { backgroundColor: theme.primary }]}
             onPress={() => router.push('/(tabs)/profile')}
           >
             <IconSymbol
@@ -175,26 +175,26 @@ export default function HomeScreen() {
 
       {/* Content */}
       <View style={styles.scrollView}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
           People You&apos;re Talking About
         </Text>
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <ActivityIndicator size="large" color={theme.primary} />
           </View>
         ) : persons.length === 0 ? (
           <View style={styles.emptyState}>
-            <View style={[styles.emptyIconContainer, { backgroundColor: colors.highlight }]}>
+            <View style={[styles.emptyIconContainer, { backgroundColor: theme.background }]}>
               <IconSymbol
                 ios_icon_name="person.2.fill"
                 android_material_icon_name="people"
                 size={48}
-                color={colors.primary}
+                color={theme.primary}
               />
             </View>
-            <Text style={[styles.emptyText, { color: colors.text }]}>No one added yet</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
+            <Text style={[styles.emptyText, { color: theme.textPrimary }]}>No one added yet</Text>
+            <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
               Tap the + button below to add someone you&apos;d like to talk about
             </Text>
           </View>
@@ -213,7 +213,7 @@ export default function HomeScreen() {
 
       {/* Floating Add Button */}
       <TouchableOpacity
-        style={[styles.floatingButton, { backgroundColor: colors.primary }]}
+        style={[styles.floatingButton, { backgroundColor: theme.primary }]}
         onPress={handleAddPerson}
         activeOpacity={0.8}
       >

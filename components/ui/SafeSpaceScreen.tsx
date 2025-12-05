@@ -29,7 +29,7 @@ export function SafeSpaceScreen({
   contentContainerStyle,
   edges = ['top', 'bottom'],
 }: SafeSpaceScreenProps) {
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
 
   const content = scrollable ? (
     <ScrollView
@@ -60,7 +60,7 @@ export function SafeSpaceScreen({
   if (useGradient) {
     return (
       <LinearGradient
-        colors={[colors.background, colors.card]}
+        colors={[theme.background, theme.card]}
         style={styles.container}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -73,7 +73,7 @@ export function SafeSpaceScreen({
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <SafeAreaView style={styles.safeArea} edges={edges}>
         {wrappedContent}
       </SafeAreaView>

@@ -12,7 +12,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 
 export default function SignupScreen() {
   const { signUp } = useAuth();
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -63,9 +63,9 @@ export default function SignupScreen() {
         <View style={styles.themePreview}>
           <SafeSpaceCaption align="center">Your Theme</SafeSpaceCaption>
           <View style={styles.themePreviewRow}>
-            <View style={[styles.themeCircle, { backgroundColor: colors.primary }]} />
-            <View style={[styles.themeCircle, { backgroundColor: colors.secondary }]} />
-            <View style={[styles.themeCircle, { backgroundColor: colors.accent }]} />
+            <View style={[styles.themeCircle, { backgroundColor: theme.primaryGradient[0] }]} />
+            <View style={[styles.themeCircle, { backgroundColor: theme.primary }]} />
+            <View style={[styles.themeCircle, { backgroundColor: theme.primaryGradient[1] }]} />
           </View>
         </View>
 
@@ -109,13 +109,13 @@ export default function SignupScreen() {
               <View
                 style={[
                   styles.checkbox,
-                  { borderColor: colors.primary },
-                  termsAccepted && { backgroundColor: colors.primary },
+                  { borderColor: theme.primary },
+                  termsAccepted && { backgroundColor: theme.primary },
                 ]}
               >
                 {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
               </View>
-              <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+              <Text style={[styles.checkboxLabel, { color: theme.textPrimary }]}>
                 I accept the Terms & Conditions
               </Text>
             </TouchableOpacity>
@@ -128,13 +128,13 @@ export default function SignupScreen() {
               <View
                 style={[
                   styles.checkbox,
-                  { borderColor: colors.primary },
-                  privacyAccepted && { backgroundColor: colors.primary },
+                  { borderColor: theme.primary },
+                  privacyAccepted && { backgroundColor: theme.primary },
                 ]}
               >
                 {privacyAccepted && <Text style={styles.checkmark}>✓</Text>}
               </View>
-              <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+              <Text style={[styles.checkboxLabel, { color: theme.textPrimary }]}>
                 I accept the Privacy Policy
               </Text>
             </TouchableOpacity>

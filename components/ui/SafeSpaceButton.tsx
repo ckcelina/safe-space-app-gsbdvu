@@ -33,33 +33,16 @@ export function SafeSpaceButton({
   textStyle,
   fullWidth = true,
 }: SafeSpaceButtonProps) {
-  const { colors, theme } = useThemeContext();
+  const { theme } = useThemeContext();
   const [isPressed, setIsPressed] = useState(false);
 
   const getGradientColors = () => {
-    // Define gradients based on theme
-    switch (theme) {
-      case 'ocean-blue':
-        return isPressed 
-          ? ['#0050B3', '#1890FF'] // Darker when pressed
-          : ['#0050B3', '#40A9FF']; // Deep blue → light blue
-      case 'soft-rose':
-        return isPressed
-          ? ['#C41D7F', '#FF69B4'] // Darker when pressed
-          : ['#FF69B4', '#FFB6C1']; // Rose pink → soft peach
-      case 'forest-green':
-        return isPressed
-          ? ['#135200', '#228B22'] // Darker when pressed
-          : ['#228B22', '#90EE90']; // Rich green → soft mint
-      case 'sunny-yellow':
-        return isPressed
-          ? ['#D97706', '#F59E0B'] // Darker when pressed
-          : ['#F59E0B', '#FDE68A']; // Golden yellow → light lemon
-      default:
-        return isPressed
-          ? ['#0050B3', '#1890FF']
-          : ['#0050B3', '#40A9FF'];
+    if (isPressed) {
+      // Darker gradient when pressed
+      const [color1, color2] = theme.primaryGradient;
+      return [color1, color1]; // Use first color for both to darken
     }
+    return theme.primaryGradient;
   };
 
   const getShadowStyle = () => {
@@ -93,9 +76,11 @@ export function SafeSpaceButton({
           style={styles.gradient}
         >
           {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={theme.buttonText} />
           ) : (
-            <Text style={[styles.primaryText, textStyle]}>{children}</Text>
+            <Text style={[styles.primaryText, { color: theme.buttonText }, textStyle]}>
+              {children}
+            </Text>
           )}
         </LinearGradient>
       </TouchableOpacity>
@@ -114,8 +99,8 @@ export function SafeSpaceButton({
           styles.buttonContainer,
           styles.outlineButton,
           { 
-            borderColor: colors.primary, 
-            backgroundColor: isPressed ? colors.highlight : colors.card 
+            borderColor: theme.primary, 
+            backgroundColor: isPressed ? theme.background : theme.card 
           },
           fullWidth && styles.fullWidth,
           getShadowStyle(),
@@ -124,9 +109,9 @@ export function SafeSpaceButton({
         ]}
       >
         {loading ? (
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={theme.primary} />
         ) : (
-          <Text style={[styles.outlineText, { color: colors.primary }, textStyle]}>
+          <Text style={[styles.outlineText, { color: theme.primary }, textStyle]}>
             {children}
           </Text>
         )}
@@ -144,7 +129,7 @@ export function SafeSpaceButton({
       style={[
         styles.buttonContainer,
         styles.secondaryButton,
-        { backgroundColor: isPressed ? colors.primary : colors.secondary },
+        { backgroundColor: isPressed ? theme.primaryGradient[0] : theme.primary },
         fullWidth && styles.fullWidth,
         getShadowStyle(),
         (disabled || loading) && styles.disabled,
@@ -152,9 +137,11 @@ export function SafeSpaceButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color="#FFFFFF" />
+        <ActivityIndicator color={theme.buttonText} />
       ) : (
-        <Text style={[styles.primaryText, textStyle]}>{children}</Text>
+        <Text style={[styles.primaryText, { color: theme.buttonText }, textStyle]}>
+          {children}
+        </Text>
       )}
     </TouchableOpacity>
   );
@@ -189,7 +176,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   primaryText: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
   },

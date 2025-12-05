@@ -11,7 +11,7 @@ interface PersonCardProps {
 }
 
 export function PersonCard({ person, onPress }: PersonCardProps) {
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
 
   const formatLastMessagePreview = (message: string) => {
     if (message.length > 50) {
@@ -22,26 +22,26 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
 
   return (
     <TouchableOpacity
-      style={[styles.container, { backgroundColor: colors.card }]}
+      style={[styles.container, { backgroundColor: theme.card }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.content}>
-        <View style={[styles.avatar, { backgroundColor: colors.highlight }]}>
-          <Text style={[styles.avatarText, { color: colors.primary }]}>
+        <View style={[styles.avatar, { backgroundColor: theme.background }]}>
+          <Text style={[styles.avatarText, { color: theme.primary }]}>
             {person.name.charAt(0).toUpperCase()}
           </Text>
         </View>
 
         <View style={styles.info}>
-          <Text style={[styles.name, { color: colors.text }]}>
+          <Text style={[styles.name, { color: theme.textPrimary }]}>
             {person.name}
           </Text>
-          <Text style={[styles.relationship, { color: colors.textSecondary }]}>
+          <Text style={[styles.relationship, { color: theme.textSecondary }]}>
             {person.relationship_type}
           </Text>
           <Text
-            style={[styles.lastMessage, { color: colors.textSecondary }]}
+            style={[styles.lastMessage, { color: theme.textSecondary }]}
             numberOfLines={1}
           >
             {formatLastMessagePreview(person.lastMessage || 'No messages yet')}
@@ -52,7 +52,7 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
           ios_icon_name="chevron.right"
           android_material_icon_name="chevron_right"
           size={20}
-          color={colors.textSecondary}
+          color={theme.textSecondary}
         />
       </View>
     </TouchableOpacity>

@@ -1,14 +1,13 @@
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { ThemeType } from '@/types/database.types';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { ThemeKey } from '@/contexts/ThemeContext';
 
 interface ThemeOptionCardProps {
   theme: {
-    id: ThemeType;
+    id: ThemeKey;
     name: string;
     color: string;
-    gradient: string[];
     description: string;
   };
   selected: boolean;
@@ -23,8 +22,9 @@ export function ThemeOptionCard({ theme, selected, onPress }: ThemeOptionCardPro
         {
           borderColor: selected ? theme.color : '#E0E0E0',
           borderWidth: selected ? 3 : 2,
-          backgroundColor: selected ? '#FFFFFF' : '#F9F9F9',
+          backgroundColor: '#FFFFFF',
         },
+        selected && styles.selectedShadow,
       ]}
       onPress={onPress}
       activeOpacity={0.7}
@@ -52,16 +52,56 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     marginBottom: 16,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+      },
+    }),
+  },
+  selectedShadow: {
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+      default: {
+        boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
+      },
+    }),
   },
   colorCircle: {
     width: 50,
     height: 50,
     borderRadius: 25,
     marginRight: 16,
-    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.15)',
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+      default: {
+        boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.15)',
+      },
+    }),
   },
   info: {
     flex: 1,

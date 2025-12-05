@@ -26,7 +26,7 @@ export default function ChatScreen() {
     personName: string;
   }>();
   const { userId } = useAuth();
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -168,22 +168,22 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.card }]}>
+      <View style={[styles.header, { backgroundColor: theme.card }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <IconSymbol
             ios_icon_name="chevron.left"
             android_material_icon_name="arrow_back"
             size={24}
-            color={colors.text}
+            color={theme.textPrimary}
           />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{personName}</Text>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{personName}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -191,7 +191,7 @@ export default function ChatScreen() {
       {/* Messages */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : (
         <ScrollView
@@ -203,18 +203,18 @@ export default function ChatScreen() {
         >
           {messages.length === 0 ? (
             <View style={styles.emptyChat}>
-              <View style={[styles.emptyIconContainer, { backgroundColor: colors.highlight }]}>
+              <View style={[styles.emptyIconContainer, { backgroundColor: theme.background }]}>
                 <IconSymbol
                   ios_icon_name="bubble.left.and.bubble.right.fill"
                   android_material_icon_name="chat"
                   size={40}
-                  color={colors.primary}
+                  color={theme.primary}
                 />
               </View>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
                 Start the conversation
               </Text>
-              <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
+              <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
                 Share your thoughts and feelings about {personName}
               </Text>
             </View>
@@ -238,12 +238,12 @@ export default function ChatScreen() {
       )}
 
       {/* Input Bar */}
-      <View style={[styles.inputContainer, { backgroundColor: colors.card }]}>
-        <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+      <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+        <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
           <TextInput
-            style={[styles.input, { color: colors.text }]}
+            style={[styles.input, { color: theme.textPrimary }]}
             placeholder="Type your message..."
-            placeholderTextColor={colors.textSecondary}
+            placeholderTextColor={theme.textSecondary}
             value={inputText}
             onChangeText={setInputText}
             multiline
@@ -255,7 +255,7 @@ export default function ChatScreen() {
         <TouchableOpacity
           style={[
             styles.sendButton,
-            { backgroundColor: colors.primary },
+            { backgroundColor: theme.primary },
             (!inputText.trim() || sending) && styles.sendButtonDisabled,
           ]}
           onPress={sendMessage}

@@ -7,48 +7,43 @@ import { SafeSpaceTitle, SafeSpaceSubtitle } from '@/components/ui/SafeSpaceText
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { ThemeOptionCard } from '@/components/ui/ThemeOptionCard';
-import { useThemeContext } from '@/contexts/ThemeContext';
-import { ThemeType } from '@/types/database.types';
+import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 
 export default function ThemeSelectionScreen() {
-  const { setTheme } = useThemeContext();
-  const [selectedTheme, setSelectedTheme] = useState<ThemeType>('ocean-blue');
+  const { themeKey, setTheme } = useThemeContext();
+  const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
 
   const themes = [
     {
-      id: 'ocean-blue' as ThemeType,
+      id: 'OceanBlue' as ThemeKey,
       name: 'Ocean Blue',
       color: '#1890FF',
-      gradient: ['#E6F7FF', '#BAE7FF'],
       description: 'Calm and serene like the ocean',
     },
     {
-      id: 'soft-rose' as ThemeType,
+      id: 'SoftRose' as ThemeKey,
       name: 'Soft Rose',
       color: '#FF69B4',
-      gradient: ['#FFF0F5', '#FFE4E1'],
       description: 'Gentle and nurturing warmth',
     },
     {
-      id: 'forest-green' as ThemeType,
+      id: 'ForestGreen' as ThemeKey,
       name: 'Forest Green',
       color: '#228B22',
-      gradient: ['#F0F8F0', '#E8F5E8'],
       description: 'Grounded and peaceful nature',
     },
     {
-      id: 'sunny-yellow' as ThemeType,
+      id: 'SunnyYellow' as ThemeKey,
       name: 'Sunny Yellow',
       color: '#F59E0B',
-      gradient: ['#FFFBEA', '#FEF3C7'],
       description: 'Bright and uplifting energy',
     },
   ];
 
-  const handleThemeSelect = async (themeId: ThemeType) => {
-    setSelectedTheme(themeId);
+  const handleThemeSelect = async (newThemeKey: ThemeKey) => {
+    setSelectedTheme(newThemeKey);
     // Update theme immediately for live preview
-    await setTheme(themeId);
+    await setTheme(newThemeKey);
   };
 
   const handleContinue = () => {
@@ -71,12 +66,12 @@ export default function ThemeSelectionScreen() {
         </View>
 
         <View style={styles.themeSection}>
-          {themes.map((theme) => (
+          {themes.map((themeOption) => (
             <ThemeOptionCard
-              key={theme.id}
-              theme={theme}
-              selected={selectedTheme === theme.id}
-              onPress={() => handleThemeSelect(theme.id)}
+              key={themeOption.id}
+              theme={themeOption}
+              selected={selectedTheme === themeOption.id}
+              onPress={() => handleThemeSelect(themeOption.id)}
             />
           ))}
         </View>

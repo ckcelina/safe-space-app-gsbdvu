@@ -20,7 +20,7 @@ export function SafeSpaceLinkButton({
   textStyle,
   variant = 'default',
 }: SafeSpaceLinkButtonProps) {
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
 
   if (variant === 'outline') {
     return (
@@ -31,13 +31,13 @@ export function SafeSpaceLinkButton({
         style={[
           styles.outlineContainer,
           { 
-            borderColor: colors.primary,
-            backgroundColor: colors.card,
+            borderColor: theme.primary,
+            backgroundColor: theme.card,
           },
           style,
         ]}
       >
-        <Text style={[styles.outlineText, { color: colors.primary }, textStyle]}>
+        <Text style={[styles.outlineText, { color: theme.primary }, textStyle]}>
           {children}
         </Text>
       </TouchableOpacity>
@@ -51,7 +51,7 @@ export function SafeSpaceLinkButton({
       activeOpacity={0.7}
       style={[styles.container, style]}
     >
-      <Text style={[styles.text, { color: colors.primary }, textStyle]}>
+      <Text style={[styles.text, { color: theme.primary }, textStyle]}>
         {children}
       </Text>
     </TouchableOpacity>

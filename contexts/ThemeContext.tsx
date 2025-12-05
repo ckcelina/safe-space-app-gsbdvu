@@ -1,88 +1,91 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ThemeType } from '@/types/database.types';
 
-export interface ThemeColors {
-  background: string;
-  text: string;
-  textSecondary: string;
+export type ThemeKey = 'OceanBlue' | 'SoftRose' | 'ForestGreen' | 'SunnyYellow';
+
+export interface Theme {
   primary: string;
-  secondary: string;
-  accent: string;
+  primaryGradient: [string, string];
+  background: string;
   card: string;
-  highlight: string;
+  textPrimary: string;
+  textSecondary: string;
+  buttonText: string;
 }
 
 interface ThemeContextType {
-  theme: ThemeType;
-  setTheme: (theme: ThemeType) => Promise<void>;
-  colors: ThemeColors;
+  themeKey: ThemeKey;
+  theme: Theme;
+  setTheme: (themeKey: ThemeKey) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEME_STORAGE_KEY = '@safe_space_theme';
+const THEME_STORAGE_KEY = '@safe_space_theme_v2';
 
 // Ocean Blue Theme - Calm and serene
-const oceanBlueColors: ThemeColors = {
-  background: '#E6F7FF',
-  text: '#001529',
-  textSecondary: '#595959',
+const oceanBlueTheme: Theme = {
   primary: '#1890FF',
-  secondary: '#40A9FF',
-  accent: '#69C0FF',
+  primaryGradient: ['#0050B3', '#40A9FF'],
+  background: '#E6F7FF',
   card: '#FFFFFF',
-  highlight: '#BAE7FF',
+  textPrimary: '#001529',
+  textSecondary: '#595959',
+  buttonText: '#FFFFFF',
 };
 
 // Soft Rose Theme - Gentle and nurturing
-const softRoseColors: ThemeColors = {
-  background: '#FFF0F5',
-  text: '#4A1F2F',
-  textSecondary: '#8B5A6B',
+const softRoseTheme: Theme = {
   primary: '#FF69B4',
-  secondary: '#FFB6C1',
-  accent: '#FFC0CB',
+  primaryGradient: ['#FF69B4', '#FFB6C1'],
+  background: '#FFF0F5',
   card: '#FFFFFF',
-  highlight: '#FFE4E1',
+  textPrimary: '#4A1F2F',
+  textSecondary: '#8B5A6B',
+  buttonText: '#FFFFFF',
 };
 
 // Forest Green Theme - Grounded and peaceful
-const forestGreenColors: ThemeColors = {
-  background: '#F0F8F0',
-  text: '#1B4D1B',
-  textSecondary: '#4A7C4A',
+const forestGreenTheme: Theme = {
   primary: '#228B22',
-  secondary: '#32CD32',
-  accent: '#90EE90',
+  primaryGradient: ['#228B22', '#90EE90'],
+  background: '#F0F8F0',
   card: '#FFFFFF',
-  highlight: '#E8F5E8',
+  textPrimary: '#1B4D1B',
+  textSecondary: '#4A7C4A',
+  buttonText: '#FFFFFF',
 };
 
 // Sunny Yellow Theme - Bright and uplifting
-const sunnyYellowColors: ThemeColors = {
-  background: '#FFFBEA',
-  text: '#5C4A1A',
-  textSecondary: '#8B7355',
+const sunnyYellowTheme: Theme = {
   primary: '#F59E0B',
-  secondary: '#FBBF24',
-  accent: '#FCD34D',
+  primaryGradient: ['#F59E0B', '#FDE68A'],
+  background: '#FFFBEA',
   card: '#FFFFFF',
-  highlight: '#FEF3C7',
+  textPrimary: '#5C4A1A',
+  textSecondary: '#8B7355',
+  buttonText: '#FFFFFF',
+};
+
+const themes: Record<ThemeKey, Theme> = {
+  OceanBlue: oceanBlueTheme,
+  SoftRose: softRoseTheme,
+  ForestGreen: forestGreenTheme,
+  SunnyYellow: sunnyYellowTheme,
 };
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeType>('ocean-blue');
-  const [currentColors, setCurrentColors] = useState<ThemeColors>(oceanBlueColors);
+  const [themeKey, setThemeKey] = useState<ThemeKey>('OceanBlue');
+  const [theme, setThemeState] = useState<Theme>(oceanBlueTheme);
 
   const loadTheme = useCallback(async () => {
     try {
       const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme) {
-        const themeValue = savedTheme as ThemeType;
-        setThemeState(themeValue);
-        updateColors(themeValue);
+      if (savedTheme && savedTheme in themes) {
+        const key = savedTheme as ThemeKey;
+        setThemeKey(key);
+        setThemeState(themes[key]);
       }
     } catch (error) {
       console.error('Error loading theme:', error);
@@ -93,36 +96,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     loadTheme();
   }, [loadTheme]);
 
-  const updateColors = (themeType: ThemeType) => {
-    switch (themeType) {
-      case 'soft-rose':
-        setCurrentColors(softRoseColors);
-        break;
-      case 'forest-green':
-        setCurrentColors(forestGreenColors);
-        break;
-      case 'sunny-yellow':
-        setCurrentColors(sunnyYellowColors);
-        break;
-      case 'ocean-blue':
-      default:
-        setCurrentColors(oceanBlueColors);
-        break;
-    }
-  };
-
-  const setTheme = async (newTheme: ThemeType) => {
+  const setTheme = async (newThemeKey: ThemeKey) => {
     try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme);
-      setThemeState(newTheme);
-      updateColors(newTheme);
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeKey);
+      setThemeKey(newThemeKey);
+      setThemeState(themes[newThemeKey]);
     } catch (error) {
       console.error('Error saving theme:', error);
     }
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, colors: currentColors }}>
+    <ThemeContext.Provider value={{ themeKey, theme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );

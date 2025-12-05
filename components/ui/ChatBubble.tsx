@@ -13,7 +13,7 @@ interface ChatBubbleProps {
 }
 
 export function ChatBubble({ message, isUser, timestamp, animate = false }: ChatBubbleProps) {
-  const { colors } = useThemeContext();
+  const { theme } = useThemeContext();
   const fadeAnim = useRef(new Animated.Value(animate ? 0 : 1)).current;
   const slideAnim = useRef(new Animated.Value(animate ? 20 : 0)).current;
 
@@ -33,10 +33,6 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
       ]).start();
     }
   }, [animate, fadeAnim, slideAnim]);
-
-  const getGradientColors = () => {
-    return [colors.primary, colors.secondary];
-  };
 
   const formatTimestamp = (ts: string) => {
     const date = new Date(ts);
@@ -66,12 +62,12 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
       ]}
     >
       {!isUser && (
-        <View style={[styles.aiIcon, { backgroundColor: colors.highlight }]}>
+        <View style={[styles.aiIcon, { backgroundColor: theme.background }]}>
           <IconSymbol
             ios_icon_name="sparkles"
             android_material_icon_name="auto_awesome"
             size={16}
-            color={colors.primary}
+            color={theme.primary}
           />
         </View>
       )}
@@ -79,12 +75,12 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
       <View style={styles.bubbleContainer}>
         {isUser ? (
           <LinearGradient
-            colors={getGradientColors()}
+            colors={theme.primaryGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[styles.bubble, styles.userBubble]}
           >
-            <Text style={styles.userText}>{message}</Text>
+            <Text style={[styles.userText, { color: theme.buttonText }]}>{message}</Text>
           </LinearGradient>
         ) : (
           <View
@@ -92,16 +88,16 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
               styles.bubble,
               styles.aiBubble,
               {
-                backgroundColor: colors.card,
-                borderColor: colors.accent,
+                backgroundColor: theme.card,
+                borderColor: theme.primary,
               },
             ]}
           >
-            <Text style={[styles.aiText, { color: colors.text }]}>{message}</Text>
+            <Text style={[styles.aiText, { color: theme.textPrimary }]}>{message}</Text>
           </View>
         )}
 
-        <Text style={[styles.timestamp, { color: colors.textSecondary }]}>
+        <Text style={[styles.timestamp, { color: theme.textSecondary }]}>
           {formatTimestamp(timestamp)}
         </Text>
       </View>
@@ -149,7 +145,6 @@ const styles = StyleSheet.create({
   userText: {
     fontSize: 16,
     lineHeight: 22,
-    color: '#FFFFFF',
   },
   aiText: {
     fontSize: 16,
