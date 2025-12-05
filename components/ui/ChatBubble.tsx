@@ -6,33 +6,34 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 
 interface ChatBubbleProps {
-  sender: 'user' | 'ai';
-  content: string;
-  createdAt?: string;
+  message: string;
+  isUser: boolean;
+  timestamp?: string;
+  animate?: boolean;
 }
 
-export function ChatBubble({ sender, content, createdAt }: ChatBubbleProps) {
+export function ChatBubble({ message, isUser, timestamp, animate = false }: ChatBubbleProps) {
   const { theme } = useThemeContext();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(15)).current;
-
-  const isUser = sender === 'user';
+  const fadeAnim = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  const slideAnim = useRef(new Animated.Value(animate ? 15 : 0)).current;
 
   useEffect(() => {
-    // Subtle fade-in + slide-up animation on appear
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fadeAnim, slideAnim]);
+    if (animate) {
+      // Subtle fade-in + slide-up animation on appear
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [fadeAnim, slideAnim, animate]);
 
   const formatTimestamp = (ts?: string) => {
     if (!ts) return '';
@@ -82,7 +83,7 @@ export function ChatBubble({ sender, content, createdAt }: ChatBubbleProps) {
             end={{ x: 1, y: 1 }}
             style={[styles.bubble, styles.userBubble]}
           >
-            <Text style={[styles.userText, { color: theme.buttonText }]}>{content}</Text>
+            <Text style={[styles.userText, { color: theme.buttonText }]}>{message}</Text>
           </LinearGradient>
         ) : (
           <View
@@ -94,11 +95,11 @@ export function ChatBubble({ sender, content, createdAt }: ChatBubbleProps) {
               },
             ]}
           >
-            <Text style={[styles.aiText, { color: theme.textPrimary }]}>{content}</Text>
+            <Text style={[styles.aiText, { color: theme.textPrimary }]}>{message}</Text>
           </View>
         )}
 
-        {createdAt && (
+        {timestamp && (
           <Text
             style={[
               styles.timestamp,
@@ -106,7 +107,7 @@ export function ChatBubble({ sender, content, createdAt }: ChatBubbleProps) {
               isUser ? styles.timestampRight : styles.timestampLeft,
             ]}
           >
-            {formatTimestamp(createdAt)}
+            {formatTimestamp(timestamp)}
           </Text>
         )}
       </View>
