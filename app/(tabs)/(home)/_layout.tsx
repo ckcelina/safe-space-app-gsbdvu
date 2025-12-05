@@ -7,7 +7,11 @@ export default function HomeLayout() {
     <Stack
       screenOptions={{
         gestureEnabled: true,
-        animation: 'default',
+        fullScreenGestureEnabled: true,
+        gestureDirection: 'horizontal',
+        animation: 'slide_from_right',
+        animationDuration: 300,
+        customAnimationOnGesture: true,
       }}
     >
       <Stack.Screen
@@ -16,6 +20,7 @@ export default function HomeLayout() {
           headerShown: false,
           title: 'Home',
           gestureEnabled: false,
+          animation: 'fade',
         }}
       />
       <Stack.Screen
@@ -25,6 +30,7 @@ export default function HomeLayout() {
           title: 'Add Person',
           presentation: 'modal',
           gestureEnabled: true,
+          animation: 'slide_from_bottom',
         }}
       />
       <Stack.Screen
@@ -33,6 +39,8 @@ export default function HomeLayout() {
           headerShown: false,
           title: 'Chat',
           gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+          animation: 'slide_from_right',
         }}
       />
     </Stack>

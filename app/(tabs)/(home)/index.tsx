@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,6 +11,8 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
+import { SwipeableModal } from '@/components/ui/SwipeableModal';
+import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 interface PersonWithLastMessage extends Person {
@@ -284,180 +286,165 @@ export default function HomeScreen() {
           ) : null}
         </ScrollView>
 
-        {/* Add Person Modal */}
-        <Modal
+        {/* Add Person Modal - Swipeable */}
+        <SwipeableModal
           visible={showAddModal}
+          onClose={handleCloseModal}
           animationType="slide"
-          transparent={true}
-          onRequestClose={handleCloseModal}
+          showHandle={true}
         >
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalOverlay}
+            style={styles.modalKeyboardView}
           >
-            <TouchableOpacity
-              style={styles.modalBackdrop}
-              activeOpacity={1}
-              onPress={handleCloseModal}
-            />
-            <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
-              {/* Modal Header */}
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
-                <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
-                  <IconSymbol
-                    ios_icon_name="xmark"
-                    android_material_icon_name="close"
-                    size={24}
-                    color={theme.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Modal Body */}
-              <ScrollView
-                style={styles.modalBody}
-                contentContainerStyle={styles.modalBodyContent}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                  Name <Text style={styles.required}>*</Text>
-                </Text>
-                <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
-                  <TextInput
-                    style={[styles.textInput, { color: theme.textPrimary }]}
-                    placeholder="Enter their name"
-                    placeholderTextColor={theme.textSecondary}
-                    value={name}
-                    onChangeText={(text) => {
-                      setName(text);
-                      if (nameError && text.trim()) {
-                        setNameError('');
-                      }
-                    }}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    maxLength={50}
-                  />
-                </View>
-                {nameError ? (
-                  <Text style={styles.errorTextSmall}>{nameError}</Text>
-                ) : null}
-
-                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                  Relationship Type
-                </Text>
-                <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
-                  <TextInput
-                    style={[styles.textInput, { color: theme.textPrimary }]}
-                    placeholder="partner, ex, friend, parent..."
-                    placeholderTextColor={theme.textSecondary}
-                    value={relationshipType}
-                    onChangeText={setRelationshipType}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    maxLength={50}
-                  />
-                </View>
-              </ScrollView>
-
-              {/* Modal Footer */}
-              <View style={styles.modalFooter}>
-                <TouchableOpacity
-                  onPress={handleCloseModal}
-                  style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
-                  disabled={saving}
-                >
-                  <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={handleSave}
-                  style={styles.primaryButton}
-                  disabled={saving}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={theme.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.primaryButtonGradient}
-                  >
-                    <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
-                      Save
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
-
-        {/* Premium Feature Modal */}
-        <Modal
-          visible={showPremiumModal}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={handleClosePremiumModal}
-        >
-          <View style={styles.premiumModalOverlay}>
-            <TouchableOpacity
-              style={styles.premiumModalBackdrop}
-              activeOpacity={1}
-              onPress={handleClosePremiumModal}
-            />
-            <View style={[styles.premiumModalContent, { backgroundColor: theme.card }]}>
-              <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
+              <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
                 <IconSymbol
-                  ios_icon_name="star.fill"
-                  android_material_icon_name="star"
-                  size={48}
-                  color="#FFD700"
+                  ios_icon_name="xmark"
+                  android_material_icon_name="close"
+                  size={24}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Body */}
+            <ScrollView
+              style={styles.modalBody}
+              contentContainerStyle={styles.modalBodyContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                Name <Text style={styles.required}>*</Text>
+              </Text>
+              <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
+                <TextInput
+                  style={[styles.textInput, { color: theme.textPrimary }]}
+                  placeholder="Enter their name"
+                  placeholderTextColor={theme.textSecondary}
+                  value={name}
+                  onChangeText={(text) => {
+                    setName(text);
+                    if (nameError && text.trim()) {
+                      setNameError('');
+                    }
+                  }}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  maxLength={50}
                 />
               </View>
-              
-              <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
-                Premium feature
-              </Text>
-              
-              <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
-                Upgrade your plan to add more people.
-              </Text>
+              {nameError ? (
+                <Text style={styles.errorTextSmall}>{nameError}</Text>
+              ) : null}
 
-              <View style={styles.premiumModalButtons}>
-                <TouchableOpacity
-                  onPress={handleClosePremiumModal}
-                  style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
-                    Not now
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={handleClosePremiumModal}
-                  style={styles.premiumPrimaryButton}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['#FFD700', '#FFA500']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.premiumPrimaryButtonGradient}
-                  >
-                    <Text style={styles.premiumPrimaryButtonText}>
-                      Learn about Premium
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                Relationship Type
+              </Text>
+              <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
+                <TextInput
+                  style={[styles.textInput, { color: theme.textPrimary }]}
+                  placeholder="partner, ex, friend, parent..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={relationshipType}
+                  onChangeText={setRelationshipType}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  maxLength={50}
+                />
               </View>
+            </ScrollView>
+
+            {/* Modal Footer */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                onPress={handleCloseModal}
+                style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                disabled={saving}
+              >
+                <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleSave}
+                style={styles.primaryButton}
+                disabled={saving}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={theme.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.primaryButtonGradient}
+                >
+                  <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
+                    Save
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </SwipeableModal>
+
+        {/* Premium Feature Modal - Swipeable Center Modal */}
+        <SwipeableCenterModal
+          visible={showPremiumModal}
+          onClose={handleClosePremiumModal}
+          showHandle={true}
+        >
+          <View style={styles.premiumModalInner}>
+            <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
+              <IconSymbol
+                ios_icon_name="star.fill"
+                android_material_icon_name="star"
+                size={48}
+                color="#FFD700"
+              />
+            </View>
+            
+            <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
+              Premium feature
+            </Text>
+            
+            <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
+              Upgrade your plan to add more people.
+            </Text>
+
+            <View style={styles.premiumModalButtons}>
+              <TouchableOpacity
+                onPress={handleClosePremiumModal}
+                style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
+                  Not now
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleClosePremiumModal}
+                style={styles.premiumPrimaryButton}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.premiumPrimaryButtonGradient}
+                >
+                  <Text style={styles.premiumPrimaryButtonText}>
+                    Learn about Premium
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
           </View>
-        </Modal>
+        </SwipeableCenterModal>
       </View>
       
       <LoadingOverlay visible={loading && !error} />
@@ -583,22 +570,8 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   // Modal styles
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
-    maxHeight: '80%',
-    boxShadow: '0px -4px 20px rgba(0, 0, 0, 0.15)',
-    elevation: 10,
+  modalKeyboardView: {
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -606,6 +579,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingBottom: 16,
+    paddingTop: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
@@ -652,6 +626,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 24,
     paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
     gap: 12,
   },
   secondaryButton: {
@@ -681,24 +656,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   // Premium Modal styles
-  premiumModalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  premiumModalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  },
-  premiumModalContent: {
-    borderRadius: 24,
+  premiumModalInner: {
     padding: 32,
-    width: '100%',
-    maxWidth: 400,
     alignItems: 'center',
-    boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.2)',
-    elevation: 10,
   },
   premiumIconContainer: {
     width: 96,

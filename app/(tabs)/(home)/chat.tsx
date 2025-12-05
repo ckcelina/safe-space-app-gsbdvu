@@ -20,6 +20,7 @@ import { ChatBubble } from '@/components/ui/ChatBubble';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
+import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 import { generateAIReply } from '@/utils/aiHelpers';
 import { showErrorToast } from '@/utils/toast';
 
@@ -194,7 +195,7 @@ export default function ChatScreen() {
   };
 
   return (
-    <>
+    <FullScreenSwipeHandler enabled={!sending && !aiTyping}>
       <KeyboardAvoidingView
         style={[styles.container, { backgroundColor: theme.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -339,7 +340,7 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
       
       <LoadingOverlay visible={loading && !error} />
-    </>
+    </FullScreenSwipeHandler>
   );
 }
 

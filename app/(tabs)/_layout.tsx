@@ -24,8 +24,8 @@ export default function TabLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: 'default',
-          gestureEnabled: true,
+          animation: 'fade',
+          gestureEnabled: false,
         }}
       >
         <Stack.Screen 
@@ -33,6 +33,7 @@ export default function TabLayout() {
           name="(home)" 
           options={{
             gestureEnabled: false,
+            animation: 'fade',
           }}
         />
         <Stack.Screen 
@@ -40,6 +41,7 @@ export default function TabLayout() {
           name="settings"
           options={{
             gestureEnabled: false,
+            animation: 'fade',
           }}
         />
       </Stack>

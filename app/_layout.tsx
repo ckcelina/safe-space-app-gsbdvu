@@ -88,11 +88,15 @@ export default function RootLayout() {
         <AppThemeProvider>
           <AuthProvider>
             <WidgetProvider>
-              <GestureHandlerRootView>
+              <GestureHandlerRootView style={{ flex: 1 }}>
                 <Stack
                   screenOptions={{
                     gestureEnabled: true,
-                    animation: 'default',
+                    fullScreenGestureEnabled: true,
+                    gestureDirection: 'horizontal',
+                    animation: 'slide_from_right',
+                    animationDuration: 300,
+                    customAnimationOnGesture: true,
                   }}
                 >
                   <Stack.Screen 
@@ -100,6 +104,7 @@ export default function RootLayout() {
                     options={{ 
                       headerShown: false,
                       gestureEnabled: false,
+                      animation: 'fade',
                     }} 
                   />
                   <Stack.Screen 
@@ -107,6 +112,8 @@ export default function RootLayout() {
                     options={{ 
                       headerShown: false,
                       gestureEnabled: true,
+                      fullScreenGestureEnabled: true,
+                      animation: 'slide_from_right',
                     }} 
                   />
                   <Stack.Screen 
@@ -114,6 +121,8 @@ export default function RootLayout() {
                     options={{ 
                       headerShown: false,
                       gestureEnabled: true,
+                      fullScreenGestureEnabled: true,
+                      animation: 'slide_from_right',
                     }} 
                   />
                   <Stack.Screen 
@@ -121,6 +130,8 @@ export default function RootLayout() {
                     options={{ 
                       headerShown: false,
                       gestureEnabled: true,
+                      fullScreenGestureEnabled: true,
+                      animation: 'slide_from_right',
                     }} 
                   />
                   <Stack.Screen 
@@ -128,6 +139,7 @@ export default function RootLayout() {
                     options={{ 
                       headerShown: false,
                       gestureEnabled: false,
+                      animation: 'fade',
                     }} 
                   />
                   <Stack.Screen
@@ -136,6 +148,7 @@ export default function RootLayout() {
                       presentation: "modal",
                       title: "Standard Modal",
                       gestureEnabled: true,
+                      animation: 'slide_from_bottom',
                     }}
                   />
                   <Stack.Screen
@@ -147,6 +160,7 @@ export default function RootLayout() {
                       sheetAllowedDetents: [0.5, 0.8, 1.0],
                       sheetCornerRadius: 20,
                       gestureEnabled: true,
+                      animation: 'slide_from_bottom',
                     }}
                   />
                   <Stack.Screen
@@ -155,6 +169,7 @@ export default function RootLayout() {
                       presentation: "transparentModal",
                       headerShown: false,
                       gestureEnabled: true,
+                      animation: 'fade',
                     }}
                   />
                   <Stack.Screen
@@ -162,6 +177,8 @@ export default function RootLayout() {
                     options={{
                       headerShown: false,
                       gestureEnabled: true,
+                      fullScreenGestureEnabled: true,
+                      animation: 'slide_from_right',
                     }}
                   />
                 </Stack>
