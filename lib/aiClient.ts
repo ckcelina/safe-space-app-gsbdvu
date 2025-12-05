@@ -13,13 +13,13 @@ import { supabase } from '@/lib/supabase';
  * 
  * @param personId - The ID of the person being discussed
  * @param messages - Array of recent conversation messages with sender and content
- * @returns Promise that resolves to the AI-generated reply string
+ * @returns Promise that resolves to the AI-generated reply string or an error object
  */
 export async function generateAIReply(
   personId: string,
   messages: { sender: 'user' | 'ai'; content: string }[]
-): Promise<string> {
-  const fallbackMessage = "I'm having trouble connecting to the server right now, but I'm still here with you. Try sending that again in a little while.";
+): Promise<{ success: true; reply: string } | { success: false; error: string }> {
+  const fallbackMessage = "I had trouble replying just now. Please check your connection and try again.";
   
   try {
     console.log('[AI Client] Generating AI reply for person:', personId);
@@ -36,17 +36,17 @@ export async function generateAIReply(
     // Check for errors
     if (error) {
       console.error('[AI Client] Supabase function error:', error);
-      return fallbackMessage;
+      return { success: false, error: fallbackMessage };
     }
     
     // Validate that we received a reply
     if (!data || typeof data.reply !== 'string') {
       console.error('[AI Client] Missing or invalid reply in response:', data);
-      return fallbackMessage;
+      return { success: false, error: fallbackMessage };
     }
     
     console.log('[AI Client] AI reply received successfully');
-    return data.reply;
+    return { success: true, reply: data.reply };
     
   } catch (error) {
     // Handle network errors, JSON parsing errors, or any other exceptions
@@ -57,6 +57,6 @@ export async function generateAIReply(
       console.error('[AI Client] Error stack:', error.stack);
     }
     
-    return fallbackMessage;
+    return { success: false, error: fallbackMessage };
   }
 }

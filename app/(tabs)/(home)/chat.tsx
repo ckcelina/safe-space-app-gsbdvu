@@ -37,6 +37,8 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAITyping, setIsAITyping] = useState(false);
+  const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
+  const [showAIError, setShowAIError] = useState(false);
   
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -104,6 +106,77 @@ export default function ChatScreen() {
     setInputText(text);
   };
 
+  const handleRetryAI = async () => {
+    if (!lastUserMessage || !userId || !personId) {
+      console.log('Cannot retry: missing data');
+      return;
+    }
+
+    console.log('Retrying AI response for last message:', lastUserMessage);
+    setShowAIError(false);
+    setIsAITyping(true);
+
+    try {
+      // Prepare recent messages (last ~20) for AI
+      const recentMessages = messages.slice(-20).map((m) => ({
+        sender: m.sender as 'user' | 'ai',
+        content: m.content,
+      }));
+
+      console.log('Calling generateAIReply with', recentMessages.length, 'messages');
+      
+      // Call generateAIReply
+      const result = await generateAIReply(personId, recentMessages);
+
+      if (result.success) {
+        console.log('AI reply generated:', result.reply.substring(0, 50) + '...');
+
+        // Insert AI message with sender = 'ai'
+        const { data: aiMessage, error: aiError } = await supabase
+          .from('messages')
+          .insert([
+            {
+              user_id: userId,
+              person_id: personId,
+              sender: 'ai',
+              content: result.reply,
+            },
+          ])
+          .select()
+          .single();
+
+        if (aiError) {
+          console.error('Error inserting AI message:', aiError);
+          // Still show the AI reply locally even if insert fails
+          const fallbackMessage: Message = {
+            id: `fallback-${Date.now()}`,
+            user_id: userId,
+            person_id: personId,
+            sender: 'ai',
+            content: result.reply,
+            created_at: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, fallbackMessage]);
+        } else {
+          console.log('AI message inserted:', aiMessage.id);
+          setMessages((prev) => [...prev, aiMessage]);
+        }
+
+        setLastUserMessage(null);
+      } else {
+        console.error('AI reply failed:', result.error);
+        setShowAIError(true);
+      }
+
+      setTimeout(() => scrollToBottom(), 100);
+    } catch (err: any) {
+      console.error('Unexpected error retrying AI:', err);
+      setShowAIError(true);
+    } finally {
+      setIsAITyping(false);
+    }
+  };
+
   const sendMessage = async () => {
     const trimmedText = inputText.trim();
     
@@ -117,6 +190,7 @@ export default function ChatScreen() {
     
     // Step 2: Clear input immediately
     setInputText('');
+    setShowAIError(false);
 
     try {
       console.log('Sending user message:', messageContent);
@@ -149,6 +223,7 @@ export default function ChatScreen() {
 
       // Step 5: Set isAITyping flag to true
       setIsAITyping(true);
+      setLastUserMessage(messageContent);
 
       // Step 6: Prepare recent messages (last ~20) for AI
       const allMessages = [...messages, userMessage];
@@ -160,57 +235,56 @@ export default function ChatScreen() {
       console.log('Calling generateAIReply with', recentMessages.length, 'messages');
       
       // Step 7: Call generateAIReply
-      const aiReplyText = await generateAIReply(personId, recentMessages);
+      const result = await generateAIReply(personId, recentMessages);
 
-      console.log('AI reply generated:', aiReplyText.substring(0, 50) + '...');
+      if (result.success) {
+        console.log('AI reply generated:', result.reply.substring(0, 50) + '...');
 
-      // Step 8: Insert AI message with sender = 'ai'
-      const { data: aiMessage, error: aiError } = await supabase
-        .from('messages')
-        .insert([
-          {
+        // Step 8: Insert AI message with sender = 'ai'
+        const { data: aiMessage, error: aiError } = await supabase
+          .from('messages')
+          .insert([
+            {
+              user_id: userId,
+              person_id: personId,
+              sender: 'ai',
+              content: result.reply,
+            },
+          ])
+          .select()
+          .single();
+
+        if (aiError) {
+          console.error('Error inserting AI message:', aiError);
+          // Still show the AI reply locally even if insert fails
+          const fallbackMessage: Message = {
+            id: `fallback-${Date.now()}`,
             user_id: userId,
             person_id: personId,
             sender: 'ai',
-            content: aiReplyText,
-          },
-        ])
-        .select()
-        .single();
+            content: result.reply,
+            created_at: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, fallbackMessage]);
+        } else {
+          console.log('AI message inserted:', aiMessage.id);
+          // Step 9: Append AI message to the list
+          setMessages((prev) => [...prev, aiMessage]);
+        }
 
-      if (aiError) {
-        console.error('Error inserting AI message:', aiError);
-        // Still show the AI reply locally even if insert fails
-        const fallbackMessage: Message = {
-          id: `fallback-${Date.now()}`,
-          user_id: userId,
-          person_id: personId,
-          sender: 'ai',
-          content: aiReplyText,
-          created_at: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, fallbackMessage]);
+        setLastUserMessage(null);
       } else {
-        console.log('AI message inserted:', aiMessage.id);
-        // Step 9: Append AI message to the list
-        setMessages((prev) => [...prev, aiMessage]);
+        // AI failed - show error message
+        console.error('AI reply failed:', result.error);
+        setShowAIError(true);
       }
 
       // Step 10: Scroll to bottom
       setTimeout(() => scrollToBottom(), 100);
     } catch (err: any) {
       console.error('Unexpected error sending message:', err);
-      // If any error, still insert fallback AI message and do NOT crash
-      const fallbackMessage: Message = {
-        id: `fallback-${Date.now()}`,
-        user_id: userId,
-        person_id: personId,
-        sender: 'ai',
-        content: "I'm having trouble connecting to the server right now, but I'm still here with you. Try sending that again in a little while.",
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, fallbackMessage]);
-      setTimeout(() => scrollToBottom(), 100);
+      // If any error, show error state
+      setShowAIError(true);
     } finally {
       // Step 11: Always clear isAITyping in finally block
       setIsAITyping(false);
@@ -337,6 +411,36 @@ export default function ChatScreen() {
 
             {/* AI Typing Indicator - shown while isAITyping is true */}
             {isAITyping && <TypingIndicator />}
+
+            {/* AI Error Message with Try Again button */}
+            {showAIError && !isAITyping && (
+              <View style={styles.aiErrorContainer}>
+                <View style={[styles.aiErrorBubble, { backgroundColor: theme.card }]}>
+                  <IconSymbol
+                    ios_icon_name="exclamationmark.circle.fill"
+                    android_material_icon_name="error"
+                    size={20}
+                    color="#FF3B30"
+                  />
+                  <Text style={[styles.aiErrorText, { color: theme.textPrimary }]}>
+                    I had trouble replying just now. Please check your connection and try again.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.tryAgainButton, { backgroundColor: theme.primary }]}
+                  onPress={handleRetryAI}
+                  activeOpacity={0.8}
+                >
+                  <IconSymbol
+                    ios_icon_name="arrow.clockwise"
+                    android_material_icon_name="refresh"
+                    size={16}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.tryAgainButtonText}>Try again</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </ScrollView>
         )}
 
@@ -507,6 +611,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  aiErrorContainer: {
+    alignItems: 'flex-start',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  aiErrorBubble: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 16,
+    gap: 8,
+    boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
+  },
+  aiErrorText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  tryAgainButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 8,
+    gap: 6,
+  },
+  tryAgainButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   inputContainer: {
     flexDirection: 'row',

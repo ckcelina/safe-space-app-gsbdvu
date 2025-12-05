@@ -20,6 +20,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
 import { deleteUserAccount } from '@/utils/accountDeletion';
+import { openSupportEmail, openURL, LEGAL_URLS } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 export default function SettingsScreen() {
@@ -89,7 +90,9 @@ export default function SettingsScreen() {
       if (result.success) {
         setShowDeleteModal(false);
         showSuccessToast('Account deleted successfully');
-        // Navigate to welcome screen after a short delay
+        // Sign out the user
+        await signOut();
+        // Navigate to onboarding after a short delay
         setTimeout(() => {
           router.replace('/onboarding');
         }, 1000);
@@ -103,6 +106,33 @@ export default function SettingsScreen() {
       showErrorToast('An unexpected error occurred');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleSupportPress = async () => {
+    try {
+      await openSupportEmail();
+    } catch (error) {
+      console.error('Error opening support email:', error);
+      showErrorToast('Could not open email app');
+    }
+  };
+
+  const handleTermsPress = async () => {
+    try {
+      await openURL(LEGAL_URLS.terms);
+    } catch (error) {
+      console.error('Error opening terms:', error);
+      showErrorToast('Could not open terms');
+    }
+  };
+
+  const handlePrivacyPress = async () => {
+    try {
+      await openURL(LEGAL_URLS.privacy);
+    } catch (error) {
+      console.error('Error opening privacy policy:', error);
+      showErrorToast('Could not open privacy policy');
     }
   };
 
@@ -270,6 +300,92 @@ export default function SettingsScreen() {
               {/* Widget Preview Card */}
               <WidgetPreviewCard />
 
+              {/* Card 3: Support */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Support
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.row, { borderBottomWidth: 0 }]}
+                  onPress={handleSupportPress}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="envelope.fill"
+                      android_material_icon_name="email"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                      Contact Support
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="chevron_right"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Card 4: Legal */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Legal
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={handleTermsPress}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="doc.text.fill"
+                      android_material_icon_name="description"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                      Terms & Conditions
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="chevron_right"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.row, { borderBottomWidth: 0 }]}
+                  onPress={handlePrivacyPress}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="lock.shield.fill"
+                      android_material_icon_name="privacy_tip"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                      Privacy Policy
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="chevron_right"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
               {/* Log Out Button */}
               <TouchableOpacity
                 style={[styles.logoutButton, { backgroundColor: '#FF6B6B' }]}
@@ -285,33 +401,23 @@ export default function SettingsScreen() {
                 <Text style={styles.logoutText}>Log Out</Text>
               </TouchableOpacity>
 
-              {/* Danger Zone */}
-              <View style={styles.dangerZone}>
-                <Text style={[styles.dangerZoneTitle, { color: theme.buttonText }]}>
-                  Danger Zone
+              {/* Account Section (Danger Zone) */}
+              <View style={styles.accountSection}>
+                <Text style={[styles.sectionTitle, { color: theme.buttonText }]}>
+                  Account
                 </Text>
                 <View style={[styles.dangerCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                  <View style={styles.dangerContent}>
-                    <IconSymbol
-                      ios_icon_name="exclamationmark.triangle.fill"
-                      android_material_icon_name="warning"
-                      size={24}
-                      color="#FF3B30"
-                    />
-                    <View style={styles.dangerTextContainer}>
-                      <Text style={[styles.dangerTitle, { color: theme.textPrimary }]}>
-                        Delete Account
-                      </Text>
-                      <Text style={[styles.dangerDescription, { color: theme.textSecondary }]}>
-                        Permanently delete your account and all data
-                      </Text>
-                    </View>
-                  </View>
                   <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={handleDeleteAccount}
                     activeOpacity={0.8}
                   >
+                    <IconSymbol
+                      ios_icon_name="trash.fill"
+                      android_material_icon_name="delete"
+                      size={20}
+                      color="#FFFFFF"
+                    />
                     <Text style={styles.deleteButtonText}>Delete my account</Text>
                   </TouchableOpacity>
                 </View>
@@ -344,7 +450,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-              This will permanently delete your Safe Space account, your people, and your messages. This cannot be undone.
+              This will permanently delete your Safe Space account and conversations. This action cannot be undone.
             </Text>
 
             <View style={styles.modalButtons}>
@@ -444,6 +550,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.05)',
   },
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   rowLabel: {
     fontSize: 16,
     fontWeight: '500',
@@ -510,7 +620,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 18,
     borderRadius: 16,
-    marginTop: 32,
+    marginTop: 12,
     gap: 8,
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
     elevation: 3,
@@ -520,11 +630,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  dangerZone: {
+  accountSection: {
     marginTop: 40,
     marginBottom: 20,
   },
-  dangerZoneTitle: {
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 16,
@@ -536,30 +646,15 @@ const styles = StyleSheet.create({
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },
-  dangerContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  dangerTextContainer: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  dangerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  dangerDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
   deleteButton: {
     backgroundColor: '#FF3B30',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 12,
-    alignItems: 'center',
+    gap: 8,
   },
   deleteButtonText: {
     color: '#FFFFFF',
