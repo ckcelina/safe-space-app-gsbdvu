@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Platform,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,11 +19,15 @@ import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
+import { deleteUserAccount } from '@/utils/accountDeletion';
+import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 export default function SettingsScreen() {
-  const { email, role, signOut } = useAuth();
+  const { email, role, userId } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     setSelectedTheme(themeKey);
@@ -30,6 +37,7 @@ export default function SettingsScreen() {
     { key: 'OceanBlue', name: 'Ocean Blue' },
     { key: 'SoftRose', name: 'Soft Rose' },
     { key: 'ForestGreen', name: 'Forest Green' },
+    { key: 'SunnyYellow', name: 'Sunny Yellow' },
   ];
 
   const handleThemeSelect = async (themeKey: ThemeKey) => {
@@ -47,7 +55,10 @@ export default function SettingsScreen() {
           text: 'Log Out',
           style: 'destructive',
           onPress: async () => {
-            await signOut();
+            const { signOut } = useAuth.getState?.() || {};
+            if (signOut) {
+              await signOut();
+            }
             router.replace('/login');
           },
         },
@@ -57,6 +68,45 @@ export default function SettingsScreen() {
 
   const handleBack = () => {
     router.back();
+  };
+
+  const handleDeleteAccount = () => {
+    setShowDeleteModal(true);
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userId) {
+      showErrorToast('User ID not found');
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      const result = await deleteUserAccount(userId);
+
+      if (result.success) {
+        setShowDeleteModal(false);
+        showSuccessToast('Account deleted successfully');
+        // Navigate to welcome screen after a short delay
+        setTimeout(() => {
+          router.replace('/onboarding');
+        }, 1000);
+      } else {
+        setShowDeleteModal(false);
+        showErrorToast(result.error || 'Failed to delete account');
+      }
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      setShowDeleteModal(false);
+      showErrorToast('An unexpected error occurred');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const getPlanDisplay = () => {
@@ -83,148 +133,237 @@ export default function SettingsScreen() {
   const planInfo = getPlanDisplay();
 
   return (
-    <LinearGradient
-      colors={theme.primaryGradient}
-      style={styles.gradientBackground}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-    >
-      <StatusBarGradient />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.container}>
-          {/* Back Button */}
-          <View style={styles.topHeader}>
-            <TouchableOpacity 
-              onPress={handleBack} 
-              style={styles.backButton}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                ios_icon_name="chevron.left"
-                android_material_icon_name="arrow_back"
-                size={24}
-                color={theme.buttonText}
-              />
-            </TouchableOpacity>
-            <View style={styles.headerSpacer} />
-          </View>
-
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={[styles.title, { color: theme.buttonText }]}>
-                Settings
-              </Text>
-              <Text style={[styles.subtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-                Your account & preferences
-              </Text>
+    <>
+      <LinearGradient
+        colors={theme.primaryGradient}
+        style={styles.gradientBackground}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
+        <StatusBarGradient />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <View style={styles.container}>
+            {/* Back Button */}
+            <View style={styles.topHeader}>
+              <TouchableOpacity 
+                onPress={handleBack} 
+                style={styles.backButton}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="chevron.left"
+                  android_material_icon_name="arrow_back"
+                  size={24}
+                  color={theme.buttonText}
+                />
+              </TouchableOpacity>
+              <View style={styles.headerSpacer} />
             </View>
 
-            {/* Card 1: Account */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                Account
-              </Text>
-
-              {/* Email Row */}
-              <View style={styles.row}>
-                <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
-                  Email
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Header */}
+              <View style={styles.header}>
+                <Text style={[styles.title, { color: theme.buttonText }]}>
+                  Settings
                 </Text>
-                <Text style={[styles.rowValue, { color: theme.textPrimary }]}>
-                  {email || 'Not available'}
+                <Text style={[styles.subtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+                  Your account & preferences
                 </Text>
               </View>
 
-              {/* Plan Row */}
-              <View style={[styles.row, { borderBottomWidth: 0 }]}>
-                <View style={styles.planContainer}>
-                  {planInfo.icon && (
-                    <IconSymbol
-                      ios_icon_name={planInfo.icon}
-                      android_material_icon_name={planInfo.androidIcon || 'star'}
-                      size={18}
-                      color={role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary}
-                      style={styles.planIcon}
-                    />
-                  )}
-                  <Text
-                    style={[
-                      styles.planText,
-                      {
-                        color: role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary,
-                      },
-                    ]}
-                  >
-                    {planInfo.text}
+              {/* Card 1: Account */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Account
+                </Text>
+
+                {/* Email Row */}
+                <View style={styles.row}>
+                  <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
+                    Email
+                  </Text>
+                  <Text style={[styles.rowValue, { color: theme.textPrimary }]}>
+                    {email || 'Not available'}
                   </Text>
                 </View>
-              </View>
-            </View>
 
-            {/* Card 2: Appearance */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                Appearance
-              </Text>
-
-              <Text style={[styles.label, { color: theme.textSecondary }]}>
-                Theme
-              </Text>
-
-              <View style={styles.pillContainer}>
-                {themes.map((themeOption) => (
-                  <TouchableOpacity
-                    key={themeOption.key}
-                    style={[
-                      styles.pill,
-                      {
-                        backgroundColor:
-                          selectedTheme === themeOption.key
-                            ? theme.primary
-                            : theme.background,
-                        borderColor: theme.primary,
-                      },
-                    ]}
-                    onPress={() => handleThemeSelect(themeOption.key)}
-                    activeOpacity={0.7}
-                  >
+                {/* Plan Row */}
+                <View style={[styles.row, { borderBottomWidth: 0 }]}>
+                  <View style={styles.planContainer}>
+                    {planInfo.icon && (
+                      <IconSymbol
+                        ios_icon_name={planInfo.icon}
+                        android_material_icon_name={planInfo.androidIcon || 'star'}
+                        size={18}
+                        color={role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary}
+                        style={styles.planIcon}
+                      />
+                    )}
                     <Text
                       style={[
-                        styles.pillText,
+                        styles.planText,
                         {
-                          color:
-                            selectedTheme === themeOption.key
-                              ? '#FFFFFF'
-                              : theme.textPrimary,
+                          color: role === 'premium' || role === 'admin' ? '#FFD700' : theme.textPrimary,
                         },
                       ]}
                     >
-                      {themeOption.name}
+                      {planInfo.text}
                     </Text>
-                  </TouchableOpacity>
-                ))}
+                  </View>
+                </View>
               </View>
+
+              {/* Card 2: Appearance */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Appearance
+                </Text>
+
+                <Text style={[styles.label, { color: theme.textSecondary }]}>
+                  Theme
+                </Text>
+
+                <View style={styles.pillContainer}>
+                  {themes.map((themeOption) => (
+                    <TouchableOpacity
+                      key={themeOption.key}
+                      style={[
+                        styles.pill,
+                        {
+                          backgroundColor:
+                            selectedTheme === themeOption.key
+                              ? theme.primary
+                              : theme.background,
+                          borderColor: theme.primary,
+                        },
+                      ]}
+                      onPress={() => handleThemeSelect(themeOption.key)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.pillText,
+                          {
+                            color:
+                              selectedTheme === themeOption.key
+                                ? '#FFFFFF'
+                                : theme.textPrimary,
+                          },
+                        ]}
+                      >
+                        {themeOption.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Widget Preview Card */}
+              <WidgetPreviewCard />
+
+              {/* Log Out Button */}
+              <TouchableOpacity
+                style={[styles.logoutButton, { backgroundColor: '#FF6B6B' }]}
+                onPress={handleSignOut}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.logoutText}>Log out</Text>
+              </TouchableOpacity>
+
+              {/* Danger Zone */}
+              <View style={styles.dangerZone}>
+                <Text style={[styles.dangerZoneTitle, { color: theme.buttonText }]}>
+                  Danger Zone
+                </Text>
+                <View style={[styles.dangerCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                  <View style={styles.dangerContent}>
+                    <IconSymbol
+                      ios_icon_name="exclamationmark.triangle.fill"
+                      android_material_icon_name="warning"
+                      size={24}
+                      color="#FF3B30"
+                    />
+                    <View style={styles.dangerTextContainer}>
+                      <Text style={[styles.dangerTitle, { color: theme.textPrimary }]}>
+                        Delete Account
+                      </Text>
+                      <Text style={[styles.dangerDescription, { color: theme.textSecondary }]}>
+                        Permanently delete your account and all data
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={handleDeleteAccount}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.deleteButtonText}>Delete my account</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCancelDelete}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+            <View style={styles.modalIconContainer}>
+              <IconSymbol
+                ios_icon_name="exclamationmark.triangle.fill"
+                android_material_icon_name="warning"
+                size={48}
+                color="#FF3B30"
+              />
             </View>
 
-            {/* Widget Preview Card */}
-            <WidgetPreviewCard />
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              Delete account?
+            </Text>
 
-            {/* Log Out Button */}
-            <TouchableOpacity
-              style={[styles.logoutButton, { backgroundColor: '#FF6B6B' }]}
-              onPress={handleSignOut}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.logoutText}>Log out</Text>
-            </TouchableOpacity>
-          </ScrollView>
+            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+              This will permanently delete your Safe Space account, your people, and your messages. This cannot be undone.
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                onPress={handleCancelDelete}
+                disabled={isDeleting}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmDeleteButton]}
+                onPress={handleConfirmDelete}
+                disabled={isDeleting}
+                activeOpacity={0.8}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmDeleteButtonText}>Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      </SafeAreaView>
-    </LinearGradient>
+      </Modal>
+    </>
   );
 }
 
@@ -246,7 +385,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingTop: Platform.OS === 'android' ? 16 : 8,
     paddingBottom: 8,
   },
   backButton: {
@@ -277,10 +416,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   cardTitle: {
     fontSize: 20,
@@ -343,14 +480,116 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 16,
     marginTop: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
+    elevation: 3,
   },
   logoutText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  dangerZone: {
+    marginTop: 40,
+    marginBottom: 20,
+  },
+  dangerZoneTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    opacity: 0.9,
+  },
+  dangerCard: {
+    borderRadius: 16,
+    padding: 20,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
+  },
+  dangerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  dangerTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  dangerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  dangerDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modalContent: {
+    borderRadius: 20,
+    padding: 32,
+    width: '100%',
+    maxWidth: 400,
+    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
+    elevation: 5,
+  },
+  modalIconContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  modalText: {
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  confirmDeleteButton: {
+    backgroundColor: '#FF3B30',
+  },
+  confirmDeleteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +21,10 @@ interface PersonWithLastMessage extends Person {
   lastMessageTime?: string;
 }
 
+interface GroupedPersons {
+  [key: string]: PersonWithLastMessage[];
+}
+
 export default function HomeScreen() {
   const { currentUser, userId, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
@@ -33,6 +37,7 @@ export default function HomeScreen() {
   const [relationshipType, setRelationshipType] = useState('');
   const [nameError, setNameError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchPersonsWithLastMessage = useCallback(async () => {
     if (!userId) {
@@ -103,6 +108,70 @@ export default function HomeScreen() {
       fetchPersonsWithLastMessage();
     }
   }, [userId, fetchPersonsWithLastMessage]);
+
+  // Helper function to categorize relationship types
+  const categorizeRelationship = (relationshipType: string | null): string => {
+    if (!relationshipType) return 'Other';
+    
+    const type = relationshipType.toLowerCase().trim();
+    
+    // Parents
+    if (['mom', 'mother', 'dad', 'father', 'parent'].includes(type)) {
+      return 'Parents';
+    }
+    
+    // Friends
+    if (type.includes('friend')) {
+      return 'Friends';
+    }
+    
+    // Partner
+    if (['partner', 'boyfriend', 'girlfriend', 'husband', 'wife', 'spouse', 'fiancé', 'fiancée'].includes(type)) {
+      return 'Partner';
+    }
+    
+    // Family
+    if (['sibling', 'brother', 'sister', 'aunt', 'uncle', 'cousin', 'grandparent', 'grandmother', 'grandfather', 'family'].includes(type)) {
+      return 'Family';
+    }
+    
+    // Work
+    if (['colleague', 'coworker', 'boss', 'manager', 'work', 'employee'].includes(type)) {
+      return 'Work';
+    }
+    
+    return 'Other';
+  };
+
+  // Filter and group persons
+  const filteredAndGroupedPersons = useMemo(() => {
+    // Filter by search query
+    const filtered = persons.filter((person) => {
+      if (!searchQuery.trim()) return true;
+      
+      const query = searchQuery.toLowerCase();
+      const nameMatch = person.name.toLowerCase().includes(query);
+      const relationshipMatch = person.relationship_type?.toLowerCase().includes(query);
+      
+      return nameMatch || relationshipMatch;
+    });
+
+    // Group by category
+    const grouped: GroupedPersons = {};
+    
+    filtered.forEach((person) => {
+      const category = categorizeRelationship(person.relationship_type);
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+      grouped[category].push(person);
+    });
+
+    return grouped;
+  }, [persons, searchQuery]);
+
+  // Define the order of groups
+  const groupOrder = ['Parents', 'Partner', 'Family', 'Friends', 'Work', 'Other'];
 
   const handleAddPerson = () => {
     if (!isPremium && persons.length >= 2) {
@@ -222,6 +291,7 @@ export default function HomeScreen() {
               style={styles.scrollView}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
               {/* Header */}
               <View style={styles.header}>
@@ -243,6 +313,37 @@ export default function HomeScreen() {
                   {isPremium ? 'Plan: Premium – Full access' : 'Plan: Free – Some features are locked'}
                 </Text>
               </View>
+
+              {/* Search Bar */}
+              {persons.length > 0 && (
+                <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                  <IconSymbol
+                    ios_icon_name="magnifyingglass"
+                    android_material_icon_name="search"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                  <TextInput
+                    style={[styles.searchInput, { color: theme.textPrimary }]}
+                    placeholder="Search by name or relationship..."
+                    placeholderTextColor={theme.textSecondary}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+                      <IconSymbol
+                        ios_icon_name="xmark.circle.fill"
+                        android_material_icon_name="cancel"
+                        size={20}
+                        color={theme.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
 
               {/* Add Person Button */}
               <View style={styles.addButtonContainer}>
@@ -283,7 +384,7 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Persons List */}
+              {/* Persons List - Grouped */}
               {!error && persons.length === 0 && !loading ? (
                 <View style={styles.emptyState}>
                   <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
@@ -295,14 +396,39 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               ) : !error && !loading ? (
-                <View style={styles.cardList}>
-                  {persons.map((person, index) => (
-                    <PersonCard
-                      key={index}
-                      person={person}
-                      onPress={() => handlePersonPress(person)}
-                    />
-                  ))}
+                <View style={styles.groupedList}>
+                  {Object.keys(filteredAndGroupedPersons).length === 0 ? (
+                    <View style={styles.noResultsContainer}>
+                      <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
+                        No matches found
+                      </Text>
+                      <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+                        Try a different search term
+                      </Text>
+                    </View>
+                  ) : (
+                    groupOrder.map((groupName) => {
+                      const groupPersons = filteredAndGroupedPersons[groupName];
+                      if (!groupPersons || groupPersons.length === 0) return null;
+
+                      return (
+                        <View key={groupName} style={styles.group}>
+                          <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
+                            {groupName}
+                          </Text>
+                          <View style={styles.groupCards}>
+                            {groupPersons.map((person, index) => (
+                              <PersonCard
+                                key={index}
+                                person={person}
+                                onPress={() => handlePersonPress(person)}
+                              />
+                            ))}
+                          </View>
+                        </View>
+                      );
+                    })
+                  )}
                 </View>
               ) : null}
             </ScrollView>
@@ -530,7 +656,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    marginBottom: 24,
+    marginBottom: 16,
     gap: 8,
     boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
     elevation: 2,
@@ -539,8 +665,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 12,
+    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
+    elevation: 2,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  clearButton: {
+    padding: 4,
+  },
   addButtonContainer: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   addButton: {
     borderRadius: 50,
@@ -613,8 +758,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  cardList: {
+  groupedList: {
     paddingBottom: 20,
+  },
+  group: {
+    marginBottom: 32,
+  },
+  groupHeader: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    opacity: 0.95,
+  },
+  groupCards: {
+    gap: 12,
+  },
+  noResultsContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  noResultsText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  noResultsSubtext: {
+    fontSize: 14,
+    textAlign: 'center',
   },
   modalKeyboardView: {
     maxHeight: '85%',
