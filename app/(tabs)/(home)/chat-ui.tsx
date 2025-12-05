@@ -1,12 +1,12 @@
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -14,11 +14,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
+import { ChatBubble } from '@/components/ui/ChatBubble';
 
 interface ChatScreenUIProps {
   personId: string;
   personName: string;
   relationshipType?: string;
+}
+
+interface Message {
+  id: string;
+  sender: 'user' | 'ai';
+  content: string;
+  createdAt: string;
+}
+
+// Mock hook - replace with actual implementation
+function useChatMessages(personId: string): Message[] {
+  // This is a placeholder that returns an empty array
+  // In the real implementation, this would fetch messages from Supabase
+  console.log('useChatMessages called with personId:', personId);
+  return [];
 }
 
 export default function ChatScreenUI({
@@ -27,6 +43,49 @@ export default function ChatScreenUI({
   relationshipType,
 }: ChatScreenUIProps) {
   const { theme } = useThemeContext();
+  const flatListRef = useRef<FlatList>(null);
+  
+  // Get messages from the hook (currently returns empty array)
+  const messages = useChatMessages(personId);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messages.length > 0 && flatListRef.current) {
+      // Small delay to ensure the list has rendered
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages.length]);
+
+  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+    return (
+      <ChatBubble
+        sender={item.sender}
+        content={item.content}
+        createdAt={item.createdAt}
+      />
+    );
+  };
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
+        <IconSymbol
+          ios_icon_name="bubble.left.and.bubble.right.fill"
+          android_material_icon_name="chat"
+          size={40}
+          color={theme.primary}
+        />
+      </View>
+      <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
+        Start the conversation
+      </Text>
+      <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
+        Share what&apos;s on your mind about {personName}
+      </Text>
+    </View>
+  );
 
   return (
     <SafeAreaView
@@ -67,29 +126,28 @@ export default function ChatScreenUI({
           <View style={styles.headerRight} />
         </View>
 
-        {/* Messages List (Empty Placeholder) */}
-        <ScrollView
-          style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContent}
+        {/* Messages List */}
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[
+            styles.messagesContent,
+            messages.length === 0 && styles.messagesContentEmpty,
+          ]}
+          ListEmptyComponent={renderEmptyState}
           showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.emptyState}>
-            <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-              <IconSymbol
-                ios_icon_name="bubble.left.and.bubble.right.fill"
-                android_material_icon_name="chat"
-                size={40}
-                color={theme.primary}
-              />
-            </View>
-            <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
-              Messages will appear here
-            </Text>
-            <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-              This is a UI-only template
-            </Text>
-          </View>
-        </ScrollView>
+          maintainVisibleContentPosition={{
+            minIndexForVisible: 0,
+            autoscrollToTopThreshold: 10,
+          }}
+          onContentSizeChange={() => {
+            if (messages.length > 0) {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }
+          }}
+        />
 
         {/* Input Bar */}
         <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
@@ -158,13 +216,13 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 40,
   },
-  messagesContainer: {
-    flex: 1,
-  },
   messagesContent: {
-    flexGrow: 1,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  messagesContentEmpty: {
+    flexGrow: 1,
   },
   emptyState: {
     flex: 1,

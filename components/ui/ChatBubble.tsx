@@ -6,35 +6,37 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 
 interface ChatBubbleProps {
-  message: string;
-  isUser: boolean;
-  timestamp: string;
-  animate?: boolean;
+  sender: 'user' | 'ai';
+  content: string;
+  createdAt?: string;
 }
 
-export function ChatBubble({ message, isUser, timestamp, animate = false }: ChatBubbleProps) {
+export function ChatBubble({ sender, content, createdAt }: ChatBubbleProps) {
   const { theme } = useThemeContext();
-  const fadeAnim = useRef(new Animated.Value(animate ? 0 : 1)).current;
-  const slideAnim = useRef(new Animated.Value(animate ? 20 : 0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(15)).current;
+
+  const isUser = sender === 'user';
 
   useEffect(() => {
-    if (animate) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [animate, fadeAnim, slideAnim]);
+    // Subtle fade-in + slide-up animation on appear
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
 
-  const formatTimestamp = (ts: string) => {
+  const formatTimestamp = (ts?: string) => {
+    if (!ts) return '';
+    
     const date = new Date(ts);
     const now = new Date();
     const diffInMs = now.getTime() - date.getTime();
@@ -80,7 +82,7 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
             end={{ x: 1, y: 1 }}
             style={[styles.bubble, styles.userBubble]}
           >
-            <Text style={[styles.userText, { color: theme.buttonText }]}>{message}</Text>
+            <Text style={[styles.userText, { color: theme.buttonText }]}>{content}</Text>
           </LinearGradient>
         ) : (
           <View
@@ -89,17 +91,24 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
               styles.aiBubble,
               {
                 backgroundColor: theme.card,
-                borderColor: theme.primary,
               },
             ]}
           >
-            <Text style={[styles.aiText, { color: theme.textPrimary }]}>{message}</Text>
+            <Text style={[styles.aiText, { color: theme.textPrimary }]}>{content}</Text>
           </View>
         )}
 
-        <Text style={[styles.timestamp, { color: theme.textSecondary }]}>
-          {formatTimestamp(timestamp)}
-        </Text>
+        {createdAt && (
+          <Text
+            style={[
+              styles.timestamp,
+              { color: theme.textSecondary },
+              isUser ? styles.timestampRight : styles.timestampLeft,
+            ]}
+          >
+            {formatTimestamp(createdAt)}
+          </Text>
+        )}
       </View>
     </Animated.View>
   );
@@ -125,22 +134,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 8,
     marginBottom: 4,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)',
+    elevation: 1,
   },
   bubbleContainer: {
     maxWidth: '75%',
   },
   bubble: {
-    padding: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 18,
   },
   userBubble: {
     borderBottomRightRadius: 4,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
+    elevation: 2,
   },
   aiBubble: {
     borderBottomLeftRadius: 4,
-    borderWidth: 1,
+    backgroundColor: '#F5F5F5',
     boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
+    elevation: 1,
   },
   userText: {
     fontSize: 16,
@@ -153,6 +167,14 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 11,
     marginTop: 4,
+    opacity: 0.7,
+  },
+  timestampRight: {
+    textAlign: 'right',
+    marginRight: 4,
+  },
+  timestampLeft: {
+    textAlign: 'left',
     marginLeft: 4,
   },
 });
