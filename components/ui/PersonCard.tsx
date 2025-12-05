@@ -21,9 +21,12 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
     >
       <View style={styles.content}>
         <View style={[styles.avatar, { backgroundColor: theme.background }]}>
-          <Text style={[styles.avatarText, { color: theme.primary }]}>
-            {person.name.charAt(0).toUpperCase()}
-          </Text>
+          <IconSymbol
+            ios_icon_name="person.circle.fill"
+            android_material_icon_name="account_circle"
+            size={32}
+            color={theme.primary}
+          />
         </View>
 
         <View style={styles.info}>
@@ -38,9 +41,9 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
         </View>
 
         <IconSymbol
-          ios_icon_name="chevron.right"
-          android_material_icon_name="chevron_right"
-          size={20}
+          ios_icon_name="ellipsis.circle.fill"
+          android_material_icon_name="more_vert"
+          size={24}
           color={theme.textSecondary}
         />
       </View>
@@ -67,10 +70,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   info: {
     flex: 1,

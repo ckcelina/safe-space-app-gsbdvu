@@ -488,7 +488,7 @@ export default function ChatScreen() {
             </View>
           </View>
 
-          {/* Send button: Dimmed + non-pressable when disabled, uses theme color when active */}
+          {/* Send button with arrow-up-circle icon */}
           <TouchableOpacity
             style={[
               styles.sendButton,
@@ -500,9 +500,9 @@ export default function ChatScreen() {
             activeOpacity={0.7}
           >
             <IconSymbol
-              ios_icon_name="paperplane.fill"
-              android_material_icon_name="send"
-              size={20}
+              ios_icon_name="arrow.up.circle.fill"
+              android_material_icon_name="arrow_upward"
+              size={24}
               color="#FFFFFF"
             />
           </TouchableOpacity>

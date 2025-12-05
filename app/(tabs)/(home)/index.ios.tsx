@@ -111,36 +111,22 @@ export default function HomeScreen() {
 
   // Helper function to categorize relationship types
   const categorizeRelationship = (relationshipType: string | null): string => {
-    if (!relationshipType) return 'Other';
+    if (!relationshipType) return 'Friends';
     
     const type = relationshipType.toLowerCase().trim();
-    
-    // Parents
-    if (['mom', 'mother', 'dad', 'father', 'parent'].includes(type)) {
-      return 'Parents';
-    }
-    
-    // Friends
-    if (type.includes('friend')) {
-      return 'Friends';
-    }
     
     // Partner
     if (['partner', 'boyfriend', 'girlfriend', 'husband', 'wife', 'spouse', 'fiancé', 'fiancée'].includes(type)) {
       return 'Partner';
     }
     
-    // Family
-    if (['sibling', 'brother', 'sister', 'aunt', 'uncle', 'cousin', 'grandparent', 'grandmother', 'grandfather', 'family'].includes(type)) {
-      return 'Family';
+    // Parents
+    if (['mom', 'mother', 'dad', 'father', 'parent'].includes(type)) {
+      return 'Parents';
     }
     
-    // Work
-    if (['colleague', 'coworker', 'boss', 'manager', 'work', 'employee'].includes(type)) {
-      return 'Work';
-    }
-    
-    return 'Other';
+    // Friends (default for most)
+    return 'Friends';
   };
 
   // Filter and group persons
@@ -171,7 +157,7 @@ export default function HomeScreen() {
   }, [persons, searchQuery]);
 
   // Define the order of groups
-  const groupOrder = ['Parents', 'Partner', 'Family', 'Friends', 'Work', 'Other'];
+  const groupOrder = ['Parents', 'Partner', 'Friends'];
 
   const handleAddPerson = () => {
     if (!isPremium && persons.length >= 2) {
@@ -379,7 +365,7 @@ export default function HomeScreen() {
                   />
                   <TextInput
                     style={[styles.searchInput, { color: theme.textPrimary }]}
-                    placeholder="Search by name or relationship..."
+                    placeholder="Search by name or relationship"
                     placeholderTextColor={theme.textSecondary}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
@@ -442,7 +428,12 @@ export default function HomeScreen() {
               {!error && persons.length === 0 && !loading ? (
                 <View style={styles.emptyState}>
                   <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <Text style={styles.emptyEmoji}>🤗</Text>
+                    <IconSymbol
+                      ios_icon_name="bubble.left.and.bubble.right.fill"
+                      android_material_icon_name="chat"
+                      size={48}
+                      color={theme.primary}
+                    />
                   </View>
                   <Text style={[styles.emptyText, { color: theme.buttonText }]}>No one added yet</Text>
                   <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
@@ -601,8 +592,8 @@ export default function HomeScreen() {
               <View style={styles.premiumModalInner}>
                 <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
                   <IconSymbol
-                    ios_icon_name="star.fill"
-                    android_material_icon_name="star"
+                    ios_icon_name="lock.fill"
+                    android_material_icon_name="lock"
                     size={48}
                     color="#FFD700"
                   />
@@ -709,11 +700,11 @@ const styles = StyleSheet.create({
   },
   planPill: {
     borderRadius: 24,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 12,
     boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
     elevation: 2,
-    minWidth: 200,
+    minWidth: 220,
     maxWidth: '100%',
   },
   planPillContent: {
@@ -733,7 +724,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   planText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     flexShrink: 1,
   },
@@ -755,9 +746,9 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 20,
     marginBottom: 16,
     gap: 12,
     boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
@@ -765,8 +756,8 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
   },
   clearButton: {
     padding: 4,
@@ -831,9 +822,6 @@ const styles = StyleSheet.create({
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
     elevation: 3,
   },
-  emptyEmoji: {
-    fontSize: 48,
-  },
   emptyText: {
     fontSize: 20,
     fontWeight: '600',
@@ -855,7 +843,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 12,
-    opacity: 0.95,
+    opacity: 0.9,
   },
   groupCards: {
     gap: 12,
