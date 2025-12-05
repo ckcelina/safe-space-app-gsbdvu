@@ -117,8 +117,8 @@ export default function ChatScreen() {
     setIsAITyping(true);
 
     try {
-      // Prepare recent messages (last ~20) for AI
-      const recentMessages = messages.slice(-20).map((m) => ({
+      // Prepare last 10 messages for AI
+      const recentMessages = messages.slice(-10).map((m) => ({
         sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
         content: m.content,
       }));
@@ -184,7 +184,7 @@ export default function ChatScreen() {
   const sendMessage = async () => {
     const trimmedText = inputText.trim();
     
-    // Step 1: If input is empty or only spaces, do nothing
+    // Step 1: Validate non-empty message
     if (!trimmedText || !userId || !personId) {
       console.log('Send blocked: empty text or missing user/person');
       return;
@@ -192,7 +192,7 @@ export default function ChatScreen() {
 
     const messageContent = trimmedText;
     
-    // Step 2: Clear input immediately
+    // Step 2: Clear input immediately (no UI freeze)
     setInputText('');
     setShowAIError(false);
 
@@ -214,7 +214,7 @@ export default function ChatScreen() {
     try {
       console.log('Sending user message:', messageContent);
 
-      // Step 5: Insert the user message into public.messages
+      // Step 5: Insert into public.messages with user_id, person_id, sender='user', content, created_at
       const { data: userMessage, error: userError } = await supabase
         .from('messages')
         .insert([
@@ -239,31 +239,31 @@ export default function ChatScreen() {
 
       console.log('User message inserted:', userMessage.id);
       
-      // Replace optimistic message with real one
+      // Step 6: Replace optimistic message with real one (refresh chat list)
       setMessages((prev) => 
         prev.map((m) => (m.id === optimisticUserMessage.id ? userMessage : m))
       );
 
-      // Step 6: Set isAITyping flag to true and show typing indicator
+      // Step 7: Show typing indicator (loading dots)
       setIsAITyping(true);
       setLastUserMessage(messageContent);
 
-      // Step 7: Prepare recent messages (last ~20) for AI
+      // Step 8: Prepare last 10 messages for AI
       const allMessages = [...messages, userMessage];
-      const recentMessages = allMessages.slice(-20).map((m) => ({
+      const recentMessages = allMessages.slice(-10).map((m) => ({
         sender: (m.sender || (m.role === 'assistant' ? 'ai' : 'user')) as 'user' | 'ai',
         content: m.content,
       }));
 
       console.log('Calling generateAIReply with', recentMessages.length, 'messages');
       
-      // Step 8: Call Supabase Edge Function "generate-ai-response"
+      // Step 9: Call edge function generate-ai-response with user_id, person_id, last 10 messages
       const result = await generateAIReply(personId, recentMessages);
 
       if (result.success) {
         console.log('AI reply generated:', result.reply.substring(0, 50) + '...');
 
-        // Step 9: Insert AI message with sender = 'ai'
+        // Step 10: Insert an AI message row
         const { data: aiMessage, error: aiError } = await supabase
           .from('messages')
           .insert([
@@ -294,7 +294,7 @@ export default function ChatScreen() {
           setMessages((prev) => [...prev, fallbackMessage]);
         } else {
           console.log('AI message inserted:', aiMessage.id);
-          // Step 10: Add AI message to the chat list
+          // Step 11: Refresh chat list
           setMessages((prev) => [...prev, aiMessage]);
         }
 
@@ -306,7 +306,7 @@ export default function ChatScreen() {
         setShowAIError(true);
       }
 
-      // Step 11: Scroll to bottom
+      // Step 12: Auto-scroll to bottom
       setTimeout(() => scrollToBottom(), 100);
     } catch (err: any) {
       console.error('Unexpected error sending message:', err);
@@ -314,13 +314,13 @@ export default function ChatScreen() {
       // If any error, show error state
       setShowAIError(true);
     } finally {
-      // Step 12: Always clear isAITyping in finally block
+      // Step 13: Hide typing indicator
       setIsAITyping(false);
     }
   };
 
-  // Send button should be disabled when input is empty or AI is typing
-  const isSendDisabled = !inputText.trim() || isAITyping || loading;
+  // Send button is always active when message text length > 0
+  const isSendDisabled = !inputText.trim() || loading;
 
   return (
     <FullScreenSwipeHandler enabled={!isAITyping}>
@@ -483,7 +483,7 @@ export default function ChatScreen() {
                 value={inputText}
                 onChangeText={handleTextChange}
                 multiline
-                editable={!loading && !isAITyping}
+                editable={!loading}
               />
             </View>
           </View>
@@ -525,7 +525,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingTop: Platform.OS === 'android' ? 48 : 60,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.08)',
+    borderRadius: 20,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 2,
   },
   backButton: {
@@ -541,8 +542,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: 'bold',
   },
   premiumBadgeSmall: {
     backgroundColor: 'rgba(255, 215, 0, 0.2)',
@@ -554,7 +555,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   headerSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '500',
     marginTop: 2,
     textTransform: 'capitalize',
   },
@@ -571,7 +573,8 @@ const styles = StyleSheet.create({
   },
   bannerText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '500',
     lineHeight: 18,
   },
   errorContainer: {
@@ -581,10 +584,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   errorCard: {
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 24,
     alignItems: 'center',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
     elevation: 3,
     width: '100%',
   },
@@ -598,7 +601,7 @@ const styles = StyleSheet.create({
   retryButton: {
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 24,
+    borderRadius: 20,
   },
   retryButtonText: {
     fontSize: 16,
@@ -626,17 +629,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtext: {
     fontSize: 14,
+    fontWeight: '500',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -649,15 +653,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     maxWidth: '80%',
-    padding: 12,
-    borderRadius: 16,
+    padding: 16,
+    borderRadius: 20,
     gap: 8,
     boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
     elevation: 2,
   },
   aiErrorText: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
+    fontWeight: '500',
     lineHeight: 20,
   },
   tryAgainButton: {
@@ -680,14 +685,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingBottom: Platform.OS === 'ios' ? 32 : 16,
-    boxShadow: '0px -2px 4px rgba(0, 0, 0, 0.08)',
+    borderRadius: 20,
+    boxShadow: '0px -2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 4,
   },
   inputColumn: {
     flex: 1,
   },
   inputWrapper: {
-    borderRadius: 24,
+    borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
     maxHeight: 100,
@@ -703,6 +709,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   sendButtonDisabled: {
     opacity: 0.4,
