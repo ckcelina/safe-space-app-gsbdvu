@@ -13,13 +13,6 @@ interface PersonCardProps {
 export function PersonCard({ person, onPress }: PersonCardProps) {
   const { theme } = useThemeContext();
 
-  const formatLastMessagePreview = (message: string) => {
-    if (message.length > 50) {
-      return message.substring(0, 50) + '...';
-    }
-    return message;
-  };
-
   return (
     <TouchableOpacity
       style={[styles.container, { backgroundColor: theme.card }]}
@@ -37,15 +30,11 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
           <Text style={[styles.name, { color: theme.textPrimary }]}>
             {person.name}
           </Text>
-          <Text style={[styles.relationship, { color: theme.textSecondary }]}>
-            {person.relationship_type}
-          </Text>
-          <Text
-            style={[styles.lastMessage, { color: theme.textSecondary }]}
-            numberOfLines={1}
-          >
-            {formatLastMessagePreview(person.lastMessage || 'No messages yet')}
-          </Text>
+          {person.relationship_type && (
+            <Text style={[styles.relationship, { color: theme.textSecondary }]}>
+              {person.relationship_type}
+            </Text>
+          )}
         </View>
 
         <IconSymbol
@@ -89,15 +78,10 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   relationship: {
-    fontSize: 13,
-    marginBottom: 4,
-    textTransform: 'capitalize',
-  },
-  lastMessage: {
     fontSize: 14,
-    fontStyle: 'italic',
+    textTransform: 'capitalize',
   },
 });

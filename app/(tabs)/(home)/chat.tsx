@@ -203,7 +203,7 @@ export default function ChatScreen() {
         >
           {messages.length === 0 ? (
             <View style={styles.emptyChat}>
-              <View style={[styles.emptyIconContainer, { backgroundColor: theme.background }]}>
+              <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
                 <IconSymbol
                   ios_icon_name="bubble.left.and.bubble.right.fill"
                   android_material_icon_name="chat"
@@ -211,7 +211,7 @@ export default function ChatScreen() {
                   color={theme.primary}
                 />
               </View>
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
                 Start the conversation
               </Text>
               <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
@@ -326,6 +326,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    elevation: 3,
   },
   emptyText: {
     fontSize: 18,

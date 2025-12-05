@@ -1,20 +1,14 @@
 
-import React, { useEffect, useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
-import { router, Redirect } from "expo-router";
-import { useAuth } from "@/contexts/AuthContext";
-import { useThemeContext } from "@/contexts/ThemeContext";
-import { supabase } from "@/lib/supabase";
-import { Person, Message } from "@/types/database.types";
-import { IconSymbol } from "@/components/IconSymbol";
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { router, Redirect } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import { useThemeContext } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase';
+import { Person } from '@/types/database.types';
+import { IconSymbol } from '@/components/IconSymbol';
+import { PersonCard } from '@/components/ui/PersonCard';
+import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 
 interface PersonWithLastMessage extends Person {
   lastMessage?: string;
@@ -22,32 +16,30 @@ interface PersonWithLastMessage extends Person {
 }
 
 export default function HomeScreen() {
-  const { currentUser, userId, role, loading: authLoading } = useAuth();
-  const { colors } = useThemeContext();
+  const { currentUser, userId, loading: authLoading } = useAuth();
+  const { theme } = useThemeContext();
   const [persons, setPersons] = useState<PersonWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchPersonsWithLastMessage = useCallback(async () => {
     try {
-      console.log('Fetching people for user:', userId);
-      const { data: peopleData, error: peopleError } = await supabase
-        .from('people')
+      console.log('Fetching persons for user:', userId);
+      const { data: personsData, error: personsError } = await supabase
+        .from('persons')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (peopleError) {
-        console.error('Error fetching people:', peopleError);
-        Alert.alert('Error', 'Failed to load people');
+      if (personsError) {
+        console.error('Error fetching persons:', personsError);
         setLoading(false);
         return;
       }
 
-      console.log('People loaded:', peopleData?.length);
+      console.log('Persons loaded:', personsData?.length);
 
-      // Fetch last message for each person
       const personsWithMessages = await Promise.all(
-        (peopleData || []).map(async (person) => {
+        (personsData || []).map(async (person) => {
           const { data: messages } = await supabase
             .from('messages')
             .select('content, created_at, role')
@@ -67,7 +59,7 @@ export default function HomeScreen() {
 
       setPersons(personsWithMessages);
     } catch (error) {
-      console.error('Unexpected error fetching people:', error);
+      console.error('Unexpected error fetching persons:', error);
     } finally {
       setLoading(false);
     }
@@ -80,66 +72,7 @@ export default function HomeScreen() {
   }, [userId, fetchPersonsWithLastMessage]);
 
   const handleAddPerson = () => {
-    Alert.prompt(
-      'Add Person',
-      'Enter the name of the person',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Next',
-          onPress: (name) => {
-            if (name) {
-              Alert.prompt(
-                'Relationship Type',
-                'What is your relationship? (e.g., friend, family, colleague)',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Add',
-                    onPress: async (relationshipType) => {
-                      if (relationshipType) {
-                        await createPerson(name, relationshipType);
-                      }
-                    },
-                  },
-                ]
-              );
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const createPerson = async (name: string, relationshipType: string) => {
-    try {
-      console.log('Creating person:', name, relationshipType);
-      const { data, error } = await supabase
-        .from('people')
-        .insert([
-          {
-            user_id: userId,
-            name,
-            relationship_type: relationshipType,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating person:', error);
-        Alert.alert('Error', 'Failed to add person');
-      } else {
-        console.log('Person created:', data);
-        const newPerson: PersonWithLastMessage = {
-          ...data,
-          lastMessage: 'No messages yet',
-        };
-        setPersons([newPerson, ...persons]);
-      }
-    } catch (error) {
-      console.error('Unexpected error creating person:', error);
-    }
+    router.push('/(tabs)/(home)/add-person');
   };
 
   const handlePersonPress = (person: Person) => {
@@ -149,17 +82,10 @@ export default function HomeScreen() {
     });
   };
 
-  const formatLastMessagePreview = (message: string) => {
-    if (message.length > 50) {
-      return message.substring(0, 50) + '...';
-    }
-    return message;
-  };
-
   if (authLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -169,112 +95,54 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Your Safe Space
-          </Text>
-          <TouchableOpacity 
-            style={[styles.profileIcon, { backgroundColor: colors.primary }]}
-            onPress={() => router.push('/(tabs)/profile')}
-          >
-            <IconSymbol
-              ios_icon_name="person.fill"
-              android_material_icon_name="person"
-              size={20}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Content */}
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          People You&apos;re Talking About
-        </Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Safe Space</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+            Who would you like to talk about today?
+          </Text>
+        </View>
 
+        {/* Add Person Button */}
+        <View style={styles.addButtonContainer}>
+          <SafeSpaceButton onPress={handleAddPerson} variant="primary">
+            Add Person
+          </SafeSpaceButton>
+        </View>
+
+        {/* Persons List */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <ActivityIndicator size="large" color={theme.primary} />
           </View>
         ) : persons.length === 0 ? (
           <View style={styles.emptyState}>
-            <View style={[styles.emptyIconContainer, { backgroundColor: colors.highlight }]}>
-              <IconSymbol
-                ios_icon_name="person.2.fill"
-                android_material_icon_name="people"
-                size={48}
-                color={colors.primary}
-              />
+            <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
+              <Text style={styles.emptyEmoji}>🤗</Text>
             </View>
-            <Text style={[styles.emptyText, { color: colors.text }]}>
-              No one added yet
-            </Text>
-            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
-              Tap the + button below to add someone you&apos;d like to talk about
+            <Text style={[styles.emptyText, { color: theme.textPrimary }]}>No one added yet</Text>
+            <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
+              Tap &apos;Add Person&apos; to start
             </Text>
           </View>
         ) : (
           <View style={styles.cardList}>
             {persons.map((person, index) => (
-              <TouchableOpacity
+              <PersonCard
                 key={index}
-                style={[styles.personCard, { backgroundColor: colors.card }]}
+                person={person}
                 onPress={() => handlePersonPress(person)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.cardContent}>
-                  <View style={[styles.avatarCircle, { backgroundColor: colors.highlight }]}>
-                    <Text style={[styles.avatarText, { color: colors.primary }]}>
-                      {person.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.personInfo}>
-                    <Text style={[styles.personName, { color: colors.text }]}>
-                      {person.name}
-                    </Text>
-                    <Text style={[styles.relationshipType, { color: colors.textSecondary }]}>
-                      {person.relationship_type}
-                    </Text>
-                    <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
-                      {formatLastMessagePreview(person.lastMessage || 'No messages yet')}
-                    </Text>
-                  </View>
-
-                  <IconSymbol
-                    ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron_right"
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                </View>
-              </TouchableOpacity>
+              />
             ))}
           </View>
         )}
       </ScrollView>
-
-      {/* Floating Add Button */}
-      <TouchableOpacity
-        style={[styles.floatingButton, { backgroundColor: colors.primary }]}
-        onPress={handleAddPerson}
-        activeOpacity={0.8}
-      >
-        <IconSymbol
-          ios_icon_name="plus"
-          android_material_icon_name="add"
-          size={28}
-          color="#FFFFFF"
-        />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -283,38 +151,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  profileIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
+    paddingTop: 20,
     paddingHorizontal: 24,
     paddingBottom: 120,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
+  header: {
+    marginBottom: 24,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  addButtonContainer: {
+    marginBottom: 32,
   },
   loadingContainer: {
     paddingVertical: 40,
@@ -332,6 +190,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    elevation: 3,
+  },
+  emptyEmoji: {
+    fontSize: 48,
   },
   emptyText: {
     fontSize: 20,
@@ -345,58 +208,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   cardList: {
-    gap: 12,
-  },
-  personCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-    elevation: 3,
-  },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  personInfo: {
-    flex: 1,
-  },
-  personName: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  relationshipType: {
-    fontSize: 13,
-    marginBottom: 4,
-    textTransform: 'capitalize',
-  },
-  lastMessage: {
-    fontSize: 14,
-    fontStyle: 'italic',
-  },
-  floatingButton: {
-    position: 'absolute',
-    bottom: 100,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-    elevation: 6,
+    paddingBottom: 20,
   },
 });

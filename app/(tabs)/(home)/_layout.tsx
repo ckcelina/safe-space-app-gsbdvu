@@ -1,3 +1,4 @@
+
 import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 
@@ -7,8 +8,23 @@ export default function HomeLayout() {
       <Stack.Screen
         name="index"
         options={{
-          headerShown: Platform.OS === 'ios', // Show header on iOS with NativeTabs, hide on Android/Web
+          headerShown: false,
           title: 'Home'
+        }}
+      />
+      <Stack.Screen
+        name="add-person"
+        options={{
+          headerShown: false,
+          title: 'Add Person',
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="chat"
+        options={{
+          headerShown: false,
+          title: 'Chat',
         }}
       />
     </Stack>

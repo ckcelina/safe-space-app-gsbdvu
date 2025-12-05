@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, ScrollView } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { Person } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
+import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 
 interface PersonWithLastMessage extends Person {
   lastMessage?: string;
@@ -22,24 +23,23 @@ export default function HomeScreen() {
 
   const fetchPersonsWithLastMessage = useCallback(async () => {
     try {
-      console.log('Fetching people for user:', userId);
-      const { data: peopleData, error: peopleError } = await supabase
-        .from('people')
+      console.log('Fetching persons for user:', userId);
+      const { data: personsData, error: personsError } = await supabase
+        .from('persons')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (peopleError) {
-        console.error('Error fetching people:', peopleError);
-        Alert.alert('Error', 'Failed to load people');
+      if (personsError) {
+        console.error('Error fetching persons:', personsError);
         setLoading(false);
         return;
       }
 
-      console.log('People loaded:', peopleData?.length);
+      console.log('Persons loaded:', personsData?.length);
 
       const personsWithMessages = await Promise.all(
-        (peopleData || []).map(async (person) => {
+        (personsData || []).map(async (person) => {
           const { data: messages } = await supabase
             .from('messages')
             .select('content, created_at, role')
@@ -59,7 +59,7 @@ export default function HomeScreen() {
 
       setPersons(personsWithMessages);
     } catch (error) {
-      console.error('Unexpected error fetching people:', error);
+      console.error('Unexpected error fetching persons:', error);
     } finally {
       setLoading(false);
     }
@@ -72,66 +72,7 @@ export default function HomeScreen() {
   }, [userId, fetchPersonsWithLastMessage]);
 
   const handleAddPerson = () => {
-    Alert.prompt(
-      'Add Person',
-      'Enter the name of the person',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Next',
-          onPress: (name) => {
-            if (name) {
-              Alert.prompt(
-                'Relationship Type',
-                'What is your relationship? (e.g., friend, family, colleague)',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Add',
-                    onPress: async (relationshipType) => {
-                      if (relationshipType) {
-                        await createPerson(name, relationshipType);
-                      }
-                    },
-                  },
-                ]
-              );
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const createPerson = async (name: string, relationshipType: string) => {
-    try {
-      console.log('Creating person:', name, relationshipType);
-      const { data, error } = await supabase
-        .from('people')
-        .insert([
-          {
-            user_id: userId,
-            name,
-            relationship_type: relationshipType,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating person:', error);
-        Alert.alert('Error', 'Failed to add person');
-      } else {
-        console.log('Person created:', data);
-        const newPerson: PersonWithLastMessage = {
-          ...data,
-          lastMessage: 'No messages yet',
-        };
-        setPersons([newPerson, ...persons]);
-      }
-    } catch (error) {
-      console.error('Unexpected error creating person:', error);
-    }
+    router.push('/(tabs)/(home)/add-person');
   };
 
   const handlePersonPress = (person: Person) => {
@@ -155,47 +96,39 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Your Safe Space</Text>
-          <TouchableOpacity
-            style={[styles.profileIcon, { backgroundColor: theme.primary }]}
-            onPress={() => router.push('/(tabs)/profile')}
-          >
-            <IconSymbol
-              ios_icon_name="person.fill"
-              android_material_icon_name="person"
-              size={20}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Safe Space</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+            Who would you like to talk about today?
+          </Text>
         </View>
-      </View>
 
-      {/* Content */}
-      <View style={styles.scrollView}>
-        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-          People You&apos;re Talking About
-        </Text>
+        {/* Add Person Button */}
+        <View style={styles.addButtonContainer}>
+          <SafeSpaceButton onPress={handleAddPerson} variant="primary">
+            Add Person
+          </SafeSpaceButton>
+        </View>
 
+        {/* Persons List */}
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.primary} />
           </View>
         ) : persons.length === 0 ? (
           <View style={styles.emptyState}>
-            <View style={[styles.emptyIconContainer, { backgroundColor: theme.background }]}>
-              <IconSymbol
-                ios_icon_name="person.2.fill"
-                android_material_icon_name="people"
-                size={48}
-                color={theme.primary}
-              />
+            <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
+              <Text style={styles.emptyEmoji}>🤗</Text>
             </View>
             <Text style={[styles.emptyText, { color: theme.textPrimary }]}>No one added yet</Text>
             <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-              Tap the + button below to add someone you&apos;d like to talk about
+              Tap &apos;Add Person&apos; to start
             </Text>
           </View>
         ) : (
@@ -209,21 +142,7 @@ export default function HomeScreen() {
             ))}
           </View>
         )}
-      </View>
-
-      {/* Floating Add Button */}
-      <TouchableOpacity
-        style={[styles.floatingButton, { backgroundColor: theme.primary }]}
-        onPress={handleAddPerson}
-        activeOpacity={0.8}
-      >
-        <IconSymbol
-          ios_icon_name="plus"
-          android_material_icon_name="add"
-          size={28}
-          color="#FFFFFF"
-        />
-      </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
@@ -232,37 +151,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: Platform.OS === 'android' ? 48 : 60,
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  profileIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
-  },
   scrollView: {
     flex: 1,
-    paddingHorizontal: 24,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
+  scrollContent: {
+    paddingTop: Platform.OS === 'android' ? 48 : 20,
+    paddingHorizontal: 24,
+    paddingBottom: 120,
+  },
+  header: {
+    marginBottom: 24,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  addButtonContainer: {
+    marginBottom: 32,
   },
   loadingContainer: {
     paddingVertical: 40,
@@ -280,6 +190,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    elevation: 3,
+  },
+  emptyEmoji: {
+    fontSize: 48,
   },
   emptyText: {
     fontSize: 20,
@@ -293,18 +208,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   cardList: {
-    paddingBottom: 120,
-  },
-  floatingButton: {
-    position: 'absolute',
-    bottom: 100,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-    elevation: 6,
+    paddingBottom: 20,
   },
 });
