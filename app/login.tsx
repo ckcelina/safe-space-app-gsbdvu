@@ -9,8 +9,11 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 
@@ -48,73 +51,91 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          Welcome Back
-        </Text>
-
-        <View style={styles.form}>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.accent }]}
-            placeholder="Email"
-            placeholderTextColor={colors.textSecondary}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            editable={!loading}
-          />
-
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.accent }]}
-            placeholder="Password"
-            placeholderTextColor={colors.textSecondary}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            editable={!loading}
-          />
-
-          <TouchableOpacity
-            style={[
-              styles.button,
-              { backgroundColor: colors.primary },
-              loading && styles.buttonDisabled,
-            ]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.buttonText}>Log In</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => router.replace('/signup')}
-            disabled={loading}
-          >
-            <Text style={[styles.linkText, { color: colors.primary }]}>
-              Don&apos;t have an account? Sign Up
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          <View style={styles.content}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Welcome Back
             </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
+
+            <View style={styles.form}>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.accent }]}
+                placeholder="Email"
+                placeholderTextColor={colors.textSecondary}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                editable={!loading}
+              />
+
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.accent }]}
+                placeholder="Password"
+                placeholderTextColor={colors.textSecondary}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                editable={!loading}
+              />
+
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  { backgroundColor: colors.primary },
+                  loading && styles.buttonDisabled,
+                ]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.buttonText}>Log In</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => router.replace('/signup')}
+                disabled={loading}
+              >
+                <Text style={[styles.linkText, { color: colors.primary }]}>
+                  Don&apos;t have an account? Sign Up
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: Platform.OS === 'android' ? 48 : 60,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    justifyContent: 'center',
   },
   content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'center',
+    width: '100%',
   },
   title: {
     fontSize: 32,
