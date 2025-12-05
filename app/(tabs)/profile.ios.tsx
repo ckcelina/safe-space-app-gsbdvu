@@ -1,75 +1,201 @@
-import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { IconSymbol } from "@/components/IconSymbol";
-import { GlassView } from "expo-glass-effect";
-import { useTheme } from "@react-navigation/native";
+
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import { router } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import { useThemeContext } from '@/contexts/ThemeContext';
+import { IconSymbol } from '@/components/IconSymbol';
 
 export default function ProfileScreen() {
-  const theme = useTheme();
+  const { email, role, signOut } = useAuth();
+  const { colors, theme, setTheme } = useThemeContext();
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleChangeTheme = () => {
+    Alert.alert(
+      'Change Theme',
+      'Select a theme',
+      [
+        {
+          text: 'Ocean Blue',
+          onPress: () => setTheme('ocean-blue'),
+        },
+        {
+          text: 'Soft Rose',
+          onPress: () => setTheme('soft-rose'),
+        },
+        {
+          text: 'Forest Green',
+          onPress: () => setTheme('forest-green'),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <GlassView style={styles.profileHeader} glassEffectStyle="regular">
-          <IconSymbol ios_icon_name="person.circle.fill" android_material_icon_name="person" size={24} color={theme.colors.primary} />
-          <Text style={[styles.name, { color: theme.colors.text }]}>John Doe</Text>
-          <Text style={[styles.email, { color: theme.dark ? '#98989D' : '#666' }]}>john.doe@example.com</Text>
-        </GlassView>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
+        </View>
 
-        <GlassView style={styles.section} glassEffectStyle="regular">
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
           <View style={styles.infoRow}>
-            <IconSymbol ios_icon_name="phone.fill" android_material_icon_name="phone" size={24} color={theme.dark ? '#98989D' : '#666'} />
-            <Text style={[styles.infoText, { color: theme.colors.text }]}>+1 (555) 123-4567</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              Email
+            </Text>
+            <Text style={[styles.value, { color: colors.text }]}>{email}</Text>
           </View>
+
+          <View style={styles.divider} />
+
           <View style={styles.infoRow}>
-            <IconSymbol ios_icon_name="location.fill" android_material_icon_name="location-on" size={24} color={theme.dark ? '#98989D' : '#666'} />
-            <Text style={[styles.infoText, { color: theme.colors.text }]}>San Francisco, CA</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              Plan
+            </Text>
+            <Text style={[styles.value, { color: colors.text }]}>
+              {role.charAt(0).toUpperCase() + role.slice(1)}
+            </Text>
           </View>
-        </GlassView>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.card }]}
+          onPress={handleChangeTheme}
+        >
+          <IconSymbol
+            ios_icon_name="paintbrush.fill"
+            android_material_icon_name="palette"
+            size={24}
+            color={colors.primary}
+          />
+          <Text style={[styles.buttonText, { color: colors.text }]}>
+            Change Theme
+          </Text>
+          <IconSymbol
+            ios_icon_name="chevron.right"
+            android_material_icon_name="chevron_right"
+            size={20}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.card }]}
+          onPress={handleSignOut}
+        >
+          <IconSymbol
+            ios_icon_name="rectangle.portrait.and.arrow.right"
+            android_material_icon_name="logout"
+            size={24}
+            color={colors.primary}
+          />
+          <Text style={[styles.buttonText, { color: colors.text }]}>
+            Sign Out
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+            Safe Space v1.0.0
+          </Text>
+          <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+            A safe place to talk
+          </Text>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
   container: {
     flex: 1,
   },
-  contentContainer: {
-    padding: 20,
+  scrollContent: {
+    paddingTop: 60,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
-  profileHeader: {
-    alignItems: 'center',
-    borderRadius: 12,
-    padding: 32,
-    marginBottom: 16,
-    gap: 12,
+  header: {
+    marginBottom: 24,
   },
-  name: {
-    fontSize: 24,
+  title: {
+    fontSize: 32,
     fontWeight: 'bold',
   },
-  email: {
-    fontSize: 16,
-  },
-  section: {
+  card: {
     borderRadius: 12,
-    padding: 20,
-    gap: 12,
+    padding: 16,
+    marginBottom: 16,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
   },
   infoRow: {
+    paddingVertical: 12,
+  },
+  label: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  value: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 8,
+  },
+  button: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
   },
-  infoText: {
+  buttonText: {
+    flex: 1,
     fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 12,
+  },
+  footer: {
+    marginTop: 40,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 14,
+    marginBottom: 4,
   },
 });

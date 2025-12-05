@@ -1,14 +1,40 @@
+
 import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
 
+// Ocean Blue Theme
 export const colors = {
-  primary: '#162456',    // Material Blue
-  secondary: '#193cb8',  // Darker Blue
-  accent: '#64B5F6',     // Light Blue
-  background: '#101824',  // Keeping dark background
-  backgroundAlt: '#162133',  // Keeping dark background
-  text: '#e3e3e3',       // Keeping light text
-  grey: '#90CAF9',       // Light Blue Grey
-  card: '#193cb8',       // Keeping dark card background
+  background: '#E6F7FF',
+  text: '#001529',
+  textSecondary: '#595959',
+  primary: '#1890FF',
+  secondary: '#40A9FF',
+  accent: '#69C0FF',
+  card: '#FFFFFF',
+  highlight: '#BAE7FF',
+};
+
+// Soft Rose Theme
+export const softRoseColors = {
+  background: '#FFF0F5',
+  text: '#4A1F2F',
+  textSecondary: '#8B5A6B',
+  primary: '#FF69B4',
+  secondary: '#FFB6C1',
+  accent: '#FFC0CB',
+  card: '#FFFFFF',
+  highlight: '#FFE4E1',
+};
+
+// Forest Green Theme
+export const forestGreenColors = {
+  background: '#F0F8F0',
+  text: '#1B4D1B',
+  textSecondary: '#4A7C4A',
+  primary: '#228B22',
+  secondary: '#32CD32',
+  accent: '#90EE90',
+  card: '#FFFFFF',
+  highlight: '#E8F5E8',
 };
 
 export const buttonStyles = StyleSheet.create({
@@ -18,7 +44,7 @@ export const buttonStyles = StyleSheet.create({
     width: '100%',
   },
   backButton: {
-    backgroundColor: colors.backgroundAlt,
+    backgroundColor: colors.secondary,
     alignSelf: 'center',
     width: '100%',
   },
@@ -71,8 +97,8 @@ export const commonStyles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   card: {
-    backgroundColor: colors.backgroundAlt,
-    borderColor: colors.grey,
+    backgroundColor: colors.card,
+    borderColor: colors.accent,
     borderWidth: 1,
     borderRadius: 10,
     padding: 10,
@@ -84,6 +110,6 @@ export const commonStyles = StyleSheet.create({
   icon: {
     width: 60,
     height: 60,
-    tintColor: "white",
+    tintColor: colors.primary,
   },
 });
