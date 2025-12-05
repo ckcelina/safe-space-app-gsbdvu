@@ -24,4 +24,4 @@ export interface Message {
   created_at: string;
 }
 
-export type ThemeType = 'ocean-blue' | 'soft-rose' | 'forest-green';
+export type ThemeType = 'ocean-blue' | 'soft-rose' | 'forest-green' | 'sunny-yellow';

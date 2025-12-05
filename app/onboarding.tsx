@@ -20,6 +20,7 @@ export default function OnboardingScreen() {
     { id: 'ocean-blue' as ThemeType, name: 'Ocean Blue', color: '#1890FF' },
     { id: 'soft-rose' as ThemeType, name: 'Soft Rose', color: '#FF69B4' },
     { id: 'forest-green' as ThemeType, name: 'Forest Green', color: '#228B22' },
+    { id: 'sunny-yellow' as ThemeType, name: 'Sunny Yellow', color: '#F59E0B' },
   ];
 
   const handleContinue = async () => {

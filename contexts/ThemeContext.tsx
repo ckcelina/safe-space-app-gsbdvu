@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeType } from '@/types/database.types';
-import { colors, softRoseColors, forestGreenColors } from '@/styles/commonStyles';
+import { colors, softRoseColors, forestGreenColors, sunnyYellowColors } from '@/styles/commonStyles';
 
 interface ThemeContextType {
   theme: ThemeType;
@@ -42,6 +42,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         break;
       case 'forest-green':
         setCurrentColors(forestGreenColors);
+        break;
+      case 'sunny-yellow':
+        setCurrentColors(sunnyYellowColors);
         break;
       case 'ocean-blue':
       default:

@@ -37,6 +37,18 @@ export const forestGreenColors = {
   highlight: '#E8F5E8',
 };
 
+// Sunny Yellow Theme
+export const sunnyYellowColors = {
+  background: '#FFFBEA',
+  text: '#5C4A1A',
+  textSecondary: '#8B7355',
+  primary: '#F59E0B',
+  secondary: '#FBBF24',
+  accent: '#FCD34D',
+  card: '#FFFFFF',
+  highlight: '#FEF3C7',
+};
+
 export const buttonStyles = StyleSheet.create({
   instructionsButton: {
     backgroundColor: colors.primary,
