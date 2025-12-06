@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingV
 import { router, Redirect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -24,6 +25,26 @@ interface PersonWithLastMessage extends Person {
 interface GroupedPersons {
   [key: string]: PersonWithLastMessage[];
 }
+
+const DeleteAction = ({ onPress }: { onPress: () => void }) => (
+  <TouchableOpacity 
+    onPress={onPress}
+    style={{
+      backgroundColor: '#FF3B30',
+      justifyContent: 'center',
+      alignItems: 'center',
+      width: 80,
+      height: '100%',
+    }}
+  >
+    <IconSymbol
+      ios_icon_name="trash.fill"
+      android_material_icon_name="delete"
+      size={28}
+      color="#fff"
+    />
+  </TouchableOpacity>
+);
 
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
@@ -135,6 +156,53 @@ export default function HomeScreen() {
       setLoading(false);
     }
   }, [userId, fetchPersonsWithLastMessage]);
+
+  const handleDeletePerson = useCallback(async (personId: string) => {
+    if (!personId) {
+      console.error('[Home] Cannot delete person - personId is missing');
+      showErrorToast('Invalid person data');
+      return;
+    }
+
+    console.log('[Home] Deleting person:', personId);
+
+    try {
+      // Delete all messages for this person
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('person_id', personId);
+
+      if (messagesError) {
+        console.error('[Home] Error deleting messages:', messagesError);
+        showErrorToast('Failed to delete messages');
+        return;
+      }
+
+      // Delete the person
+      const { error: personError } = await supabase
+        .from('persons')
+        .delete()
+        .eq('id', personId);
+
+      if (personError) {
+        console.error('[Home] Error deleting person:', personError);
+        showErrorToast('Failed to delete person');
+        return;
+      }
+
+      // Update local state
+      if (isMountedRef.current) {
+        setPersons(prev => prev.filter(p => p.id !== personId));
+        showSuccessToast('Person deleted');
+      }
+
+      console.log('[Home] Person deleted successfully');
+    } catch (error: any) {
+      console.error('[Home] Unexpected error deleting person:', error);
+      showErrorToast('An unexpected error occurred');
+    }
+  }, []);
 
   const categorizeRelationship = useCallback((relationshipType: string | null | undefined): string => {
     if (!relationshipType) return 'Friends';
@@ -530,15 +598,22 @@ export default function HomeScreen() {
 
                           <View style={styles.groupCards}>
                             {groupPersons.map((person, index) => (
-                              <PersonCard
+                              <Swipeable
                                 key={
                                   person.id ??
                                   person.uuid ??
                                   `${groupName}-${person.name ?? ''}-${index}`
                                 }
-                                person={person}
-                                onPress={() => handlePersonPress(person)}
-                              />
+                                renderRightActions={() => (
+                                  <DeleteAction onPress={() => handleDeletePerson(person.id!)} />
+                                )}
+                                overshootRight={false}
+                              >
+                                <PersonCard
+                                  person={person}
+                                  onPress={() => handlePersonPress(person)}
+                                />
+                              </Swipeable>
                             ))}
                           </View>
                         </View>
