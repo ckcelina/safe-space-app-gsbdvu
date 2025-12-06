@@ -36,6 +36,16 @@ export default function ChatScreen() {
     ? params.relationshipType[0]
     : params.relationshipType || '';
 
+  // Log warnings if critical params are missing
+  useEffect(() => {
+    if (!personId) {
+      console.warn('[ChatScreen] Missing personId parameter - navigation may be broken');
+    }
+    if (!personName || personName === 'Chat') {
+      console.warn('[ChatScreen] Missing personName parameter - using fallback');
+    }
+  }, [personId, personName]);
+
   const { currentUser: authUser, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
 
