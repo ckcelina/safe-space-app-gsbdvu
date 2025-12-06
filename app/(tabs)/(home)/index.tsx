@@ -164,8 +164,14 @@ export default function HomeScreen() {
     return grouped;
   }, [persons, searchQuery]);
 
-  // Define the order of groups
+  // Define the order of groups and filter out empty ones
   const groupOrder = ['Parents', 'Partner', 'Friends'];
+  const visibleGroups = useMemo(() => {
+    return groupOrder.filter(groupName => {
+      const groupPersons = filteredAndGroupedPersons[groupName];
+      return groupPersons && groupPersons.length > 0;
+    });
+  }, [filteredAndGroupedPersons]);
 
   const handleAddPerson = () => {
     if (!isPremium && persons.length >= 2) {
@@ -450,7 +456,7 @@ export default function HomeScreen() {
                 </View>
               ) : !error && !loading ? (
                 <View style={styles.groupedList}>
-                  {Object.keys(filteredAndGroupedPersons).length === 0 ? (
+                  {visibleGroups.length === 0 ? (
                     <View style={styles.noResultsContainer}>
                       <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
                         No matches found
@@ -461,10 +467,9 @@ export default function HomeScreen() {
                     </View>
                   ) : (
                     <React.Fragment>
-                      {groupOrder.map((groupName) => {
+                      {visibleGroups.map((groupName) => {
                         const groupPersons = filteredAndGroupedPersons[groupName];
-                        if (!groupPersons || groupPersons.length === 0) return null;
-
+                        
                         return (
                           <View key={groupName} style={styles.group}>
                             <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
