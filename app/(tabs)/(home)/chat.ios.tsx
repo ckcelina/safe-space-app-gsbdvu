@@ -552,7 +552,6 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingBottom: 32,
     borderRadius: 20,
     boxShadow: '0px -2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 4,

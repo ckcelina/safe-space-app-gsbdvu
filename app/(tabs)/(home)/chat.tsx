@@ -560,7 +560,6 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
     borderRadius: 20,
   },
   inputRow: {
