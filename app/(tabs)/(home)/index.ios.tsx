@@ -44,14 +44,14 @@ export default function HomeScreen() {
 
   const fetchPersonsWithLastMessage = useCallback(async () => {
     if (!userId) {
-      console.log('No userId available');
+      console.log('[HomeScreen] No userId available');
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching persons for user:', userId);
+      console.log('[HomeScreen] Fetching persons for user:', userId);
       
       const { data: personsData, error: personsError } = await supabase
         .from('persons')
@@ -60,13 +60,13 @@ export default function HomeScreen() {
         .order('created_at', { ascending: false });
 
       if (personsError) {
-        console.error('Error fetching persons:', personsError);
+        console.error('[HomeScreen] Error fetching persons:', personsError);
         setError('Failed to load your people. Please try again.');
         showErrorToast('Failed to load your people');
         return;
       }
 
-      console.log('Persons loaded:', personsData?.length || 0);
+      console.log('[HomeScreen] Persons loaded:', personsData?.length || 0);
 
       // Safely handle empty or null data
       if (!personsData || personsData.length === 0) {
@@ -92,7 +92,7 @@ export default function HomeScreen() {
               lastMessageTime: lastMessage?.created_at,
             };
           } catch (err) {
-            console.error('Error fetching messages for person:', person.id, err);
+            console.error('[HomeScreen] Error fetching messages for person:', person.id, err);
             return {
               ...person,
               lastMessage: 'No messages yet',
@@ -104,7 +104,7 @@ export default function HomeScreen() {
 
       setPersons(personsWithMessages);
     } catch (error: any) {
-      console.error('Unexpected error fetching persons:', error);
+      console.error('[HomeScreen] Unexpected error fetching persons:', error);
       setError('An unexpected error occurred. Please try again.');
       showErrorToast('Failed to load data');
     } finally {
@@ -270,6 +270,7 @@ export default function HomeScreen() {
   };
 
   const handlePersonPress = (person: Person) => {
+    console.log('[HomeScreen] Person card pressed:', person.name);
     router.push({
       pathname: '/(tabs)/(home)/chat',
       params: { 
@@ -281,6 +282,7 @@ export default function HomeScreen() {
   };
 
   const handleSettingsPress = () => {
+    console.log('[HomeScreen] Settings button pressed');
     router.push('/(tabs)/settings');
   };
 
@@ -382,7 +384,7 @@ export default function HomeScreen() {
   // DEV-ONLY: Log when HomeScreen mounts
   useEffect(() => {
     if (__DEV_NAV_TEST__) {
-      console.log('[NAV-TEST] HomeScreen mounted');
+      console.log('[NAV-TEST] HomeScreen (iOS) mounted');
     }
   }, []);
 
@@ -408,7 +410,7 @@ export default function HomeScreen() {
         colors={theme.primaryGradient}
         style={styles.gradientBackground}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        end={{ x: 0, y: 1 }}
       >
         <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -626,60 +628,54 @@ export default function HomeScreen() {
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
                 >
-                  {/* Name Field */}
-                  <View style={styles.fieldContainer}>
-                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                      Name <Text style={styles.required}>*</Text>
-                    </Text>
-                    <View style={[styles.textInputWrapper, { backgroundColor: theme.background, borderWidth: 1, borderColor: nameError ? '#FF3B30' : 'rgba(0, 0, 0, 0.1)' }]}>
-                      <TextInput
-                        style={[styles.textInput, { color: theme.textPrimary }]}
-                        placeholder="Enter their name"
-                        placeholderTextColor={theme.textSecondary}
-                        value={name}
-                        onChangeText={(text) => {
-                          console.log('[TextInput] Name changed to:', text);
-                          setName(text);
-                          if (nameError && text.trim()) {
-                            setNameError('');
-                          }
-                        }}
-                        onFocus={() => console.log('[TextInput] Name field focused')}
-                        onBlur={() => console.log('[TextInput] Name field blurred')}
-                        autoCapitalize="words"
-                        autoCorrect={false}
-                        maxLength={50}
-                        editable={!saving}
-                      />
-                    </View>
-                    {nameError ? (
-                      <Text style={styles.errorTextSmall}>{nameError}</Text>
-                    ) : null}
+                  <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                    Name <Text style={styles.required}>*</Text>
+                  </Text>
+                  <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
+                    <TextInput
+                      style={[styles.textInput, { color: theme.textPrimary }]}
+                      placeholder="Enter their name"
+                      placeholderTextColor={theme.textSecondary}
+                      value={name}
+                      onChangeText={(text) => {
+                        console.log('[TextInput] Name changed to:', text);
+                        setName(text);
+                        if (nameError && text.trim()) {
+                          setNameError('');
+                        }
+                      }}
+                      onFocus={() => console.log('[TextInput] Name field focused')}
+                      onBlur={() => console.log('[TextInput] Name field blurred')}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      maxLength={50}
+                      editable={!saving}
+                    />
                   </View>
+                  {nameError ? (
+                    <Text style={styles.errorTextSmall}>{nameError}</Text>
+                  ) : null}
 
-                  {/* Relationship Type Field */}
-                  <View style={styles.fieldContainer}>
-                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                      Relationship Type
-                    </Text>
-                    <View style={[styles.textInputWrapper, { backgroundColor: theme.background, borderWidth: 1, borderColor: 'rgba(0, 0, 0, 0.1)' }]}>
-                      <TextInput
-                        style={[styles.textInput, { color: theme.textPrimary }]}
-                        placeholder="partner, ex, friend, parent..."
-                        placeholderTextColor={theme.textSecondary}
-                        value={relationshipType}
-                        onChangeText={(text) => {
-                          console.log('[TextInput] Relationship type changed to:', text);
-                          setRelationshipType(text);
-                        }}
-                        onFocus={() => console.log('[TextInput] Relationship field focused')}
-                        onBlur={() => console.log('[TextInput] Relationship field blurred')}
-                        autoCapitalize="words"
-                        autoCorrect={false}
-                        maxLength={50}
-                        editable={!saving}
-                      />
-                    </View>
+                  <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                    Relationship Type
+                  </Text>
+                  <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
+                    <TextInput
+                      style={[styles.textInput, { color: theme.textPrimary }]}
+                      placeholder="partner, ex, friend, parent..."
+                      placeholderTextColor={theme.textSecondary}
+                      value={relationshipType}
+                      onChangeText={(text) => {
+                        console.log('[TextInput] Relationship type changed to:', text);
+                        setRelationshipType(text);
+                      }}
+                      onFocus={() => console.log('[TextInput] Relationship field focused')}
+                      onBlur={() => console.log('[TextInput] Relationship field blurred')}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      maxLength={50}
+                      editable={!saving}
+                    />
                   </View>
                 </ScrollView>
 
@@ -1011,9 +1007,6 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 16,
   },
-  fieldContainer: {
-    marginBottom: 20,
-  },
   inputLabel: {
     fontSize: 16,
     fontWeight: '600',
@@ -1025,17 +1018,18 @@ const styles = StyleSheet.create({
   textInputWrapper: {
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
   },
   textInput: {
     fontSize: 16,
     lineHeight: 20,
-    minHeight: 20,
   },
   errorTextSmall: {
     color: '#FF3B30',
     fontSize: 12,
-    marginTop: 6,
+    marginBottom: 16,
+    marginTop: -4,
   },
   modalFooter: {
     flexDirection: 'row',
@@ -1043,8 +1037,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 32 : 16,
     gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.1)',
   },
   secondaryButton: {
     flex: 1,

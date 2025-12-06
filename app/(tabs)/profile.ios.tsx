@@ -1,2 +1,3 @@
 
-export { default } from './profile';
+import ProfileScreen from './profile.tsx';
+export default ProfileScreen;
