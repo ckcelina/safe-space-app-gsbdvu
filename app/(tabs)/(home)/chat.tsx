@@ -118,7 +118,7 @@ export default function ChatScreen() {
     loadMessages();
   };
 
-  // Send message handler - PART 1 (User message insert)
+  // Send message handler - COMPLETE with AI reply
   async function handleSend() {
     const text = inputText.trim();
     if (!text || isSending || !personId) return;
@@ -157,7 +157,56 @@ export default function ChatScreen() {
     // Show message immediately
     setMessages(prev => [...prev, inserted]);
 
-    // Continue to Part 2 in the next prompt.
+    // AI REPLY
+    setIsTyping(true);
+
+    const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
+      'generate-ai-response',
+      {
+        body: {
+          person_id: personId,
+          message: text,
+        },
+      }
+    );
+
+    if (fnError) {
+      console.warn('[Chat] AI function error', fnError);
+      setIsTyping(false);
+      setIsSending(false);
+      setError('I could not generate a reply. Please try again.');
+      return;
+    }
+
+    const replyText =
+      aiResponse?.reply ||
+      "I'm here with you. Tell me more about how you're feeling.";
+
+    // Insert AI message
+    const { data: aiInserted, error: aiInsertError } = await supabase
+      .from('messages')
+      .insert({
+        user_id: userId,
+        person_id: personId,
+        role: 'assistant',
+        content: replyText,
+      })
+      .select('*')
+      .single();
+
+    if (aiInsertError) {
+      console.warn('[Chat] Insert AI message error', aiInsertError);
+      setIsTyping(false);
+      setIsSending(false);
+      return;
+    }
+
+    // Show AI message
+    setMessages(prev => [...prev, aiInserted]);
+
+    // Final
+    setIsTyping(false);
+    setIsSending(false);
   }
 
   // Send button is enabled when there's text and not sending
@@ -272,7 +321,7 @@ export default function ChatScreen() {
                   <ChatBubble
                     key={message.id || index}
                     message={message.content}
-                    isUser={message.role === 'user' || message.sender === 'user'}
+                    isUser={message.role === 'user'}
                     timestamp={message.created_at}
                     animate={index === messages.length - 1}
                   />
