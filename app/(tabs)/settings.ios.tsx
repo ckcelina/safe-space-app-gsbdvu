@@ -1,3 +1,2 @@
 
-import SettingsScreen from './settings.tsx';
-export default SettingsScreen;
+export { default } from './settings';

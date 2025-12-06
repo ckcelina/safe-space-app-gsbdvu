@@ -21,6 +21,7 @@ import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
+import { showErrorToast } from '@/utils/toast';
 
 export default function ChatScreen() {
   const params = useLocalSearchParams<{
@@ -29,20 +30,19 @@ export default function ChatScreen() {
     relationshipType?: string | string[];
   }>();
 
-  // Normalize route params to plain strings with fallbacks
   const personId = Array.isArray(params.personId) ? params.personId[0] : params.personId || '';
   const personName = Array.isArray(params.personName) ? params.personName[0] : params.personName || 'Chat';
   const relationshipType = Array.isArray(params.relationshipType)
     ? params.relationshipType[0]
     : params.relationshipType || '';
 
-  // Log warnings if critical params are missing
   useEffect(() => {
     if (!personId) {
-      console.warn('[ChatScreen] Missing personId parameter - navigation may be broken');
+      console.error('[Chat] Missing personId parameter - navigation may be broken');
+      showErrorToast('Invalid person ID');
     }
     if (!personName || personName === 'Chat') {
-      console.warn('[ChatScreen] Missing personName parameter - using fallback');
+      console.warn('[Chat] Missing personName parameter - using fallback');
     }
   }, [personId, personName]);
 
@@ -66,7 +66,6 @@ export default function ChatScreen() {
     }, 100);
   };
 
-  // Load messages
   const loadMessages = useCallback(async () => {
     if (!personId) {
       console.warn('[Chat] loadMessages: personId is missing');
@@ -135,7 +134,6 @@ export default function ChatScreen() {
     loadMessages();
   };
 
-  // Send message
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
@@ -151,7 +149,7 @@ export default function ChatScreen() {
     const userId = authUser?.id;
     if (!userId) {
       console.warn('[Chat] sendMessage: No userId available');
-      setError('You must be logged in to send messages');
+      showErrorToast('You must be logged in to send messages');
       return;
     }
 
@@ -161,7 +159,6 @@ export default function ChatScreen() {
     setInputText('');
 
     try {
-      // 1. Insert user message
       console.log('[Chat] Inserting user message...');
       const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
@@ -185,7 +182,6 @@ export default function ChatScreen() {
 
       console.log('[Chat] User message inserted:', insertedMessage.id);
 
-      // Update messages immediately and build recent history from that
       let updatedMessages: Message[] = [];
       setMessages((prev) => {
         updatedMessages = [...prev, insertedMessage];
@@ -194,7 +190,6 @@ export default function ChatScreen() {
 
       scrollToBottom();
 
-      // 2. Call AI Edge Function
       console.log('[Chat] Calling AI Edge Function...');
       setIsTyping(true);
 
@@ -235,7 +230,6 @@ export default function ChatScreen() {
         aiResponse?.reply ||
         "I'm here with you. Tell me more about how you're feeling.";
 
-      // 3. Insert AI message
       console.log('[Chat] Inserting AI message...');
       const { data: aiInserted, error: aiInsertError } = await supabase
         .from('messages')
@@ -285,7 +279,6 @@ export default function ChatScreen() {
       >
         <StatusBarGradient />
 
-        {/* Header */}
         <View style={[styles.header, { backgroundColor: theme.card }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <IconSymbol
@@ -315,7 +308,6 @@ export default function ChatScreen() {
           <View style={{ width: 40 }} />
         </View>
 
-        {/* Free User Banner */}
         {isFreeUser && (
           <View style={[styles.freeBanner, { backgroundColor: theme.card }]}>
             <IconSymbol
@@ -332,7 +324,6 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {/* Error Banner */}
         {error && (
           <View style={[styles.errorBanner, { backgroundColor: '#FF3B30' }]}>
             <IconSymbol
@@ -356,7 +347,6 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {/* Messages */}
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
@@ -406,7 +396,6 @@ export default function ChatScreen() {
           {isTyping && <TypingIndicator />}
         </ScrollView>
 
-        {/* Input Bar */}
         <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
           <View style={styles.inputRow}>
             <View style={styles.inputColumn}>

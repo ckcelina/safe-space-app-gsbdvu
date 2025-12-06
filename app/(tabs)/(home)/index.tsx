@@ -25,9 +25,6 @@ interface GroupedPersons {
   [key: string]: PersonWithLastMessage[];
 }
 
-// DEV-ONLY: Navigation test flag
-const __DEV_NAV_TEST__ = __DEV__ && true;
-
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
@@ -44,14 +41,14 @@ export default function HomeScreen() {
 
   const fetchPersonsWithLastMessage = useCallback(async () => {
     if (!userId) {
-      console.log('No userId available');
+      console.log('[Home] No userId available');
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching persons for user:', userId);
+      console.log('[Home] Fetching persons for user:', userId);
       
       const { data: personsData, error: personsError } = await supabase
         .from('persons')
@@ -60,15 +57,14 @@ export default function HomeScreen() {
         .order('created_at', { ascending: false });
 
       if (personsError) {
-        console.error('Error fetching persons:', personsError);
+        console.error('[Home] Error fetching persons:', personsError);
         setError('Failed to load your people. Please try again.');
         showErrorToast('Failed to load your people');
         return;
       }
 
-      console.log('Persons loaded:', personsData?.length || 0);
+      console.log('[Home] Persons loaded:', personsData?.length || 0);
 
-      // Safely handle empty or null data
       if (!personsData || personsData.length === 0) {
         setPersons([]);
         return;
@@ -92,7 +88,7 @@ export default function HomeScreen() {
               lastMessageTime: lastMessage?.created_at,
             };
           } catch (err) {
-            console.error('Error fetching messages for person:', person.id, err);
+            console.error('[Home] Error fetching messages for person:', person.id, err);
             return {
               ...person,
               lastMessage: 'No messages yet',
@@ -104,7 +100,7 @@ export default function HomeScreen() {
 
       setPersons(personsWithMessages);
     } catch (error: any) {
-      console.error('Unexpected error fetching persons:', error);
+      console.error('[Home] Unexpected error fetching persons:', error);
       setError('An unexpected error occurred. Please try again.');
       showErrorToast('Failed to load data');
     } finally {
@@ -120,29 +116,23 @@ export default function HomeScreen() {
     }
   }, [userId, fetchPersonsWithLastMessage]);
 
-  // Helper function to categorize relationship types
   const categorizeRelationship = (relationshipType: string | null | undefined): string => {
     if (!relationshipType) return 'Friends';
     
     const type = relationshipType.toLowerCase().trim();
     
-    // Partner
     if (['partner', 'boyfriend', 'girlfriend', 'husband', 'wife', 'spouse', 'fiancé', 'fiancée'].includes(type)) {
       return 'Partner';
     }
     
-    // Parents
     if (['mom', 'mother', 'dad', 'father', 'parent'].includes(type)) {
       return 'Parents';
     }
     
-    // Friends (default for most)
     return 'Friends';
   };
 
-  // Filter and group persons
   const filteredAndGroupedPersons = useMemo(() => {
-    // Filter by search query
     const filtered = persons.filter((person) => {
       if (!searchQuery.trim()) return true;
       
@@ -153,7 +143,6 @@ export default function HomeScreen() {
       return nameMatch || relationshipMatch;
     });
 
-    // Group by category
     const grouped: GroupedPersons = {};
     
     filtered.forEach((person) => {
@@ -167,7 +156,6 @@ export default function HomeScreen() {
     return grouped;
   }, [persons, searchQuery]);
 
-  // Define the order of groups and filter out empty ones
   const groupOrder = ['Parents', 'Partner', 'Friends'];
   const visibleGroups = useMemo(() => {
     return groupOrder.filter(groupName => {
@@ -177,15 +165,15 @@ export default function HomeScreen() {
   }, [filteredAndGroupedPersons]);
 
   const handleAddPerson = () => {
-    console.log('[handleAddPerson] Button pressed, isPremium:', isPremium, 'persons.length:', persons.length);
+    console.log('[Home] handleAddPerson called, isPremium:', isPremium, 'persons.length:', persons.length);
     
     if (!isPremium && persons.length >= 2) {
-      console.log('[handleAddPerson] Free user limit reached, showing premium modal');
+      console.log('[Home] Free user limit reached, showing premium modal');
       setShowPremiumModal(true);
       return;
     }
 
-    console.log('[handleAddPerson] Opening Add Person modal');
+    console.log('[Home] Opening Add Person modal');
     setShowAddModal(true);
     setName('');
     setRelationshipType('');
@@ -193,7 +181,7 @@ export default function HomeScreen() {
   };
 
   const handleCloseModal = () => {
-    console.log('[handleCloseModal] Closing modal, clearing form');
+    console.log('[Home] Closing Add Person modal');
     setShowAddModal(false);
     setName('');
     setRelationshipType('');
@@ -205,23 +193,21 @@ export default function HomeScreen() {
   };
 
   const handleSave = async () => {
-    console.log('[handleSave] Called with name:', name, 'relationshipType:', relationshipType);
+    console.log('[Home] handleSave called with name:', name, 'relationshipType:', relationshipType);
     
-    // Validate name
     if (!name.trim()) {
-      console.log('[handleSave] Name validation failed - name is empty');
+      console.log('[Home] Name validation failed - name is empty');
       setNameError('Name is required');
       return;
     }
 
-    // Validate userId
     if (!userId) {
-      console.error('[handleSave] No userId available');
+      console.error('[Home] No userId available');
       showErrorToast('You must be logged in to add a person');
       return;
     }
 
-    console.log('[handleSave] Starting save process for userId:', userId);
+    console.log('[Home] Starting save process for userId:', userId);
     setNameError('');
     setSaving(true);
 
@@ -232,7 +218,7 @@ export default function HomeScreen() {
         relationship_type: relationshipType.trim() || null,
       };
       
-      console.log('[handleSave] Inserting person data:', personData);
+      console.log('[Home] Inserting person data:', personData);
       
       const { data, error } = await supabase
         .from('persons')
@@ -241,40 +227,46 @@ export default function HomeScreen() {
         .single();
 
       if (error) {
-        console.error('[handleSave] Error creating person:', error);
+        console.error('[Home] Error creating person:', error);
         showErrorToast('Failed to add person. Please try again.');
         setSaving(false);
         return;
       }
 
-      console.log('[handleSave] Person created successfully:', data);
+      console.log('[Home] Person created successfully:', data);
       showSuccessToast('Person added successfully!');
       
-      // Close modal and clear form
       setShowAddModal(false);
       setName('');
       setRelationshipType('');
       setNameError('');
       
-      // Refresh the list
-      console.log('[handleSave] Refreshing persons list');
+      console.log('[Home] Refreshing persons list');
       await fetchPersonsWithLastMessage();
       
     } catch (error: any) {
-      console.error('[handleSave] Unexpected error creating person:', error);
+      console.error('[Home] Unexpected error creating person:', error);
       showErrorToast('An unexpected error occurred');
     } finally {
       setSaving(false);
-      console.log('[handleSave] Save process complete');
+      console.log('[Home] Save process complete');
     }
   };
 
   const handlePersonPress = (person: Person) => {
+    if (!person.id) {
+      console.error('[Home] Cannot navigate to chat - person.id is missing');
+      showErrorToast('Invalid person data');
+      return;
+    }
+
+    console.log('[Home] Navigating to chat for person:', person.name, 'id:', person.id);
+    
     router.push({
       pathname: '/(tabs)/(home)/chat',
       params: { 
         personId: person.id, 
-        personName: person.name,
+        personName: person.name || 'Chat',
         relationshipType: person.relationship_type || ''
       },
     });
@@ -284,7 +276,6 @@ export default function HomeScreen() {
     router.push('/(tabs)/settings');
   };
 
-  // Get plan display info
   const getPlanInfo = () => {
     if (role === 'premium') {
       return {
@@ -318,82 +309,6 @@ export default function HomeScreen() {
 
   const planInfo = getPlanInfo();
 
-  // DEV-ONLY: Navigation test function
-  const devTestNavigationFlow = useCallback(async () => {
-    if (!__DEV_NAV_TEST__) return;
-
-    console.log('[NAV-TEST] Starting navigation smoke test');
-
-    try {
-      // Step 1: Test person navigation if available
-      if (persons.length > 0) {
-        try {
-          console.log('[NAV-TEST] Step 1: Testing person press with first person');
-          const firstPerson = persons[0];
-          handlePersonPress(firstPerson);
-          console.log('[NAV-TEST] Step 1: SUCCESS - Navigated to chat for person:', firstPerson.name);
-        } catch (err) {
-          console.error('[NAV-TEST] Step 1: FAILED - Error navigating to person:', err);
-        }
-
-        // Wait a bit before going back
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Step 2: Go back
-        try {
-          console.log('[NAV-TEST] Step 2: Testing router.back()');
-          router.back();
-          console.log('[NAV-TEST] Step 2: SUCCESS - Navigated back from chat');
-        } catch (err) {
-          console.error('[NAV-TEST] Step 2: FAILED - Error going back:', err);
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } else {
-        console.log('[NAV-TEST] Step 1-2: SKIPPED - No persons available to test');
-      }
-
-      // Step 3: Navigate to settings
-      try {
-        console.log('[NAV-TEST] Step 3: Testing navigation to settings');
-        router.push('/(tabs)/settings');
-        console.log('[NAV-TEST] Step 3: SUCCESS - Navigated to settings');
-      } catch (err) {
-        console.error('[NAV-TEST] Step 3: FAILED - Error navigating to settings:', err);
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Step 4: Go back from settings
-      try {
-        console.log('[NAV-TEST] Step 4: Testing router.back() from settings');
-        router.back();
-        console.log('[NAV-TEST] Step 4: SUCCESS - Navigated back from settings');
-      } catch (err) {
-        console.error('[NAV-TEST] Step 4: FAILED - Error going back from settings:', err);
-      }
-
-      console.log('[NAV-TEST] Navigation smoke test complete');
-    } catch (error) {
-      console.error('[NAV-TEST] Unexpected error during navigation test:', error);
-    }
-  }, [persons, handlePersonPress]);
-
-  // DEV-ONLY: Log when HomeScreen mounts
-  useEffect(() => {
-    if (__DEV_NAV_TEST__) {
-      console.log('[NAV-TEST] HomeScreen mounted');
-    }
-  }, []);
-
-  // DEV-ONLY: Manual trigger point (KEEP COMMENTED OUT BY DEFAULT)
-  useEffect(() => {
-    if (__DEV_NAV_TEST__) {
-      // Uncomment the line below to manually trigger the navigation test
-      // devTestNavigationFlow();
-    }
-  }, [devTestNavigationFlow]);
-
   if (authLoading) {
     return <LoadingOverlay visible={true} />;
   }
@@ -413,7 +328,6 @@ export default function HomeScreen() {
         <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
-            {/* Header with Settings Icon */}
             <View style={styles.topHeader}>
               <View style={styles.headerSpacer} />
               <TouchableOpacity 
@@ -436,7 +350,6 @@ export default function HomeScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {/* Header */}
               <View style={styles.header}>
                 <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
                 <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
@@ -444,7 +357,6 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              {/* Plan Pill - Fixed to fully contain text */}
               <View style={styles.planPillContainer}>
                 <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                   <View style={styles.planPillContent}>
@@ -472,7 +384,6 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              {/* Search Bar */}
               {persons.length > 0 && (
                 <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                   <IconSymbol
@@ -503,7 +414,6 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Add Person Button */}
               <View style={styles.addButtonContainer}>
                 <TouchableOpacity
                   onPress={handleAddPerson}
@@ -518,7 +428,6 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Error State */}
               {error && (
                 <View style={styles.errorContainer}>
                   <View style={[styles.errorCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
@@ -542,7 +451,6 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Persons List - Grouped */}
               {!error && persons.length === 0 && !loading ? (
                 <View style={styles.emptyState}>
                   <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
@@ -595,7 +503,6 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Modal - Swipeable */}
             <SwipeableModal
               visible={showAddModal}
               onClose={handleCloseModal}
@@ -606,7 +513,6 @@ export default function HomeScreen() {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.modalKeyboardView}
               >
-                {/* Modal Header */}
                 <View style={styles.modalHeader}>
                   <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
                   <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
@@ -619,14 +525,12 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 </View>
 
-                {/* Modal Body */}
                 <ScrollView
                   style={styles.modalBody}
                   contentContainerStyle={styles.modalBodyContent}
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
                 >
-                  {/* Name Field */}
                   <View style={styles.fieldContainer}>
                     <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
                       Name <Text style={styles.required}>*</Text>
@@ -638,14 +542,12 @@ export default function HomeScreen() {
                         placeholderTextColor={theme.textSecondary}
                         value={name}
                         onChangeText={(text) => {
-                          console.log('[TextInput] Name changed to:', text);
+                          console.log('[Home] Name changed to:', text);
                           setName(text);
                           if (nameError && text.trim()) {
                             setNameError('');
                           }
                         }}
-                        onFocus={() => console.log('[TextInput] Name field focused')}
-                        onBlur={() => console.log('[TextInput] Name field blurred')}
                         autoCapitalize="words"
                         autoCorrect={false}
                         maxLength={50}
@@ -657,7 +559,6 @@ export default function HomeScreen() {
                     ) : null}
                   </View>
 
-                  {/* Relationship Type Field */}
                   <View style={styles.fieldContainer}>
                     <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
                       Relationship Type
@@ -669,11 +570,9 @@ export default function HomeScreen() {
                         placeholderTextColor={theme.textSecondary}
                         value={relationshipType}
                         onChangeText={(text) => {
-                          console.log('[TextInput] Relationship type changed to:', text);
+                          console.log('[Home] Relationship type changed to:', text);
                           setRelationshipType(text);
                         }}
-                        onFocus={() => console.log('[TextInput] Relationship field focused')}
-                        onBlur={() => console.log('[TextInput] Relationship field blurred')}
                         autoCapitalize="words"
                         autoCorrect={false}
                         maxLength={50}
@@ -683,7 +582,6 @@ export default function HomeScreen() {
                   </View>
                 </ScrollView>
 
-                {/* Modal Footer */}
                 <View style={styles.modalFooter}>
                   <TouchableOpacity
                     onPress={handleCloseModal}
@@ -716,7 +614,6 @@ export default function HomeScreen() {
               </KeyboardAvoidingView>
             </SwipeableModal>
 
-            {/* Premium Feature Modal - Swipeable Center Modal */}
             <SwipeableCenterModal
               visible={showPremiumModal}
               onClose={handleClosePremiumModal}
