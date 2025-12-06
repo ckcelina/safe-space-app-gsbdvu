@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput, LogBox } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +16,10 @@ import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
+
+LogBox.ignoreLogs([
+  'Each child in a list should have a unique "key" prop',
+]);
 
 interface PersonWithLastMessage extends Person {
   lastMessage?: string;
@@ -557,77 +561,77 @@ export default function HomeScreen() {
                 </View>
               )}
 
-            {!error && persons.length === 0 && !loading ? (
-  <View style={styles.emptyState}>
-    <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-      <IconSymbol
-        ios_icon_name="bubble.left.and.bubble.right.fill"
-        android_material_icon_name="chat"
-        size={48}
-        color={theme.primary}
-      />
-    </View>
-    <Text style={[styles.emptyText, { color: theme.buttonText }]}>No one added yet</Text>
-    <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-      Tap &apos;Add Person&apos; to start
-    </Text>
-  </View>
-) : !error && !loading ? (
-  <View style={styles.groupedList}>
-    {visibleGroups.length === 0 ? (
-      <View style={styles.noResultsContainer}>
-        <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
-          No matches found
-        </Text>
-        <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-          Try a different search term
-        </Text>
-      </View>
-    ) : (
-      visibleGroups.map((groupName, groupIndex) => {
-        const groupPersons = filteredAndGroupedPersons[groupName] || [];
-
-        if (!groupPersons || groupPersons.length === 0) {
-          return null;
-        }
-
-        return (
-          <View
-            key={`group-${groupName}-${groupIndex}`}
-            style={styles.group}
-          >
-            <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
-              {groupName}
-            </Text>
-
-            <View style={styles.groupCards}>
-              {groupPersons.map((person, personIndex) => {
-                if (!person) return null;
-
-                const personKey = `person-${groupName}-${person.id ?? person.uuid ?? personIndex}`;
-
-                return (
-                  <Swipeable
-                    key={personKey}
-                    renderRightActions={() => (
-                      <DeleteAction onPress={() => handleDeletePerson(person.id!)} />
-                    )}
-                    overshootRight={false}
-                  >
-                    <PersonCard
-                      person={person}
-                      onPress={() => handlePersonPress(person)}
+              {!error && persons.length === 0 && !loading ? (
+                <View style={styles.emptyState}>
+                  <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                    <IconSymbol
+                      ios_icon_name="bubble.left.and.bubble.right.fill"
+                      android_material_icon_name="chat"
+                      size={48}
+                      color={theme.primary}
                     />
-                  </Swipeable>
-                );
-              })}
-            </View>
-          </View>
-        );
-      })
-    )}
-  </View>
-) : null}
+                  </View>
+                  <Text style={[styles.emptyText, { color: theme.buttonText }]}>No one added yet</Text>
+                  <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+                    Tap &apos;Add Person&apos; to start
+                  </Text>
+                </View>
+              ) : !error && !loading ? (
+                <View style={styles.groupedList}>
+                  {visibleGroups.length === 0 ? (
+                    <View style={styles.noResultsContainer}>
+                      <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
+                        No matches found
+                      </Text>
+                      <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+                        Try a different search term
+                      </Text>
+                    </View>
+                  ) : (
+                    visibleGroups.map((groupName, groupIndex) => {
+                      const groupPersons = filteredAndGroupedPersons[groupName] || [];
+
+                      if (!groupPersons || groupPersons.length === 0) {
+                        return null;
+                      }
+
+                      return (
+                        <View
+                          key={`group-${groupName}-${groupIndex}`}
+                          style={styles.group}
+                        >
+                          <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
+                            {groupName}
+                          </Text>
+
+                          <View style={styles.groupCards}>
+                            {groupPersons.map((person, personIndex) => {
+                              if (!person) return null;
+
+                              const personKey = `person-${groupName}-${person.id ?? person.uuid ?? personIndex}`;
+
+                              return (
+                                <Swipeable
+                                  key={personKey}
+                                  renderRightActions={() => (
+                                    <DeleteAction onPress={() => handleDeletePerson(person.id!)} />
+                                  )}
+                                  overshootRight={false}
+                                >
+                                  <PersonCard
+                                    person={person}
+                                    onPress={() => handlePersonPress(person)}
+                                  />
+                                </Swipeable>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      );
+                    })
+                  )}
+                </View>
+              ) : null}
             </ScrollView>
 
             <SwipeableModal
