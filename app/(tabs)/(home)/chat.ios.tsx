@@ -52,6 +52,7 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorText, setErrorText] = useState<string | null>(null);
   
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -125,17 +126,19 @@ export default function ChatScreen() {
       return;
     }
 
+    setErrorText(null);
+    setIsSending(true);
+
     if (!userId) {
-      console.warn('[Chat] handleSend: userId is missing');
+      console.warn('[Chat] no auth user');
+      setErrorText('There was a problem with your session. Please log in again.');
+      setIsSending(false);
       return;
     }
 
-    setIsSending(true);
-    setInputText('');
-
     console.log('[Chat] Inserting user message:', text.substring(0, 50) + '...');
 
-    // Insert user message
+    // 1) Insert user message into Supabase
     const { data: inserted, error } = await supabase
       .from('messages')
       .insert({
@@ -149,20 +152,22 @@ export default function ChatScreen() {
 
     if (error) {
       console.warn('[Chat] send message error', error);
-      setInputText(text);
+      // DO NOT restore the text by resetting inputText.
+      // Leave the text in the box so the user can press Send again.
+      setErrorText('Could not send your message. Please try again.');
       setIsSending(false);
       return;
     }
 
     console.log('[Chat] User message inserted:', inserted.id);
 
-    // Update UI immediately
+    // 2) Only clear the input AFTER a successful insert
+    setInputText('');
     setMessages(prev => [...prev, inserted]);
-    setTimeout(() => scrollToBottom(), 50);
-    
-    // Start AI reply process
+    scrollToBottom();
     setIsTyping(true);
 
+    // 3) Call Edge Function for AI reply
     try {
       const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
         'generate-ai-response',
@@ -176,8 +181,7 @@ export default function ChatScreen() {
 
       if (fnError) {
         console.warn('[Chat] AI function error', fnError);
-        setIsTyping(false);
-        setIsSending(false);
+        setErrorText('Safe Space could not respond right now. Please try again in a moment.');
         return;
       }
 
@@ -185,7 +189,6 @@ export default function ChatScreen() {
         aiResponse?.reply ||
         "I'm here with you. Tell me more about how you're feeling.";
 
-      // Insert AI reply
       const { data: aiInserted, error: aiInsertError } = await supabase
         .from('messages')
         .insert({
@@ -199,13 +202,12 @@ export default function ChatScreen() {
 
       if (aiInsertError) {
         console.warn('[Chat] insert AI message error', aiInsertError);
-        setIsTyping(false);
-        setIsSending(false);
+        setErrorText('There was a problem saving the reply.');
         return;
       }
 
       setMessages(prev => [...prev, aiInserted]);
-      setTimeout(() => scrollToBottom(), 100);
+      scrollToBottom();
     } finally {
       setIsTyping(false);
       setIsSending(false);
@@ -338,38 +340,47 @@ export default function ChatScreen() {
 
       {/* Input Bar */}
       <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-        <View style={styles.inputColumn}>
-          <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
-            <TextInput
-              style={[styles.input, { color: theme.textPrimary }]}
-              placeholder="Tell me what's going on…"
-              placeholderTextColor={theme.textSecondary}
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              editable={!isSending && !loading}
-            />
+        {/* Error message above input */}
+        {errorText && (
+          <View style={styles.errorMessageContainer}>
+            <Text style={styles.errorMessageText}>{errorText}</Text>
           </View>
-        </View>
+        )}
+        
+        <View style={styles.inputRow}>
+          <View style={styles.inputColumn}>
+            <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
+              <TextInput
+                style={[styles.input, { color: theme.textPrimary }]}
+                placeholder="Tell me what's going on…"
+                placeholderTextColor={theme.textSecondary}
+                value={inputText}
+                onChangeText={setInputText}
+                multiline
+                editable={!isSending && !loading}
+              />
+            </View>
+          </View>
 
-        {/* Send button with paper plane icon */}
-        <TouchableOpacity
-          style={[
-            styles.sendButton,
-            { backgroundColor: theme.primary },
-            isSendDisabled && styles.sendButtonDisabled,
-          ]}
-          onPress={handleSend}
-          disabled={isSendDisabled}
-          activeOpacity={0.7}
-        >
-          <IconSymbol
-            ios_icon_name="paperplane.fill"
-            android_material_icon_name="send"
-            size={20}
-            color="#FFFFFF"
-          />
-        </TouchableOpacity>
+          {/* Send button with paper plane icon */}
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              { backgroundColor: theme.primary },
+              isSendDisabled && styles.sendButtonDisabled,
+            ]}
+            onPress={handleSend}
+            disabled={isSendDisabled}
+            activeOpacity={0.7}
+          >
+            <IconSymbol
+              ios_icon_name="paperplane.fill"
+              android_material_icon_name="send"
+              size={20}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+        </View>
       </View>
       
       <LoadingOverlay visible={loading && !error} />
@@ -508,14 +519,29 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingBottom: 32,
     borderRadius: 20,
     boxShadow: '0px -2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 4,
+  },
+  errorMessageContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderRadius: 12,
+  },
+  errorMessageText: {
+    fontSize: 13,
+    color: '#FF3B30',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
   },
   inputColumn: {
     flex: 1,
