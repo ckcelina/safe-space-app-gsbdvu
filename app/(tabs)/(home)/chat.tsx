@@ -559,12 +559,14 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 0,
     borderRadius: 20,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    paddingBottom: 12,
   },
   inputColumn: {
     flex: 1,

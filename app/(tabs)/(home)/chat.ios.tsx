@@ -551,7 +551,8 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 0,
     borderRadius: 20,
     boxShadow: '0px -2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 4,
@@ -559,6 +560,7 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    paddingBottom: 12,
   },
   inputColumn: {
     flex: 1,
