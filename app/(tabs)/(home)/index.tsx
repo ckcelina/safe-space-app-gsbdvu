@@ -550,7 +550,7 @@ export default function HomeScreen() {
               <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.modalKeyboardView}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+                keyboardVerticalOffset={0}
               >
                 <View style={styles.modalHeader}>
                   <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
@@ -569,12 +569,20 @@ export default function HomeScreen() {
                   contentContainerStyle={styles.modalBodyContent}
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
+                  bounces={false}
                 >
                   <View style={styles.fieldContainer}>
                     <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
                       Name <Text style={styles.required}>*</Text>
                     </Text>
-                    <View style={[styles.textInputWrapper, { backgroundColor: theme.background, borderWidth: 1, borderColor: nameError ? '#FF3B30' : 'rgba(0, 0, 0, 0.1)' }]}>
+                    <View style={[
+                      styles.textInputWrapper, 
+                      { 
+                        backgroundColor: theme.background, 
+                        borderWidth: 1, 
+                        borderColor: nameError ? '#FF3B30' : 'rgba(0, 0, 0, 0.1)' 
+                      }
+                    ]}>
                       <TextInput
                         style={[styles.textInput, { color: theme.textPrimary }]}
                         placeholder="Enter their name"
@@ -591,6 +599,7 @@ export default function HomeScreen() {
                         autoCorrect={false}
                         maxLength={50}
                         editable={!saving}
+                        returnKeyType="next"
                       />
                     </View>
                     {nameError ? (
@@ -602,7 +611,14 @@ export default function HomeScreen() {
                     <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
                       Relationship Type
                     </Text>
-                    <View style={[styles.textInputWrapper, { backgroundColor: theme.background, borderWidth: 1, borderColor: 'rgba(0, 0, 0, 0.1)' }]}>
+                    <View style={[
+                      styles.textInputWrapper, 
+                      { 
+                        backgroundColor: theme.background, 
+                        borderWidth: 1, 
+                        borderColor: 'rgba(0, 0, 0, 0.1)' 
+                      }
+                    ]}>
                       <TextInput
                         style={[styles.textInput, { color: theme.textPrimary }]}
                         placeholder="partner, ex, friend, parent..."
@@ -616,6 +632,8 @@ export default function HomeScreen() {
                         autoCorrect={false}
                         maxLength={50}
                         editable={!saving}
+                        returnKeyType="done"
+                        onSubmitEditing={handleSave}
                       />
                     </View>
                   </View>
@@ -626,6 +644,7 @@ export default function HomeScreen() {
                     onPress={handleCloseModal}
                     style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
                     disabled={saving}
+                    activeOpacity={0.7}
                   >
                     <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
                       Cancel
@@ -921,6 +940,7 @@ const styles = StyleSheet.create({
   },
   modalKeyboardView: {
     maxHeight: '85%',
+    minHeight: 400,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -948,7 +968,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   fieldContainer: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   inputLabel: {
     fontSize: 16,
@@ -961,7 +981,7 @@ const styles = StyleSheet.create({
   textInputWrapper: {
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
   },
   textInput: {
     fontSize: 16,
