@@ -525,9 +525,9 @@ export default function HomeScreen() {
                             {groupName}
                           </Text>
                           <View style={styles.groupCards}>
-                            {groupPersons.map((person) => (
+                            {groupPersons.map((person, index) => (
                               <PersonCard
-                                key={person.id ?? `${groupName}-${person.name}`}
+                                key={person.id ?? person.uuid ?? `${groupName}-${person.name ?? ''}-${index}`}
                                 person={person}
                                 onPress={() => handlePersonPress(person)}
                               />
