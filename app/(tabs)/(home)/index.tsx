@@ -589,7 +589,7 @@ export default function HomeScreen() {
 
                       return (
                         <View
-                          key={groupName}
+                          key={`group-${groupName}`}
                           style={styles.group}
                         >
                           <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
@@ -597,11 +597,11 @@ export default function HomeScreen() {
                           </Text>
 
                           <View style={styles.groupCards}>
-                            {groupPersons.map((person, index) => {
+                            {groupPersons.map((person) => {
                               const personKey =
                                 person.id ??
                                 person.uuid ??
-                                `${groupName}-${person.name ?? ''}-${index}`;
+                                `${groupName}-${person.name ?? ''}`;
 
                               return (
                                 <Swipeable
