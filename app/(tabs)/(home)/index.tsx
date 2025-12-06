@@ -557,104 +557,77 @@ export default function HomeScreen() {
                 </View>
               )}
 
-                          {!error && persons.length === 0 && !loading ? (
-                // Empty state: no people added yet
-                <View style={styles.emptyState}>
-                  <View
-                    style={[
-                      styles.emptyIconContainer,
-                      { backgroundColor: 'rgba(255, 255, 255, 0.95)' },
-                    ]}
+            {!error && persons.length === 0 && !loading ? (
+  <View style={styles.emptyState}>
+    <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+      <IconSymbol
+        ios_icon_name="bubble.left.and.bubble.right.fill"
+        android_material_icon_name="chat"
+        size={48}
+        color={theme.primary}
+      />
+    </View>
+    <Text style={[styles.emptyText, { color: theme.buttonText }]}>No one added yet</Text>
+    <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+      Tap &apos;Add Person&apos; to start
+    </Text>
+  </View>
+) : !error && !loading ? (
+  <View style={styles.groupedList}>
+    {visibleGroups.length === 0 ? (
+      <View style={styles.noResultsContainer}>
+        <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
+          No matches found
+        </Text>
+        <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+          Try a different search term
+        </Text>
+      </View>
+    ) : (
+      visibleGroups.map((groupName, groupIndex) => {
+        const groupPersons = filteredAndGroupedPersons[groupName] || [];
+
+        if (!groupPersons || groupPersons.length === 0) {
+          return null;
+        }
+
+        return (
+          <View
+            key={`group-${groupName}-${groupIndex}`}
+            style={styles.group}
+          >
+            <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
+              {groupName}
+            </Text>
+
+            <View style={styles.groupCards}>
+              {groupPersons.map((person, personIndex) => {
+                if (!person) return null;
+
+                const personKey = `person-${groupName}-${person.id ?? person.uuid ?? personIndex}`;
+
+                return (
+                  <Swipeable
+                    key={personKey}
+                    renderRightActions={() => (
+                      <DeleteAction onPress={() => handleDeletePerson(person.id!)} />
+                    )}
+                    overshootRight={false}
                   >
-                    <IconSymbol
-                      ios_icon_name="bubble.left.and.bubble.right.fill"
-                      android_material_icon_name="chat"
-                      size={48}
-                      color={theme.primary}
+                    <PersonCard
+                      person={person}
+                      onPress={() => handlePersonPress(person)}
                     />
-                  </View>
-                  <Text style={[styles.emptyText, { color: theme.buttonText }]}>
-                    No one added yet
-                  </Text>
-                  <Text
-                    style={[
-                      styles.emptySubtext,
-                      { color: theme.buttonText, opacity: 0.8 },
-                    ]}
-                  >
-                    Tap &apos;Add Person&apos; to start
-                  </Text>
-                </View>
-              ) : !error && !loading ? (
-                // We have people (or search results) → show grouped list
-                <View style={styles.groupedList}>
-                  {visibleGroups.length === 0 ? (
-                    // Search gave no matches
-                    <View style={styles.noResultsContainer}>
-                      <Text
-                        style={[styles.noResultsText, { color: theme.buttonText }]}
-                      >
-                        No matches found
-                      </Text>
-                      <Text
-                        style={[
-                          styles.noResultsSubtext,
-                          { color: theme.buttonText, opacity: 0.8 },
-                        ]}
-                      >
-                        Try a different search term
-                      </Text>
-                    </View>
-                  ) : (
-                    // Render each group (Parents / Partner / Friends)
-                    visibleGroups.map((groupName, groupIndex) => {
-                      const groupPersons =
-                        filteredAndGroupedPersons[groupName] || [];
-
-                      return (
-                        <View
-                          key={`group-${groupName}-${groupIndex}`}
-                          style={styles.group}
-                        >
-                          <Text
-                            style={[
-                              styles.groupHeader,
-                              { color: theme.buttonText },
-                            ]}
-                          >
-                            {groupName}
-                          </Text>
-
-                          <View style={styles.groupCards}>
-                            {groupPersons.map((person, personIndex) => {
-                              if (!person) return null;
-
-                              const personKey = `person-${groupName}-${person.id ?? person.uuid ?? personIndex}`;
-
-                              return (
-                                <Swipeable
-                                  key={personKey}
-                                  renderRightActions={() => (
-                                    <DeleteAction
-                                      onPress={() => handleDeletePerson(person.id!)}
-                                    />
-                                  )}
-                                  overshootRight={false}
-                                >
-                                  <PersonCard
-                                    person={person}
-                                    onPress={() => handlePersonPress(person)}
-                                  />
-                                </Swipeable>
-                              );
-                            })}
-                          </View>
-                        </View>
-                      );
-                    })
-                  )}
-                </View>
-              ) : null}
+                  </Swipeable>
+                );
+              })}
+            </View>
+          </View>
+        );
+      })
+    )}
+  </View>
+) : null}
             </ScrollView>
 
             <SwipeableModal
