@@ -41,10 +41,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from('users')
         .select('*')
         .eq('id', authUserId)
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        console.log('User profile not found, creating one:', error.message);
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching user profile:', error);
+      }
+
+      if (!data) {
+        console.log('User profile not found, creating one');
         // If user doesn't exist, create it
         const { data: authUser } = await supabase.auth.getUser();
         const { data: newUser, error: insertError } = await supabase
@@ -55,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: 'free' 
           }])
           .select()
-          .single();
+          .maybeSingle();
 
         if (insertError) {
           console.error('Error creating user profile:', insertError);
@@ -67,9 +71,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: 'free', 
             created_at: new Date().toISOString() 
           });
-        } else {
+        } else if (newUser) {
           console.log('User profile created:', newUser);
           setUser(newUser);
+        } else {
+          // Fallback if insert returns no data
+          setUser({ 
+            id: authUserId, 
+            email: authUser.user?.email || null,
+            username: null,
+            role: 'free', 
+            created_at: new Date().toISOString() 
+          });
         }
       } else {
         console.log('User profile found:', data);
@@ -99,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session:', session?.user?.email);
+      console.log('Initial session:', session?.user?.email || 'No session');
       setSession(session);
       setCurrentUser(session?.user ?? null);
       if (session?.user) {
@@ -107,11 +120,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setLoading(false);
       }
+    }).catch((error) => {
+      console.error('Error getting initial session:', error);
+      setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('Auth state changed:', _event, session?.user?.email);
+      console.log('Auth state changed:', _event, session?.user?.email || 'No session');
       setSession(session);
       setCurrentUser(session?.user ?? null);
       if (session?.user) {
@@ -142,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error };
       }
 
-      console.log('Signup successful:', data.user?.email);
+      console.log('Signup successful:', data.user?.email || 'No email');
       
       // The user profile will be created automatically by fetchUserProfile
       // when the auth state changes to SIGNED_IN
@@ -167,7 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error };
       }
 
-      console.log('Sign in successful:', data.user?.email);
+      console.log('Sign in successful:', data.user?.email || 'No email');
       return { error: null };
     } catch (error) {
       console.error('Unexpected sign in error:', error);

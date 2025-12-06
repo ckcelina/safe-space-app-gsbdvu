@@ -29,18 +29,12 @@ export default function ChatScreen() {
     relationshipType?: string | string[];
   }>();
 
-  // Normalize route params to plain strings
+  // Normalize route params to plain strings with fallbacks
   const personId = Array.isArray(params.personId) ? params.personId[0] : params.personId || '';
-  const personName = Array.isArray(params.personName) ? params.personName[0] : params.personName || '';
+  const personName = Array.isArray(params.personName) ? params.personName[0] : params.personName || 'Chat';
   const relationshipType = Array.isArray(params.relationshipType)
     ? params.relationshipType[0]
-    : params.relationshipType;
-
-  // Warn if params are missing but don't crash
-  useEffect(() => {
-    if (!personId) console.warn('[Chat] Missing personId param');
-    if (!personName) console.warn('[Chat] Missing personName param');
-  }, [personId, personName]);
+    : params.relationshipType || '';
 
   const { currentUser: authUser, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
@@ -57,13 +51,16 @@ export default function ChatScreen() {
   const isFreeUser = role === 'free';
 
   const scrollToBottom = () => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
   };
 
   // Load messages
   const loadMessages = useCallback(async () => {
     if (!personId) {
       console.warn('[Chat] loadMessages: personId is missing');
+      setLoading(false);
       return;
     }
 
@@ -79,7 +76,7 @@ export default function ChatScreen() {
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.warn('[Chat] loadMessages error', error);
+        console.error('[Chat] loadMessages error', error);
         setError('Failed to load messages');
         return;
       }
@@ -87,9 +84,9 @@ export default function ChatScreen() {
       console.log('[Chat] Messages loaded:', data?.length || 0);
       setMessages(data ?? []);
 
-      setTimeout(scrollToBottom, 100);
+      scrollToBottom();
     } catch (err: any) {
-      console.warn('[Chat] loadMessages unexpected error:', err);
+      console.error('[Chat] loadMessages unexpected error:', err);
       setError('An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -99,12 +96,15 @@ export default function ChatScreen() {
   useEffect(() => {
     if (personId) {
       loadMessages();
+    } else {
+      setLoading(false);
+      setError('Invalid person ID');
     }
   }, [personId, loadMessages]);
 
   useEffect(() => {
     if (messages.length > 0) {
-      setTimeout(scrollToBottom, 100);
+      scrollToBottom();
     }
   }, [messages.length]);
 
@@ -169,7 +169,7 @@ export default function ChatScreen() {
         return updatedMessages;
       });
 
-      setTimeout(scrollToBottom, 100);
+      scrollToBottom();
 
       // 2. Call AI Edge Function
       console.log('[Chat] Calling AI Edge Function...');
@@ -237,7 +237,7 @@ export default function ChatScreen() {
       console.log('[Chat] AI message inserted:', aiInserted.id);
 
       setMessages((prev) => [...prev, aiInserted]);
-      setTimeout(scrollToBottom, 100);
+      scrollToBottom();
 
       setIsTyping(false);
       setIsSending(false);
@@ -254,7 +254,7 @@ export default function ChatScreen() {
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
   return (
-    <FullScreenSwipeHandler enabled={!isTyping}>
+    <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoidingView
         style={[styles.container, { backgroundColor: theme.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -274,8 +274,8 @@ export default function ChatScreen() {
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <View style={styles.headerTitleRow}>
-              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-                {personName || 'Chat'}
+              <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                {personName}
               </Text>
               {isPremium && (
                 <View style={styles.premiumBadgeSmall}>
@@ -284,7 +284,7 @@ export default function ChatScreen() {
               )}
             </View>
             {relationshipType && (
-              <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+              <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
                 {relationshipType}
               </Text>
             )}
@@ -356,7 +356,7 @@ export default function ChatScreen() {
                 Start the conversation
               </Text>
               <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-                Share your thoughts and feelings about {personName || 'this person'}
+                Share your thoughts and feelings about {personName}
               </Text>
               {error && (
                 <TouchableOpacity style={{ marginTop: 12 }} onPress={handleRetry}>
@@ -367,7 +367,7 @@ export default function ChatScreen() {
               )}
             </View>
           ) : (
-            <>
+            <React.Fragment>
               {messages.map((message) => (
                 <ChatBubble
                   key={message.id}
@@ -377,7 +377,7 @@ export default function ChatScreen() {
                   animate={false}
                 />
               ))}
-            </>
+            </React.Fragment>
           )}
 
           {isTyping && <TypingIndicator />}
@@ -450,14 +450,17 @@ const styles = StyleSheet.create({
   headerCenter: {
     flex: 1,
     alignItems: 'center',
+    paddingHorizontal: 8,
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    maxWidth: '100%',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
+    flexShrink: 1,
   },
   premiumBadgeSmall: {
     marginLeft: 6,

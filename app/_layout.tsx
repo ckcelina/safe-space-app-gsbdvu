@@ -18,6 +18,7 @@ import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider as AppThemeProvider } from "@/contexts/ThemeContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -80,7 +81,7 @@ export default function RootLayout() {
   };
 
   return (
-    <>
+    <ErrorBoundary>
       <StatusBar style="dark" animated translucent={false} />
       <ThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
@@ -181,6 +182,33 @@ export default function RootLayout() {
                       animation: 'slide_from_right',
                     }}
                   />
+                  <Stack.Screen
+                    name="legal/privacy-policy"
+                    options={{
+                      headerShown: false,
+                      gestureEnabled: true,
+                      fullScreenGestureEnabled: true,
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="legal/terms-of-service"
+                    options={{
+                      headerShown: false,
+                      gestureEnabled: true,
+                      fullScreenGestureEnabled: true,
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="legal/terms-summary"
+                    options={{
+                      headerShown: false,
+                      gestureEnabled: true,
+                      fullScreenGestureEnabled: true,
+                      animation: 'slide_from_right',
+                    }}
+                  />
                 </Stack>
                 <SystemBars style={"auto"} />
               </GestureHandlerRootView>
@@ -188,6 +216,6 @@ export default function RootLayout() {
           </AuthProvider>
         </AppThemeProvider>
       </ThemeProvider>
-    </>
+    </ErrorBoundary>
   );
 }
