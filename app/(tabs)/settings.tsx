@@ -219,7 +219,7 @@ export default function SettingsScreen() {
                 activeOpacity={0.7}
               >
                 <IconSymbol
-                  ios_icon_name="info.circle.fill"
+                  ios_icon_name="info.circle"
                   android_material_icon_name="info"
                   size={24}
                   color={theme.buttonText}
@@ -355,7 +355,7 @@ export default function SettingsScreen() {
                   </View>
                   <IconSymbol
                     ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron_right"
+                    android_material_icon_name="arrow_forward"
                     size={20}
                     color={theme.textSecondary}
                   />
@@ -376,7 +376,7 @@ export default function SettingsScreen() {
                   <View style={styles.rowLeft}>
                     <IconSymbol
                       ios_icon_name="lock.shield.fill"
-                      android_material_icon_name="privacy_tip"
+                      android_material_icon_name="shield"
                       size={20}
                       color={theme.primary}
                     />
@@ -386,7 +386,7 @@ export default function SettingsScreen() {
                   </View>
                   <IconSymbol
                     ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron_right"
+                    android_material_icon_name="arrow_forward"
                     size={20}
                     color={theme.textSecondary}
                   />
@@ -410,7 +410,7 @@ export default function SettingsScreen() {
                   </View>
                   <IconSymbol
                     ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron_right"
+                    android_material_icon_name="arrow_forward"
                     size={20}
                     color={theme.textSecondary}
                   />
@@ -423,8 +423,8 @@ export default function SettingsScreen() {
                 >
                   <View style={styles.rowLeft}>
                     <IconSymbol
-                      ios_icon_name="list.bullet.rectangle"
-                      android_material_icon_name="list"
+                      ios_icon_name="doc.plaintext.fill"
+                      android_material_icon_name="article"
                       size={20}
                       color={theme.primary}
                     />
@@ -434,7 +434,7 @@ export default function SettingsScreen() {
                   </View>
                   <IconSymbol
                     ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron_right"
+                    android_material_icon_name="arrow_forward"
                     size={20}
                     color={theme.textSecondary}
                   />

@@ -1,3 +1,4 @@
+
 // This file is a fallback for using MaterialIcons on Android and web.
 
 import React from "react";
@@ -23,17 +24,20 @@ export function IconSymbol({
   style,
 }: {
   ios_icon_name?: string | undefined;
-  android_material_icon_name: keyof typeof MaterialIcons.glyphMap;
+  android_material_icon_name?: keyof typeof MaterialIcons.glyphMap;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<ViewStyle>;
   weight?: SymbolWeight;
 }) {
+  // Fallback to default icon if no icon name is provided
+  const iconName = android_material_icon_name || "radio_button_checked";
+
   return (
     <MaterialIcons
       color={color}
       size={size}
-      name={android_material_icon_name}
+      name={iconName}
       style={style as StyleProp<TextStyle>}
     />
   );

@@ -44,7 +44,7 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
         {/* Chevron Right Icon */}
         <IconSymbol
           ios_icon_name="chevron.right"
-          android_material_icon_name="chevron_right"
+          android_material_icon_name="arrow_forward"
           size={20}
           color={theme.textSecondary}
         />
