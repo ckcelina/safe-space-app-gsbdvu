@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,6 +39,16 @@ export default function HomeScreen() {
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Use ref to track if component is mounted
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const fetchPersonsWithLastMessage = useCallback(async () => {
     if (!userId) {
       console.log('[Home] No userId available');
@@ -58,15 +68,19 @@ export default function HomeScreen() {
 
       if (personsError) {
         console.error('[Home] Error fetching persons:', personsError);
-        setError('Failed to load your people. Please try again.');
-        showErrorToast('Failed to load your people');
+        if (isMountedRef.current) {
+          setError('Failed to load your people. Please try again.');
+          showErrorToast('Failed to load your people');
+        }
         return;
       }
 
       console.log('[Home] Persons loaded:', personsData?.length || 0);
 
       if (!personsData || personsData.length === 0) {
-        setPersons([]);
+        if (isMountedRef.current) {
+          setPersons([]);
+        }
         return;
       }
 
@@ -98,13 +112,19 @@ export default function HomeScreen() {
         })
       );
 
-      setPersons(personsWithMessages);
+      if (isMountedRef.current) {
+        setPersons(personsWithMessages);
+      }
     } catch (error: any) {
       console.error('[Home] Unexpected error fetching persons:', error);
-      setError('An unexpected error occurred. Please try again.');
-      showErrorToast('Failed to load data');
+      if (isMountedRef.current) {
+        setError('An unexpected error occurred. Please try again.');
+        showErrorToast('Failed to load data');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [userId]);
 
@@ -116,7 +136,7 @@ export default function HomeScreen() {
     }
   }, [userId, fetchPersonsWithLastMessage]);
 
-  const categorizeRelationship = (relationshipType: string | null | undefined): string => {
+  const categorizeRelationship = useCallback((relationshipType: string | null | undefined): string => {
     if (!relationshipType) return 'Friends';
     
     const type = relationshipType.toLowerCase().trim();
@@ -130,7 +150,7 @@ export default function HomeScreen() {
     }
     
     return 'Friends';
-  };
+  }, []);
 
   const filteredAndGroupedPersons = useMemo(() => {
     const filtered = persons.filter((person) => {
@@ -154,7 +174,7 @@ export default function HomeScreen() {
     });
 
     return grouped;
-  }, [persons, searchQuery]);
+  }, [persons, searchQuery, categorizeRelationship]);
 
   const groupOrder = ['Parents', 'Partner', 'Friends'];
   const visibleGroups = useMemo(() => {
@@ -164,7 +184,7 @@ export default function HomeScreen() {
     });
   }, [filteredAndGroupedPersons]);
 
-  const handleAddPerson = () => {
+  const handleAddPerson = useCallback(() => {
     console.log('[Home] handleAddPerson called, isPremium:', isPremium, 'persons.length:', persons.length);
     
     if (!isPremium && persons.length >= 2) {
@@ -178,21 +198,21 @@ export default function HomeScreen() {
     setName('');
     setRelationshipType('');
     setNameError('');
-  };
+  }, [isPremium, persons.length]);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     console.log('[Home] Closing Add Person modal');
     setShowAddModal(false);
     setName('');
     setRelationshipType('');
     setNameError('');
-  };
+  }, []);
 
-  const handleClosePremiumModal = () => {
+  const handleClosePremiumModal = useCallback(() => {
     setShowPremiumModal(false);
-  };
+  }, []);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     console.log('[Home] handleSave called with name:', name, 'relationshipType:', relationshipType);
     
     if (!name.trim()) {
@@ -228,32 +248,41 @@ export default function HomeScreen() {
 
       if (error) {
         console.error('[Home] Error creating person:', error);
-        showErrorToast('Failed to add person. Please try again.');
-        setSaving(false);
+        if (isMountedRef.current) {
+          showErrorToast('Failed to add person. Please try again.');
+          setSaving(false);
+        }
         return;
       }
 
       console.log('[Home] Person created successfully:', data);
-      showSuccessToast('Person added successfully!');
       
-      setShowAddModal(false);
-      setName('');
-      setRelationshipType('');
-      setNameError('');
-      
-      console.log('[Home] Refreshing persons list');
-      await fetchPersonsWithLastMessage();
+      if (isMountedRef.current) {
+        showSuccessToast('Person added successfully!');
+        
+        setShowAddModal(false);
+        setName('');
+        setRelationshipType('');
+        setNameError('');
+        
+        console.log('[Home] Refreshing persons list');
+        await fetchPersonsWithLastMessage();
+      }
       
     } catch (error: any) {
       console.error('[Home] Unexpected error creating person:', error);
-      showErrorToast('An unexpected error occurred');
+      if (isMountedRef.current) {
+        showErrorToast('An unexpected error occurred');
+      }
     } finally {
-      setSaving(false);
-      console.log('[Home] Save process complete');
+      if (isMountedRef.current) {
+        setSaving(false);
+        console.log('[Home] Save process complete');
+      }
     }
-  };
+  }, [name, relationshipType, userId, fetchPersonsWithLastMessage]);
 
-  const handlePersonPress = (person: Person) => {
+  const handlePersonPress = useCallback((person: Person) => {
     if (!person.id) {
       console.error('[Home] Cannot navigate to chat - person.id is missing');
       showErrorToast('Invalid person data');
@@ -262,21 +291,30 @@ export default function HomeScreen() {
 
     console.log('[Home] Navigating to chat for person:', person.name, 'id:', person.id);
     
-    router.push({
-      pathname: '/(tabs)/(home)/chat',
-      params: { 
-        personId: person.id, 
-        personName: person.name || 'Chat',
-        relationshipType: person.relationship_type || ''
-      },
-    });
-  };
+    try {
+      router.push({
+        pathname: '/(tabs)/(home)/chat',
+        params: { 
+          personId: person.id, 
+          personName: person.name || 'Chat',
+          relationshipType: person.relationship_type || ''
+        },
+      });
+    } catch (error) {
+      console.error('[Home] Navigation error:', error);
+      showErrorToast('Failed to open chat');
+    }
+  }, []);
 
-  const handleSettingsPress = () => {
-    router.push('/(tabs)/settings');
-  };
+  const handleSettingsPress = useCallback(() => {
+    try {
+      router.push('/(tabs)/settings');
+    } catch (error) {
+      console.error('[Home] Settings navigation error:', error);
+    }
+  }, []);
 
-  const getPlanInfo = () => {
+  const getPlanInfo = useCallback(() => {
     if (role === 'premium') {
       return {
         text: 'Plan: Premium',
@@ -305,7 +343,7 @@ export default function HomeScreen() {
         showBadge: false,
       };
     }
-  };
+  }, [role, theme.textSecondary]);
 
   const planInfo = getPlanInfo();
 
@@ -512,6 +550,7 @@ export default function HomeScreen() {
               <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.modalKeyboardView}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
               >
                 <View style={styles.modalHeader}>
                   <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>

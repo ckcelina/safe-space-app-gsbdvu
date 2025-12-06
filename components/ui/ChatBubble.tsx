@@ -16,11 +16,12 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
   const { theme } = useThemeContext();
   const fadeAnim = useRef(new Animated.Value(animate ? 0 : 1)).current;
   const slideAnim = useRef(new Animated.Value(animate ? 15 : 0)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     if (animate) {
       // Subtle fade-in + slide-up animation on appear
-      Animated.parallel([
+      const animation = Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 400,
@@ -31,26 +32,40 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
           duration: 400,
           useNativeDriver: true,
         }),
-      ]).start();
+      ]);
+      
+      animationRef.current = animation;
+      animation.start();
     }
+
+    return () => {
+      if (animationRef.current) {
+        animationRef.current.stop();
+      }
+    };
   }, [fadeAnim, slideAnim, animate]);
 
   const formatTimestamp = (ts?: string) => {
     if (!ts) return '';
     
-    const date = new Date(ts);
-    const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInMinutes = Math.floor(diffInMs / 60000);
-    const diffInHours = Math.floor(diffInMs / 3600000);
-    const diffInDays = Math.floor(diffInMs / 86400000);
+    try {
+      const date = new Date(ts);
+      const now = new Date();
+      const diffInMs = now.getTime() - date.getTime();
+      const diffInMinutes = Math.floor(diffInMs / 60000);
+      const diffInHours = Math.floor(diffInMs / 3600000);
+      const diffInDays = Math.floor(diffInMs / 86400000);
 
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    if (diffInDays < 7) return `${diffInDays}d ago`;
+      if (diffInMinutes < 1) return 'Just now';
+      if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+      if (diffInHours < 24) return `${diffInHours}h ago`;
+      if (diffInDays < 7) return `${diffInDays}d ago`;
 
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch (error) {
+      console.error('[ChatBubble] Error formatting timestamp:', error);
+      return '';
+    }
   };
 
   return (

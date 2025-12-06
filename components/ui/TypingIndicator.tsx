@@ -9,6 +9,7 @@ export function TypingIndicator() {
   const dot1Anim = useRef(new Animated.Value(0)).current;
   const dot2Anim = useRef(new Animated.Value(0)).current;
   const dot3Anim = useRef(new Animated.Value(0)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     const createDotAnimation = (animValue: Animated.Value, delay: number) => {
@@ -35,9 +36,17 @@ export function TypingIndicator() {
       createDotAnimation(dot3Anim, 300),
     ]);
 
+    animationRef.current = animation;
     animation.start();
 
-    return () => animation.stop();
+    return () => {
+      if (animationRef.current) {
+        animationRef.current.stop();
+      }
+      dot1Anim.setValue(0);
+      dot2Anim.setValue(0);
+      dot3Anim.setValue(0);
+    };
   }, [dot1Anim, dot2Anim, dot3Anim]);
 
   return (

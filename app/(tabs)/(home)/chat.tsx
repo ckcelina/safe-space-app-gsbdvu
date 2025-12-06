@@ -57,27 +57,41 @@ export default function ChatScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const scrollViewRef = useRef<ScrollView>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const isFreeUser = role === 'free';
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
+      if (isMountedRef.current && scrollViewRef.current) {
+        scrollViewRef.current.scrollToEnd({ animated: true });
+      }
     }, 100);
-  };
+  }, []);
 
   const loadMessages = useCallback(async () => {
     if (!personId) {
       console.warn('[Chat] loadMessages: personId is missing');
-      setLoading(false);
-      setError('Invalid person ID');
+      if (isMountedRef.current) {
+        setLoading(false);
+        setError('Invalid person ID');
+      }
       return;
     }
 
     if (!authUser?.id) {
       console.warn('[Chat] loadMessages: No user ID available');
-      setLoading(false);
-      setError('You must be logged in to view messages');
+      if (isMountedRef.current) {
+        setLoading(false);
+        setError('You must be logged in to view messages');
+      }
       return;
     }
 
@@ -95,21 +109,28 @@ export default function ChatScreen() {
 
       if (error) {
         console.error('[Chat] loadMessages error', error);
-        setError('Failed to load messages');
+        if (isMountedRef.current) {
+          setError('Failed to load messages');
+        }
         return;
       }
 
       console.log('[Chat] Messages loaded:', data?.length || 0);
-      setMessages(data ?? []);
-
-      scrollToBottom();
+      if (isMountedRef.current) {
+        setMessages(data ?? []);
+        scrollToBottom();
+      }
     } catch (err: any) {
       console.error('[Chat] loadMessages unexpected error:', err);
-      setError('An unexpected error occurred');
+      if (isMountedRef.current) {
+        setError('An unexpected error occurred');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  }, [personId, authUser?.id]);
+  }, [personId, authUser?.id, scrollToBottom]);
 
   useEffect(() => {
     if (personId && authUser?.id) {
@@ -128,11 +149,11 @@ export default function ChatScreen() {
     if (messages.length > 0) {
       scrollToBottom();
     }
-  }, [messages.length]);
+  }, [messages.length, scrollToBottom]);
 
-  const handleRetry = () => {
+  const handleRetry = useCallback(() => {
     loadMessages();
-  };
+  }, [loadMessages]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -174,24 +195,30 @@ export default function ChatScreen() {
 
       if (insertError || !insertedMessage) {
         console.error('[Chat] Insert user message error:', insertError);
-        setInputText(text);
-        setError(insertError?.message || 'Failed to send message. Please try again.');
-        setIsSending(false);
+        if (isMountedRef.current) {
+          setInputText(text);
+          setError(insertError?.message || 'Failed to send message. Please try again.');
+          setIsSending(false);
+        }
         return;
       }
 
       console.log('[Chat] User message inserted:', insertedMessage.id);
 
       let updatedMessages: Message[] = [];
-      setMessages((prev) => {
-        updatedMessages = [...prev, insertedMessage];
-        return updatedMessages;
-      });
+      if (isMountedRef.current) {
+        setMessages((prev) => {
+          updatedMessages = [...prev, insertedMessage];
+          return updatedMessages;
+        });
+      }
 
       scrollToBottom();
 
       console.log('[Chat] Calling AI Edge Function...');
-      setIsTyping(true);
+      if (isMountedRef.current) {
+        setIsTyping(true);
+      }
 
       const recentMessages = updatedMessages
         .slice(-10)
@@ -215,12 +242,14 @@ export default function ChatScreen() {
 
       if (fnError) {
         console.error('[Chat] AI function error:', fnError);
-        setIsTyping(false);
-        setIsSending(false);
-        setError(
-          (fnError as any)?.message ||
-            'Failed to generate AI reply. Please try again.'
-        );
+        if (isMountedRef.current) {
+          setIsTyping(false);
+          setIsSending(false);
+          setError(
+            (fnError as any)?.message ||
+              'Failed to generate AI reply. Please try again.'
+          );
+        }
         return;
       }
 
@@ -245,30 +274,44 @@ export default function ChatScreen() {
 
       if (aiInsertError || !aiInserted) {
         console.error('[Chat] Insert AI message error:', aiInsertError);
-        setIsTyping(false);
-        setIsSending(false);
-        setError(aiInsertError?.message || 'Failed to save AI reply.');
+        if (isMountedRef.current) {
+          setIsTyping(false);
+          setIsSending(false);
+          setError(aiInsertError?.message || 'Failed to save AI reply.');
+        }
         return;
       }
 
       console.log('[Chat] AI message inserted:', aiInserted.id);
 
-      setMessages((prev) => [...prev, aiInserted]);
-      scrollToBottom();
-
-      setIsTyping(false);
-      setIsSending(false);
+      if (isMountedRef.current) {
+        setMessages((prev) => [...prev, aiInserted]);
+        scrollToBottom();
+        setIsTyping(false);
+        setIsSending(false);
+      }
       console.log('[Chat] sendMessage: Complete');
     } catch (err: any) {
       console.error('[Chat] sendMessage unexpected error:', err);
-      setInputText(text);
-      setError(err?.message || 'An unexpected error occurred');
-      setIsTyping(false);
-      setIsSending(false);
+      if (isMountedRef.current) {
+        setInputText(text);
+        setError(err?.message || 'An unexpected error occurred');
+        setIsTyping(false);
+        setIsSending(false);
+      }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, scrollToBottom]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
+
+  const handleBackPress = useCallback(() => {
+    try {
+      router.back();
+    } catch (error) {
+      console.error('[Chat] Back navigation error:', error);
+      router.replace('/(tabs)/(home)');
+    }
+  }, []);
 
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
@@ -280,7 +323,7 @@ export default function ChatScreen() {
         <StatusBarGradient />
 
         <View style={[styles.header, { backgroundColor: theme.card }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
             <IconSymbol
               ios_icon_name="chevron.left"
               android_material_icon_name="arrow_back"

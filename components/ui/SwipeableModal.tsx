@@ -1,5 +1,5 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Modal,
@@ -32,6 +32,14 @@ export function SwipeableModal({
   const { theme } = useThemeContext();
   const translateY = useRef(new Animated.Value(0)).current;
   const lastGestureDy = useRef(0);
+
+  // Reset animation when modal closes
+  useEffect(() => {
+    if (!visible) {
+      translateY.setValue(0);
+      lastGestureDy.current = 0;
+    }
+  }, [visible, translateY]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -67,6 +75,15 @@ export function SwipeableModal({
           }).start();
         }
       },
+      onPanResponderTerminate: () => {
+        // Reset on termination
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 8,
+        }).start();
+      },
     })
   ).current;
 
@@ -76,6 +93,7 @@ export function SwipeableModal({
       animationType={animationType}
       transparent={true}
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <TouchableOpacity
