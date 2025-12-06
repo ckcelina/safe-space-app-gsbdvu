@@ -37,45 +37,78 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUserProfile = async (authUserId: string) => {
     try {
       console.log('Fetching user profile for:', authUserId);
-      const { data, error } = await supabase
+      
+      // Step 1: Check if user profile already exists
+      const { data: existingUser, error: selectError } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUserId)
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user profile:', error);
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.error('Error checking existing user profile:', selectError);
       }
 
-      if (!data) {
-        console.log('User profile not found, creating one');
-        // If user doesn't exist, create it
-        const { data: authUser } = await supabase.auth.getUser();
-        const { data: newUser, error: insertError } = await supabase
-          .from('users')
-          .insert([{ 
-            id: authUserId, 
-            email: authUser.user?.email || null,
-            role: 'free' 
-          }])
-          .select()
-          .maybeSingle();
+      // Step 2: If user exists, set it and stop
+      if (existingUser) {
+        console.log('User profile found:', existingUser);
+        setUser(existingUser);
+        return;
+      }
 
-        if (insertError) {
-          console.error('Error creating user profile:', insertError);
-          // Don't throw - allow user to continue even if profile creation fails
-          setUser({ 
-            id: authUserId, 
-            email: authUser.user?.email || null,
-            username: null,
-            role: 'free', 
-            created_at: new Date().toISOString() 
-          });
-        } else if (newUser) {
-          console.log('User profile created:', newUser);
-          setUser(newUser);
+      // Step 3: User doesn't exist, create one
+      console.log('User profile not found, creating one');
+      const { data: authUser } = await supabase.auth.getUser();
+      
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .insert([{ 
+          id: authUserId, 
+          email: authUser.user?.email || null,
+          role: 'free' 
+        }])
+        .select()
+        .maybeSingle();
+
+      // Step 4: Handle duplicate key error gracefully
+      if (insertError) {
+        if (insertError.code === '23505') {
+          // Duplicate key error - this is non-fatal
+          console.warn('Duplicate user profile detected, fetching existing profile.');
+          
+          // Re-select the existing user profile
+          const { data: retryUser, error: retrySelectError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', authUserId)
+            .maybeSingle();
+
+          if (retrySelectError) {
+            console.error('Error fetching existing user profile after duplicate error:', retrySelectError);
+            // Set a fallback user object
+            setUser({ 
+              id: authUserId, 
+              email: authUser.user?.email || null,
+              username: null,
+              role: 'free', 
+              created_at: new Date().toISOString() 
+            });
+          } else if (retryUser) {
+            console.log('Successfully fetched existing user profile:', retryUser);
+            setUser(retryUser);
+          } else {
+            console.warn('No user found after duplicate error, using fallback');
+            setUser({ 
+              id: authUserId, 
+              email: authUser.user?.email || null,
+              username: null,
+              role: 'free', 
+              created_at: new Date().toISOString() 
+            });
+          }
         } else {
-          // Fallback if insert returns no data
+          // Real error - log it but don't block the user
+          console.error('Error creating user profile:', insertError);
           setUser({ 
             id: authUserId, 
             email: authUser.user?.email || null,
@@ -84,9 +117,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             created_at: new Date().toISOString() 
           });
         }
+      } else if (newUser) {
+        console.log('User profile created:', newUser);
+        setUser(newUser);
       } else {
-        console.log('User profile found:', data);
-        setUser(data);
+        // Fallback if insert returns no data
+        setUser({ 
+          id: authUserId, 
+          email: authUser.user?.email || null,
+          username: null,
+          role: 'free', 
+          created_at: new Date().toISOString() 
+        });
       }
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
