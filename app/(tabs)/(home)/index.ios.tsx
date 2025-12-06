@@ -197,47 +197,67 @@ export default function HomeScreen() {
   };
 
   const handleSave = async () => {
+    console.log('[handleSave] Called with name:', name, 'relationshipType:', relationshipType);
+    
+    // Validate name
     if (!name.trim()) {
+      console.log('[handleSave] Name validation failed');
       setNameError('Name is required');
       return;
     }
 
+    // Validate userId
     if (!userId) {
+      console.error('[handleSave] No userId available');
       showErrorToast('You must be logged in to add a person');
       return;
     }
 
+    console.log('[handleSave] Starting save process for userId:', userId);
     setNameError('');
     setSaving(true);
 
     try {
-      console.log('Creating person:', name, relationshipType);
+      const personData = {
+        user_id: userId,
+        name: name.trim(),
+        relationship_type: relationshipType.trim() || null,
+      };
+      
+      console.log('[handleSave] Inserting person data:', personData);
+      
       const { data, error } = await supabase
         .from('persons')
-        .insert([
-          {
-            user_id: userId,
-            name: name.trim(),
-            relationship_type: relationshipType.trim() || null,
-          },
-        ])
+        .insert([personData])
         .select()
         .single();
 
       if (error) {
-        console.error('Error creating person:', error);
+        console.error('[handleSave] Error creating person:', error);
         showErrorToast('Failed to add person. Please try again.');
-      } else {
-        console.log('Person created:', data);
-        showSuccessToast('Person added successfully!');
-        handleCloseModal();
-        await fetchPersonsWithLastMessage();
+        setSaving(false);
+        return;
       }
+
+      console.log('[handleSave] Person created successfully:', data);
+      showSuccessToast('Person added successfully!');
+      
+      // Close modal and clear form
+      setShowAddModal(false);
+      setName('');
+      setRelationshipType('');
+      setNameError('');
+      
+      // Refresh the list
+      console.log('[handleSave] Refreshing persons list');
+      await fetchPersonsWithLastMessage();
+      
     } catch (error: any) {
-      console.error('Unexpected error creating person:', error);
+      console.error('[handleSave] Unexpected error creating person:', error);
       showErrorToast('An unexpected error occurred');
     } finally {
       setSaving(false);
+      console.log('[handleSave] Save process complete');
     }
   };
 
@@ -588,7 +608,7 @@ export default function HomeScreen() {
                       style={styles.primaryButtonGradient}
                     >
                       <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
-                        Save
+                        {saving ? 'Saving...' : 'Save'}
                       </Text>
                     </LinearGradient>
                   </TouchableOpacity>
