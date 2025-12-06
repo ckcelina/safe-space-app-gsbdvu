@@ -203,8 +203,9 @@ export default function SettingsScreen() {
         <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
-            {/* Header with Info Icon */}
+            {/* Header with Info Icon on the RIGHT */}
             <View style={styles.topHeader}>
+              <View style={styles.headerSpacer} />
               <TouchableOpacity 
                 onPress={handleInfoPress} 
                 style={styles.infoButton}
@@ -217,7 +218,6 @@ export default function SettingsScreen() {
                   color={theme.buttonText}
                 />
               </TouchableOpacity>
-              <View style={styles.headerSpacer} />
             </View>
 
             <ScrollView
@@ -416,8 +416,8 @@ export default function SettingsScreen() {
                 >
                   <View style={styles.rowLeft}>
                     <IconSymbol
-                      ios_icon_name="doc.plaintext.fill"
-                      android_material_icon_name="article"
+                      ios_icon_name="list.bullet.rectangle"
+                      android_material_icon_name="list"
                       size={20}
                       color={theme.primary}
                     />
@@ -494,11 +494,11 @@ export default function SettingsScreen() {
             </View>
 
             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-              About Safe Space
+              Settings
             </Text>
 
             <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-              Safe Space is an AI-assisted emotional support app, not a substitute for professional help or emergency services.
+              Here you can update your theme, view your plan, and manage your account.
             </Text>
 
             <TouchableOpacity
