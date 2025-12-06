@@ -466,28 +466,26 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                   ) : (
-                    <React.Fragment>
-                      {visibleGroups.map((groupName) => {
-                        const groupPersons = filteredAndGroupedPersons[groupName];
-                        
-                        return (
-                          <View key={groupName} style={styles.group}>
-                            <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
-                              {groupName}
-                            </Text>
-                            <View style={styles.groupCards}>
-                              {groupPersons.map((person) => (
-                                <PersonCard
-                                  key={person.id}
-                                  person={person}
-                                  onPress={() => handlePersonPress(person)}
-                                />
-                              ))}
-                            </View>
+                    visibleGroups.map((groupName) => {
+                      const groupPersons = filteredAndGroupedPersons[groupName];
+                      
+                      return (
+                        <View key={groupName} style={styles.group}>
+                          <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
+                            {groupName}
+                          </Text>
+                          <View style={styles.groupCards}>
+                            {groupPersons.map((person) => (
+                              <PersonCard
+                                key={person.id}
+                                person={person}
+                                onPress={() => handlePersonPress(person)}
+                              />
+                            ))}
                           </View>
-                        );
-                      })}
-                    </React.Fragment>
+                        </View>
+                      );
+                    })
                   )}
                 </View>
               ) : null}
