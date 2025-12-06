@@ -24,46 +24,43 @@ import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 
 export default function ChatScreen() {
   const params = useLocalSearchParams<{
-    personId: string;
-    personName: string;
-    relationshipType?: string;
+    personId?: string | string[];
+    personName?: string | string[];
+    relationshipType?: string | string[];
   }>();
-  
-  const personId = params.personId;
-  const personName = params.personName;
-  const relationshipType = params.relationshipType;
+
+  // Normalize route params to plain strings
+  const personId = Array.isArray(params.personId) ? params.personId[0] : params.personId || '';
+  const personName = Array.isArray(params.personName) ? params.personName[0] : params.personName || '';
+  const relationshipType = Array.isArray(params.relationshipType)
+    ? params.relationshipType[0]
+    : params.relationshipType;
 
   // Warn if params are missing but don't crash
   useEffect(() => {
-    if (!personId) {
-      console.warn('[Chat] Missing personId param');
-    }
-    if (!personName) {
-      console.warn('[Chat] Missing personName param');
-    }
+    if (!personId) console.warn('[Chat] Missing personId param');
+    if (!personName) console.warn('[Chat] Missing personName param');
   }, [personId, personName]);
 
   const { currentUser: authUser, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
-  
-  // Local state as specified
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Determine if user is free
   const isFreeUser = role === 'free';
 
   const scrollToBottom = () => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   };
 
-  // Load messages on mount
+  // Load messages
   const loadMessages = useCallback(async () => {
     if (!personId) {
       console.warn('[Chat] loadMessages: personId is missing');
@@ -74,7 +71,7 @@ export default function ChatScreen() {
       setLoading(true);
       setError(null);
       console.log('[Chat] Loading messages for person:', personId);
-      
+
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -89,9 +86,8 @@ export default function ChatScreen() {
 
       console.log('[Chat] Messages loaded:', data?.length || 0);
       setMessages(data ?? []);
-      
-      // Scroll to bottom after loading messages
-      setTimeout(() => scrollToBottom(), 100);
+
+      setTimeout(scrollToBottom, 100);
     } catch (err: any) {
       console.warn('[Chat] loadMessages unexpected error:', err);
       setError('An unexpected error occurred');
@@ -100,17 +96,15 @@ export default function ChatScreen() {
     }
   }, [personId]);
 
-  // Load messages on mount and when personId changes
   useEffect(() => {
     if (personId) {
       loadMessages();
     }
   }, [personId, loadMessages]);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (messages.length > 0) {
-      setTimeout(() => scrollToBottom(), 100);
+      setTimeout(scrollToBottom, 100);
     }
   }, [messages.length]);
 
@@ -118,13 +112,16 @@ export default function ChatScreen() {
     loadMessages();
   };
 
-  // Send message handler - UNIFIED FUNCTION
-  async function sendMessage() {
+  // Send message
+  const sendMessage = useCallback(async () => {
     const text = inputText.trim();
-    
-    // Validation
+
     if (!text || isSending || !personId) {
-      console.log('[Chat] sendMessage: validation failed', { text: !!text, isSending, personId });
+      console.log('[Chat] sendMessage: validation failed', {
+        hasText: !!text,
+        isSending,
+        personId,
+      });
       return;
     }
 
@@ -141,7 +138,7 @@ export default function ChatScreen() {
     setInputText('');
 
     try {
-      // 1. Insert USER message into Supabase with ALL required fields
+      // 1. Insert user message
       console.log('[Chat] Inserting user message...');
       const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
@@ -150,59 +147,72 @@ export default function ChatScreen() {
           person_id: personId,
           role: 'user',
           content: text,
-          created_at: new Date().toISOString(), // Explicitly include timestamp
+          created_at: new Date().toISOString(),
         })
         .select('*')
         .single();
 
-      if (insertError) {
-        console.error('[Chat] Insert user message error:', insertError.message, insertError);
-        setInputText(text); // Restore input
-        setError(insertError.message || 'Failed to send message. Please try again.');
+      if (insertError || !insertedMessage) {
+        console.error('[Chat] Insert user message error:', insertError);
+        setInputText(text);
+        setError(insertError?.message || 'Failed to send message. Please try again.');
         setIsSending(false);
         return;
       }
 
       console.log('[Chat] User message inserted:', insertedMessage.id);
-      
-      // Show message immediately in UI
-      setMessages(prev => [...prev, insertedMessage]);
-      setTimeout(() => scrollToBottom(), 100);
 
-      // 2. Call AI Edge Function with correct payload format
+      // Update messages immediately and build recent history from that
+      let updatedMessages: Message[] = [];
+      setMessages((prev) => {
+        updatedMessages = [...prev, insertedMessage];
+        return updatedMessages;
+      });
+
+      setTimeout(scrollToBottom, 100);
+
+      // 2. Call AI Edge Function
       console.log('[Chat] Calling AI Edge Function...');
       setIsTyping(true);
 
-      // Build message history for AI (last 10 messages for context)
-      const recentMessages = [...messages, insertedMessage].slice(-10).map(msg => ({
-        sender: msg.role === 'user' ? 'user' as const : 'ai' as const,
-        content: msg.content,
-        createdAt: msg.created_at,
-      }));
+      const recentMessages = updatedMessages
+        .slice(-10)
+        .map((msg) => ({
+          sender: msg.role === 'user' ? ('user' as const) : ('ai' as const),
+          content: msg.content,
+          createdAt: msg.created_at,
+        }));
 
       const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
         'generate-ai-response',
         {
           body: {
-            personId: personId,
+            personId,
+            personName,
+            personRelationshipType: relationshipType || 'Unknown',
             messages: recentMessages,
           },
         }
       );
 
       if (fnError) {
-        console.error('[Chat] AI function error:', fnError.message, fnError);
+        console.error('[Chat] AI function error:', fnError);
         setIsTyping(false);
         setIsSending(false);
-        setError(fnError.message || 'Failed to generate AI reply. Please try again.');
+        setError(
+          (fnError as any)?.message ||
+            'Failed to generate AI reply. Please try again.'
+        );
         return;
       }
 
-      console.log('[Chat] AI response received');
-      
-      const replyText = aiResponse?.reply || "I'm here with you. Tell me more about how you're feeling.";
+      console.log('[Chat] AI response received:', aiResponse);
 
-      // 3. Insert AI message into Supabase
+      const replyText =
+        aiResponse?.reply ||
+        "I'm here with you. Tell me more about how you're feeling.";
+
+      // 3. Insert AI message
       console.log('[Chat] Inserting AI message...');
       const { data: aiInserted, error: aiInsertError } = await supabase
         .from('messages')
@@ -211,40 +221,36 @@ export default function ChatScreen() {
           person_id: personId,
           role: 'assistant',
           content: replyText,
-          created_at: new Date().toISOString(), // Explicitly include timestamp
+          created_at: new Date().toISOString(),
         })
         .select('*')
         .single();
 
-      if (aiInsertError) {
-        console.error('[Chat] Insert AI message error:', aiInsertError.message, aiInsertError);
+      if (aiInsertError || !aiInserted) {
+        console.error('[Chat] Insert AI message error:', aiInsertError);
         setIsTyping(false);
         setIsSending(false);
-        setError(aiInsertError.message || 'Failed to save AI reply.');
+        setError(aiInsertError?.message || 'Failed to save AI reply.');
         return;
       }
 
       console.log('[Chat] AI message inserted:', aiInserted.id);
-      
-      // Show AI message in UI
-      setMessages(prev => [...prev, aiInserted]);
-      setTimeout(() => scrollToBottom(), 100);
 
-      // Success - clear all states
+      setMessages((prev) => [...prev, aiInserted]);
+      setTimeout(scrollToBottom, 100);
+
       setIsTyping(false);
       setIsSending(false);
       console.log('[Chat] sendMessage: Complete');
-      
     } catch (err: any) {
       console.error('[Chat] sendMessage unexpected error:', err);
-      setInputText(text); // Restore input
-      setError(err.message || 'An unexpected error occurred');
+      setInputText(text);
+      setError(err?.message || 'An unexpected error occurred');
       setIsTyping(false);
       setIsSending(false);
     }
-  }
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType]);
 
-  // Send button is enabled when there's text and not sending
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
   return (
@@ -255,7 +261,7 @@ export default function ChatScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <StatusBarGradient />
-        
+
         {/* Header */}
         <View style={[styles.header, { backgroundColor: theme.card }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -297,7 +303,8 @@ export default function ChatScreen() {
               style={styles.bannerIcon}
             />
             <Text style={[styles.bannerText, { color: theme.textSecondary }]}>
-              You&apos;re on the free plan. In the future, free plans may have limits on daily messages.
+              You&apos;re on the free plan. In the future, free plans may have limits on
+              daily messages.
             </Text>
           </View>
         )}
@@ -332,7 +339,7 @@ export default function ChatScreen() {
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => scrollToBottom()}
+          onContentSizeChange={scrollToBottom}
           keyboardShouldPersistTaps="handled"
         >
           {messages.length === 0 && !loading ? (
@@ -351,6 +358,13 @@ export default function ChatScreen() {
               <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
                 Share your thoughts and feelings about {personName || 'this person'}
               </Text>
+              {error && (
+                <TouchableOpacity style={{ marginTop: 12 }} onPress={handleRetry}>
+                  <Text style={{ color: theme.primary, fontWeight: '600' }}>
+                    Try loading messages again
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <>
@@ -366,7 +380,6 @@ export default function ChatScreen() {
             </>
           )}
 
-          {/* AI Typing Indicator */}
           {isTyping && <TypingIndicator />}
         </ScrollView>
 
@@ -392,7 +405,6 @@ export default function ChatScreen() {
               </View>
             </View>
 
-            {/* Send button with paper plane icon */}
             <TouchableOpacity
               style={[
                 styles.sendButton,
@@ -413,7 +425,7 @@ export default function ChatScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
-      
+
       <LoadingOverlay visible={loading && !error} />
     </FullScreenSwipeHandler>
   );
@@ -431,8 +443,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingTop: Platform.OS === 'android' ? 48 : 60,
     borderRadius: 20,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
   },
   backButton: {
     padding: 8,
@@ -444,13 +454,13 @@ const styles = StyleSheet.create({
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
   },
   premiumBadgeSmall: {
+    marginLeft: 6,
     backgroundColor: 'rgba(255, 215, 0, 0.2)',
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -470,8 +480,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.05)',
-    elevation: 1,
   },
   bannerIcon: {
     marginRight: 8,
@@ -487,8 +495,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
-    elevation: 2,
   },
   errorBannerText: {
     flex: 1,
@@ -522,8 +528,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
   },
   emptyText: {
     fontSize: 24,
@@ -542,8 +546,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingBottom: Platform.OS === 'ios' ? 32 : 16,
     borderRadius: 20,
-    boxShadow: '0px -2px 4px rgba(0, 0, 0, 0.1)',
-    elevation: 4,
   },
   inputRow: {
     flexDirection: 'row',
@@ -569,8 +571,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
   },
   sendButtonDisabled: {
     opacity: 0.4,

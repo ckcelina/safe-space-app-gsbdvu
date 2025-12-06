@@ -3,8 +3,7 @@ export interface Message {
   id: string;
   user_id: string;
   person_id: string;
-  sender?: 'user' | 'ai';
-  role?: 'user' | 'assistant';
+  role: 'user' | 'assistant';
   content: string;
   created_at: string;
 }

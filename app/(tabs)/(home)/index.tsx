@@ -419,60 +419,59 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Persons List - Grouped */}
-              {!error && persons.length === 0 && !loading ? (
-                <View style={styles.emptyState}>
-                  <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <IconSymbol
-                      ios_icon_name="bubble.left.and.bubble.right.fill"
-                      android_material_icon_name="chat"
-                      size={48}
-                      color={theme.primary}
-                    />
-                  </View>
-                  <Text style={[styles.emptyText, { color: theme.buttonText }]}>No one added yet</Text>
-                  <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-                    Tap &apos;Add Person&apos; to start
-                  </Text>
-                </View>
-              ) : !error && !loading ? (
-                <View style={styles.groupedList}>
-                  {Object.keys(filteredAndGroupedPersons).length === 0 ? (
-                    <View style={styles.noResultsContainer}>
-                      <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
-                        No matches found
-                      </Text>
-                      <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-                        Try a different search term
-                      </Text>
-                    </View>
-                  ) : (
-                    groupOrder.map((groupName) => {
-                      const groupPersons = filteredAndGroupedPersons[groupName];
-                      if (!groupPersons || groupPersons.length === 0) return null;
+            {/* Persons List - Grouped */}
+{!error && persons.length === 0 && !loading ? (
+  <View style={styles.emptyState}>
+    <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+      <IconSymbol
+        ios_icon_name="bubble.left.and.bubble.right.fill"
+        android_material_icon_name="chat"
+        size={48}
+        color={theme.primary}
+      />
+    </View>
+    <Text style={[styles.emptyText, { color: theme.buttonText }]}>No one added yet</Text>
+    <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+      Tap &apos;Add Person&apos; to start
+    </Text>
+  </View>
+) : !error && !loading ? (
+  <View style={styles.groupedList}>
+    {Object.keys(filteredAndGroupedPersons).length === 0 ? (
+      <View style={styles.noResultsContainer}>
+        <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
+          No matches found
+        </Text>
+        <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+          Try a different search term
+        </Text>
+      </View>
+    ) : (
+      groupOrder.map((groupName) => {
+        const groupPersons = filteredAndGroupedPersons[groupName];
+        if (!groupPersons || groupPersons.length === 0) return null;
 
-                      return (
-                        <View key={groupName} style={styles.group}>
-                          <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
-                            {groupName}
-                          </Text>
-                          <View style={styles.groupCards}>
-                            {groupPersons.map((person) => (
-                              <PersonCard
-                                key={person.id}
-                                person={person}
-                                onPress={() => handlePersonPress(person)}
-                              />
-                            ))}
-                          </View>
-                        </View>
-                      );
-                    })
-                  )}
-                </View>
-              ) : null}
-            </ScrollView>
-
+        return (
+          <View key={groupName} style={styles.group}>
+            <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
+              {groupName}
+            </Text>
+            <View style={styles.groupCards}>
+              {groupPersons.map((person) => (
+                <PersonCard
+                  key={`${groupName}-${person.id}`}   // ✅ globally unique key
+                  person={person}
+                  onPress={() => handlePersonPress(person)}
+                />
+              ))}
+            </View>
+          </View>
+        );
+      })
+    )}
+  </View>
+) : null}
+							
             {/* Add Person Modal - Swipeable */}
             <SwipeableModal
               visible={showAddModal}

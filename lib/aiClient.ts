@@ -12,12 +12,12 @@ import { supabase } from '@/lib/supabase';
  * Generate an AI reply by calling the Supabase Edge Function
  * 
  * @param personId - The ID of the person being discussed
- * @param messages - Array of recent conversation messages with sender and content
+ * @param messages - Array of recent conversation messages with role and content
  * @returns Promise that resolves to the AI-generated reply string or an error object
  */
 export async function generateAIReply(
   personId: string,
-  messages: { sender: 'user' | 'ai'; content: string }[]
+  messages: { sender: 'user' | 'ai'; content: string; createdAt?: string }[]
 ): Promise<{ success: true; reply: string } | { success: false; error: string }> {
   const fallbackMessage = "I had trouble replying just now. Please check your connection and try again.";
   

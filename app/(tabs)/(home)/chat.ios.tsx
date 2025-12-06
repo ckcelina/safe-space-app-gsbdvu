@@ -184,6 +184,8 @@ export default function ChatScreen() {
         {
           body: {
             personId: personId,
+            personName: personName,
+            personRelationshipType: relationshipType || 'Unknown',
             messages: recentMessages,
           },
         }
