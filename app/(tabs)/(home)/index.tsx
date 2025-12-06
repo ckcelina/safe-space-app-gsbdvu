@@ -584,12 +584,12 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                   ) : (
-                    visibleGroups.map((groupName, groupIndex) => {
+                    visibleGroups.map((groupName) => {
                       const groupPersons = filteredAndGroupedPersons[groupName] || [];
 
                       return (
                         <View
-                          key={`${groupName}-${groupIndex}`}
+                          key={groupName}
                           style={styles.group}
                         >
                           <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
@@ -597,24 +597,27 @@ export default function HomeScreen() {
                           </Text>
 
                           <View style={styles.groupCards}>
-                            {groupPersons.map((person, index) => (
-                              <Swipeable
-                                key={
-                                  person.id ??
-                                  person.uuid ??
-                                  `${groupName}-${person.name ?? ''}-${index}`
-                                }
-                                renderRightActions={() => (
-                                  <DeleteAction onPress={() => handleDeletePerson(person.id!)} />
-                                )}
-                                overshootRight={false}
-                              >
-                                <PersonCard
-                                  person={person}
-                                  onPress={() => handlePersonPress(person)}
-                                />
-                              </Swipeable>
-                            ))}
+                            {groupPersons.map((person, index) => {
+                              const personKey =
+                                person.id ??
+                                person.uuid ??
+                                `${groupName}-${person.name ?? ''}-${index}`;
+
+                              return (
+                                <Swipeable
+                                  key={personKey}
+                                  renderRightActions={() => (
+                                    <DeleteAction onPress={() => handleDeletePerson(person.id!)} />
+                                  )}
+                                  overshootRight={false}
+                                >
+                                  <PersonCard
+                                    person={person}
+                                    onPress={() => handlePersonPress(person)}
+                                  />
+                                </Swipeable>
+                              );
+                            })}
                           </View>
                         </View>
                       );
