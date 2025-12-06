@@ -65,8 +65,14 @@ export default function HomeScreen() {
 
       console.log('Persons loaded:', personsData?.length || 0);
 
+      // Safely handle empty or null data
+      if (!personsData || personsData.length === 0) {
+        setPersons([]);
+        return;
+      }
+
       const personsWithMessages = await Promise.all(
-        (personsData || []).map(async (person) => {
+        personsData.map(async (person) => {
           try {
             const { data: messages } = await supabase
               .from('messages')
@@ -106,11 +112,13 @@ export default function HomeScreen() {
   useEffect(() => {
     if (userId) {
       fetchPersonsWithLastMessage();
+    } else {
+      setLoading(false);
     }
   }, [userId, fetchPersonsWithLastMessage]);
 
   // Helper function to categorize relationship types
-  const categorizeRelationship = (relationshipType: string | null): string => {
+  const categorizeRelationship = (relationshipType: string | null | undefined): string => {
     if (!relationshipType) return 'Friends';
     
     const type = relationshipType.toLowerCase().trim();
@@ -136,8 +144,8 @@ export default function HomeScreen() {
       if (!searchQuery.trim()) return true;
       
       const query = searchQuery.toLowerCase();
-      const nameMatch = person.name.toLowerCase().includes(query);
-      const relationshipMatch = person.relationship_type?.toLowerCase().includes(query);
+      const nameMatch = person.name?.toLowerCase().includes(query) || false;
+      const relationshipMatch = person.relationship_type?.toLowerCase().includes(query) || false;
       
       return nameMatch || relationshipMatch;
     });
@@ -191,6 +199,11 @@ export default function HomeScreen() {
   const handleSave = async () => {
     if (!name.trim()) {
       setNameError('Name is required');
+      return;
+    }
+
+    if (!userId) {
+      showErrorToast('You must be logged in to add a person');
       return;
     }
 
@@ -345,11 +358,6 @@ export default function HomeScreen() {
                       >
                         {planInfo.text}
                       </Text>
-                      {planInfo.showBadge && (
-                        <View style={[styles.premiumPillBadge, { backgroundColor: planInfo.badgeColor }]}>
-                          <Text style={styles.premiumPillBadgeText}>PREMIUM</Text>
-                        </View>
-                      )}
                     </View>
                   </View>
                   {planInfo.subtext && (
@@ -458,26 +466,28 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                   ) : (
-                    visibleGroups.map((groupName) => {
-                      const groupPersons = filteredAndGroupedPersons[groupName];
-                      
-                      return (
-                        <View key={groupName} style={styles.group}>
-                          <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
-                            {groupName}
-                          </Text>
-                          <View style={styles.groupCards}>
-                            {groupPersons.map((person) => (
-                              <PersonCard
-                                key={person.id}
-                                person={person}
-                                onPress={() => handlePersonPress(person)}
-                              />
-                            ))}
+                    <React.Fragment>
+                      {visibleGroups.map((groupName) => {
+                        const groupPersons = filteredAndGroupedPersons[groupName];
+                        
+                        return (
+                          <View key={groupName} style={styles.group}>
+                            <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
+                              {groupName}
+                            </Text>
+                            <View style={styles.groupCards}>
+                              {groupPersons.map((person) => (
+                                <PersonCard
+                                  key={person.id}
+                                  person={person}
+                                  onPress={() => handlePersonPress(person)}
+                                />
+                              ))}
+                            </View>
                           </View>
-                        </View>
-                      );
-                    })
+                        );
+                      })}
+                    </React.Fragment>
                   )}
                 </View>
               ) : null}
@@ -725,24 +735,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 8,
     minWidth: 0,
   },
   planText: {
     fontSize: 13,
     fontWeight: '600',
     flexShrink: 1,
-  },
-  premiumPillBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  premiumPillBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
   },
   planSubtext: {
     fontSize: 12,
