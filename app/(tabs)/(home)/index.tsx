@@ -177,11 +177,15 @@ export default function HomeScreen() {
   }, [filteredAndGroupedPersons]);
 
   const handleAddPerson = () => {
+    console.log('[handleAddPerson] Button pressed, isPremium:', isPremium, 'persons.length:', persons.length);
+    
     if (!isPremium && persons.length >= 2) {
+      console.log('[handleAddPerson] Free user limit reached, showing premium modal');
       setShowPremiumModal(true);
       return;
     }
 
+    console.log('[handleAddPerson] Opening Add Person modal');
     setShowAddModal(true);
     setName('');
     setRelationshipType('');
@@ -189,6 +193,7 @@ export default function HomeScreen() {
   };
 
   const handleCloseModal = () => {
+    console.log('[handleCloseModal] Closing modal, clearing form');
     setShowAddModal(false);
     setName('');
     setRelationshipType('');
@@ -204,7 +209,7 @@ export default function HomeScreen() {
     
     // Validate name
     if (!name.trim()) {
-      console.log('[handleSave] Name validation failed');
+      console.log('[handleSave] Name validation failed - name is empty');
       setNameError('Name is required');
       return;
     }
@@ -631,14 +636,18 @@ export default function HomeScreen() {
                       placeholderTextColor={theme.textSecondary}
                       value={name}
                       onChangeText={(text) => {
+                        console.log('[TextInput] Name changed to:', text);
                         setName(text);
                         if (nameError && text.trim()) {
                           setNameError('');
                         }
                       }}
+                      onFocus={() => console.log('[TextInput] Name field focused')}
+                      onBlur={() => console.log('[TextInput] Name field blurred')}
                       autoCapitalize="words"
                       autoCorrect={false}
                       maxLength={50}
+                      editable={!saving}
                     />
                   </View>
                   {nameError ? (
@@ -654,10 +663,16 @@ export default function HomeScreen() {
                       placeholder="partner, ex, friend, parent..."
                       placeholderTextColor={theme.textSecondary}
                       value={relationshipType}
-                      onChangeText={setRelationshipType}
+                      onChangeText={(text) => {
+                        console.log('[TextInput] Relationship type changed to:', text);
+                        setRelationshipType(text);
+                      }}
+                      onFocus={() => console.log('[TextInput] Relationship field focused')}
+                      onBlur={() => console.log('[TextInput] Relationship field blurred')}
                       autoCapitalize="words"
                       autoCorrect={false}
                       maxLength={50}
+                      editable={!saving}
                     />
                   </View>
                 </ScrollView>
