@@ -517,7 +517,7 @@ export default function HomeScreen() {
                     </View>
                   ) : (
                     visibleGroups.map((groupName) => {
-                      const groupPersons = filteredAndGroupedPersons[groupName];
+                      const groupPersons = filteredAndGroupedPersons[groupName] || [];
                       
                       return (
                         <View key={groupName} style={styles.group}>
@@ -527,7 +527,7 @@ export default function HomeScreen() {
                           <View style={styles.groupCards}>
                             {groupPersons.map((person) => (
                               <PersonCard
-                                key={person.id}
+                                key={person.id ?? `${groupName}-${person.name}`}
                                 person={person}
                                 onPress={() => handlePersonPress(person)}
                               />
