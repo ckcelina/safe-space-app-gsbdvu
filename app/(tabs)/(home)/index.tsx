@@ -626,54 +626,60 @@ export default function HomeScreen() {
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
                 >
-                  <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                    Name <Text style={styles.required}>*</Text>
-                  </Text>
-                  <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
-                    <TextInput
-                      style={[styles.textInput, { color: theme.textPrimary }]}
-                      placeholder="Enter their name"
-                      placeholderTextColor={theme.textSecondary}
-                      value={name}
-                      onChangeText={(text) => {
-                        console.log('[TextInput] Name changed to:', text);
-                        setName(text);
-                        if (nameError && text.trim()) {
-                          setNameError('');
-                        }
-                      }}
-                      onFocus={() => console.log('[TextInput] Name field focused')}
-                      onBlur={() => console.log('[TextInput] Name field blurred')}
-                      autoCapitalize="words"
-                      autoCorrect={false}
-                      maxLength={50}
-                      editable={!saving}
-                    />
+                  {/* Name Field */}
+                  <View style={styles.fieldContainer}>
+                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                      Name <Text style={styles.required}>*</Text>
+                    </Text>
+                    <View style={[styles.textInputWrapper, { backgroundColor: theme.background, borderWidth: 1, borderColor: nameError ? '#FF3B30' : 'rgba(0, 0, 0, 0.1)' }]}>
+                      <TextInput
+                        style={[styles.textInput, { color: theme.textPrimary }]}
+                        placeholder="Enter their name"
+                        placeholderTextColor={theme.textSecondary}
+                        value={name}
+                        onChangeText={(text) => {
+                          console.log('[TextInput] Name changed to:', text);
+                          setName(text);
+                          if (nameError && text.trim()) {
+                            setNameError('');
+                          }
+                        }}
+                        onFocus={() => console.log('[TextInput] Name field focused')}
+                        onBlur={() => console.log('[TextInput] Name field blurred')}
+                        autoCapitalize="words"
+                        autoCorrect={false}
+                        maxLength={50}
+                        editable={!saving}
+                      />
+                    </View>
+                    {nameError ? (
+                      <Text style={styles.errorTextSmall}>{nameError}</Text>
+                    ) : null}
                   </View>
-                  {nameError ? (
-                    <Text style={styles.errorTextSmall}>{nameError}</Text>
-                  ) : null}
 
-                  <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                    Relationship Type
-                  </Text>
-                  <View style={[styles.textInputWrapper, { backgroundColor: theme.background }]}>
-                    <TextInput
-                      style={[styles.textInput, { color: theme.textPrimary }]}
-                      placeholder="partner, ex, friend, parent..."
-                      placeholderTextColor={theme.textSecondary}
-                      value={relationshipType}
-                      onChangeText={(text) => {
-                        console.log('[TextInput] Relationship type changed to:', text);
-                        setRelationshipType(text);
-                      }}
-                      onFocus={() => console.log('[TextInput] Relationship field focused')}
-                      onBlur={() => console.log('[TextInput] Relationship field blurred')}
-                      autoCapitalize="words"
-                      autoCorrect={false}
-                      maxLength={50}
-                      editable={!saving}
-                    />
+                  {/* Relationship Type Field */}
+                  <View style={styles.fieldContainer}>
+                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                      Relationship Type
+                    </Text>
+                    <View style={[styles.textInputWrapper, { backgroundColor: theme.background, borderWidth: 1, borderColor: 'rgba(0, 0, 0, 0.1)' }]}>
+                      <TextInput
+                        style={[styles.textInput, { color: theme.textPrimary }]}
+                        placeholder="partner, ex, friend, parent..."
+                        placeholderTextColor={theme.textSecondary}
+                        value={relationshipType}
+                        onChangeText={(text) => {
+                          console.log('[TextInput] Relationship type changed to:', text);
+                          setRelationshipType(text);
+                        }}
+                        onFocus={() => console.log('[TextInput] Relationship field focused')}
+                        onBlur={() => console.log('[TextInput] Relationship field blurred')}
+                        autoCapitalize="words"
+                        autoCorrect={false}
+                        maxLength={50}
+                        editable={!saving}
+                      />
+                    </View>
                   </View>
                 </ScrollView>
 
@@ -1005,6 +1011,9 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 16,
   },
+  fieldContainer: {
+    marginBottom: 20,
+  },
   inputLabel: {
     fontSize: 16,
     fontWeight: '600',
@@ -1016,18 +1025,17 @@ const styles = StyleSheet.create({
   textInputWrapper: {
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 8,
+    paddingVertical: 14,
   },
   textInput: {
     fontSize: 16,
     lineHeight: 20,
+    minHeight: 20,
   },
   errorTextSmall: {
     color: '#FF3B30',
     fontSize: 12,
-    marginBottom: 16,
-    marginTop: -4,
+    marginTop: 6,
   },
   modalFooter: {
     flexDirection: 'row',
@@ -1035,6 +1043,8 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 32 : 16,
     gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
   },
   secondaryButton: {
     flex: 1,
