@@ -117,95 +117,130 @@ export default function ChatScreen() {
     loadMessages();
   };
 
-  // Send message handler - COMPLETE with AI reply
-  async function handleSend() {
+  // Send message handler - UNIFIED FUNCTION
+  async function sendMessage() {
     const text = inputText.trim();
-    if (!text || isSending || !personId) return;
-
-    const user = authUser;
-    const userId = user?.id;
-    if (!userId) {
-      console.warn('[Chat] No userId');
+    
+    // Validation
+    if (!text || isSending || !personId) {
+      console.log('[Chat] sendMessage: validation failed', { text: !!text, isSending, personId });
       return;
     }
 
+    const userId = authUser?.id;
+    if (!userId) {
+      console.warn('[Chat] sendMessage: No userId available');
+      setError('You must be logged in to send messages');
+      return;
+    }
+
+    console.log('[Chat] sendMessage: Starting send process');
     setIsSending(true);
     setError(null);
     setInputText('');
 
-    // Insert USER message into Supabase
-    const { data: inserted, error: insertError } = await supabase
-      .from('messages')
-      .insert({
-        user_id: userId,
-        person_id: personId,
-        role: 'user',
-        content: text,
-      })
-      .select('*')
-      .single();
-
-    if (insertError) {
-      console.warn('[Chat] Insert user message error', insertError);
-      setInputText(text);
-      setError('Could not send your message. Please try again.');
-      setIsSending(false);
-      return;
-    }
-
-    // Show message immediately
-    setMessages(prev => [...prev, inserted]);
-
-    // AI REPLY
-    setIsTyping(true);
-
-    const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
-      'generate-ai-response',
-      {
-        body: {
+    try {
+      // 1. Insert USER message into Supabase with ALL required fields
+      console.log('[Chat] Inserting user message...');
+      const { data: insertedMessage, error: insertError } = await supabase
+        .from('messages')
+        .insert({
+          user_id: userId,
           person_id: personId,
-          message: text,
-        },
+          role: 'user',
+          content: text,
+          created_at: new Date().toISOString(), // Explicitly include timestamp
+        })
+        .select('*')
+        .single();
+
+      if (insertError) {
+        console.error('[Chat] Insert user message error:', insertError.message, insertError);
+        setInputText(text); // Restore input
+        setError(insertError.message || 'Failed to send message. Please try again.');
+        setIsSending(false);
+        return;
       }
-    );
 
-    if (fnError) {
-      console.warn('[Chat] AI function error', fnError);
+      console.log('[Chat] User message inserted:', insertedMessage.id);
+      
+      // Show message immediately in UI
+      setMessages(prev => [...prev, insertedMessage]);
+      setTimeout(() => scrollToBottom(), 100);
+
+      // 2. Call AI Edge Function with correct payload format
+      console.log('[Chat] Calling AI Edge Function...');
+      setIsTyping(true);
+
+      // Build message history for AI (last 10 messages for context)
+      const recentMessages = [...messages, insertedMessage].slice(-10).map(msg => ({
+        sender: msg.role === 'user' ? 'user' as const : 'ai' as const,
+        content: msg.content,
+        createdAt: msg.created_at,
+      }));
+
+      const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
+        'generate-ai-response',
+        {
+          body: {
+            personId: personId,
+            messages: recentMessages,
+          },
+        }
+      );
+
+      if (fnError) {
+        console.error('[Chat] AI function error:', fnError.message, fnError);
+        setIsTyping(false);
+        setIsSending(false);
+        setError(fnError.message || 'Failed to generate AI reply. Please try again.');
+        return;
+      }
+
+      console.log('[Chat] AI response received');
+      
+      const replyText = aiResponse?.reply || "I'm here with you. Tell me more about how you're feeling.";
+
+      // 3. Insert AI message into Supabase
+      console.log('[Chat] Inserting AI message...');
+      const { data: aiInserted, error: aiInsertError } = await supabase
+        .from('messages')
+        .insert({
+          user_id: userId,
+          person_id: personId,
+          role: 'assistant',
+          content: replyText,
+          created_at: new Date().toISOString(), // Explicitly include timestamp
+        })
+        .select('*')
+        .single();
+
+      if (aiInsertError) {
+        console.error('[Chat] Insert AI message error:', aiInsertError.message, aiInsertError);
+        setIsTyping(false);
+        setIsSending(false);
+        setError(aiInsertError.message || 'Failed to save AI reply.');
+        return;
+      }
+
+      console.log('[Chat] AI message inserted:', aiInserted.id);
+      
+      // Show AI message in UI
+      setMessages(prev => [...prev, aiInserted]);
+      setTimeout(() => scrollToBottom(), 100);
+
+      // Success - clear all states
       setIsTyping(false);
       setIsSending(false);
-      setError('I could not generate a reply. Please try again.');
-      return;
-    }
-
-    const replyText =
-      aiResponse?.reply ||
-      "I'm here with you. Tell me more about how you're feeling.";
-
-    // Insert AI message
-    const { data: aiInserted, error: aiInsertError } = await supabase
-      .from('messages')
-      .insert({
-        user_id: userId,
-        person_id: personId,
-        role: 'assistant',
-        content: replyText,
-      })
-      .select('*')
-      .single();
-
-    if (aiInsertError) {
-      console.warn('[Chat] Insert AI message error', aiInsertError);
+      console.log('[Chat] sendMessage: Complete');
+      
+    } catch (err: any) {
+      console.error('[Chat] sendMessage unexpected error:', err);
+      setInputText(text); // Restore input
+      setError(err.message || 'An unexpected error occurred');
       setIsTyping(false);
       setIsSending(false);
-      return;
     }
-
-    // Show AI message
-    setMessages(prev => [...prev, aiInserted]);
-
-    // Final
-    setIsTyping(false);
-    setIsSending(false);
   }
 
   // Send button is enabled when there's text and not sending
@@ -265,72 +300,73 @@ export default function ChatScreen() {
         </View>
       )}
 
-      {/* Messages */}
-      {error ? (
-        <View style={styles.errorContainer}>
-          <View style={[styles.errorCard, { backgroundColor: theme.card }]}>
+      {/* Error Banner */}
+      {error && (
+        <View style={[styles.errorBanner, { backgroundColor: '#FF3B30' }]}>
+          <IconSymbol
+            ios_icon_name="exclamationmark.triangle.fill"
+            android_material_icon_name="error"
+            size={16}
+            color="#FFFFFF"
+            style={styles.bannerIcon}
+          />
+          <Text style={[styles.errorBannerText, { color: '#FFFFFF' }]}>
+            {error}
+          </Text>
+          <TouchableOpacity onPress={() => setError(null)} style={styles.dismissButton}>
             <IconSymbol
-              ios_icon_name="exclamationmark.triangle.fill"
-              android_material_icon_name="error"
-              size={32}
-              color="#FF3B30"
+              ios_icon_name="xmark"
+              android_material_icon_name="close"
+              size={16}
+              color="#FFFFFF"
             />
-            <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
-            <TouchableOpacity
-              onPress={handleRetry}
-              style={[styles.retryButton, { backgroundColor: theme.primary }]}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
-                Try Again
-              </Text>
-            </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         </View>
-      ) : (
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => scrollToBottom()}
-          keyboardShouldPersistTaps="handled"
-        >
-          {messages.length === 0 && !loading ? (
-            <View style={styles.emptyChat}>
-              <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-                <IconSymbol
-                  ios_icon_name="bubble.left.and.bubble.right.fill"
-                  android_material_icon_name="chat"
-                  size={40}
-                  color={theme.primary}
-                />
-              </View>
-              <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
-                Start the conversation
-              </Text>
-              <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-                Share your thoughts and feelings about {personName || 'this person'}
-              </Text>
-            </View>
-          ) : (
-            <>
-              {messages.map((message, index) => (
-                <ChatBubble
-                  key={message.id || index}
-                  message={message.content}
-                  isUser={message.role === 'user'}
-                  timestamp={message.created_at}
-                  animate={index === messages.length - 1}
-                />
-              ))}
-            </>
-          )}
-
-          {/* AI Typing Indicator */}
-          {isTyping && <TypingIndicator />}
-        </ScrollView>
       )}
+
+      {/* Messages */}
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.messagesContainer}
+        contentContainerStyle={styles.messagesContent}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => scrollToBottom()}
+        keyboardShouldPersistTaps="handled"
+      >
+        {messages.length === 0 && !loading ? (
+          <View style={styles.emptyChat}>
+            <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
+              <IconSymbol
+                ios_icon_name="bubble.left.and.bubble.right.fill"
+                android_material_icon_name="chat"
+                size={40}
+                color={theme.primary}
+              />
+            </View>
+            <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
+              Start the conversation
+            </Text>
+            <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
+              Share your thoughts and feelings about {personName || 'this person'}
+            </Text>
+          </View>
+        ) : (
+          <>
+            {messages.map((message) => (
+              <ChatBubble
+                key={message.id}
+                message={message.content}
+                isUser={message.role === 'user'}
+                timestamp={message.created_at}
+                animate={false}
+              />
+            ))}
+          </>
+        )}
+
+        {/* AI Typing Indicator */}
+        {isTyping && <TypingIndicator />}
+      </ScrollView>
 
       {/* Input Bar */}
       <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
@@ -345,6 +381,11 @@ export default function ChatScreen() {
                 onChangeText={setInputText}
                 multiline
                 editable={!isSending && !loading}
+                onSubmitEditing={() => {
+                  if (!isSendDisabled) {
+                    sendMessage();
+                  }
+                }}
               />
             </View>
           </View>
@@ -356,7 +397,7 @@ export default function ChatScreen() {
               { backgroundColor: theme.primary },
               isSendDisabled && styles.sendButtonDisabled,
             ]}
-            onPress={handleSend}
+            onPress={sendMessage}
             disabled={isSendDisabled}
             activeOpacity={0.7}
           >
@@ -438,35 +479,23 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 18,
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  errorBanner: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  errorCard: {
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
-    width: '100%',
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 12,
-    marginBottom: 16,
-    lineHeight: 22,
-  },
-  retryButton: {
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 20,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
+    elevation: 2,
   },
-  retryButtonText: {
-    fontSize: 16,
+  errorBannerText: {
+    flex: 1,
+    fontSize: 14,
     fontWeight: '600',
+    lineHeight: 18,
+  },
+  dismissButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   messagesContainer: {
     flex: 1,
