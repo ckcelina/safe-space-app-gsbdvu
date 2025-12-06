@@ -43,7 +43,7 @@ export default function ChatScreen() {
     }
   }, [personId, personName]);
 
-  const { userId, role, isPremium } = useAuth();
+  const { currentUser: authUser, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
   
   // Local state as specified
@@ -53,7 +53,6 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [errorText, setErrorText] = useState<string | null>(null);
   
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -119,28 +118,24 @@ export default function ChatScreen() {
     loadMessages();
   };
 
-  // Send message handler
-  const handleSend = async () => {
+  // Send message handler - PART 1 (User message insert)
+  async function handleSend() {
     const text = inputText.trim();
-    if (!text || !personId || isSending) {
-      console.log('[Chat] handleSend blocked:', { text: !!text, personId: !!personId, isSending });
-      return;
-    }
+    if (!text || isSending || !personId) return;
 
-    setErrorText(null);
-    setIsSending(true);
-
+    const user = authUser;
+    const userId = user?.id;
     if (!userId) {
-      console.warn('[Chat] no auth user');
-      setErrorText('There was a problem with your session. Please log in again.');
-      setIsSending(false);
+      console.warn('[Chat] No userId');
       return;
     }
 
-    console.log('[Chat] Inserting user message:', text.substring(0, 50) + '...');
+    setIsSending(true);
+    setError(null);
+    setInputText('');
 
-    // 1) Insert user message into Supabase
-    const { data: inserted, error } = await supabase
+    // Insert USER message into Supabase
+    const { data: inserted, error: insertError } = await supabase
       .from('messages')
       .insert({
         user_id: userId,
@@ -148,72 +143,22 @@ export default function ChatScreen() {
         role: 'user',
         content: text,
       })
-      .select()
+      .select('*')
       .single();
 
-    if (error) {
-      console.warn('[Chat] send message error details', error?.message, error);
-      // DO NOT restore the text by resetting inputText.
-      // Leave the text in the box so the user can press Send again.
-      setErrorText('Could not send your message. Please try again.');
+    if (insertError) {
+      console.warn('[Chat] Insert user message error', insertError);
+      setInputText(text);
+      setError('Could not send your message. Please try again.');
       setIsSending(false);
       return;
     }
 
-    console.log('[Chat] User message inserted:', inserted.id);
-
-    // 2) Only clear the input AFTER a successful insert
-    setInputText('');
+    // Show message immediately
     setMessages(prev => [...prev, inserted]);
-    scrollToBottom();
-    setIsTyping(true);
 
-    // 3) Call Edge Function for AI reply
-    try {
-      const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
-        'generate-ai-response',
-        {
-          body: {
-            person_id: personId,
-            message: text,
-          },
-        }
-      );
-
-      if (fnError) {
-        console.warn('[Chat] AI function error', fnError);
-        setErrorText('Safe Space could not respond right now. Please try again in a moment.');
-        return;
-      }
-
-      const replyText =
-        aiResponse?.reply ||
-        "I'm here with you. Tell me more about how you're feeling.";
-
-      const { data: aiInserted, error: aiInsertError } = await supabase
-        .from('messages')
-        .insert({
-          user_id: userId,
-          person_id: personId,
-          role: 'assistant',
-          content: replyText,
-        })
-        .select()
-        .single();
-
-      if (aiInsertError) {
-        console.warn('[Chat] insert AI message error details', aiInsertError?.message, aiInsertError);
-        setErrorText('There was a problem saving the reply.');
-        return;
-      }
-
-      setMessages(prev => [...prev, aiInserted]);
-      scrollToBottom();
-    } finally {
-      setIsTyping(false);
-      setIsSending(false);
-    }
-  };
+    // Continue to Part 2 in the next prompt.
+  }
 
   // Send button is enabled when there's text and not sending
   const isSendDisabled = !inputText.trim() || isSending || loading;
@@ -342,13 +287,6 @@ export default function ChatScreen() {
 
         {/* Input Bar */}
         <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-          {/* Error message above input */}
-          {errorText && (
-            <View style={styles.errorMessageContainer}>
-              <Text style={styles.errorMessageText}>{errorText}</Text>
-            </View>
-          )}
-          
           <View style={styles.inputRow}>
             <View style={styles.inputColumn}>
               <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
@@ -528,19 +466,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     boxShadow: '0px -2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 4,
-  },
-  errorMessageContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 8,
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-    borderRadius: 12,
-  },
-  errorMessageText: {
-    fontSize: 13,
-    color: '#FF3B30',
-    fontWeight: '500',
-    textAlign: 'center',
   },
   inputRow: {
     flexDirection: 'row',
