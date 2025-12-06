@@ -25,6 +25,9 @@ interface GroupedPersons {
   [key: string]: PersonWithLastMessage[];
 }
 
+// DEV-ONLY: Navigation test flag
+const __DEV_NAV_TEST__ = __DEV__ && true;
+
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
@@ -310,6 +313,82 @@ export default function HomeScreen() {
 
   const planInfo = getPlanInfo();
 
+  // DEV-ONLY: Navigation test function
+  const devTestNavigationFlow = useCallback(async () => {
+    if (!__DEV_NAV_TEST__) return;
+
+    console.log('[NAV-TEST] Starting navigation smoke test');
+
+    try {
+      // Step 1: Test person navigation if available
+      if (persons.length > 0) {
+        try {
+          console.log('[NAV-TEST] Step 1: Testing person press with first person');
+          const firstPerson = persons[0];
+          handlePersonPress(firstPerson);
+          console.log('[NAV-TEST] Step 1: SUCCESS - Navigated to chat for person:', firstPerson.name);
+        } catch (err) {
+          console.error('[NAV-TEST] Step 1: FAILED - Error navigating to person:', err);
+        }
+
+        // Wait a bit before going back
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Step 2: Go back
+        try {
+          console.log('[NAV-TEST] Step 2: Testing router.back()');
+          router.back();
+          console.log('[NAV-TEST] Step 2: SUCCESS - Navigated back from chat');
+        } catch (err) {
+          console.error('[NAV-TEST] Step 2: FAILED - Error going back:', err);
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } else {
+        console.log('[NAV-TEST] Step 1-2: SKIPPED - No persons available to test');
+      }
+
+      // Step 3: Navigate to settings
+      try {
+        console.log('[NAV-TEST] Step 3: Testing navigation to settings');
+        router.push('/(tabs)/settings');
+        console.log('[NAV-TEST] Step 3: SUCCESS - Navigated to settings');
+      } catch (err) {
+        console.error('[NAV-TEST] Step 3: FAILED - Error navigating to settings:', err);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Step 4: Go back from settings
+      try {
+        console.log('[NAV-TEST] Step 4: Testing router.back() from settings');
+        router.back();
+        console.log('[NAV-TEST] Step 4: SUCCESS - Navigated back from settings');
+      } catch (err) {
+        console.error('[NAV-TEST] Step 4: FAILED - Error going back from settings:', err);
+      }
+
+      console.log('[NAV-TEST] Navigation smoke test complete');
+    } catch (error) {
+      console.error('[NAV-TEST] Unexpected error during navigation test:', error);
+    }
+  }, [persons, handlePersonPress]);
+
+  // DEV-ONLY: Log when HomeScreen mounts
+  useEffect(() => {
+    if (__DEV_NAV_TEST__) {
+      console.log('[NAV-TEST] HomeScreen mounted');
+    }
+  }, []);
+
+  // DEV-ONLY: Manual trigger point (KEEP COMMENTED OUT BY DEFAULT)
+  useEffect(() => {
+    if (__DEV_NAV_TEST__) {
+      // Uncomment the line below to manually trigger the navigation test
+      // devTestNavigationFlow();
+    }
+  }, [devTestNavigationFlow]);
+
   if (authLoading) {
     return <LoadingOverlay visible={true} />;
   }
@@ -324,7 +403,7 @@ export default function HomeScreen() {
         colors={theme.primaryGradient}
         style={styles.gradientBackground}
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 1 }}
       >
         <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
