@@ -145,14 +145,14 @@ export default function ChatScreen() {
       .insert({
         user_id: userId,
         person_id: personId,
-        sender: 'user',
+        role: 'user',
         content: text,
       })
       .select()
       .single();
 
     if (error) {
-      console.warn('[Chat] send message error', error);
+      console.warn('[Chat] send message error details', error?.message, error);
       // DO NOT restore the text by resetting inputText.
       // Leave the text in the box so the user can press Send again.
       setErrorText('Could not send your message. Please try again.');
@@ -195,14 +195,14 @@ export default function ChatScreen() {
         .insert({
           user_id: userId,
           person_id: personId,
-          sender: 'ai',
+          role: 'assistant',
           content: replyText,
         })
         .select()
         .single();
 
       if (aiInsertError) {
-        console.warn('[Chat] insert AI message error', aiInsertError);
+        console.warn('[Chat] insert AI message error details', aiInsertError?.message, aiInsertError);
         setErrorText('There was a problem saving the reply.');
         return;
       }
@@ -327,7 +327,7 @@ export default function ChatScreen() {
                   <ChatBubble
                     key={message.id || index}
                     message={message.content}
-                    isUser={message.sender === 'user'}
+                    isUser={message.role === 'user' || message.sender === 'user'}
                     timestamp={message.created_at}
                     animate={index === messages.length - 1}
                   />
