@@ -63,7 +63,7 @@ export default function HomeScreen() {
         return;
       }
 
-      console.log('Persons loaded:', personsData?.length);
+      console.log('Persons loaded:', personsData?.length || 0);
 
       const personsWithMessages = await Promise.all(
         (personsData || []).map(async (person) => {
@@ -452,27 +452,29 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                   ) : (
-                    groupOrder.map((groupName) => {
-                      const groupPersons = filteredAndGroupedPersons[groupName];
-                      if (!groupPersons || groupPersons.length === 0) return null;
+                    <React.Fragment>
+                      {groupOrder.map((groupName) => {
+                        const groupPersons = filteredAndGroupedPersons[groupName];
+                        if (!groupPersons || groupPersons.length === 0) return null;
 
-                      return (
-                        <View key={groupName} style={styles.group}>
-                          <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
-                            {groupName}
-                          </Text>
-                          <View style={styles.groupCards}>
-                            {groupPersons.map((person) => (
-                              <PersonCard
-                                key={person.id}
-                                person={person}
-                                onPress={() => handlePersonPress(person)}
-                              />
-                            ))}
+                        return (
+                          <View key={groupName} style={styles.group}>
+                            <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
+                              {groupName}
+                            </Text>
+                            <View style={styles.groupCards}>
+                              {groupPersons.map((person) => (
+                                <PersonCard
+                                  key={person.id}
+                                  person={person}
+                                  onPress={() => handlePersonPress(person)}
+                                />
+                              ))}
+                            </View>
                           </View>
-                        </View>
-                      );
-                    })
+                        );
+                      })}
+                    </React.Fragment>
                   )}
                 </View>
               ) : null}
