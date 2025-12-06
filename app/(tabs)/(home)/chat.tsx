@@ -354,7 +354,7 @@ export default function ChatScreen() {
             </View>
           </View>
 
-          {/* Send button */}
+          {/* Send button with paper plane icon */}
           <TouchableOpacity
             style={[
               styles.sendButton,
@@ -366,9 +366,9 @@ export default function ChatScreen() {
             activeOpacity={0.7}
           >
             <IconSymbol
-              ios_icon_name="arrow.up.circle.fill"
-              android_material_icon_name="arrow_upward"
-              size={24}
+              ios_icon_name="paperplane.fill"
+              android_material_icon_name="send"
+              size={20}
               color="#FFFFFF"
             />
           </TouchableOpacity>

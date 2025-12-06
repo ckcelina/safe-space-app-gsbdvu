@@ -13,6 +13,9 @@ interface PersonCardProps {
 export function PersonCard({ person, onPress }: PersonCardProps) {
   const { theme } = useThemeContext();
 
+  // Get first letter of name for avatar
+  const initial = person.name.charAt(0).toUpperCase();
+
   return (
     <TouchableOpacity
       style={[styles.container, { backgroundColor: theme.card }]}
@@ -20,13 +23,11 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
       activeOpacity={0.7}
     >
       <View style={styles.content}>
-        <View style={[styles.avatar, { backgroundColor: theme.background }]}>
-          <IconSymbol
-            ios_icon_name="person.circle.fill"
-            android_material_icon_name="account_circle"
-            size={32}
-            color={theme.primary}
-          />
+        {/* Avatar with Initial */}
+        <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
+          <Text style={[styles.avatarText, { color: theme.buttonText }]}>
+            {initial}
+          </Text>
         </View>
 
         <View style={styles.info}>
@@ -40,10 +41,11 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
           )}
         </View>
 
+        {/* Chevron Right Icon */}
         <IconSymbol
-          ios_icon_name="ellipsis.horizontal"
-          android_material_icon_name="more_vert"
-          size={24}
+          ios_icon_name="chevron.right"
+          android_material_icon_name="chevron_right"
+          size={20}
           color={theme.textSecondary}
         />
       </View>
@@ -70,6 +72,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+  },
+  avatarText: {
+    fontSize: 22,
+    fontWeight: 'bold',
   },
   info: {
     flex: 1,

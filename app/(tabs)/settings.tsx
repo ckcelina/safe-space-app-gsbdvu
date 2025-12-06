@@ -22,12 +22,14 @@ import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
 import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
+import { supabase } from '@/lib/supabase';
 
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
@@ -47,7 +49,7 @@ export default function SettingsScreen() {
     showSuccessToast('Theme updated!');
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     Alert.alert(
       'Log Out',
       'Are you sure you want to log out?',
@@ -57,8 +59,29 @@ export default function SettingsScreen() {
           text: 'Log Out',
           style: 'destructive',
           onPress: async () => {
-            await signOut();
-            router.replace('/onboarding');
+            try {
+              console.log('[Settings] Starting sign out...');
+              
+              // Call Supabase sign out
+              const { error } = await supabase.auth.signOut();
+              
+              if (error) {
+                console.warn('[Settings] signOut error', error);
+                showErrorToast("Couldn't log out. Please try again.");
+                return;
+              }
+
+              // Clear auth context state
+              await signOut();
+              
+              console.log('[Settings] Sign out successful');
+              
+              // Navigate to onboarding and reset stack
+              router.replace('/onboarding');
+            } catch (error) {
+              console.warn('[Settings] signOut error', error);
+              showErrorToast("Couldn't log out. Please try again.");
+            }
           },
         },
       ]
@@ -104,13 +127,11 @@ export default function SettingsScreen() {
       } else {
         console.error('Account deletion failed:', result.error);
         setShowDeleteModal(false);
-        // Show the exact error message as specified
         showErrorToast('Something went wrong. Please try again.');
       }
     } catch (error: any) {
       console.error('Unexpected error deleting account:', error);
       setShowDeleteModal(false);
-      // Show the exact error message as specified
       showErrorToast('Something went wrong. Please try again.');
     } finally {
       setIsDeleting(false);
@@ -136,6 +157,14 @@ export default function SettingsScreen() {
 
   const handleTermsConditionsPress = () => {
     router.push('/legal/terms-summary');
+  };
+
+  const handleInfoPress = () => {
+    setShowInfoModal(true);
+  };
+
+  const handleCloseInfoModal = () => {
+    setShowInfoModal(false);
   };
 
   const getPlanDisplay = () => {
@@ -181,16 +210,16 @@ export default function SettingsScreen() {
         <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
-            {/* Back Button */}
+            {/* Header with Back and Info Icons */}
             <View style={styles.topHeader}>
               <TouchableOpacity 
-                onPress={handleBack} 
-                style={styles.backButton}
+                onPress={handleInfoPress} 
+                style={styles.infoButton}
                 activeOpacity={0.7}
               >
                 <IconSymbol
-                  ios_icon_name="chevron.left"
-                  android_material_icon_name="arrow_back"
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
                   size={24}
                   color={theme.buttonText}
                 />
@@ -400,7 +429,7 @@ export default function SettingsScreen() {
                       color={theme.primary}
                     />
                     <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
-                      Terms & Conditions
+                      Terms Summary
                     </Text>
                   </View>
                   <IconSymbol
@@ -456,6 +485,43 @@ export default function SettingsScreen() {
         </SafeAreaView>
       </LinearGradient>
 
+      {/* Info Modal */}
+      <Modal
+        visible={showInfoModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseInfoModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+            <View style={styles.modalIconContainer}>
+              <IconSymbol
+                ios_icon_name="info.circle.fill"
+                android_material_icon_name="info"
+                size={48}
+                color={theme.primary}
+              />
+            </View>
+
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              About Safe Space
+            </Text>
+
+            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+              Safe Space is an AI-assisted emotional support app, not a substitute for professional help or emergency services.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.primary }]}
+              onPress={handleCloseInfoModal}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modalButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Delete Confirmation Modal */}
       <Modal
         visible={showDeleteModal}
@@ -484,7 +550,7 @@ export default function SettingsScreen() {
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                 onPress={handleCancelDelete}
                 disabled={isDeleting}
                 activeOpacity={0.8}
@@ -495,7 +561,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalButton, styles.confirmDeleteButton]}
+                style={[styles.modalButtonHalf, styles.confirmDeleteButton]}
                 onPress={handleConfirmDelete}
                 disabled={isDeleting}
                 activeOpacity={0.8}
@@ -535,7 +601,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? 16 : 8,
     paddingBottom: 8,
   },
-  backButton: {
+  infoButton: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -727,11 +793,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 28,
   },
+  modalButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
   },
-  modalButton: {
+  modalButtonHalf: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
