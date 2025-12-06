@@ -61,6 +61,14 @@ export default function ChatScreen() {
     if (!personId) {
       console.warn('[Chat] loadMessages: personId is missing');
       setLoading(false);
+      setError('Invalid person ID');
+      return;
+    }
+
+    if (!authUser?.id) {
+      console.warn('[Chat] loadMessages: No user ID available');
+      setLoading(false);
+      setError('You must be logged in to view messages');
       return;
     }
 
@@ -73,6 +81,7 @@ export default function ChatScreen() {
         .from('messages')
         .select('*')
         .eq('person_id', personId)
+        .eq('user_id', authUser.id)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -91,16 +100,20 @@ export default function ChatScreen() {
     } finally {
       setLoading(false);
     }
-  }, [personId]);
+  }, [personId, authUser?.id]);
 
   useEffect(() => {
-    if (personId) {
+    if (personId && authUser?.id) {
       loadMessages();
     } else {
       setLoading(false);
-      setError('Invalid person ID');
+      if (!personId) {
+        setError('Invalid person ID');
+      } else if (!authUser?.id) {
+        setError('You must be logged in');
+      }
     }
-  }, [personId, loadMessages]);
+  }, [personId, authUser?.id, loadMessages]);
 
   useEffect(() => {
     if (messages.length > 0) {

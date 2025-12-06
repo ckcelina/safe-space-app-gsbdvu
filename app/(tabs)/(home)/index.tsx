@@ -65,8 +65,14 @@ export default function HomeScreen() {
 
       console.log('Persons loaded:', personsData?.length || 0);
 
+      // Safely handle empty or null data
+      if (!personsData || personsData.length === 0) {
+        setPersons([]);
+        return;
+      }
+
       const personsWithMessages = await Promise.all(
-        (personsData || []).map(async (person) => {
+        personsData.map(async (person) => {
           try {
             const { data: messages } = await supabase
               .from('messages')
@@ -106,11 +112,13 @@ export default function HomeScreen() {
   useEffect(() => {
     if (userId) {
       fetchPersonsWithLastMessage();
+    } else {
+      setLoading(false);
     }
   }, [userId, fetchPersonsWithLastMessage]);
 
   // Helper function to categorize relationship types
-  const categorizeRelationship = (relationshipType: string | null): string => {
+  const categorizeRelationship = (relationshipType: string | null | undefined): string => {
     if (!relationshipType) return 'Friends';
     
     const type = relationshipType.toLowerCase().trim();
@@ -136,8 +144,8 @@ export default function HomeScreen() {
       if (!searchQuery.trim()) return true;
       
       const query = searchQuery.toLowerCase();
-      const nameMatch = person.name.toLowerCase().includes(query);
-      const relationshipMatch = person.relationship_type?.toLowerCase().includes(query);
+      const nameMatch = person.name?.toLowerCase().includes(query) || false;
+      const relationshipMatch = person.relationship_type?.toLowerCase().includes(query) || false;
       
       return nameMatch || relationshipMatch;
     });
@@ -185,6 +193,11 @@ export default function HomeScreen() {
   const handleSave = async () => {
     if (!name.trim()) {
       setNameError('Name is required');
+      return;
+    }
+
+    if (!userId) {
+      showErrorToast('You must be logged in to add a person');
       return;
     }
 

@@ -111,7 +111,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('AuthContext: Initializing...');
     
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting initial session:', error);
+        setLoading(false);
+        return;
+      }
+
       console.log('Initial session:', session?.user?.email || 'No session');
       setSession(session);
       setCurrentUser(session?.user ?? null);

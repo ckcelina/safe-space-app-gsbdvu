@@ -13,8 +13,8 @@ interface PersonCardProps {
 export function PersonCard({ person, onPress }: PersonCardProps) {
   const { theme } = useThemeContext();
 
-  // Get first letter of name for avatar
-  const initial = person.name.charAt(0).toUpperCase();
+  // Get first letter of name for avatar with null check
+  const initial = person.name && person.name.length > 0 ? person.name.charAt(0).toUpperCase() : '?';
 
   return (
     <TouchableOpacity
@@ -32,7 +32,7 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
 
         <View style={styles.info}>
           <Text style={[styles.name, { color: theme.textPrimary }]}>
-            {person.name}
+            {person.name || 'Unknown'}
           </Text>
           {person.relationship_type && (
             <Text style={[styles.relationship, { color: theme.textSecondary }]}>
