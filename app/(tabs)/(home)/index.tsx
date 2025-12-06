@@ -447,27 +447,29 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                   ) : (
-                    groupOrder.map((groupName) => {
-                      const groupPersons = filteredAndGroupedPersons[groupName];
-                      if (!groupPersons || groupPersons.length === 0) return null;
+                    <>
+                      {groupOrder.map((groupName) => {
+                        const groupPersons = filteredAndGroupedPersons[groupName];
+                        if (!groupPersons || groupPersons.length === 0) return null;
 
-                      return (
-                        <View key={groupName} style={styles.group}>
-                          <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
-                            {groupName}
-                          </Text>
-                          <View style={styles.groupCards}>
-                            {groupPersons.map((person) => (
-                              <PersonCard
-                                key={`${groupName}-${person.id}`}
-                                person={person}
-                                onPress={() => handlePersonPress(person)}
-                              />
-                            ))}
+                        return (
+                          <View key={groupName} style={styles.group}>
+                            <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
+                              {groupName}
+                            </Text>
+                            <View style={styles.groupCards}>
+                              {groupPersons.map((person) => (
+                                <PersonCard
+                                  key={person.id}
+                                  person={person}
+                                  onPress={() => handlePersonPress(person)}
+                                />
+                              ))}
+                            </View>
                           </View>
-                        </View>
-                      );
-                    })
+                        );
+                      })}
+                    </>
                   )}
                 </View>
               ) : null}
