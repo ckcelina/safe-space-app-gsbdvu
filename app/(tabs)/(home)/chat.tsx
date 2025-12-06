@@ -281,7 +281,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         style={[styles.container, { backgroundColor: theme.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
       >
         <StatusBarGradient />
 
@@ -570,13 +570,12 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 0,
+    paddingBottom: Platform.OS === 'ios' ? 16 : 16,
     borderRadius: 20,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingBottom: 12,
   },
   inputColumn: {
     flex: 1,
