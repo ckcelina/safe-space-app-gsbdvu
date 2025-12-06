@@ -5,7 +5,7 @@
     "slug": "Safe Space",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/app-icon.png",
+    "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -16,22 +16,22 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
-      "icon": "./assets/app-icon.png",
+      "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/app-icon.png",
+        "foregroundImage": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
         "backgroundColor": "#4A90E2"
       },
-      "icon": "./assets/app-icon.png",
+      "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively"
     },
     "web": {
-      "favicon": "./assets/app-icon.png",
+      "favicon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
       "bundler": "metro"
     },
     "plugins": [
