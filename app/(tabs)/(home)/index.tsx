@@ -516,18 +516,26 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                   ) : (
-                    visibleGroups.map((groupName) => {
+                    visibleGroups.map((groupName, groupIndex) => {
                       const groupPersons = filteredAndGroupedPersons[groupName] || [];
-                      
+
                       return (
-                        <View key={groupName} style={styles.group}>
+                        <View
+                          key={`${groupName}-${groupIndex}`}
+                          style={styles.group}
+                        >
                           <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
                             {groupName}
                           </Text>
+
                           <View style={styles.groupCards}>
                             {groupPersons.map((person, index) => (
                               <PersonCard
-                                key={person.id ?? person.uuid ?? `${groupName}-${person.name ?? ''}-${index}`}
+                                key={
+                                  person.id ??
+                                  person.uuid ??
+                                  `${groupName}-${person.name ?? ''}-${index}`
+                                }
                                 person={person}
                                 onPress={() => handlePersonPress(person)}
                               />
