@@ -11,8 +11,12 @@ import FloatingTabBar from '@/components/FloatingTabBar';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
+import { useLibraryImageGen } from '@/hooks/useLibraryImageGen';
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
+
+// Fallback placeholder image
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400&h=300&fit=crop';
 
 // Topic bubble component with animations and heart icon
 function TopicBubble({ 
@@ -22,6 +26,7 @@ function TopicBubble({
   onPress,
   isSaved,
   onToggleSave,
+  imageUrl,
 }: { 
   topic: Topic; 
   index: number; 
@@ -29,6 +34,7 @@ function TopicBubble({
   onPress: () => void;
   isSaved: boolean;
   onToggleSave: () => void;
+  imageUrl: string | null;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -73,20 +79,6 @@ function TopicBubble({
     onToggleSave();
   };
 
-  // Generate image URL based on the prompt
-  const getImageUrl = (prompt: string) => {
-    const imageMap: { [key: string]: string } = {
-      'gad': 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400&h=300&fit=crop',
-      'depression': 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=400&h=300&fit=crop',
-      'bipolar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop',
-      'bpd': 'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?w=400&h=300&fit=crop',
-      'adhd': 'https://images.unsplash.com/photo-1559757175-5700dde675bc?w=400&h=300&fit=crop',
-      'ocd': 'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=400&h=300&fit=crop',
-      'ptsd': 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=300&fit=crop',
-    };
-    return imageMap[topic.id] || 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400&h=300&fit=crop';
-  };
-
   return (
     <Animated.View
       style={[
@@ -110,7 +102,7 @@ function TopicBubble({
         <View style={[styles.bubble, { backgroundColor: theme.card }]}>
           <View style={styles.imageContainer}>
             <Image
-              source={{ uri: getImageUrl(topic.imagePrompt) }}
+              source={{ uri: imageUrl || FALLBACK_IMAGE }}
               style={styles.bubbleImage}
               resizeMode="cover"
             />
@@ -149,15 +141,21 @@ export default function LibraryScreen() {
   const { theme } = useThemeContext();
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const { getCachedImage, loadImageCache, imageCache } = useLibraryImageGen();
 
   // State for search and saved topics
   const [searchQuery, setSearchQuery] = useState('');
   const [savedTopicIds, setSavedTopicIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load saved topics from AsyncStorage on mount
+  // Load saved topics and image cache on mount
   useEffect(() => {
-    loadSavedTopics();
+    const initialize = async () => {
+      await loadSavedTopics();
+      await loadImageCache();
+      setIsLoading(false);
+    };
+    initialize();
   }, []);
 
   const loadSavedTopics = async () => {
@@ -170,8 +168,6 @@ export default function LibraryScreen() {
       }
     } catch (error) {
       console.error('[Library] Error loading saved topics:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -295,6 +291,7 @@ export default function LibraryScreen() {
                           onPress={() => handleTopicPress(topic.id)}
                           isSaved={true}
                           onToggleSave={() => toggleSaveTopic(topic.id)}
+                          imageUrl={getCachedImage(topic.id)}
                         />
                       </View>
                     ))}
@@ -321,6 +318,7 @@ export default function LibraryScreen() {
                       onPress={() => handleTopicPress(topic.id)}
                       isSaved={savedTopicIds.includes(topic.id)}
                       onToggleSave={() => toggleSaveTopic(topic.id)}
+                      imageUrl={getCachedImage(topic.id)}
                     />
                   ))}
                 </View>

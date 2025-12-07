@@ -4,6 +4,7 @@ export interface Topic {
   title: string;
   shortDescription: string;
   imagePrompt: string;
+  imageUrl?: string;
   content: {
     overview: string;
     symptoms: string[];
@@ -18,7 +19,7 @@ export const libraryTopics: Topic[] = [
     id: 'gad',
     title: 'Generalised Anxiety Disorder (GAD)',
     shortDescription: 'Persistent worry and tension that interferes with daily life, even when there is little or nothing to provoke it.',
-    imagePrompt: 'A calm illustration of a person with swirling lines fading into clouds.',
+    imagePrompt: 'Soft, calming illustration of a peaceful sunrise with gentle swirling translucent lines expressing worry releasing into an open sky. Pastel colors, warm lighting, serene and hopeful atmosphere. Educational, friendly, non-clinical style.',
     content: {
       overview: 'GAD is characterized by chronic anxiety, exaggerated worry, and tension, even when there is little or nothing to provoke it.',
       symptoms: ['Excessive worry', 'Restlessness', 'Fatigue', 'Difficulty concentrating', 'Muscle tension', 'Sleep disturbances'],
@@ -30,7 +31,7 @@ export const libraryTopics: Topic[] = [
     id: 'social-anxiety',
     title: 'Social Anxiety',
     shortDescription: 'Intense fear of social situations and being judged or negatively evaluated by others.',
-    imagePrompt: 'A gentle figure surrounded by soft, protective bubbles in pastel colors.',
+    imagePrompt: 'Gentle illustration of a person standing before soft silhouettes of others, pastel colors, gentle facial expression, supportive warm lighting. Calm, friendly, educational atmosphere. Non-threatening, peaceful style.',
     content: {
       overview: 'Social anxiety disorder involves overwhelming worry and self-consciousness about everyday social situations, often centered on a fear of being judged, embarrassed, or humiliated.',
       symptoms: ['Fear of social situations', 'Excessive self-consciousness', 'Physical symptoms (blushing, sweating)', 'Avoidance of social events', 'Difficulty making eye contact', 'Fear of being judged'],
@@ -42,7 +43,7 @@ export const libraryTopics: Topic[] = [
     id: 'panic-disorder',
     title: 'Panic Disorder & Panic Attacks',
     shortDescription: 'Recurrent unexpected panic attacks and persistent concern about having more attacks.',
-    imagePrompt: 'A person breathing calmly with waves of soft color flowing outward.',
+    imagePrompt: 'Abstract soft illustration depicting sudden intensity transitioning into calm waves, peaceful pastel palette. Gentle flow from chaos to serenity. Warm, supportive, educational style. Non-scary, hopeful atmosphere.',
     content: {
       overview: 'Panic disorder is characterized by sudden and repeated attacks of intense fear accompanied by physical symptoms. These attacks can occur unexpectedly and may lead to ongoing worry about future attacks.',
       symptoms: ['Rapid heartbeat', 'Sweating', 'Trembling', 'Shortness of breath', 'Chest pain', 'Dizziness', 'Fear of losing control', 'Feeling of unreality'],
@@ -54,7 +55,7 @@ export const libraryTopics: Topic[] = [
     id: 'health-anxiety',
     title: 'Health Anxiety',
     shortDescription: 'Excessive worry about having or developing a serious illness, despite medical reassurance.',
-    imagePrompt: 'A peaceful heart surrounded by gentle, protective light rays.',
+    imagePrompt: 'Peaceful illustration of a person looking at subtle floating symbols of health (heart, lungs) dissolving into soft light. Non-clinical, gentle pastel style. Warm, reassuring, educational atmosphere. Calm and supportive.',
     content: {
       overview: 'Health anxiety involves persistent worry about having a serious illness, often misinterpreting normal body sensations as signs of severe disease.',
       symptoms: ['Constant health worry', 'Frequent body checking', 'Seeking reassurance', 'Avoiding medical information or excessive research', 'Physical symptoms from anxiety', 'Difficulty accepting medical reassurance'],
@@ -66,7 +67,7 @@ export const libraryTopics: Topic[] = [
     id: 'separation-anxiety',
     title: 'Separation Anxiety',
     shortDescription: 'Excessive fear or anxiety about separation from attachment figures or home.',
-    imagePrompt: 'Two figures connected by a gentle, glowing thread across soft clouds.',
+    imagePrompt: 'Gentle illustration of two figures connected by a soft, glowing thread across peaceful clouds. Pastel colors, warm and reassuring lighting. Educational, friendly, supportive style. Calm and hopeful atmosphere.',
     content: {
       overview: 'Separation anxiety involves excessive fear about being apart from loved ones or familiar environments, beyond what is expected for developmental level.',
       symptoms: ['Excessive distress when separated', 'Worry about harm to loved ones', 'Reluctance to be alone', 'Physical symptoms when separation occurs', 'Nightmares about separation', 'Difficulty sleeping alone'],
@@ -80,7 +81,7 @@ export const libraryTopics: Topic[] = [
     id: 'depression',
     title: 'Major Depressive Disorder',
     shortDescription: 'A mood disorder causing persistent feelings of sadness and loss of interest in activities once enjoyed.',
-    imagePrompt: 'Pastel figure under a small rain cloud parting into light.',
+    imagePrompt: 'Soft pastel illustration of a figure under a small rain cloud parting into gentle light. Warm colors emerging, hopeful atmosphere. Educational, friendly, non-clinical style. Calm and supportive.',
     content: {
       overview: 'Major depression is a serious medical illness affecting how you feel, think, and handle daily activities.',
       symptoms: ['Persistent sadness', 'Loss of interest', 'Changes in appetite', 'Sleep problems', 'Fatigue', 'Feelings of worthlessness'],
@@ -92,7 +93,7 @@ export const libraryTopics: Topic[] = [
     id: 'dysthymia',
     title: 'Persistent Depressive Disorder (Dysthymia)',
     shortDescription: 'A chronic form of depression lasting for at least two years with less severe but persistent symptoms.',
-    imagePrompt: 'A figure walking through gentle fog with soft light ahead.',
+    imagePrompt: 'Gentle illustration of a figure walking through soft fog with warm light ahead. Pastel colors, peaceful journey, hopeful destination. Educational, friendly, supportive style. Calm atmosphere.',
     content: {
       overview: 'Persistent depressive disorder is a continuous, long-term form of depression where mood is depressed most of the day, more days than not, for at least two years.',
       symptoms: ['Chronic low mood', 'Low energy', 'Poor concentration', 'Feelings of hopelessness', 'Changes in appetite', 'Low self-esteem', 'Difficulty making decisions'],
@@ -104,7 +105,7 @@ export const libraryTopics: Topic[] = [
     id: 'bipolar-1',
     title: 'Bipolar I Disorder',
     shortDescription: 'A condition marked by manic episodes lasting at least seven days, often alternating with depressive episodes.',
-    imagePrompt: 'Two overlapping silhouettes with day and night colors blending harmoniously.',
+    imagePrompt: 'Soft illustration of two overlapping silhouettes with day and night colors blending harmoniously. Pastel sunrise and moonlight merging peacefully. Educational, friendly, balanced style. Calm and supportive.',
     content: {
       overview: 'Bipolar I disorder is defined by manic episodes that last at least seven days or by manic symptoms severe enough to require immediate hospital care. Depressive episodes typically occur as well.',
       symptoms: ['Manic episodes', 'Elevated mood', 'Increased energy', 'Decreased need for sleep', 'Racing thoughts', 'Risky behavior', 'Depressive episodes'],
@@ -116,7 +117,7 @@ export const libraryTopics: Topic[] = [
     id: 'bipolar-2',
     title: 'Bipolar II Disorder',
     shortDescription: 'A pattern of depressive episodes and hypomanic episodes, but not full-blown manic episodes.',
-    imagePrompt: 'Gentle waves of color transitioning smoothly from warm to cool tones.',
+    imagePrompt: 'Gentle illustration of waves of color transitioning smoothly from warm to cool tones. Peaceful flow, pastel palette. Educational, friendly, balanced style. Calm and harmonious atmosphere.',
     content: {
       overview: 'Bipolar II disorder involves a pattern of depressive episodes and hypomanic episodes, which are less severe than the manic episodes in Bipolar I disorder.',
       symptoms: ['Hypomanic episodes', 'Elevated mood (less severe)', 'Increased productivity', 'Depressive episodes', 'Mood swings', 'Changes in sleep patterns'],
@@ -128,7 +129,7 @@ export const libraryTopics: Topic[] = [
     id: 'cyclothymia',
     title: 'Cyclothymia',
     shortDescription: 'A milder form of bipolar disorder with numerous periods of hypomanic and depressive symptoms.',
-    imagePrompt: 'Soft rolling hills in pastel colors under a calm sky.',
+    imagePrompt: 'Soft illustration of rolling hills in gentle pastel colors under a calm sky. Peaceful landscape, warm lighting. Educational, friendly, balanced style. Serene and supportive atmosphere.',
     content: {
       overview: 'Cyclothymic disorder involves numerous periods of hypomanic symptoms and periods of depressive symptoms lasting for at least two years, though symptoms are less severe than bipolar disorder.',
       symptoms: ['Mild mood swings', 'Periods of hypomania', 'Periods of mild depression', 'Unpredictable mood changes', 'Emotional instability'],
@@ -142,7 +143,7 @@ export const libraryTopics: Topic[] = [
     id: 'ptsd',
     title: 'Post-Traumatic Stress Disorder (PTSD)',
     shortDescription: 'A disorder that develops in some people who have experienced a shocking, scary, or dangerous event.',
-    imagePrompt: 'A person looking at a glowing window while soft shapes fade behind.',
+    imagePrompt: 'Gentle illustration of a person looking at a glowing window while soft shapes fade peacefully behind. Warm light, pastel colors. Educational, friendly, hopeful style. Calm and supportive atmosphere.',
     content: {
       overview: 'PTSD can occur in people who have experienced or witnessed a traumatic event.',
       symptoms: ['Flashbacks', 'Nightmares', 'Severe anxiety', 'Avoidance', 'Negative thoughts', 'Hypervigilance'],
@@ -154,7 +155,7 @@ export const libraryTopics: Topic[] = [
     id: 'complex-ptsd',
     title: 'Complex PTSD',
     shortDescription: 'A condition resulting from prolonged, repeated trauma, often involving interpersonal relationships.',
-    imagePrompt: 'A figure emerging from layered, soft shadows into gentle light.',
+    imagePrompt: 'Soft illustration of a figure emerging from layered, gentle shadows into warm light. Pastel colors, peaceful transition. Educational, friendly, hopeful style. Calm and supportive atmosphere.',
     content: {
       overview: 'Complex PTSD develops from prolonged or repeated trauma, often in situations where escape is difficult or impossible, such as childhood abuse or domestic violence.',
       symptoms: ['Difficulty regulating emotions', 'Negative self-perception', 'Relationship difficulties', 'Flashbacks', 'Dissociation', 'Loss of sense of self', 'Difficulty trusting others'],
@@ -166,7 +167,7 @@ export const libraryTopics: Topic[] = [
     id: 'childhood-trauma',
     title: 'Childhood Trauma',
     shortDescription: 'The lasting impact of distressing or harmful experiences during childhood years.',
-    imagePrompt: 'A small tree growing strong with protective, nurturing light around it.',
+    imagePrompt: 'Gentle illustration of a small tree growing strong with protective, nurturing light around it. Pastel colors, warm and supportive atmosphere. Educational, friendly, hopeful style. Calm and peaceful.',
     content: {
       overview: 'Childhood trauma refers to experiences during childhood that are emotionally painful or distressing, which often have lasting effects into adulthood.',
       symptoms: ['Difficulty trusting others', 'Emotional regulation challenges', 'Relationship patterns', 'Low self-worth', 'Anxiety or depression', 'Hypervigilance'],
@@ -178,7 +179,7 @@ export const libraryTopics: Topic[] = [
     id: 'emotional-neglect',
     title: 'Emotional Neglect',
     shortDescription: 'The experience of not having emotional needs met, particularly during childhood.',
-    imagePrompt: 'A gentle hand reaching toward a small, glowing heart.',
+    imagePrompt: 'Gentle illustration of a caring hand reaching toward a small, glowing heart. Soft pastel colors, warm and nurturing light. Educational, friendly, supportive style. Calm and compassionate atmosphere.',
     content: {
       overview: 'Emotional neglect occurs when emotional needs are consistently unmet, often leaving individuals feeling invisible or unimportant.',
       symptoms: ['Difficulty identifying emotions', 'Feeling empty', 'Low self-worth', 'Difficulty asking for help', 'Feeling disconnected', 'Self-reliance to a fault'],
@@ -192,7 +193,7 @@ export const libraryTopics: Topic[] = [
     id: 'ocd',
     title: 'Obsessive-Compulsive Disorder (OCD)',
     shortDescription: 'A disorder characterized by unreasonable thoughts and fears (obsessions) that lead to repetitive behaviors (compulsions).',
-    imagePrompt: 'Hands aligning objects into gentle symmetrical shapes.',
+    imagePrompt: 'Soft illustration of hands gently aligning objects into symmetrical shapes. Pastel colors, calm and organized atmosphere. Educational, friendly, non-judgmental style. Peaceful and supportive.',
     content: {
       overview: 'OCD features a pattern of unwanted thoughts and fears that lead you to do repetitive behaviors.',
       symptoms: ['Intrusive thoughts', 'Compulsive behaviors', 'Excessive cleaning', 'Checking rituals', 'Counting', 'Ordering'],
@@ -204,7 +205,7 @@ export const libraryTopics: Topic[] = [
     id: 'pure-o',
     title: 'Pure-O (Intrusive Thoughts)',
     shortDescription: 'A form of OCD characterized primarily by intrusive, unwanted thoughts without visible compulsions.',
-    imagePrompt: 'A calm mind with thought bubbles gently floating away like clouds.',
+    imagePrompt: 'Calm illustration of a peaceful mind with thought bubbles gently floating away like soft clouds. Pastel colors, serene sky. Educational, friendly, reassuring style. Calm and supportive atmosphere.',
     content: {
       overview: 'Pure-O refers to OCD where compulsions are primarily mental rather than physical. Individuals experience distressing intrusive thoughts but may not have obvious external rituals.',
       symptoms: ['Unwanted intrusive thoughts', 'Mental compulsions', 'Excessive rumination', 'Thought suppression attempts', 'Anxiety about thoughts', 'Mental checking'],
@@ -218,7 +219,7 @@ export const libraryTopics: Topic[] = [
     id: 'bpd',
     title: 'Borderline Personality Disorder (BPD)',
     shortDescription: 'A mental health disorder that impacts the way you think and feel about yourself and others, causing problems in everyday life.',
-    imagePrompt: 'A heart made of puzzle pieces merging together.',
+    imagePrompt: 'Gentle illustration of a heart made of puzzle pieces merging together harmoniously. Soft pastel colors, warm light. Educational, friendly, hopeful style. Calm and supportive atmosphere.',
     content: {
       overview: 'BPD is characterized by ongoing instability in moods, behavior, self-image, and functioning.',
       symptoms: ['Intense emotions', 'Fear of abandonment', 'Unstable relationships', 'Impulsive actions', 'Self-harm', 'Identity disturbance'],
@@ -230,7 +231,7 @@ export const libraryTopics: Topic[] = [
     id: 'narcissistic-patterns',
     title: 'Narcissistic Personality Patterns',
     shortDescription: 'Patterns of grandiosity, need for admiration, and lack of empathy that impact relationships.',
-    imagePrompt: 'A mirror reflecting soft, balanced light in pastel tones.',
+    imagePrompt: 'Soft illustration of a mirror reflecting balanced, gentle light in pastel tones. Calm and harmonious atmosphere. Educational, friendly, non-judgmental style. Peaceful and supportive.',
     content: {
       overview: 'Narcissistic patterns involve a pervasive pattern of grandiosity, need for admiration, and lack of empathy. Understanding these patterns can help in relationships and personal growth.',
       symptoms: ['Grandiose sense of self', 'Need for admiration', 'Lack of empathy', 'Sense of entitlement', 'Exploitative behavior', 'Difficulty with criticism'],
@@ -242,7 +243,7 @@ export const libraryTopics: Topic[] = [
     id: 'avoidant-patterns',
     title: 'Avoidant Personality Patterns',
     shortDescription: 'Patterns of social inhibition, feelings of inadequacy, and hypersensitivity to criticism.',
-    imagePrompt: 'A figure stepping out from behind a soft curtain toward gentle light.',
+    imagePrompt: 'Gentle illustration of a figure stepping out from behind a soft curtain toward warm, welcoming light. Pastel colors, hopeful atmosphere. Educational, friendly, encouraging style. Calm and supportive.',
     content: {
       overview: 'Avoidant personality patterns involve pervasive social inhibition, feelings of inadequacy, and extreme sensitivity to negative evaluation.',
       symptoms: ['Avoidance of social situations', 'Fear of criticism', 'Feelings of inadequacy', 'Reluctance to take risks', 'Preoccupation with rejection', 'Low self-esteem'],
@@ -254,7 +255,7 @@ export const libraryTopics: Topic[] = [
     id: 'dependent-patterns',
     title: 'Dependent Personality Patterns',
     shortDescription: 'Patterns of excessive need to be taken care of, leading to submissive and clinging behavior.',
-    imagePrompt: 'A person standing independently with gentle support around them.',
+    imagePrompt: 'Gentle illustration of a person standing independently with soft, supportive light around them. Pastel colors, warm and empowering atmosphere. Educational, friendly, encouraging style. Calm and peaceful.',
     content: {
       overview: 'Dependent personality patterns involve an excessive need to be taken care of, leading to submissive, clinging behavior and fears of separation.',
       symptoms: ['Difficulty making decisions', 'Need for reassurance', 'Fear of being alone', 'Difficulty disagreeing', 'Urgently seeking new relationships when one ends', 'Submissive behavior'],
@@ -268,7 +269,7 @@ export const libraryTopics: Topic[] = [
     id: 'adhd',
     title: 'Attention-Deficit/Hyperactivity Disorder (ADHD)',
     shortDescription: 'A neurodevelopmental disorder characterized by inattention, hyperactivity, and impulsivity that interferes with functioning.',
-    imagePrompt: 'A playful brain with orbiting icons organized into paths.',
+    imagePrompt: 'Playful illustration of a brain with orbiting icons organized into gentle paths. Soft pastel colors, dynamic yet calm. Educational, friendly, positive style. Supportive and encouraging atmosphere.',
     content: {
       overview: 'ADHD is one of the most common neurodevelopmental disorders of childhood, often lasting into adulthood.',
       symptoms: ['Difficulty focusing', 'Hyperactivity', 'Impulsiveness', 'Disorganization', 'Time management issues', 'Forgetfulness'],
@@ -280,7 +281,7 @@ export const libraryTopics: Topic[] = [
     id: 'adhd-inattentive',
     title: 'ADHD (Inattentive Type)',
     shortDescription: 'ADHD characterized primarily by difficulty sustaining attention and organization, without significant hyperactivity.',
-    imagePrompt: 'A peaceful figure organizing floating thoughts into gentle patterns.',
+    imagePrompt: 'Peaceful illustration of a figure organizing floating thoughts into gentle patterns. Soft pastel colors, calm and focused atmosphere. Educational, friendly, supportive style. Serene and encouraging.',
     content: {
       overview: 'Inattentive type ADHD involves primarily symptoms of inattention, such as difficulty focusing, forgetfulness, and disorganization, without prominent hyperactivity.',
       symptoms: ['Difficulty sustaining attention', 'Easily distracted', 'Forgetfulness', 'Losing things', 'Difficulty organizing', 'Avoiding tasks requiring sustained focus'],
@@ -292,7 +293,7 @@ export const libraryTopics: Topic[] = [
     id: 'adhd-hyperactive',
     title: 'ADHD (Hyperactive-Impulsive Type)',
     shortDescription: 'ADHD characterized primarily by hyperactivity and impulsivity, with less prominent inattention.',
-    imagePrompt: 'Dynamic energy flowing into organized, purposeful channels.',
+    imagePrompt: 'Dynamic illustration of energy flowing into organized, purposeful channels. Soft pastel colors, balanced movement. Educational, friendly, positive style. Calm yet energetic atmosphere.',
     content: {
       overview: 'Hyperactive-impulsive type ADHD involves primarily symptoms of hyperactivity and impulsivity, such as fidgeting, difficulty staying seated, and acting without thinking.',
       symptoms: ['Fidgeting', 'Difficulty staying seated', 'Excessive talking', 'Interrupting others', 'Difficulty waiting turn', 'Acting without thinking'],
@@ -304,7 +305,7 @@ export const libraryTopics: Topic[] = [
     id: 'adhd-combined',
     title: 'ADHD (Combined Type)',
     shortDescription: 'ADHD with significant symptoms of both inattention and hyperactivity-impulsivity.',
-    imagePrompt: 'A balanced figure with organized energy and focused calm.',
+    imagePrompt: 'Balanced illustration of a figure with organized energy and focused calm. Soft pastel colors, harmonious atmosphere. Educational, friendly, supportive style. Peaceful yet dynamic.',
     content: {
       overview: 'Combined type ADHD involves significant symptoms of both inattention and hyperactivity-impulsivity, making it the most common presentation of ADHD.',
       symptoms: ['Inattention', 'Hyperactivity', 'Impulsivity', 'Disorganization', 'Restlessness', 'Difficulty with focus and sitting still'],
@@ -316,7 +317,7 @@ export const libraryTopics: Topic[] = [
     id: 'autism-spectrum',
     title: 'Autism Spectrum',
     shortDescription: 'A developmental condition affecting communication, social interaction, and behavior in diverse ways.',
-    imagePrompt: 'A unique, beautiful pattern of interconnected shapes in soft colors.',
+    imagePrompt: 'Unique, beautiful illustration of interconnected shapes forming a gentle pattern in soft colors. Pastel palette, harmonious design. Educational, friendly, celebrating diversity style. Calm and supportive.',
     content: {
       overview: 'Autism spectrum disorder is a developmental condition that affects how people communicate, interact socially, and experience the world. It presents differently in each individual.',
       symptoms: ['Differences in social communication', 'Repetitive behaviors', 'Sensory sensitivities', 'Focused interests', 'Preference for routine', 'Unique strengths and challenges'],
@@ -330,7 +331,7 @@ export const libraryTopics: Topic[] = [
     id: 'dissociation-depersonalization',
     title: 'Dissociation & Depersonalisation',
     shortDescription: 'Feeling detached from oneself, as if observing from outside one&apos;s body or mind.',
-    imagePrompt: 'A translucent figure gently reconnecting with a soft, grounding light.',
+    imagePrompt: 'Gentle illustration of a translucent figure reconnecting with soft, grounding light. Pastel colors, warm and reassuring atmosphere. Educational, friendly, supportive style. Calm and peaceful.',
     content: {
       overview: 'Depersonalization involves feeling detached from oneself, experiencing a sense of unreality about one&apos;s own existence, thoughts, or body.',
       symptoms: ['Feeling detached from self', 'Observing self from outside', 'Emotional numbness', 'Feeling robotic', 'Distorted sense of time', 'Feeling unreal'],
@@ -342,7 +343,7 @@ export const libraryTopics: Topic[] = [
     id: 'derealisation',
     title: 'Derealisation',
     shortDescription: 'Feeling that the world around you is unreal, dreamlike, or distorted.',
-    imagePrompt: 'A person touching solid, real objects that glow with reassuring warmth.',
+    imagePrompt: 'Gentle illustration of a person touching solid, real objects that glow with reassuring warmth. Soft pastel colors, grounding atmosphere. Educational, friendly, supportive style. Calm and peaceful.',
     content: {
       overview: 'Derealization involves feeling that the external world is strange, unreal, or dreamlike, as if viewing it through a fog or from a distance.',
       symptoms: ['World feels unreal', 'Surroundings seem distorted', 'Visual distortions', 'Feeling in a dream', 'Emotional detachment from environment', 'Time distortion'],
@@ -356,7 +357,7 @@ export const libraryTopics: Topic[] = [
     id: 'disordered-eating',
     title: 'Disordered Eating',
     shortDescription: 'Irregular eating patterns and unhealthy relationships with food that may not meet full criteria for an eating disorder.',
-    imagePrompt: 'A balanced plate with gentle, nourishing colors and soft light.',
+    imagePrompt: 'Gentle illustration of a balanced plate with nourishing colors and soft light. Pastel tones, warm and peaceful atmosphere. Educational, friendly, non-judgmental style. Calm and supportive.',
     content: {
       overview: 'Disordered eating refers to a range of irregular eating behaviors that may not warrant a diagnosis of a specific eating disorder but still negatively impact health and wellbeing.',
       symptoms: ['Restrictive eating', 'Binge eating', 'Chronic dieting', 'Food preoccupation', 'Guilt around eating', 'Rigid food rules'],
@@ -368,7 +369,7 @@ export const libraryTopics: Topic[] = [
     id: 'body-image',
     title: 'Body Image Issues',
     shortDescription: 'Negative thoughts and feelings about one&apos;s physical appearance that impact self-esteem and wellbeing.',
-    imagePrompt: 'A figure looking at a kind, accepting reflection in soft light.',
+    imagePrompt: 'Gentle illustration of a figure looking at a kind, accepting reflection in soft light. Pastel colors, warm and compassionate atmosphere. Educational, friendly, supportive style. Calm and peaceful.',
     content: {
       overview: 'Body image issues involve persistent negative thoughts and feelings about one&apos;s appearance, which can significantly impact mental health and quality of life.',
       symptoms: ['Negative self-perception', 'Constant comparison', 'Avoidance of mirrors or photos', 'Preoccupation with appearance', 'Body checking', 'Distorted view of body'],
@@ -380,7 +381,7 @@ export const libraryTopics: Topic[] = [
     id: 'emotional-eating',
     title: 'Emotional Eating',
     shortDescription: 'Using food to cope with emotions rather than to satisfy physical hunger.',
-    imagePrompt: 'A heart being gently nourished by warm, comforting light.',
+    imagePrompt: 'Gentle illustration of a heart being nourished by warm, comforting light. Soft pastel colors, caring atmosphere. Educational, friendly, compassionate style. Calm and supportive.',
     content: {
       overview: 'Emotional eating involves eating in response to emotions rather than physical hunger, often as a way to cope with stress, sadness, or other feelings.',
       symptoms: ['Eating when not hungry', 'Eating in response to emotions', 'Craving specific comfort foods', 'Eating to feel better', 'Guilt after eating', 'Loss of control around food'],
@@ -394,7 +395,7 @@ export const libraryTopics: Topic[] = [
     id: 'low-self-esteem',
     title: 'Low Self-Esteem',
     shortDescription: 'A negative view of oneself, characterized by lack of confidence and feelings of inadequacy.',
-    imagePrompt: 'A small light growing brighter and stronger within a gentle figure.',
+    imagePrompt: 'Gentle illustration of a small light growing brighter and stronger within a figure. Soft pastel colors, empowering atmosphere. Educational, friendly, encouraging style. Calm and supportive.',
     content: {
       overview: 'Low self-esteem involves a negative overall opinion of oneself, undervaluing one&apos;s worth, and lacking confidence in one&apos;s abilities.',
       symptoms: ['Negative self-talk', 'Difficulty accepting compliments', 'Comparing self to others', 'Fear of failure', 'People-pleasing', 'Difficulty setting boundaries'],
@@ -406,7 +407,7 @@ export const libraryTopics: Topic[] = [
     id: 'perfectionism',
     title: 'Perfectionism',
     shortDescription: 'Setting unrealistically high standards and being overly critical of oneself when those standards aren&apos;t met.',
-    imagePrompt: 'A beautiful, imperfect shape glowing with acceptance and warmth.',
+    imagePrompt: 'Beautiful illustration of an imperfect shape glowing with acceptance and warmth. Soft pastel colors, peaceful atmosphere. Educational, friendly, compassionate style. Calm and supportive.',
     content: {
       overview: 'Perfectionism involves setting excessively high standards for oneself and being overly critical when those standards are not met, often leading to stress and dissatisfaction.',
       symptoms: ['Unrealistic standards', 'Fear of failure', 'Procrastination', 'All-or-nothing thinking', 'Excessive self-criticism', 'Difficulty delegating'],
@@ -418,7 +419,7 @@ export const libraryTopics: Topic[] = [
     id: 'people-pleasing',
     title: 'People-Pleasing',
     shortDescription: 'Prioritizing others&apos; needs and approval over one&apos;s own wellbeing and authentic desires.',
-    imagePrompt: 'A figure standing centered with gentle boundaries around them.',
+    imagePrompt: 'Gentle illustration of a figure standing centered with soft boundaries around them. Pastel colors, empowering atmosphere. Educational, friendly, supportive style. Calm and peaceful.',
     content: {
       overview: 'People-pleasing involves consistently prioritizing others&apos; needs, opinions, and feelings over one&apos;s own, often at the expense of personal wellbeing.',
       symptoms: ['Difficulty saying no', 'Seeking approval', 'Avoiding conflict', 'Neglecting own needs', 'Feeling responsible for others&apos; emotions', 'Difficulty expressing opinions'],
@@ -430,7 +431,7 @@ export const libraryTopics: Topic[] = [
     id: 'burnout',
     title: 'Burnout',
     shortDescription: 'Physical, emotional, and mental exhaustion caused by prolonged stress, often work-related.',
-    imagePrompt: 'A tired figure resting in a peaceful, restorative space with soft light.',
+    imagePrompt: 'Gentle illustration of a tired figure resting in a peaceful, restorative space with soft light. Pastel colors, calm atmosphere. Educational, friendly, nurturing style. Peaceful and supportive.',
     content: {
       overview: 'Burnout is a state of physical, emotional, and mental exhaustion caused by prolonged or excessive stress, particularly in work or caregiving contexts.',
       symptoms: ['Chronic fatigue', 'Cynicism', 'Reduced performance', 'Emotional exhaustion', 'Detachment', 'Lack of motivation', 'Physical symptoms'],
@@ -442,7 +443,7 @@ export const libraryTopics: Topic[] = [
     id: 'compassion-fatigue',
     title: 'Compassion Fatigue',
     shortDescription: 'Emotional and physical exhaustion from caring for others, common in helping professions.',
-    imagePrompt: 'A caregiver being gently cared for by warm, nurturing light.',
+    imagePrompt: 'Gentle illustration of a caregiver being cared for by warm, nurturing light. Soft pastel colors, restorative atmosphere. Educational, friendly, compassionate style. Calm and supportive.',
     content: {
       overview: 'Compassion fatigue is the emotional and physical exhaustion that can occur from caring for others who are suffering, particularly common in healthcare, social work, and caregiving roles.',
       symptoms: ['Emotional numbness', 'Reduced empathy', 'Exhaustion', 'Irritability', 'Difficulty concentrating', 'Feeling overwhelmed', 'Physical symptoms'],
@@ -456,7 +457,7 @@ export const libraryTopics: Topic[] = [
     id: 'romantic-difficulties',
     title: 'Romantic Relationship Difficulties',
     shortDescription: 'Challenges in romantic partnerships including communication issues, conflict, and intimacy concerns.',
-    imagePrompt: 'Two figures facing each other with a gentle bridge of light between them.',
+    imagePrompt: 'Gentle illustration of two figures facing each other with a soft bridge of light between them. Pastel colors, warm and hopeful atmosphere. Educational, friendly, supportive style. Calm and peaceful.',
     content: {
       overview: 'Romantic relationship difficulties encompass a range of challenges that can arise in intimate partnerships, from communication problems to conflicts about values or intimacy.',
       symptoms: ['Communication breakdown', 'Frequent conflicts', 'Emotional distance', 'Trust issues', 'Intimacy problems', 'Unmet needs'],
@@ -468,7 +469,7 @@ export const libraryTopics: Topic[] = [
     id: 'attachment-anxious',
     title: 'Attachment Issues (Anxious)',
     shortDescription: 'An attachment style characterized by fear of abandonment and need for constant reassurance in relationships.',
-    imagePrompt: 'A figure being gently held by secure, reassuring light.',
+    imagePrompt: 'Gentle illustration of a figure being held by secure, reassuring light. Soft pastel colors, safe atmosphere. Educational, friendly, supportive style. Calm and peaceful.',
     content: {
       overview: 'Anxious attachment involves a pattern of seeking closeness and reassurance in relationships, often accompanied by fear of abandonment and worry about the relationship.',
       symptoms: ['Fear of abandonment', 'Need for reassurance', 'Relationship anxiety', 'Preoccupation with partner', 'Difficulty with independence', 'Sensitivity to rejection'],
@@ -480,7 +481,7 @@ export const libraryTopics: Topic[] = [
     id: 'attachment-avoidant',
     title: 'Attachment Issues (Avoidant)',
     shortDescription: 'An attachment style characterized by discomfort with closeness and emotional intimacy.',
-    imagePrompt: 'A figure slowly opening a door to gentle, safe connection.',
+    imagePrompt: 'Gentle illustration of a figure slowly opening a door to safe connection. Soft pastel colors, hopeful atmosphere. Educational, friendly, encouraging style. Calm and supportive.',
     content: {
       overview: 'Avoidant attachment involves a pattern of maintaining emotional distance in relationships, discomfort with intimacy, and strong emphasis on independence.',
       symptoms: ['Discomfort with closeness', 'Difficulty expressing emotions', 'Valuing independence highly', 'Avoiding vulnerability', 'Emotional distance', 'Difficulty with commitment'],
@@ -492,7 +493,7 @@ export const libraryTopics: Topic[] = [
     id: 'attachment-disorganised',
     title: 'Attachment Issues (Disorganised)',
     shortDescription: 'An attachment style characterized by inconsistent behavior and difficulty with trust and intimacy.',
-    imagePrompt: 'A figure finding balance between connection and safety in soft light.',
+    imagePrompt: 'Gentle illustration of a figure finding balance between connection and safety in soft light. Pastel colors, peaceful atmosphere. Educational, friendly, supportive style. Calm and hopeful.',
     content: {
       overview: 'Disorganized attachment involves inconsistent patterns in relationships, often stemming from trauma or unpredictable caregiving, leading to both desire for and fear of closeness.',
       symptoms: ['Inconsistent behavior', 'Fear of intimacy and abandonment', 'Difficulty trusting', 'Emotional dysregulation', 'Push-pull dynamics', 'Confusion about relationships'],
@@ -504,7 +505,7 @@ export const libraryTopics: Topic[] = [
     id: 'family-conflict',
     title: 'Family Conflict',
     shortDescription: 'Ongoing disagreements, tension, or dysfunction within family relationships.',
-    imagePrompt: 'A family tree with branches gently reconnecting through soft light.',
+    imagePrompt: 'Gentle illustration of a family tree with branches reconnecting through soft light. Pastel colors, hopeful atmosphere. Educational, friendly, peaceful style. Calm and supportive.',
     content: {
       overview: 'Family conflict involves ongoing disagreements, tension, or dysfunction within family relationships, which can significantly impact mental health and wellbeing.',
       symptoms: ['Frequent arguments', 'Communication breakdown', 'Tension', 'Avoidance', 'Resentment', 'Emotional distress'],
@@ -516,7 +517,7 @@ export const libraryTopics: Topic[] = [
     id: 'toxic-relationships',
     title: 'Toxic / Difficult Relationships',
     shortDescription: 'Relationships characterized by manipulation, control, or consistent negativity that harm wellbeing.',
-    imagePrompt: 'A figure stepping away from shadows into protective, empowering light.',
+    imagePrompt: 'Gentle illustration of a figure stepping away from shadows into protective, empowering light. Pastel colors, hopeful atmosphere. Educational, friendly, supportive style. Calm and peaceful.',
     content: {
       overview: 'Toxic relationships involve patterns of behavior that are harmful to one&apos;s mental, emotional, or physical wellbeing, including manipulation, control, or consistent negativity.',
       symptoms: ['Feeling drained', 'Walking on eggshells', 'Manipulation', 'Lack of respect', 'Control', 'Constant criticism', 'Feeling worse after interactions'],
@@ -528,7 +529,7 @@ export const libraryTopics: Topic[] = [
     id: 'breakups-heartbreak',
     title: 'Breakups & Heartbreak',
     shortDescription: 'The emotional pain and adjustment process following the end of a romantic relationship.',
-    imagePrompt: 'A heart gently healing with soft, nurturing light surrounding it.',
+    imagePrompt: 'Gentle illustration of a heart healing with soft, nurturing light surrounding it. Pastel colors, hopeful atmosphere. Educational, friendly, compassionate style. Calm and supportive.',
     content: {
       overview: 'Breakups and heartbreak involve the emotional pain and adjustment process that follows the end of a romantic relationship, which can be a significant life stressor.',
       symptoms: ['Sadness and grief', 'Difficulty concentrating', 'Changes in appetite or sleep', 'Loneliness', 'Anger', 'Rumination', 'Physical pain'],
@@ -540,7 +541,7 @@ export const libraryTopics: Topic[] = [
     id: 'loneliness',
     title: 'Loneliness',
     shortDescription: 'A subjective feeling of being alone or disconnected from others, regardless of social contact.',
-    imagePrompt: 'A figure reaching out to gentle, welcoming connections of light.',
+    imagePrompt: 'Gentle illustration of a figure reaching out to welcoming connections of light. Soft pastel colors, hopeful atmosphere. Educational, friendly, supportive style. Calm and peaceful.',
     content: {
       overview: 'Loneliness is the subjective feeling of being alone, isolated, or disconnected from others, which can occur even when surrounded by people.',
       symptoms: ['Feeling isolated', 'Lack of meaningful connection', 'Emptiness', 'Difficulty connecting', 'Social anxiety', 'Feeling misunderstood'],
@@ -554,7 +555,7 @@ export const libraryTopics: Topic[] = [
     id: 'work-stress-burnout',
     title: 'Work Stress & Burnout',
     shortDescription: 'Chronic workplace stress leading to physical and emotional exhaustion.',
-    imagePrompt: 'A figure finding balance between work and rest in peaceful harmony.',
+    imagePrompt: 'Gentle illustration of a figure finding balance between work and rest in peaceful harmony. Soft pastel colors, calm atmosphere. Educational, friendly, supportive style. Peaceful and balanced.',
     content: {
       overview: 'Work stress and burnout result from chronic workplace stress that hasn&apos;t been successfully managed, leading to exhaustion, cynicism, and reduced professional efficacy.',
       symptoms: ['Chronic fatigue', 'Reduced performance', 'Cynicism about work', 'Irritability', 'Difficulty concentrating', 'Physical symptoms', 'Detachment'],
@@ -566,7 +567,7 @@ export const libraryTopics: Topic[] = [
     id: 'procrastination',
     title: 'Procrastination',
     shortDescription: 'Delaying or postponing tasks despite knowing there may be negative consequences.',
-    imagePrompt: 'A figure taking the first step on a gentle, encouraging path forward.',
+    imagePrompt: 'Gentle illustration of a figure taking the first step on an encouraging path forward. Soft pastel colors, hopeful atmosphere. Educational, friendly, motivating style. Calm and supportive.',
     content: {
       overview: 'Procrastination involves voluntarily delaying tasks despite expecting to be worse off for the delay, often driven by anxiety, perfectionism, or difficulty with self-regulation.',
       symptoms: ['Delaying tasks', 'Last-minute rushing', 'Guilt and stress', 'Difficulty starting', 'Distraction-seeking', 'Avoidance'],
@@ -578,7 +579,7 @@ export const libraryTopics: Topic[] = [
     id: 'academic-stress',
     title: 'Academic Stress',
     shortDescription: 'Stress related to educational demands, performance pressure, and academic expectations.',
-    imagePrompt: 'A student surrounded by supportive, organized light and calm energy.',
+    imagePrompt: 'Gentle illustration of a student surrounded by supportive, organized light and calm energy. Soft pastel colors, peaceful atmosphere. Educational, friendly, encouraging style. Calm and supportive.',
     content: {
       overview: 'Academic stress involves the pressure and anxiety related to educational demands, including exams, assignments, grades, and future career concerns.',
       symptoms: ['Anxiety about performance', 'Difficulty concentrating', 'Sleep problems', 'Overwhelm', 'Perfectionism', 'Physical symptoms', 'Avoidance'],
@@ -592,7 +593,7 @@ export const libraryTopics: Topic[] = [
     id: 'grief-bereavement',
     title: 'Grief & Bereavement',
     shortDescription: 'The natural response to loss, particularly the death of a loved one.',
-    imagePrompt: 'A figure holding memories like gentle lights in a peaceful space.',
+    imagePrompt: 'Gentle illustration of a figure holding memories like soft lights in a peaceful space. Pastel colors, warm atmosphere. Educational, friendly, compassionate style. Calm and supportive.',
     content: {
       overview: 'Grief is the natural response to loss, particularly the death of someone or something to which a bond was formed. It involves a range of emotions and is a highly individual process.',
       symptoms: ['Sadness', 'Yearning', 'Anger', 'Guilt', 'Numbness', 'Physical symptoms', 'Difficulty accepting loss', 'Changes in sleep or appetite'],
@@ -604,7 +605,7 @@ export const libraryTopics: Topic[] = [
     id: 'ambiguous-loss',
     title: 'Ambiguous Loss',
     shortDescription: 'Loss without closure or clear understanding, such as estrangement or missing persons.',
-    imagePrompt: 'A figure holding space for uncertainty with gentle, patient light.',
+    imagePrompt: 'Gentle illustration of a figure holding space for uncertainty with patient light. Soft pastel colors, peaceful atmosphere. Educational, friendly, compassionate style. Calm and supportive.',
     content: {
       overview: 'Ambiguous loss is a loss that occurs without closure or clear understanding, such as when a loved one is physically present but psychologically absent, or physically absent with unclear circumstances.',
       symptoms: ['Confusion', 'Difficulty grieving', 'Ongoing uncertainty', 'Guilt', 'Anxiety', 'Difficulty moving forward', 'Conflicting emotions'],
@@ -618,7 +619,7 @@ export const libraryTopics: Topic[] = [
     id: 'substance-use',
     title: 'Substance Use & Addiction',
     shortDescription: 'Problematic use of substances that interferes with health, relationships, and daily functioning.',
-    imagePrompt: 'A figure choosing a path toward health and freedom in gentle light.',
+    imagePrompt: 'Gentle illustration of a figure choosing a path toward health and freedom in soft light. Pastel colors, hopeful atmosphere. Educational, friendly, supportive style. Calm and encouraging.',
     content: {
       overview: 'Substance use disorder involves a problematic pattern of substance use leading to significant impairment or distress. Recovery is possible with appropriate support and treatment.',
       symptoms: ['Inability to control use', 'Continued use despite problems', 'Tolerance', 'Withdrawal symptoms', 'Neglecting responsibilities', 'Cravings'],
@@ -630,7 +631,7 @@ export const libraryTopics: Topic[] = [
     id: 'alcohol-misuse',
     title: 'Alcohol Misuse',
     shortDescription: 'Problematic alcohol use that negatively impacts health, relationships, or daily life.',
-    imagePrompt: 'A figure stepping toward clarity and health with supportive light.',
+    imagePrompt: 'Gentle illustration of a figure stepping toward clarity and health with supportive light. Soft pastel colors, hopeful atmosphere. Educational, friendly, encouraging style. Calm and peaceful.',
     content: {
       overview: 'Alcohol misuse ranges from risky drinking to alcohol use disorder, involving patterns of alcohol use that cause health or social problems.',
       symptoms: ['Drinking more than intended', 'Inability to cut down', 'Time spent drinking or recovering', 'Cravings', 'Neglecting responsibilities', 'Continued use despite problems'],
@@ -642,7 +643,7 @@ export const libraryTopics: Topic[] = [
     id: 'nicotine-dependence',
     title: 'Nicotine Dependence',
     shortDescription: 'Physical and psychological dependence on nicotine from tobacco or vaping products.',
-    imagePrompt: 'A figure breathing freely in clean, refreshing air with soft light.',
+    imagePrompt: 'Gentle illustration of a figure breathing freely in clean, refreshing air with soft light. Pastel colors, peaceful atmosphere. Educational, friendly, encouraging style. Calm and supportive.',
     content: {
       overview: 'Nicotine dependence involves physical and psychological addiction to nicotine, making it difficult to quit despite knowing the health risks.',
       symptoms: ['Cravings', 'Withdrawal symptoms', 'Difficulty quitting', 'Using despite health problems', 'Tolerance', 'Irritability when unable to use'],
@@ -654,7 +655,7 @@ export const libraryTopics: Topic[] = [
     id: 'behavioral-addictions',
     title: 'Behavioural Addictions',
     shortDescription: 'Compulsive engagement in rewarding behaviors despite negative consequences, such as gaming, social media, or gambling.',
-    imagePrompt: 'A figure finding balance and freedom from compulsive patterns in calm light.',
+    imagePrompt: 'Gentle illustration of a figure finding balance and freedom from compulsive patterns in calm light. Soft pastel colors, peaceful atmosphere. Educational, friendly, supportive style. Calm and hopeful.',
     content: {
       overview: 'Behavioral addictions involve compulsive engagement in rewarding non-substance-related behaviors, such as gaming, internet use, gambling, or pornography, despite negative consequences.',
       symptoms: ['Preoccupation with behavior', 'Loss of control', 'Continued engagement despite problems', 'Withdrawal symptoms', 'Tolerance', 'Neglecting responsibilities'],
