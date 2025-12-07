@@ -12,11 +12,13 @@ import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { supabase } from '@/lib/supabase';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
   const { theme } = useThemeContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetEmail, setResetEmail] = useState('');
@@ -205,16 +207,30 @@ export default function LoginScreen() {
                   editable={!isLoading}
                 />
 
-                <SafeSpaceTextInput
-                  placeholder="Password"
-                  value={password}
-                  onChangeText={(text) => {
-                    setPassword(text);
-                    if (error) setError(null);
-                  }}
-                  secureTextEntry
-                  editable={!isLoading}
-                />
+                <View style={styles.passwordContainer}>
+                  <SafeSpaceTextInput
+                    placeholder="Password"
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (error) setError(null);
+                    }}
+                    secureTextEntry={!showPassword}
+                    editable={!isLoading}
+                    containerStyle={styles.passwordInputContainer}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeIconContainer}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={24}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
 
                 <TouchableOpacity 
                   onPress={handleForgotPassword}
@@ -288,6 +304,20 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
+  },
+  passwordContainer: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInputContainer: {
+    marginBottom: 0,
+  },
+  eyeIconContainer: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 4,
+    zIndex: 1,
   },
   forgotPasswordContainer: {
     alignSelf: 'flex-end',
