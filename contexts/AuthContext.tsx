@@ -241,11 +241,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      console.log('Signing out user');
-      await supabase.auth.signOut();
+      console.log('[AuthContext] Starting sign out...');
+      
+      // Call Supabase sign out
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('[AuthContext] Supabase sign out error:', error);
+        throw error;
+      }
+      
+      console.log('[AuthContext] Supabase sign out successful');
+      
+      // Clear local state immediately
+      setSession(null);
+      setCurrentUser(null);
       setUser(null);
+      
+      console.log('[AuthContext] Local state cleared');
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error('[AuthContext] Sign out error:', error);
+      // Even if there's an error, clear local state
+      setSession(null);
+      setCurrentUser(null);
+      setUser(null);
+      throw error;
     }
   };
 

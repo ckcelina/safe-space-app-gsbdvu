@@ -57,6 +57,25 @@ export default function SettingsScreen() {
     showSuccessToast('Theme updated!');
   };
 
+  const handleLogout = async () => {
+    console.log('Logout button pressed');
+    
+    try {
+      console.log('[Settings] Starting sign out...');
+      
+      // Call AuthContext signOut which handles Supabase signOut internally
+      await signOut();
+      
+      console.log('[Settings] Sign out successful, navigating to onboarding');
+      
+      // Navigate to onboarding and reset the navigation stack
+      router.replace('/onboarding');
+    } catch (error) {
+      console.error('[Settings] signOut error:', error);
+      showErrorToast("Couldn't log out. Please try again.");
+    }
+  };
+
   const handleSignOut = async () => {
     Alert.alert(
       'Log Out',
@@ -66,22 +85,7 @@ export default function SettingsScreen() {
         {
           text: 'Log Out',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('[Settings] Starting sign out...');
-              
-              // Call AuthContext signOut which handles Supabase signOut internally
-              await signOut();
-              
-              console.log('[Settings] Sign out successful, navigating to onboarding');
-              
-              // Navigate to onboarding and reset the navigation stack
-              router.replace('/onboarding');
-            } catch (error) {
-              console.error('[Settings] signOut error:', error);
-              showErrorToast("Couldn't log out. Please try again.");
-            }
-          },
+          onPress: handleLogout,
         },
       ]
     );
