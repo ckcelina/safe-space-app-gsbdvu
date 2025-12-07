@@ -14,10 +14,8 @@ import { supabase } from '@/lib/supabase';
 import { showErrorToast } from '@/utils/toast';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { useLibraryImageGen } from '@/hooks/useLibraryImageGen';
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=800&h=400&fit=crop';
 
 // Content section component with animations
 function ContentSection({ 
@@ -93,7 +91,6 @@ export default function LibraryDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const topicId = params.topicId as string;
-  const { getCachedImage, generateImage, loadImageCache } = useLibraryImageGen();
 
   // Animation refs
   const imageOpacity = useRef(new Animated.Value(0)).current;
@@ -103,38 +100,14 @@ export default function LibraryDetailScreen() {
   // State for button loading and saved status
   const [isNavigating, setIsNavigating] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
-  const [topicImageUrl, setTopicImageUrl] = useState<string | null>(null);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   // Find the topic from the static dataset
   const topic: Topic | undefined = libraryTopics.find(t => t.id === topicId);
 
-  // Load saved status and image on mount
+  // Load saved status on mount
   useEffect(() => {
-    const initialize = async () => {
-      await loadSavedStatus();
-      await loadImageCache();
-      
-      if (topic) {
-        // Check if we have a cached image
-        const cachedImage = getCachedImage(topic.id);
-        if (cachedImage) {
-          console.log('[LibraryDetail] Using cached image for topic:', topic.id);
-          setTopicImageUrl(cachedImage);
-        } else {
-          // Generate image if not cached
-          console.log('[LibraryDetail] No cached image, generating for topic:', topic.id);
-          setIsGeneratingImage(true);
-          const generatedUrl = await generateImage(topic.id, topic.imagePrompt);
-          if (generatedUrl) {
-            setTopicImageUrl(generatedUrl);
-          }
-          setIsGeneratingImage(false);
-        }
-      }
-    };
-    initialize();
-  }, [topicId, topic]);
+    loadSavedStatus();
+  }, [topicId]);
 
   const loadSavedStatus = async () => {
     try {
@@ -391,26 +364,15 @@ export default function LibraryDetailScreen() {
                 ]}
               >
                 <View style={[styles.imageContainer, { backgroundColor: theme.card }]}>
-                  {isGeneratingImage ? (
-                    <View style={styles.imageLoadingContainer}>
-                      <ActivityIndicator size="large" color={theme.primary} />
-                      <Text style={[styles.imageLoadingText, { color: theme.textSecondary }]}>
-                        Generating unique image...
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      <Image
-                        source={{ uri: topicImageUrl || FALLBACK_IMAGE }}
-                        style={styles.topicImage}
-                        resizeMode="cover"
-                      />
-                      <LinearGradient
-                        colors={['transparent', 'rgba(0, 0, 0, 0.3)']}
-                        style={styles.imageOverlay}
-                      />
-                    </>
-                  )}
+                  <Image
+                    source={{ uri: topic.imageUrl }}
+                    style={styles.topicImage}
+                    resizeMode="cover"
+                  />
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0, 0, 0, 0.3)']}
+                    style={styles.imageOverlay}
+                  />
                 </View>
               </Animated.View>
 
@@ -564,17 +526,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.15)',
     elevation: 6,
-  },
-  imageLoadingContainer: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  imageLoadingText: {
-    fontSize: 14,
-    fontStyle: 'italic',
   },
   topicImage: {
     width: '100%',

@@ -11,12 +11,8 @@ import FloatingTabBar from '@/components/FloatingTabBar';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { useLibraryImageGen } from '@/hooks/useLibraryImageGen';
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
-
-// Fallback placeholder image
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400&h=300&fit=crop';
 
 // Topic bubble component with animations and heart icon
 function TopicBubble({ 
@@ -26,7 +22,6 @@ function TopicBubble({
   onPress,
   isSaved,
   onToggleSave,
-  imageUrl,
 }: { 
   topic: Topic; 
   index: number; 
@@ -34,7 +29,6 @@ function TopicBubble({
   onPress: () => void;
   isSaved: boolean;
   onToggleSave: () => void;
-  imageUrl: string | null;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -102,7 +96,7 @@ function TopicBubble({
         <View style={[styles.bubble, { backgroundColor: theme.card }]}>
           <View style={styles.imageContainer}>
             <Image
-              source={{ uri: imageUrl || FALLBACK_IMAGE }}
+              source={{ uri: topic.imageUrl }}
               style={styles.bubbleImage}
               resizeMode="cover"
             />
@@ -141,18 +135,16 @@ export default function LibraryScreen() {
   const { theme } = useThemeContext();
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { getCachedImage, loadImageCache, imageCache } = useLibraryImageGen();
 
   // State for search and saved topics
   const [searchQuery, setSearchQuery] = useState('');
   const [savedTopicIds, setSavedTopicIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load saved topics and image cache on mount
+  // Load saved topics on mount
   useEffect(() => {
     const initialize = async () => {
       await loadSavedTopics();
-      await loadImageCache();
       setIsLoading(false);
     };
     initialize();
@@ -291,7 +283,6 @@ export default function LibraryScreen() {
                           onPress={() => handleTopicPress(topic.id)}
                           isSaved={true}
                           onToggleSave={() => toggleSaveTopic(topic.id)}
-                          imageUrl={getCachedImage(topic.id)}
                         />
                       </View>
                     ))}
@@ -318,7 +309,6 @@ export default function LibraryScreen() {
                       onPress={() => handleTopicPress(topic.id)}
                       isSaved={savedTopicIds.includes(topic.id)}
                       onToggleSave={() => toggleSaveTopic(topic.id)}
-                      imageUrl={getCachedImage(topic.id)}
                     />
                   ))}
                 </View>
