@@ -15,13 +15,17 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
 interface Message {
-  role: string;
+  sender: 'user' | 'ai';
   content: string;
+  createdAt: string;
 }
 
 interface RequestBody {
-  person_id: string;
+  personId: string;
+  personName: string;
+  personRelationshipType: string;
   messages: Message[];
+  currentSubject?: string; // Optional subject focus for the conversation
 }
 
 serve(async (req) => {
@@ -37,10 +41,26 @@ serve(async (req) => {
   }
 
   try {
-    const { person_id, messages }: RequestBody = await req.json();
+    const { personId, personName, personRelationshipType, messages, currentSubject }: RequestBody = await req.json();
 
-    console.log('Generating AI response for person:', person_id);
+    console.log('Generating AI response for person:', personName);
+    console.log('Relationship type:', personRelationshipType);
+    console.log('Current subject:', currentSubject);
     console.log('Message history length:', messages.length);
+
+    // Build the system prompt
+    let systemPrompt = `You are a compassionate and empathetic AI therapist helping someone talk through their feelings about people in their life. The person they're discussing is named ${personName} (${personRelationshipType}). Listen actively, ask thoughtful questions, and provide supportive guidance. Keep responses concise and conversational.`;
+
+    // IMPORTANT: Add subject context to the AI prompt if provided
+    if (currentSubject && currentSubject.trim()) {
+      systemPrompt += `\n\nCurrent focus of this conversation: ${currentSubject}. Please tailor your response to this subject.`;
+    }
+
+    // Convert messages to OpenAI format
+    const openAIMessages = messages.map((msg) => ({
+      role: msg.sender === 'user' ? 'user' : 'assistant',
+      content: msg.content,
+    }));
 
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -54,9 +74,9 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are a compassionate and empathetic AI therapist helping someone talk through their feelings about people in their life. Listen actively, ask thoughtful questions, and provide supportive guidance. Keep responses concise and conversational.',
+            content: systemPrompt,
           },
-          ...messages,
+          ...openAIMessages,
         ],
         temperature: 0.7,
         max_tokens: 500,
@@ -64,6 +84,8 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
+      const errorData = await response.text();
+      console.error('OpenAI API error:', errorData);
       throw new Error(`OpenAI API error: ${response.statusText}`);
     }
 
