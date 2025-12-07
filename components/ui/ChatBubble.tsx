@@ -68,6 +68,74 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
     }
   };
 
+  const renderMessageText = (text: string) => {
+    const parts: React.ReactNode[] = [];
+    let currentIndex = 0;
+    let keyCounter = 0;
+
+    while (currentIndex < text.length) {
+      // Look for ** or *
+      const doubleAsteriskIndex = text.indexOf('**', currentIndex);
+      const singleAsteriskIndex = text.indexOf('*', currentIndex);
+
+      // Determine which comes first
+      let nextAsteriskIndex = -1;
+      let isDouble = false;
+
+      if (doubleAsteriskIndex !== -1 && (singleAsteriskIndex === -1 || doubleAsteriskIndex < singleAsteriskIndex)) {
+        nextAsteriskIndex = doubleAsteriskIndex;
+        isDouble = true;
+      } else if (singleAsteriskIndex !== -1) {
+        nextAsteriskIndex = singleAsteriskIndex;
+        isDouble = false;
+      }
+
+      // If no asterisk found, add the rest of the text
+      if (nextAsteriskIndex === -1) {
+        const remainingText = text.substring(currentIndex);
+        if (remainingText) {
+          parts.push(<Text key={keyCounter++}>{remainingText}</Text>);
+        }
+        break;
+      }
+
+      // Add text before the asterisk
+      if (nextAsteriskIndex > currentIndex) {
+        const beforeText = text.substring(currentIndex, nextAsteriskIndex);
+        parts.push(<Text key={keyCounter++}>{beforeText}</Text>);
+      }
+
+      // Find the closing asterisk
+      const asteriskLength = isDouble ? 2 : 1;
+      const searchStart = nextAsteriskIndex + asteriskLength;
+      let closingIndex = -1;
+
+      if (isDouble) {
+        closingIndex = text.indexOf('**', searchStart);
+      } else {
+        closingIndex = text.indexOf('*', searchStart);
+      }
+
+      // If closing asterisk found, render bold text
+      if (closingIndex !== -1) {
+        const boldText = text.substring(searchStart, closingIndex);
+        parts.push(
+          <Text key={keyCounter++} style={{ fontWeight: '700' }}>
+            {boldText}
+          </Text>
+        );
+        currentIndex = closingIndex + asteriskLength;
+      } else {
+        // No closing asterisk, treat as regular text
+        const asteriskText = isDouble ? '**' : '*';
+        parts.push(<Text key={keyCounter++}>{asteriskText}</Text>);
+        currentIndex = searchStart;
+      }
+    }
+
+    return parts;
+  };
+
   return (
     <Animated.View
       style={[
@@ -110,7 +178,9 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
               },
             ]}
           >
-            <Text style={[styles.aiText, { color: theme.textPrimary }]}>{message}</Text>
+            <Text style={[styles.aiText, { color: theme.textPrimary }]}>
+              {renderMessageText(message)}
+            </Text>
           </View>
         )}
 
