@@ -10,6 +10,7 @@ import {
   Platform,
   Modal,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,6 +32,13 @@ export default function SettingsScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Change Password Modal State
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   useEffect(() => {
     setSelectedTheme(themeKey);
@@ -171,6 +179,69 @@ export default function SettingsScreen() {
     setShowInfoModal(false);
   };
 
+  // Change Password Handlers
+  const handleOpenChangePasswordModal = () => {
+    setShowChangePasswordModal(true);
+  };
+
+  const handleCloseChangePasswordModal = () => {
+    setShowChangePasswordModal(false);
+    // Clear fields
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  const handleSavePassword = async () => {
+    // Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      showErrorToast('All fields are required');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      showErrorToast('New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      showErrorToast('Password must be at least 8 characters');
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+
+    try {
+      console.log('[Settings] Updating password...');
+      
+      // Update password using Supabase
+      const { error } = await supabase.auth.updateUser({ 
+        password: newPassword 
+      });
+
+      if (error) {
+        console.error('[Settings] Password update error:', error);
+        showErrorToast(error.message || 'Failed to update password');
+        setIsUpdatingPassword(false);
+        return;
+      }
+
+      console.log('[Settings] Password updated successfully');
+      showSuccessToast('Password updated');
+      
+      // Clear fields and close modal
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowChangePasswordModal(false);
+    } catch (error: any) {
+      console.error('[Settings] Unexpected error updating password:', error);
+      showErrorToast('Something went wrong. Please try again.');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
   const getPlanDisplay = () => {
     if (role === 'admin') {
       return { 
@@ -301,7 +372,38 @@ export default function SettingsScreen() {
                 </View>
               </View>
 
-              {/* Card 2: Appearance */}
+              {/* Card 2: Account information (NEW) */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Account information
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.row, { borderBottomWidth: 0 }]}
+                  onPress={handleOpenChangePasswordModal}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="lock.fill"
+                      android_material_icon_name="lock"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                      Change password
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="arrow_forward"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Card 3: Appearance */}
               <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                   Appearance
@@ -349,7 +451,7 @@ export default function SettingsScreen() {
               {/* Widget Preview Card */}
               <WidgetPreviewCard />
 
-              {/* Card 3: Support */}
+              {/* Card 4: Support */}
               <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                   Support
@@ -380,7 +482,7 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Card 4: Legal */}
+              {/* Card 5: Legal */}
               <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                   Legal
@@ -588,6 +690,134 @@ export default function SettingsScreen() {
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.confirmDeleteButtonText}>Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change Password Modal (NEW) */}
+      <Modal
+        visible={showChangePasswordModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleCloseChangePasswordModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+            <View style={styles.modalIconContainer}>
+              <IconSymbol
+                ios_icon_name="lock.fill"
+                android_material_icon_name="lock"
+                size={48}
+                color={theme.primary}
+              />
+            </View>
+
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              Change password
+            </Text>
+
+            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+              Update your password to keep your account secure.
+            </Text>
+
+            {/* Current Password Input */}
+            <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                Current password
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: theme.background,
+                    color: theme.textPrimary,
+                    borderColor: theme.primary,
+                  },
+                ]}
+                placeholder="Enter current password"
+                placeholderTextColor={theme.textSecondary}
+                secureTextEntry
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                autoCapitalize="none"
+                editable={!isUpdatingPassword}
+              />
+            </View>
+
+            {/* New Password Input */}
+            <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                New password
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: theme.background,
+                    color: theme.textPrimary,
+                    borderColor: theme.primary,
+                  },
+                ]}
+                placeholder="Enter new password"
+                placeholderTextColor={theme.textSecondary}
+                secureTextEntry
+                value={newPassword}
+                onChangeText={setNewPassword}
+                autoCapitalize="none"
+                editable={!isUpdatingPassword}
+              />
+            </View>
+
+            {/* Confirm New Password Input */}
+            <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                Confirm new password
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: theme.background,
+                    color: theme.textPrimary,
+                    borderColor: theme.primary,
+                  },
+                ]}
+                placeholder="Confirm new password"
+                placeholderTextColor={theme.textSecondary}
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                autoCapitalize="none"
+                editable={!isUpdatingPassword}
+              />
+            </View>
+
+            {/* Buttons */}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                onPress={handleCloseChangePasswordModal}
+                disabled={isUpdatingPassword}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
+                onPress={handleSavePassword}
+                disabled={isUpdatingPassword}
+                activeOpacity={0.8}
+              >
+                {isUpdatingPassword ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalButtonText}>Save</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -855,5 +1085,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  textInput: {
+    padding: 16,
+    borderRadius: 12,
+    fontSize: 16,
+    borderWidth: 1,
   },
 });
