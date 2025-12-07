@@ -730,7 +730,7 @@ export default function HomeScreen() {
                 >
                   <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                     <Text style={[styles.addButtonText, { color: theme.primary }]}>
-                      Add subject / topic
+                      Add Topic
                     </Text>
                   </View>
                 </TouchableOpacity>
