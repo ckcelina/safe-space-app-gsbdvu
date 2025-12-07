@@ -122,6 +122,9 @@ export default function ChatScreen() {
     : params.relationshipType || '';
   const initialSubject = Array.isArray(params.initialSubject) ? params.initialSubject[0] : params.initialSubject;
 
+  // Check if this is a topic chat
+  const isTopicChat = relationshipType === 'Topic';
+
   useEffect(() => {
     if (!personId) {
       console.error('[Chat] Missing personId parameter - navigation may be broken');
@@ -424,7 +427,12 @@ export default function ChatScreen() {
 
   const handleBackPress = useCallback(() => {
     try {
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        // Fallback to home if no history
+        router.replace('/(tabs)/(home)');
+      }
     } catch (error) {
       console.error('[Chat] Back navigation error:', error);
       router.replace('/(tabs)/(home)');
@@ -492,7 +500,15 @@ export default function ChatScreen() {
         <StatusBarGradient />
 
         <View style={[styles.header, { backgroundColor: theme.card }]}>
-          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+          {/* Back button - more prominent for topic chats */}
+          <TouchableOpacity 
+            onPress={handleBackPress} 
+            style={[
+              styles.backButton,
+              isTopicChat && { backgroundColor: theme.background }
+            ]}
+            activeOpacity={0.7}
+          >
             <IconSymbol
               ios_icon_name="chevron.left"
               android_material_icon_name="arrow_back"
@@ -505,7 +521,7 @@ export default function ChatScreen() {
               <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
                 {personName}
               </Text>
-              {isPremium && (
+              {isPremium && !isTopicChat && (
                 <View style={styles.premiumBadgeSmall}>
                   <Text style={styles.premiumBadgeSmallText}>⭐</Text>
                 </View>
@@ -796,6 +812,8 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
   headerCenter: {
     flex: 1,
