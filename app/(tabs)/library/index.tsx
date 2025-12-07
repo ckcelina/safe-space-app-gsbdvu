@@ -1,12 +1,13 @@
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
+import FloatingTabBar from '@/components/FloatingTabBar';
 
 // Topic bubble component with animations
 function TopicBubble({ topic, index, theme, onPress }: { 
@@ -118,10 +119,30 @@ function TopicBubble({ topic, index, theme, onPress }: {
 export default function LibraryScreen() {
   const { theme } = useThemeContext();
   const router = useRouter();
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // Create PanResponder for swipe gesture
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only trigger if horizontal movement is significant
+        // and vertical movement is minimal (to not interfere with scrolling)
+        const isHorizontalSwipe = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2;
+        const isSignificantSwipe = Math.abs(gestureState.dx) > 10;
+        return isHorizontalSwipe && isSignificantSwipe;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        // Swipe right to go back to Home tab
+        if (gestureState.dx > 50) {
+          console.log('[Library] Swipe right detected, navigating to Home');
+          router.push('/(tabs)/(home)');
+        }
+      },
+    })
+  ).current;
 
   const handleTopicPress = (topicId: string) => {
     console.log('Navigating to topic:', topicId);
-    // Navigate to detail page (will be implemented in Prompt 3)
     router.push({
       pathname: '/(tabs)/library/detail',
       params: { topicId },
@@ -129,44 +150,64 @@ export default function LibraryScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={theme.primaryGradient}
-      style={styles.gradientBackground}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <StatusBarGradient />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.container}>
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.header}>
-              <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
-                Library
-              </Text>
-              <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-                Learn about different mental health topics in a safe, friendly way.
-              </Text>
-            </View>
+    <>
+      <LinearGradient
+        colors={theme.primaryGradient}
+        style={styles.gradientBackground}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <StatusBarGradient />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <View style={styles.container} {...panResponder.panHandlers}>
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.header}>
+                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
+                  Library
+                </Text>
+                <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+                  Learn about different mental health topics in a safe, friendly way.
+                </Text>
+              </View>
 
-            <View style={styles.topicsGrid}>
-              {libraryTopics.map((topic, index) => (
-                <TopicBubble
-                  key={topic.id}
-                  topic={topic}
-                  index={index}
-                  theme={theme}
-                  onPress={() => handleTopicPress(topic.id)}
-                />
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      </SafeAreaView>
-    </LinearGradient>
+              <View style={styles.topicsGrid}>
+                {libraryTopics.map((topic, index) => (
+                  <TopicBubble
+                    key={topic.id}
+                    topic={topic}
+                    index={index}
+                    theme={theme}
+                    onPress={() => handleTopicPress(topic.id)}
+                  />
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+
+      <FloatingTabBar
+        tabs={[
+          {
+            name: 'home',
+            route: '/(tabs)/(home)',
+            icon: 'home',
+            label: 'Home',
+          },
+          {
+            name: 'library',
+            route: '/(tabs)/library',
+            icon: 'menu-book',
+            label: 'Library',
+          },
+        ]}
+      />
+    </>
   );
 }
 

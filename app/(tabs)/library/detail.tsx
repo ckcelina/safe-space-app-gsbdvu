@@ -8,6 +8,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
 import { Ionicons } from '@expo/vector-icons';
+import FloatingTabBar from '@/components/FloatingTabBar';
 
 // Content section component with animations
 function ContentSection({ 
@@ -131,6 +132,69 @@ export default function LibraryDetailScreen() {
   // If topic not found, show error message
   if (!topic) {
     return (
+      <>
+        <LinearGradient
+          colors={theme.primaryGradient}
+          style={styles.gradientBackground}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <StatusBarGradient />
+          <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+            <View style={styles.container}>
+              <View style={styles.header}>
+                <TouchableOpacity
+                  onPress={() => router.back()}
+                  style={[styles.backButton, { backgroundColor: theme.card }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle-outline" size={64} color={theme.buttonText} />
+                <Text style={[styles.errorTitle, { color: theme.buttonText }]}>
+                  Topic Not Found
+                </Text>
+                <Text style={[styles.errorText, { color: theme.buttonText, opacity: 0.8 }]}>
+                  We couldn&apos;t find the topic you&apos;re looking for. Please try again or go back to the library.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => router.back()}
+                  style={[styles.errorButton, { backgroundColor: theme.card }]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.errorButtonText, { color: theme.textPrimary }]}>
+                    Back to Library
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
+
+        <FloatingTabBar
+          tabs={[
+            {
+              name: 'home',
+              route: '/(tabs)/(home)',
+              icon: 'home',
+              label: 'Home',
+            },
+            {
+              name: 'library',
+              route: '/(tabs)/library',
+              icon: 'menu-book',
+              label: 'Library',
+            },
+          ]}
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
       <LinearGradient
         colors={theme.primaryGradient}
         style={styles.gradientBackground}
@@ -140,135 +204,110 @@ export default function LibraryDetailScreen() {
         <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
-            <View style={styles.header}>
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={[styles.backButton, { backgroundColor: theme.card }]}
-                activeOpacity={0.7}
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Header with back button */}
+              <View style={styles.header}>
+                <TouchableOpacity
+                  onPress={() => router.back()}
+                  style={[styles.backButton, { backgroundColor: theme.card }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Topic image with fade-in animation */}
+              <Animated.View
+                style={[
+                  styles.imageWrapper,
+                  {
+                    opacity: imageOpacity,
+                    transform: [{ scale: imageScale }],
+                  },
+                ]}
               >
-                <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.errorContainer}>
-              <Ionicons name="alert-circle-outline" size={64} color={theme.buttonText} />
-              <Text style={[styles.errorTitle, { color: theme.buttonText }]}>
-                Topic Not Found
-              </Text>
-              <Text style={[styles.errorText, { color: theme.buttonText, opacity: 0.8 }]}>
-                We couldn&apos;t find the topic you&apos;re looking for. Please try again or go back to the library.
-              </Text>
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={[styles.errorButton, { backgroundColor: theme.card }]}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.errorButtonText, { color: theme.textPrimary }]}>
-                  Back to Library
+                <View style={[styles.imageContainer, { backgroundColor: theme.card }]}>
+                  <Image
+                    source={{ uri: getImageUrl(topic.id) }}
+                    style={styles.topicImage}
+                    resizeMode="cover"
+                  />
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0, 0, 0, 0.3)']}
+                    style={styles.imageOverlay}
+                  />
+                </View>
+              </Animated.View>
+
+              {/* Topic title */}
+              <Animated.View style={{ opacity: titleOpacity }}>
+                <Text style={[styles.topicTitle, { color: theme.buttonText }]}>
+                  {topic.title}
                 </Text>
-              </TouchableOpacity>
-            </View>
+              </Animated.View>
+
+              {/* Content sections */}
+              <ContentSection
+                title="Overview"
+                content={topic.content.overview}
+                index={0}
+                theme={theme}
+              />
+
+              <ContentSection
+                title="Common Signs"
+                content={topic.content.symptoms}
+                index={1}
+                theme={theme}
+              />
+
+              <ContentSection
+                title="How it Affects Daily Life"
+                content={topic.content.effects}
+                index={2}
+                theme={theme}
+              />
+
+              <ContentSection
+                title="Coping & Support"
+                content={topic.content.coping}
+                index={3}
+                theme={theme}
+              />
+
+              {/* Disclaimer */}
+              <View style={[styles.disclaimer, { backgroundColor: theme.card, opacity: 0.9 }]}>
+                <Ionicons name="information-circle-outline" size={20} color={theme.textSecondary} style={styles.disclaimerIcon} />
+                <Text style={[styles.disclaimerText, { color: theme.textSecondary }]}>
+                  This information is for education only and is not a diagnosis or a substitute for professional help.
+                </Text>
+              </View>
+            </ScrollView>
           </View>
         </SafeAreaView>
       </LinearGradient>
-    );
-  }
 
-  return (
-    <LinearGradient
-      colors={theme.primaryGradient}
-      style={styles.gradientBackground}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <StatusBarGradient />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.container}>
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Header with back button */}
-            <View style={styles.header}>
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={[styles.backButton, { backgroundColor: theme.card }]}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Topic image with fade-in animation */}
-            <Animated.View
-              style={[
-                styles.imageWrapper,
-                {
-                  opacity: imageOpacity,
-                  transform: [{ scale: imageScale }],
-                },
-              ]}
-            >
-              <View style={[styles.imageContainer, { backgroundColor: theme.card }]}>
-                <Image
-                  source={{ uri: getImageUrl(topic.id) }}
-                  style={styles.topicImage}
-                  resizeMode="cover"
-                />
-                <LinearGradient
-                  colors={['transparent', 'rgba(0, 0, 0, 0.3)']}
-                  style={styles.imageOverlay}
-                />
-              </View>
-            </Animated.View>
-
-            {/* Topic title */}
-            <Animated.View style={{ opacity: titleOpacity }}>
-              <Text style={[styles.topicTitle, { color: theme.buttonText }]}>
-                {topic.title}
-              </Text>
-            </Animated.View>
-
-            {/* Content sections */}
-            <ContentSection
-              title="Overview"
-              content={topic.content.overview}
-              index={0}
-              theme={theme}
-            />
-
-            <ContentSection
-              title="Common Signs"
-              content={topic.content.symptoms}
-              index={1}
-              theme={theme}
-            />
-
-            <ContentSection
-              title="How it Affects Daily Life"
-              content={topic.content.effects}
-              index={2}
-              theme={theme}
-            />
-
-            <ContentSection
-              title="Coping & Support"
-              content={topic.content.coping}
-              index={3}
-              theme={theme}
-            />
-
-            {/* Disclaimer */}
-            <View style={[styles.disclaimer, { backgroundColor: theme.card, opacity: 0.9 }]}>
-              <Ionicons name="information-circle-outline" size={20} color={theme.textSecondary} style={styles.disclaimerIcon} />
-              <Text style={[styles.disclaimerText, { color: theme.textSecondary }]}>
-                This information is for education only and is not a diagnosis or a substitute for professional help.
-              </Text>
-            </View>
-          </ScrollView>
-        </View>
-      </SafeAreaView>
-    </LinearGradient>
+      <FloatingTabBar
+        tabs={[
+          {
+            name: 'home',
+            route: '/(tabs)/(home)',
+            icon: 'home',
+            label: 'Home',
+          },
+          {
+            name: 'library',
+            route: '/(tabs)/library',
+            icon: 'menu-book',
+            label: 'Library',
+          },
+        ]}
+      />
+    </>
   );
 }
 
