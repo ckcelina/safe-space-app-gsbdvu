@@ -212,15 +212,58 @@ export default function HomeScreen() {
     if (!relationshipType) return 'Friends';
     
     const type = relationshipType.toLowerCase().trim();
-    
-    if (['partner', 'boyfriend', 'girlfriend', 'husband', 'wife', 'spouse', 'fiancé', 'fiancée'].includes(type)) {
+
+    // Romantic partner
+    if ([
+      'partner',
+      'boyfriend',
+      'girlfriend',
+      'husband',
+      'wife',
+      'spouse',
+      'fiancé',
+      'fiancée'
+    ].includes(type)) {
       return 'Partner';
     }
-    
-    if (['mom', 'mother', 'dad', 'father', 'parent'].includes(type)) {
+
+    // Parents
+    if ([
+      'mom',
+      'mother',
+      'dad',
+      'father',
+      'parent',
+      'parents'
+    ].includes(type)) {
       return 'Parents';
     }
-    
+
+    // Other family members (including sister and brother)
+    if ([
+      'sister',
+      'brother',
+      'sibling',
+      'daughter',
+      'son',
+      'child',
+      'children',
+      'kid',
+      'cousin',
+      'aunt',
+      'uncle',
+      'grandma',
+      'grandmother',
+      'grandpa',
+      'grandfather',
+      'grandparent',
+      'niece',
+      'nephew'
+    ].includes(type)) {
+      return 'Family';
+    }
+
+    // Default group
     return 'Friends';
   }, []);
 
@@ -248,7 +291,7 @@ export default function HomeScreen() {
     return grouped;
   }, [persons, searchQuery, categorizeRelationship]);
 
-  const groupOrder = ['Parents', 'Partner', 'Friends'];
+  const groupOrder = ['Parents', 'Family', 'Partner', 'Friends'];
   const visibleGroups = useMemo(() => {
     return groupOrder.filter(groupName => {
       const groupPersons = filteredAndGroupedPersons[groupName];
