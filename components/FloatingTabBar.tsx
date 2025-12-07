@@ -97,7 +97,9 @@ export default function FloatingTabBar({
   }, [activeTabIndex, animatedValue]);
 
   const handleTabPress = (route: Href) => {
-    router.push(route);
+    console.log('[FloatingTabBar] Tab pressed, navigating to:', route);
+    // Use replace instead of push to properly switch between tabs
+    router.replace(route);
   };
 
   // Remove unnecessary tabBarStyle animation to prevent flickering
