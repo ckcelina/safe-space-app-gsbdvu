@@ -15,6 +15,7 @@ import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
+import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
 
@@ -744,12 +745,7 @@ export default function HomeScreen() {
               {error && (
                 <View style={styles.errorContainer}>
                   <View style={[styles.errorCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <IconSymbol
-                      ios_icon_name="exclamationmark.triangle.fill"
-                      android_material_icon_name="error"
-                      size={32}
-                      color="#FF3B30"
-                    />
+                    <SafeSpaceLogo size={48} color={theme.primary} />
                     <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
                     <TouchableOpacity
                       onPress={fetchPersonsWithLastMessage}
@@ -767,12 +763,7 @@ export default function HomeScreen() {
               {!error && persons.length === 0 && !loading ? (
                 <View style={styles.emptyState}>
                   <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <IconSymbol
-                      ios_icon_name="bubble.left.and.bubble.right.fill"
-                      android_material_icon_name="chat"
-                      size={48}
-                      color={theme.primary}
-                    />
+                    <SafeSpaceLogo size={48} color={theme.primary} />
                   </View>
                   <Text style={[styles.emptyText, { color: theme.buttonText }]}>No one added yet</Text>
                   <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>

@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { ChatBubble } from '@/components/ui/ChatBubble';
+import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 
 interface ChatScreenUIProps {
   personId: string;
@@ -99,12 +100,7 @@ export default function ChatScreenUI({
     return (
       <View style={styles.emptyState}>
         <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-          <IconSymbol
-            ios_icon_name="bubble.left.and.bubble.right.fill"
-            android_material_icon_name="chat"
-            size={40}
-            color={theme.primary}
-          />
+          <SafeSpaceLogo size={40} color={theme.primary} />
         </View>
         <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
           Start the conversation
