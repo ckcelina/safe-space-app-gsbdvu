@@ -70,24 +70,15 @@ export default function SettingsScreen() {
             try {
               console.log('[Settings] Starting sign out...');
               
-              // Call Supabase sign out
-              const { error } = await supabase.auth.signOut();
-              
-              if (error) {
-                console.warn('[Settings] signOut error', error);
-                showErrorToast("Couldn't log out. Please try again.");
-                return;
-              }
-
-              // Clear auth context state
+              // Call AuthContext signOut which handles Supabase signOut internally
               await signOut();
               
-              console.log('[Settings] Sign out successful');
+              console.log('[Settings] Sign out successful, navigating to onboarding');
               
-              // Navigate to onboarding and reset stack
+              // Navigate to onboarding and reset the navigation stack
               router.replace('/onboarding');
             } catch (error) {
-              console.warn('[Settings] signOut error', error);
+              console.error('[Settings] signOut error:', error);
               showErrorToast("Couldn't log out. Please try again.");
             }
           },
