@@ -80,6 +80,7 @@ export default function HomeScreen() {
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [customTopic, setCustomTopic] = useState('');
+  const [savingSubject, setSavingSubject] = useState(false);
 
   // Use ref to track if component is mounted
   const isMountedRef = useRef(true);
@@ -497,24 +498,110 @@ export default function HomeScreen() {
     setSelectedTopic(topic);
   }, []);
 
-  const handleSaveSubject = useCallback(() => {
-    const finalSubject = customTopic.trim() || selectedTopic;
+  const handleSaveSubject = useCallback(async () => {
+    const subjectString = customTopic.trim() || selectedTopic;
     
-    if (!finalSubject) {
+    if (!subjectString) {
       console.log('[Home] No subject selected or entered');
       showErrorToast('Please select or enter a subject');
       return;
     }
 
-    console.log('[Home] Saving subject:', finalSubject);
-    
-    // Close modal - navigation/Supabase logic will be added in next prompt
-    setShowSubjectModal(false);
-    setSelectedTopic(null);
-    setCustomTopic('');
-    
-    showSuccessToast(`Subject "${finalSubject}" will be implemented in next step`);
-  }, [customTopic, selectedTopic]);
+    // 1) GET userId
+    if (!userId) {
+      console.error('[Home] No userId available for subject save');
+      showErrorToast('You must be logged in to add a subject');
+      return;
+    }
+
+    console.log('[Home] Saving subject:', subjectString, 'for userId:', userId);
+    setSavingSubject(true);
+
+    try {
+      // 2) CREATE OR REUSE A PERSON ROW IN SUPABASE
+      // Query persons table for existing row
+      const { data: existingPersons, error: queryError } = await supabase
+        .from('persons')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('name', subjectString)
+        .maybeSingle();
+
+      if (queryError && queryError.code !== 'PGRST116') {
+        console.error('[Home] Error querying persons:', queryError);
+        showErrorToast('Failed to check existing subjects');
+        setSavingSubject(false);
+        return;
+      }
+
+      let person: Person;
+
+      if (existingPersons) {
+        // Row already exists, use it
+        console.log('[Home] Subject already exists, using existing person:', existingPersons);
+        person = existingPersons;
+      } else {
+        // Insert new row
+        console.log('[Home] Creating new subject person');
+        const { data: newPerson, error: insertError } = await supabase
+          .from('persons')
+          .insert([{
+            user_id: userId,
+            name: subjectString,
+            relationship_type: 'Topic',
+          }])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('[Home] Error creating subject person:', insertError);
+          showErrorToast('Failed to create subject');
+          setSavingSubject(false);
+          return;
+        }
+
+        console.log('[Home] Subject person created:', newPerson);
+        person = newPerson;
+      }
+
+      // 3) NAVIGATE TO THE EXISTING CHAT SCREEN
+      if (!person.id) {
+        console.error('[Home] Person ID is missing');
+        showErrorToast('Invalid subject data');
+        setSavingSubject(false);
+        return;
+      }
+
+      console.log('[Home] Navigating to chat for subject:', person.name, 'id:', person.id);
+
+      // Close modal
+      setShowSubjectModal(false);
+      setSelectedTopic(null);
+      setCustomTopic('');
+
+      // Navigate to chat
+      router.push({
+        pathname: '/(tabs)/(home)/chat',
+        params: {
+          personId: person.id,
+          personName: person.name || 'Topic',
+          relationshipType: person.relationship_type || '',
+          initialSubject: subjectString,
+        },
+      });
+
+      // Refresh persons list to show the new topic
+      await fetchPersonsWithLastMessage();
+
+    } catch (error: any) {
+      console.error('[Home] Unexpected error saving subject:', error);
+      showErrorToast('An unexpected error occurred');
+    } finally {
+      if (isMountedRef.current) {
+        setSavingSubject(false);
+      }
+    }
+  }, [customTopic, selectedTopic, userId, fetchPersonsWithLastMessage]);
 
   const planInfo = getPlanInfo();
 
@@ -970,6 +1057,7 @@ export default function HomeScreen() {
                         maxLength={100}
                         returnKeyType="done"
                         onSubmitEditing={handleSaveSubject}
+                        editable={!savingSubject}
                       />
                     </View>
                   </View>
@@ -979,6 +1067,7 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     onPress={handleCloseSubjectModal}
                     style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                    disabled={savingSubject}
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
@@ -989,6 +1078,7 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     onPress={handleSaveSubject}
                     style={styles.primaryButton}
+                    disabled={savingSubject}
                     activeOpacity={0.8}
                   >
                     <LinearGradient
@@ -998,7 +1088,7 @@ export default function HomeScreen() {
                       style={styles.primaryButtonGradient}
                     >
                       <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
-                        Save
+                        {savingSubject ? 'Saving...' : 'Save'}
                       </Text>
                     </LinearGradient>
                   </TouchableOpacity>
