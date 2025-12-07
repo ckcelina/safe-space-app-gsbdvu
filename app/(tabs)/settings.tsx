@@ -89,7 +89,11 @@ export default function SettingsScreen() {
   };
 
   const handleBack = () => {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.push('/(tabs)/(home)');
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -210,9 +214,23 @@ export default function SettingsScreen() {
         <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
-            {/* Header with Info Icon on the RIGHT */}
+            {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
             <View style={styles.topHeader}>
+              <TouchableOpacity 
+                onPress={handleBack} 
+                style={styles.backButton}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="chevron.left"
+                  android_material_icon_name="arrow_back"
+                  size={24}
+                  color={theme.buttonText}
+                />
+              </TouchableOpacity>
+              
               <View style={styles.headerSpacer} />
+              
               <TouchableOpacity 
                 onPress={handleInfoPress} 
                 style={styles.infoButton}
@@ -601,13 +619,18 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? 16 : 8,
     paddingBottom: 8,
   },
+  backButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
   infoButton: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   headerSpacer: {
-    width: 40,
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
@@ -620,10 +643,12 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     lineHeight: 22,
+    textAlign: 'center',
   },
   card: {
     borderRadius: 16,
