@@ -726,14 +726,10 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   onPress={handleAddSubject}
                   activeOpacity={0.8}
-                  style={styles.addSubjectButton}
+                  style={styles.addButton}
                 >
-                  <View style={[styles.addSubjectButtonInner, { 
-                    backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    borderColor: 'rgba(255, 255, 255, 0.95)'
-                  }]}>
-                    <Text style={[styles.addSubjectButtonText, { color: 'rgba(255, 255, 255, 0.95)' }]}>
+                  <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                    <Text style={[styles.addButtonText, { color: theme.primary }]}>
                       Add subject / topic
                     </Text>
                   </View>
@@ -1300,20 +1296,6 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  addSubjectButton: {
-    borderRadius: 50,
-    overflow: 'hidden',
-  },
-  addSubjectButtonInner: {
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addSubjectButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
   },
   errorContainer: {
     marginBottom: 24,
