@@ -197,12 +197,14 @@ export default function LibraryScreen() {
             name: 'home',
             route: '/(tabs)/(home)',
             icon: 'home',
+            iosIcon: 'house.fill',
             label: 'Home',
           },
           {
             name: 'library',
             route: '/(tabs)/library',
             icon: 'menu-book',
+            iosIcon: 'book.fill',
             label: 'Library',
           },
         ]}
