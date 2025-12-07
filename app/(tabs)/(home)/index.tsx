@@ -231,6 +231,11 @@ export default function HomeScreen() {
     
     const type = relationshipType.toLowerCase().trim();
 
+    // Topics - check first before other categories
+    if (type === 'topic') {
+      return 'Topics';
+    }
+
     // Romantic partner
     if ([
       'partner',
@@ -309,7 +314,7 @@ export default function HomeScreen() {
     return grouped;
   }, [persons, searchQuery, categorizeRelationship]);
 
-  const groupOrder = ['Parents', 'Family', 'Partner', 'Friends'];
+  const groupOrder = ['Family', 'Friends', 'Topics'];
   const visibleGroups = useMemo(() => {
     return groupOrder.filter(groupName => {
       const groupPersons = filteredAndGroupedPersons[groupName];
