@@ -112,6 +112,7 @@ export default function ChatScreen() {
     personId?: string | string[];
     personName?: string | string[];
     relationshipType?: string | string[];
+    initialSubject?: string | string[];
   }>();
 
   const personId = Array.isArray(params.personId) ? params.personId[0] : params.personId || '';
@@ -119,6 +120,7 @@ export default function ChatScreen() {
   const relationshipType = Array.isArray(params.relationshipType)
     ? params.relationshipType[0]
     : params.relationshipType || '';
+  const initialSubject = Array.isArray(params.initialSubject) ? params.initialSubject[0] : params.initialSubject;
 
   useEffect(() => {
     if (!personId) {
@@ -145,6 +147,21 @@ export default function ChatScreen() {
 
   // Subject pill state
   const [availableSubjects, setAvailableSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
+
+  // Set initial subject from params if provided (from Library)
+  useEffect(() => {
+    if (initialSubject && initialSubject.trim()) {
+      console.log('[Chat] Setting initial subject from params:', initialSubject);
+      
+      // Add to available subjects if not already present
+      if (!availableSubjects.includes(initialSubject)) {
+        setAvailableSubjects((prev) => [...prev, initialSubject]);
+      }
+      
+      // Set as current subject
+      setCurrentSubject(initialSubject);
+    }
+  }, [initialSubject]);
   const [addSubjectModalVisible, setAddSubjectModalVisible] = useState(false);
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [quickSelectedSubject, setQuickSelectedSubject] = useState<string | null>(null);

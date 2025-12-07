@@ -1,14 +1,17 @@
 
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useThemeContext } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
 import { Ionicons } from '@expo/vector-icons';
 import FloatingTabBar from '@/components/FloatingTabBar';
+import { supabase } from '@/lib/supabase';
+import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 // Content section component with animations
 function ContentSection({ 
@@ -80,6 +83,7 @@ function ContentSection({
 
 export default function LibraryDetailScreen() {
   const { theme } = useThemeContext();
+  const { userId } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams();
   const topicId = params.topicId as string;
@@ -88,6 +92,9 @@ export default function LibraryDetailScreen() {
   const imageOpacity = useRef(new Animated.Value(0)).current;
   const imageScale = useRef(new Animated.Value(0.9)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
+
+  // State for button loading
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Find the topic from the static dataset
   const topic: Topic | undefined = libraryTopics.find(t => t.id === topicId);
@@ -127,6 +134,93 @@ export default function LibraryDetailScreen() {
       'ptsd': 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&h=400&fit=crop',
     };
     return imageMap[id] || 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=800&h=400&fit=crop';
+  };
+
+  // Handle "Ask AI questions" button press
+  const handleAskAI = async () => {
+    if (!topic) {
+      console.error('[LibraryDetail] No topic found');
+      showErrorToast('Topic not found');
+      return;
+    }
+
+    if (!userId) {
+      console.log('[LibraryDetail] User not logged in');
+      showErrorToast('Please log in to ask AI questions');
+      return;
+    }
+
+    console.log('[LibraryDetail] Starting AI chat for topic:', topic.title);
+    setIsNavigating(true);
+
+    try {
+      // Step 1: Check if a person with this topic name already exists
+      const { data: existingPerson, error: selectError } = await supabase
+        .from('persons')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('name', topic.title)
+        .maybeSingle();
+
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.error('[LibraryDetail] Error checking for existing person:', selectError);
+        throw selectError;
+      }
+
+      let person = existingPerson;
+
+      // Step 2: If person doesn't exist, create one
+      if (!person) {
+        console.log('[LibraryDetail] Creating new person for topic:', topic.title);
+        
+        const { data: newPerson, error: insertError } = await supabase
+          .from('persons')
+          .insert([{
+            user_id: userId,
+            name: topic.title,
+            relationship_type: 'Topic',
+          }])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('[LibraryDetail] Error creating person:', insertError);
+          throw insertError;
+        }
+
+        person = newPerson;
+        console.log('[LibraryDetail] Person created successfully:', person.id);
+      } else {
+        console.log('[LibraryDetail] Using existing person:', person.id);
+      }
+
+      // Step 3: Navigate to chat with the person
+      if (person && person.id) {
+        console.log('[LibraryDetail] Navigating to chat with params:', {
+          personId: person.id,
+          personName: person.name,
+          relationshipType: person.relationship_type,
+          initialSubject: topic.title,
+        });
+
+        router.push({
+          pathname: '/(tabs)/(home)/chat',
+          params: {
+            personId: person.id,
+            personName: person.name || topic.title,
+            relationshipType: person.relationship_type || 'Topic',
+            initialSubject: topic.title,
+          },
+        });
+      } else {
+        throw new Error('Failed to get person ID');
+      }
+    } catch (error: any) {
+      console.error('[LibraryDetail] Error in handleAskAI:', error);
+      showErrorToast('Failed to start AI chat. Please try again.');
+    } finally {
+      setIsNavigating(false);
+    }
   };
 
   // If topic not found, show error message
@@ -286,6 +380,32 @@ export default function LibraryDetailScreen() {
                   This information is for education only and is not a diagnosis or a substitute for professional help.
                 </Text>
               </View>
+
+              {/* Ask AI Questions Button */}
+              <TouchableOpacity
+                onPress={handleAskAI}
+                disabled={isNavigating}
+                activeOpacity={0.8}
+                style={styles.askAIButtonContainer}
+              >
+                <LinearGradient
+                  colors={theme.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.askAIButton}
+                >
+                  {isNavigating ? (
+                    <ActivityIndicator color={theme.buttonText} size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="chatbubbles" size={24} color={theme.buttonText} style={styles.askAIIcon} />
+                      <Text style={[styles.askAIButtonText, { color: theme.buttonText }]}>
+                        Ask AI questions about this topic
+                      </Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
             </ScrollView>
           </View>
         </SafeAreaView>
@@ -419,7 +539,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 24,
   },
   disclaimerIcon: {
     marginRight: 10,
@@ -430,6 +550,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     fontStyle: 'italic',
+  },
+  askAIButtonContainer: {
+    borderRadius: 50,
+    overflow: 'hidden',
+    marginBottom: 16,
+    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
+    elevation: 8,
+  },
+  askAIButton: {
+    paddingVertical: 20,
+    paddingHorizontal: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  askAIIcon: {
+    marginRight: 12,
+  },
+  askAIButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   errorContainer: {
     flex: 1,
