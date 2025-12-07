@@ -12,6 +12,10 @@ import { Ionicons } from '@expo/vector-icons';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { supabase } from '@/lib/supabase';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
+
+const SAVED_TOPICS_KEY = '@library_saved_topics';
 
 // Content section component with animations
 function ContentSection({ 
@@ -93,11 +97,48 @@ export default function LibraryDetailScreen() {
   const imageScale = useRef(new Animated.Value(0.9)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
 
-  // State for button loading
+  // State for button loading and saved status
   const [isNavigating, setIsNavigating] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
 
   // Find the topic from the static dataset
   const topic: Topic | undefined = libraryTopics.find(t => t.id === topicId);
+
+  // Load saved status on mount
+  useEffect(() => {
+    loadSavedStatus();
+  }, [topicId]);
+
+  const loadSavedStatus = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(SAVED_TOPICS_KEY);
+      if (saved) {
+        const parsedSaved = JSON.parse(saved);
+        setIsSaved(parsedSaved.includes(topicId));
+      }
+    } catch (error) {
+      console.error('[LibraryDetail] Error loading saved status:', error);
+    }
+  };
+
+  const toggleSaveTopic = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const saved = await AsyncStorage.getItem(SAVED_TOPICS_KEY);
+      const savedTopicIds = saved ? JSON.parse(saved) : [];
+      
+      const newSavedTopicIds = isSaved
+        ? savedTopicIds.filter((id: string) => id !== topicId)
+        : [...savedTopicIds, topicId];
+      
+      setIsSaved(!isSaved);
+      await AsyncStorage.setItem(SAVED_TOPICS_KEY, JSON.stringify(newSavedTopicIds));
+      console.log('[LibraryDetail] Toggled save for topic:', topicId);
+    } catch (error) {
+      console.error('[LibraryDetail] Error toggling save:', error);
+    }
+  };
 
   useEffect(() => {
     // Animate the image and title on load
@@ -303,7 +344,7 @@ export default function LibraryDetailScreen() {
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {/* Header with back button */}
+              {/* Header with back button and heart */}
               <View style={styles.header}>
                 <TouchableOpacity
                   onPress={() => router.back()}
@@ -311,6 +352,18 @@ export default function LibraryDetailScreen() {
                   activeOpacity={0.7}
                 >
                   <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  onPress={toggleSaveTopic}
+                  style={[styles.heartButton, { backgroundColor: theme.card }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={isSaved ? 'heart' : 'heart-outline'}
+                    size={24}
+                    color={isSaved ? '#FF6B6B' : theme.textPrimary}
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -455,10 +508,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
     paddingHorizontal: 4,
   },
   backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
+  },
+  heartButton: {
     width: 44,
     height: 44,
     borderRadius: 22,

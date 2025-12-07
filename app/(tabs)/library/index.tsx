@@ -1,6 +1,6 @@
 
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -8,13 +8,27 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 
-// Topic bubble component with animations
-function TopicBubble({ topic, index, theme, onPress }: { 
+const SAVED_TOPICS_KEY = '@library_saved_topics';
+
+// Topic bubble component with animations and heart icon
+function TopicBubble({ 
+  topic, 
+  index, 
+  theme, 
+  onPress,
+  isSaved,
+  onToggleSave,
+}: { 
   topic: Topic; 
   index: number; 
   theme: any; 
   onPress: () => void;
+  isSaved: boolean;
+  onToggleSave: () => void;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -54,10 +68,13 @@ function TopicBubble({ topic, index, theme, onPress }: {
     }).start();
   };
 
+  const handleHeartPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onToggleSave();
+  };
+
   // Generate image URL based on the prompt
-  // Using Unsplash as a placeholder for generated images
   const getImageUrl = (prompt: string) => {
-    // Map prompts to appropriate Unsplash search terms
     const imageMap: { [key: string]: string } = {
       'gad': 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=400&h=300&fit=crop',
       'depression': 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=400&h=300&fit=crop',
@@ -101,6 +118,18 @@ function TopicBubble({ topic, index, theme, onPress }: {
               colors={['transparent', 'rgba(255, 255, 255, 0.9)']}
               style={styles.imageGradient}
             />
+            {/* Heart icon */}
+            <TouchableOpacity
+              onPress={handleHeartPress}
+              style={styles.heartButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={isSaved ? 'heart' : 'heart-outline'}
+                size={24}
+                color={isSaved ? '#FF6B6B' : '#FFFFFF'}
+              />
+            </TouchableOpacity>
           </View>
           <View style={styles.bubbleContent}>
             <Text style={[styles.bubbleTitle, { color: theme.textPrimary }]} numberOfLines={2}>
@@ -121,18 +150,69 @@ export default function LibraryScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
 
+  // State for search and saved topics
+  const [searchQuery, setSearchQuery] = useState('');
+  const [savedTopicIds, setSavedTopicIds] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load saved topics from AsyncStorage on mount
+  useEffect(() => {
+    loadSavedTopics();
+  }, []);
+
+  const loadSavedTopics = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(SAVED_TOPICS_KEY);
+      if (saved) {
+        const parsedSaved = JSON.parse(saved);
+        setSavedTopicIds(parsedSaved);
+        console.log('[Library] Loaded saved topics:', parsedSaved);
+      }
+    } catch (error) {
+      console.error('[Library] Error loading saved topics:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleSaveTopic = async (topicId: string) => {
+    try {
+      const isSaved = savedTopicIds.includes(topicId);
+      const newSavedTopicIds = isSaved
+        ? savedTopicIds.filter(id => id !== topicId)
+        : [...savedTopicIds, topicId];
+      
+      setSavedTopicIds(newSavedTopicIds);
+      await AsyncStorage.setItem(SAVED_TOPICS_KEY, JSON.stringify(newSavedTopicIds));
+      console.log('[Library] Toggled save for topic:', topicId, 'New saved:', newSavedTopicIds);
+    } catch (error) {
+      console.error('[Library] Error saving topic:', error);
+    }
+  };
+
+  // Filter topics based on search query
+  const filteredTopics = libraryTopics.filter(topic => {
+    if (!searchQuery.trim()) return true;
+    
+    const query = searchQuery.toLowerCase();
+    return (
+      topic.title.toLowerCase().includes(query) ||
+      topic.shortDescription.toLowerCase().includes(query)
+    );
+  });
+
+  // Get saved topics
+  const savedTopics = libraryTopics.filter(topic => savedTopicIds.includes(topic.id));
+
   // Create PanResponder for swipe gesture
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only trigger if horizontal movement is significant
-        // and vertical movement is minimal (to not interfere with scrolling)
         const isHorizontalSwipe = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2;
         const isSignificantSwipe = Math.abs(gestureState.dx) > 10;
         return isHorizontalSwipe && isSignificantSwipe;
       },
       onPanResponderRelease: (evt, gestureState) => {
-        // Swipe right to go back to Home tab
         if (gestureState.dx > 50) {
           console.log('[Library] Swipe right detected, navigating to Home');
           router.push('/(tabs)/(home)');
@@ -165,6 +245,7 @@ export default function LibraryScreen() {
               style={styles.scrollView}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
               <View style={styles.header}>
                 <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
@@ -175,17 +256,85 @@ export default function LibraryScreen() {
                 </Text>
               </View>
 
-              <View style={styles.topicsGrid}>
-                {libraryTopics.map((topic, index) => (
-                  <TopicBubble
-                    key={topic.id}
-                    topic={topic}
-                    index={index}
-                    theme={theme}
-                    onPress={() => handleTopicPress(topic.id)}
-                  />
-                ))}
+              {/* Search bar */}
+              <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
+                <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
+                <TextInput
+                  style={[styles.searchInput, { color: theme.textPrimary }]}
+                  placeholder="Search topics..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+                    <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                )}
               </View>
+
+              {/* Saved topics section */}
+              {!isLoading && savedTopics.length > 0 && !searchQuery && (
+                <View style={styles.savedSection}>
+                  <Text style={[styles.savedSectionTitle, { color: theme.buttonText }]}>
+                    Saved topics
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.savedScrollContent}
+                  >
+                    {savedTopics.map((topic, index) => (
+                      <View key={topic.id} style={styles.savedTopicWrapper}>
+                        <TopicBubble
+                          topic={topic}
+                          index={index}
+                          theme={theme}
+                          onPress={() => handleTopicPress(topic.id)}
+                          isSaved={true}
+                          onToggleSave={() => toggleSaveTopic(topic.id)}
+                        />
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* All topics section */}
+              {!searchQuery && savedTopics.length > 0 && (
+                <Text style={[styles.allTopicsTitle, { color: theme.buttonText }]}>
+                  All topics
+                </Text>
+              )}
+
+              {/* Topics grid */}
+              {filteredTopics.length > 0 ? (
+                <View style={styles.topicsGrid}>
+                  {filteredTopics.map((topic, index) => (
+                    <TopicBubble
+                      key={topic.id}
+                      topic={topic}
+                      index={index}
+                      theme={theme}
+                      onPress={() => handleTopicPress(topic.id)}
+                      isSaved={savedTopicIds.includes(topic.id)}
+                      onToggleSave={() => toggleSaveTopic(topic.id)}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.noResultsContainer}>
+                  <Ionicons name="search-outline" size={64} color={theme.buttonText} style={styles.noResultsIcon} />
+                  <Text style={[styles.noResultsTitle, { color: theme.buttonText }]}>
+                    No topics found
+                  </Text>
+                  <Text style={[styles.noResultsText, { color: theme.buttonText, opacity: 0.8 }]}>
+                    Try adjusting your search to find what you&apos;re looking for.
+                  </Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </SafeAreaView>
@@ -235,7 +384,7 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: 20,
     paddingHorizontal: 8,
   },
   headerTitle: {
@@ -246,6 +395,49 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 16,
     lineHeight: 22,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 24,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  savedSection: {
+    marginBottom: 24,
+  },
+  savedSectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  savedScrollContent: {
+    paddingHorizontal: 8,
+    gap: 16,
+  },
+  savedTopicWrapper: {
+    width: 180,
+  },
+  allTopicsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    paddingHorizontal: 8,
   },
   topicsGrid: {
     flexDirection: 'row',
@@ -282,6 +474,14 @@ const styles = StyleSheet.create({
     right: 0,
     height: 60,
   },
+  heartButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    padding: 6,
+  },
   bubbleContent: {
     padding: 16,
     paddingTop: 12,
@@ -295,5 +495,26 @@ const styles = StyleSheet.create({
   bubbleDescription: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  noResultsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 32,
+  },
+  noResultsIcon: {
+    marginBottom: 16,
+    opacity: 0.6,
+  },
+  noResultsTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  noResultsText: {
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
   },
 });
