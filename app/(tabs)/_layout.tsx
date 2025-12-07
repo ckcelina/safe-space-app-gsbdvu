@@ -20,6 +20,14 @@ export default function TabLayout() {
         }}
       />
       <Stack.Screen 
+        key="library" 
+        name="library"
+        options={{
+          gestureEnabled: false,
+          animation: 'fade',
+        }}
+      />
+      <Stack.Screen 
         key="settings" 
         name="settings"
         options={{

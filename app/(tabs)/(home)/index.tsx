@@ -16,6 +16,7 @@ import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
+import FloatingTabBar from '@/components/FloatingTabBar';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
@@ -866,6 +867,23 @@ export default function HomeScreen() {
       </LinearGradient>
       
       <LoadingOverlay visible={loading && !error} />
+      
+      <FloatingTabBar
+        tabs={[
+          {
+            name: 'home',
+            route: '/(tabs)/(home)',
+            icon: 'home',
+            label: 'Home',
+          },
+          {
+            name: 'library',
+            route: '/(tabs)/library',
+            icon: 'menu-book',
+            label: 'Library',
+          },
+        ]}
+      />
     </>
   );
 }
@@ -904,7 +922,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingBottom: 120,
   },
   header: {
     marginBottom: 16,
