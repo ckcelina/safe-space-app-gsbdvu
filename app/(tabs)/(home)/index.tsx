@@ -51,6 +51,17 @@ const DeleteAction = ({ onPress }: { onPress: () => void }) => (
   </TouchableOpacity>
 );
 
+const QUICK_TOPICS = [
+  'Work / Career',
+  'Self-esteem & Confidence',
+  'Mental Health & Disorders',
+  'Family in General',
+  'Romantic Relationships',
+  'Friendships',
+  'Studies / School',
+  'Money & Finances',
+];
+
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
@@ -64,6 +75,11 @@ export default function HomeScreen() {
   const [nameError, setNameError] = useState('');
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Subject/Topic modal state
+  const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [customTopic, setCustomTopic] = useState('');
 
   // Use ref to track if component is mounted
   const isMountedRef = useRef(true);
@@ -461,6 +477,45 @@ export default function HomeScreen() {
     }
   }, [role, theme.textSecondary]);
 
+  // Subject/Topic modal handlers
+  const handleAddSubject = useCallback(() => {
+    console.log('[Home] Opening Add Subject modal');
+    setShowSubjectModal(true);
+    setSelectedTopic(null);
+    setCustomTopic('');
+  }, []);
+
+  const handleCloseSubjectModal = useCallback(() => {
+    console.log('[Home] Closing Add Subject modal');
+    setShowSubjectModal(false);
+    setSelectedTopic(null);
+    setCustomTopic('');
+  }, []);
+
+  const handleTopicSelect = useCallback((topic: string) => {
+    console.log('[Home] Topic selected:', topic);
+    setSelectedTopic(topic);
+  }, []);
+
+  const handleSaveSubject = useCallback(() => {
+    const finalSubject = customTopic.trim() || selectedTopic;
+    
+    if (!finalSubject) {
+      console.log('[Home] No subject selected or entered');
+      showErrorToast('Please select or enter a subject');
+      return;
+    }
+
+    console.log('[Home] Saving subject:', finalSubject);
+    
+    // Close modal - navigation/Supabase logic will be added in next prompt
+    setShowSubjectModal(false);
+    setSelectedTopic(null);
+    setCustomTopic('');
+    
+    showSuccessToast(`Subject "${finalSubject}" will be implemented in next step`);
+  }, [customTopic, selectedTopic]);
+
   const planInfo = getPlanInfo();
 
   if (authLoading) {
@@ -577,6 +632,22 @@ export default function HomeScreen() {
                   <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                     <Text style={[styles.addButtonText, { color: theme.primary }]}>
                       Add Person
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleAddSubject}
+                  activeOpacity={0.8}
+                  style={styles.addSubjectButton}
+                >
+                  <View style={[styles.addSubjectButtonInner, { 
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    borderColor: 'rgba(255, 255, 255, 0.95)'
+                  }]}>
+                    <Text style={[styles.addSubjectButtonText, { color: 'rgba(255, 255, 255, 0.95)' }]}>
+                      Add subject / topic
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -809,6 +880,132 @@ export default function HomeScreen() {
               </KeyboardAvoidingView>
             </SwipeableModal>
 
+            <SwipeableModal
+              visible={showSubjectModal}
+              onClose={handleCloseSubjectModal}
+              animationType="slide"
+              showHandle={true}
+            >
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.modalKeyboardView}
+                keyboardVerticalOffset={0}
+              >
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add a subject or topic</Text>
+                  <TouchableOpacity onPress={handleCloseSubjectModal} style={styles.closeButton}>
+                    <IconSymbol
+                      ios_icon_name="xmark"
+                      android_material_icon_name="close"
+                      size={24}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  style={styles.modalBody}
+                  contentContainerStyle={styles.modalBodyContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  bounces={false}
+                >
+                  <Text style={[styles.helperText, { color: theme.textSecondary }]}>
+                    What would you like to focus on?
+                  </Text>
+
+                  <View style={styles.topicsContainer}>
+                    {QUICK_TOPICS.map((topic, index) => (
+                      <TouchableOpacity
+                        key={`topic-${index}`}
+                        onPress={() => handleTopicSelect(topic)}
+                        activeOpacity={0.7}
+                        style={[
+                          styles.topicChip,
+                          {
+                            backgroundColor: selectedTopic === topic 
+                              ? theme.primary 
+                              : theme.background,
+                            borderWidth: 1,
+                            borderColor: selectedTopic === topic 
+                              ? theme.primary 
+                              : 'rgba(0, 0, 0, 0.1)',
+                          }
+                        ]}
+                      >
+                        <Text style={[
+                          styles.topicChipText,
+                          {
+                            color: selectedTopic === topic 
+                              ? theme.buttonText 
+                              : theme.textPrimary,
+                          }
+                        ]}>
+                          {topic}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <View style={styles.fieldContainer}>
+                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                      Custom subject or topic
+                    </Text>
+                    <View style={[
+                      styles.textInputWrapper, 
+                      { 
+                        backgroundColor: theme.background, 
+                        borderWidth: 1, 
+                        borderColor: 'rgba(0, 0, 0, 0.1)' 
+                      }
+                    ]}>
+                      <TextInput
+                        style={[styles.textInput, { color: theme.textPrimary }]}
+                        placeholder="Enter your own subject..."
+                        placeholderTextColor={theme.textSecondary}
+                        value={customTopic}
+                        onChangeText={setCustomTopic}
+                        autoCapitalize="sentences"
+                        autoCorrect={false}
+                        maxLength={100}
+                        returnKeyType="done"
+                        onSubmitEditing={handleSaveSubject}
+                      />
+                    </View>
+                  </View>
+                </ScrollView>
+
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    onPress={handleCloseSubjectModal}
+                    style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSaveSubject}
+                    style={styles.primaryButton}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={theme.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.primaryButtonGradient}
+                    >
+                      <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
+                        Save
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </KeyboardAvoidingView>
+            </SwipeableModal>
+
             <SwipeableCenterModal
               visible={showPremiumModal}
               onClose={handleClosePremiumModal}
@@ -996,6 +1193,7 @@ const styles = StyleSheet.create({
   },
   addButtonContainer: {
     marginBottom: 24,
+    gap: 12,
   },
   addButton: {
     borderRadius: 50,
@@ -1012,6 +1210,20 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  addSubjectButton: {
+    borderRadius: 50,
+    overflow: 'hidden',
+  },
+  addSubjectButtonInner: {
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addSubjectButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
   },
   errorContainer: {
     marginBottom: 24,
@@ -1122,6 +1334,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 16,
+  },
+  helperText: {
+    fontSize: 15,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  topicsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 28,
+  },
+  topicChip: {
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 24,
+  },
+  topicChipText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   fieldContainer: {
     marginBottom: 24,
