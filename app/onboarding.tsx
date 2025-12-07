@@ -6,7 +6,7 @@ import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
 import { SafeSpaceTitle, SafeSpaceSubtitle } from '@/components/ui/SafeSpaceText';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
-import { IconSymbol } from '@/components/IconSymbol';
+import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -88,12 +88,7 @@ export default function OnboardingScreen() {
             activeOpacity={1}
             style={[styles.iconBackground, { backgroundColor: theme.card, borderColor: theme.primary }]}
           >
-            <IconSymbol
-              ios_icon_name="shield.fill"
-              android_material_icon_name="shield"
-              size={64}
-              color={theme.primary}
-            />
+            <SafeSpaceLogo size={64} color={theme.primary} />
           </TouchableOpacity>
         </View>
 
