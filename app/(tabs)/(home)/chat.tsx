@@ -140,9 +140,11 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // PART 1: Track current subject in state
+  const [currentSubject, setCurrentSubject] = useState<string>('General');
+
   // Subject pill state
   const [availableSubjects, setAvailableSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
-  const [selectedSubject, setSelectedSubject] = useState<string>('General');
   const [addSubjectModalVisible, setAddSubjectModalVisible] = useState(false);
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [quickSelectedSubject, setQuickSelectedSubject] = useState<string | null>(null);
@@ -191,6 +193,7 @@ export default function ChatScreen() {
       setError(null);
       console.log('[Chat] Loading messages for person:', personId);
 
+      // PART 2: Load subject column with messages
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -266,12 +269,14 @@ export default function ChatScreen() {
     }
 
     console.log('[Chat] sendMessage: Starting send process');
+    console.log('[Chat] Current subject:', currentSubject);
     setIsSending(true);
     setError(null);
     setInputText('');
 
     try {
       console.log('[Chat] Inserting user message...');
+      // PART 2: Save subject with outgoing messages
       const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
         .insert({
@@ -279,6 +284,7 @@ export default function ChatScreen() {
           person_id: personId,
           role: 'user',
           content: text,
+          subject: currentSubject, // Include current subject
           created_at: new Date().toISOString(),
         })
         .select('*')
@@ -319,6 +325,7 @@ export default function ChatScreen() {
           createdAt: msg.created_at,
         }));
 
+      // PART 3: Inject subject into AI prompt
       const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
         'generate-ai-response',
         {
@@ -327,6 +334,7 @@ export default function ChatScreen() {
             personName,
             personRelationshipType: relationshipType || 'Unknown',
             messages: recentMessages,
+            currentSubject: currentSubject, // Pass current subject to AI
           },
         }
       );
@@ -351,6 +359,7 @@ export default function ChatScreen() {
         "I'm here with you. Tell me more about how you're feeling.";
 
       console.log('[Chat] Inserting AI message...');
+      // PART 2: Save subject with AI response
       const { data: aiInserted, error: aiInsertError } = await supabase
         .from('messages')
         .insert({
@@ -358,6 +367,7 @@ export default function ChatScreen() {
           person_id: personId,
           role: 'assistant',
           content: replyText,
+          subject: currentSubject, // Include current subject
           created_at: new Date().toISOString(),
         })
         .select('*')
@@ -391,7 +401,7 @@ export default function ChatScreen() {
         setIsSending(false);
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, scrollToBottom]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, scrollToBottom]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -407,7 +417,8 @@ export default function ChatScreen() {
   // Subject pill handlers
   const handleSubjectPress = useCallback((subject: string) => {
     console.log('[Chat] Subject selected:', subject);
-    setSelectedSubject(subject);
+    // PART 1: Update currentSubject when pill is selected
+    setCurrentSubject(subject);
   }, []);
 
   const openAddSubjectModal = useCallback(() => {
@@ -449,8 +460,8 @@ export default function ChatScreen() {
       setAvailableSubjects((prev) => [...prev, newSubject]);
     }
 
-    // Select the new subject
-    setSelectedSubject(newSubject);
+    // PART 1: Select the new subject (updates currentSubject)
+    setCurrentSubject(newSubject);
     closeAddSubjectModal();
   }, [customSubjectInput, quickSelectedSubject, availableSubjects, closeAddSubjectModal]);
 
@@ -503,7 +514,7 @@ export default function ChatScreen() {
               <SubjectPill
                 key={`subject-${index}-${subject}`}
                 subject={subject}
-                isSelected={selectedSubject === subject}
+                isSelected={currentSubject === subject}
                 onPress={handleSubjectPress}
               />
             ))}
