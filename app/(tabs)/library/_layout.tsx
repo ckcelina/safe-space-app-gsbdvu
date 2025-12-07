@@ -19,6 +19,15 @@ export default function LibraryLayout() {
           animation: 'fade',
         }}
       />
+      <Stack.Screen 
+        name="detail" 
+        options={{
+          headerShown: false,
+          title: 'Topic Details',
+          gestureEnabled: true,
+          animation: 'slide_from_right',
+        }}
+      />
     </Stack>
   );
 }
