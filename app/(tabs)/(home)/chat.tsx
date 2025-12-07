@@ -9,6 +9,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,7 +22,90 @@ import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
+import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { showErrorToast } from '@/utils/toast';
+
+// Default subjects list
+const DEFAULT_SUBJECTS = [
+  'General',
+  'Work / Career',
+  'Self-esteem & Confidence',
+  'Mental Health & Disorders',
+  'Family in General',
+  'Romantic Relationships',
+  'Friendships',
+  'Money & Finances',
+  'Studies / School',
+];
+
+// Quick select subjects (excluding General)
+const QUICK_SELECT_SUBJECTS = DEFAULT_SUBJECTS.filter((s) => s !== 'General');
+
+interface SubjectPillProps {
+  subject: string;
+  isSelected: boolean;
+  onPress: (subject: string) => void;
+  isAddButton?: boolean;
+}
+
+function SubjectPill({ subject, isSelected, onPress, isAddButton = false }: SubjectPillProps) {
+  const { theme } = useThemeContext();
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 3,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 3,
+    }).start();
+  };
+
+  const handlePress = () => {
+    onPress(subject);
+  };
+
+  return (
+    <TouchableOpacity
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={handlePress}
+      activeOpacity={0.8}
+    >
+      <Animated.View
+        style={[
+          styles.pill,
+          {
+            backgroundColor: isSelected ? theme.primary : theme.card,
+            borderColor: isSelected ? theme.primary : theme.textSecondary + '40',
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.pillText,
+            {
+              color: isSelected ? '#FFFFFF' : theme.textPrimary,
+              fontWeight: isSelected ? '700' : '500',
+            },
+          ]}
+        >
+          {isAddButton ? '+ Add subject' : subject}
+        </Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
 
 export default function ChatScreen() {
   const params = useLocalSearchParams<{
@@ -55,6 +139,13 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Subject pill state
+  const [availableSubjects, setAvailableSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
+  const [selectedSubject, setSelectedSubject] = useState<string>('General');
+  const [addSubjectModalVisible, setAddSubjectModalVisible] = useState(false);
+  const [customSubjectInput, setCustomSubjectInput] = useState('');
+  const [quickSelectedSubject, setQuickSelectedSubject] = useState<string | null>(null);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const isMountedRef = useRef(true);
@@ -313,6 +404,56 @@ export default function ChatScreen() {
     }
   }, []);
 
+  // Subject pill handlers
+  const handleSubjectPress = useCallback((subject: string) => {
+    console.log('[Chat] Subject selected:', subject);
+    setSelectedSubject(subject);
+  }, []);
+
+  const openAddSubjectModal = useCallback(() => {
+    console.log('[Chat] Opening Add Subject modal');
+    setAddSubjectModalVisible(true);
+    setCustomSubjectInput('');
+    setQuickSelectedSubject(null);
+  }, []);
+
+  const closeAddSubjectModal = useCallback(() => {
+    console.log('[Chat] Closing Add Subject modal');
+    setAddSubjectModalVisible(false);
+    setCustomSubjectInput('');
+    setQuickSelectedSubject(null);
+  }, []);
+
+  const handleQuickSubjectSelect = useCallback((subject: string) => {
+    console.log('[Chat] Quick subject selected:', subject);
+    setQuickSelectedSubject(subject);
+    setCustomSubjectInput(''); // Clear custom input when quick subject is selected
+  }, []);
+
+  const saveSubject = useCallback(() => {
+    const customSubject = customSubjectInput.trim();
+    
+    // Determine which subject to use (custom overrides quick select)
+    const newSubject = customSubject || quickSelectedSubject;
+
+    if (!newSubject) {
+      console.log('[Chat] No subject to save');
+      closeAddSubjectModal();
+      return;
+    }
+
+    console.log('[Chat] Saving subject:', newSubject);
+
+    // Add to available subjects if it doesn't exist
+    if (!availableSubjects.includes(newSubject)) {
+      setAvailableSubjects((prev) => [...prev, newSubject]);
+    }
+
+    // Select the new subject
+    setSelectedSubject(newSubject);
+    closeAddSubjectModal();
+  }, [customSubjectInput, quickSelectedSubject, availableSubjects, closeAddSubjectModal]);
+
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoidingView
@@ -349,6 +490,31 @@ export default function ChatScreen() {
             )}
           </View>
           <View style={{ width: 40 }} />
+        </View>
+
+        {/* Subject Pills Row */}
+        <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pillsScrollContent}
+          >
+            {availableSubjects.map((subject, index) => (
+              <SubjectPill
+                key={`subject-${index}-${subject}`}
+                subject={subject}
+                isSelected={selectedSubject === subject}
+                onPress={handleSubjectPress}
+              />
+            ))}
+            <SubjectPill
+              key="add-subject-button"
+              subject="+ Add subject"
+              isSelected={false}
+              onPress={openAddSubjectModal}
+              isAddButton={true}
+            />
+          </ScrollView>
         </View>
 
         {isFreeUser && (
@@ -482,6 +648,107 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
 
       <LoadingOverlay visible={loading && !error} />
+
+      {/* Add Subject Modal */}
+      <SwipeableModal
+        visible={addSubjectModalVisible}
+        onClose={closeAddSubjectModal}
+        animationType="slide"
+        showHandle={true}
+      >
+        <View style={styles.modalContent}>
+          <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+            Add a subject
+          </Text>
+          <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
+            Choose what you&apos;d like to focus on in this conversation.
+          </Text>
+
+          {/* Quick Select Subjects */}
+          <View style={styles.quickSelectContainer}>
+            <Text style={[styles.quickSelectLabel, { color: theme.textPrimary }]}>
+              Quick select:
+            </Text>
+            <View style={styles.quickSelectGrid}>
+              {QUICK_SELECT_SUBJECTS.map((subject, index) => (
+                <TouchableOpacity
+                  key={`quick-${index}-${subject}`}
+                  style={[
+                    styles.quickSelectButton,
+                    {
+                      backgroundColor:
+                        quickSelectedSubject === subject
+                          ? theme.primary + '20'
+                          : theme.background,
+                      borderColor:
+                        quickSelectedSubject === subject
+                          ? theme.primary
+                          : theme.textSecondary + '40',
+                    },
+                  ]}
+                  onPress={() => handleQuickSubjectSelect(subject)}
+                >
+                  <Text
+                    style={[
+                      styles.quickSelectText,
+                      {
+                        color:
+                          quickSelectedSubject === subject
+                            ? theme.primary
+                            : theme.textPrimary,
+                        fontWeight: quickSelectedSubject === subject ? '600' : '500',
+                      },
+                    ]}
+                  >
+                    {subject}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Custom Subject Input */}
+          <View style={styles.customInputContainer}>
+            <Text style={[styles.customInputLabel, { color: theme.textPrimary }]}>
+              Custom subject:
+            </Text>
+            <TextInput
+              style={[
+                styles.customInput,
+                {
+                  backgroundColor: theme.background,
+                  color: theme.textPrimary,
+                  borderColor: theme.textSecondary + '40',
+                },
+              ]}
+              placeholder="Type your own subject..."
+              placeholderTextColor={theme.textSecondary}
+              value={customSubjectInput}
+              onChangeText={setCustomSubjectInput}
+            />
+          </View>
+
+          {/* Modal Buttons */}
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.background }]}
+              onPress={closeAddSubjectModal}
+            >
+              <Text style={[styles.modalButtonText, { color: theme.textPrimary }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.primary }]}
+              onPress={saveSubject}
+            >
+              <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
+                Save subject
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SwipeableModal>
     </FullScreenSwipeHandler>
   );
 }
@@ -532,6 +799,25 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 2,
     textTransform: 'capitalize',
+  },
+  pillsContainer: {
+    paddingVertical: 12,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  pillsScrollContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  pill: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  pillText: {
+    fontSize: 14,
   },
   freeBanner: {
     flexDirection: 'row',
@@ -632,5 +918,75 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.4,
+  },
+  // Modal styles
+  modalContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  quickSelectContainer: {
+    marginBottom: 24,
+  },
+  quickSelectLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  quickSelectGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickSelectButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  quickSelectText: {
+    fontSize: 14,
+  },
+  customInputContainer: {
+    marginBottom: 24,
+  },
+  customInputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  customInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
