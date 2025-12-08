@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -13,6 +13,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
+
+// Calculate responsive card width
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const NUM_COLUMNS = 2;
+const HORIZONTAL_PADDING = 32; // 16px on each side
+const GUTTER = 16; // space between cards
+const AVAILABLE_WIDTH = SCREEN_WIDTH - HORIZONTAL_PADDING - GUTTER;
+const CARD_WIDTH = AVAILABLE_WIDTH / NUM_COLUMNS;
 
 // Topic bubble component with animations and heart icon
 function TopicBubble({ 
@@ -78,6 +86,7 @@ function TopicBubble({
       style={[
         styles.bubbleWrapper,
         {
+          width: CARD_WIDTH,
           opacity: fadeAnim,
           transform: [
             { scale: scaleAnim },
@@ -217,6 +226,95 @@ export default function LibraryScreen() {
     });
   };
 
+  const renderTopicItem = ({ item, index }: { item: Topic; index: number }) => (
+    <TopicBubble
+      topic={item}
+      index={index}
+      theme={theme}
+      onPress={() => handleTopicPress(item.id)}
+      isSaved={savedTopicIds.includes(item.id)}
+      onToggleSave={() => toggleSaveTopic(item.id)}
+    />
+  );
+
+  const renderListHeader = () => (
+    <>
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
+          Library
+        </Text>
+        <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+          Learn about different mental health topics in a safe, friendly way.
+        </Text>
+      </View>
+
+      {/* Search bar */}
+      <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
+        <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
+        <TextInput
+          style={[styles.searchInput, { color: theme.textPrimary }]}
+          placeholder="Search topics..."
+          placeholderTextColor={theme.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+            <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Saved topics section */}
+      {!isLoading && savedTopics.length > 0 && !searchQuery && (
+        <View style={styles.savedSection}>
+          <Text style={[styles.savedSectionTitle, { color: theme.buttonText }]}>
+            Saved topics
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.savedScrollContent}
+          >
+            {savedTopics.map((topic, index) => (
+              <View key={topic.id} style={styles.savedTopicWrapper}>
+                <TopicBubble
+                  topic={topic}
+                  index={index}
+                  theme={theme}
+                  onPress={() => handleTopicPress(topic.id)}
+                  isSaved={true}
+                  onToggleSave={() => toggleSaveTopic(topic.id)}
+                />
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* All topics section */}
+      {!searchQuery && savedTopics.length > 0 && (
+        <Text style={[styles.allTopicsTitle, { color: theme.buttonText }]}>
+          All topics
+        </Text>
+      )}
+    </>
+  );
+
+  const renderEmptyComponent = () => (
+    <View style={styles.noResultsContainer}>
+      <Ionicons name="search-outline" size={64} color={theme.buttonText} style={styles.noResultsIcon} />
+      <Text style={[styles.noResultsTitle, { color: theme.buttonText }]}>
+        No topics found
+      </Text>
+      <Text style={[styles.noResultsText, { color: theme.buttonText, opacity: 0.8 }]}>
+        Try adjusting your search to find what you&apos;re looking for.
+      </Text>
+    </View>
+  );
+
   return (
     <>
       <LinearGradient
@@ -228,102 +326,18 @@ export default function LibraryScreen() {
         <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container} {...panResponder.panHandlers}>
-            <ScrollView
-              ref={scrollViewRef}
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
+            <FlatList
+              data={filteredTopics}
+              renderItem={renderTopicItem}
+              keyExtractor={(item) => item.id}
+              numColumns={NUM_COLUMNS}
+              ListHeaderComponent={renderListHeader}
+              ListEmptyComponent={renderEmptyComponent}
+              contentContainerStyle={styles.flatListContent}
+              columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-            >
-              <View style={styles.header}>
-                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
-                  Library
-                </Text>
-                <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-                  Learn about different mental health topics in a safe, friendly way.
-                </Text>
-              </View>
-
-              {/* Search bar */}
-              <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
-                <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
-                <TextInput
-                  style={[styles.searchInput, { color: theme.textPrimary }]}
-                  placeholder="Search topics..."
-                  placeholderTextColor={theme.textSecondary}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-                    <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Saved topics section */}
-              {!isLoading && savedTopics.length > 0 && !searchQuery && (
-                <View style={styles.savedSection}>
-                  <Text style={[styles.savedSectionTitle, { color: theme.buttonText }]}>
-                    Saved topics
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.savedScrollContent}
-                  >
-                    {savedTopics.map((topic, index) => (
-                      <View key={topic.id} style={styles.savedTopicWrapper}>
-                        <TopicBubble
-                          topic={topic}
-                          index={index}
-                          theme={theme}
-                          onPress={() => handleTopicPress(topic.id)}
-                          isSaved={true}
-                          onToggleSave={() => toggleSaveTopic(topic.id)}
-                        />
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-
-              {/* All topics section */}
-              {!searchQuery && savedTopics.length > 0 && (
-                <Text style={[styles.allTopicsTitle, { color: theme.buttonText }]}>
-                  All topics
-                </Text>
-              )}
-
-              {/* Topics grid */}
-              {filteredTopics.length > 0 ? (
-                <View style={styles.topicsGrid}>
-                  {filteredTopics.map((topic, index) => (
-                    <TopicBubble
-                      key={topic.id}
-                      topic={topic}
-                      index={index}
-                      theme={theme}
-                      onPress={() => handleTopicPress(topic.id)}
-                      isSaved={savedTopicIds.includes(topic.id)}
-                      onToggleSave={() => toggleSaveTopic(topic.id)}
-                    />
-                  ))}
-                </View>
-              ) : (
-                <View style={styles.noResultsContainer}>
-                  <Ionicons name="search-outline" size={64} color={theme.buttonText} style={styles.noResultsIcon} />
-                  <Text style={[styles.noResultsTitle, { color: theme.buttonText }]}>
-                    No topics found
-                  </Text>
-                  <Text style={[styles.noResultsText, { color: theme.buttonText, opacity: 0.8 }]}>
-                    Try adjusting your search to find what you&apos;re looking for.
-                  </Text>
-                </View>
-              )}
-            </ScrollView>
+            />
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -363,13 +377,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
+  flatListContent: {
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'android' ? 16 : 8,
     paddingBottom: 120,
+  },
+  columnWrapper: {
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
   header: {
     marginBottom: 20,
@@ -427,15 +442,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 8,
   },
-  topicsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
   bubbleWrapper: {
-    width: '48%',
-    marginBottom: 16,
+    marginBottom: 0,
   },
   bubbleTouchable: {
     width: '100%',
@@ -448,7 +456,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: 140,
+    aspectRatio: 1.2,
     position: 'relative',
   },
   bubbleImage: {
