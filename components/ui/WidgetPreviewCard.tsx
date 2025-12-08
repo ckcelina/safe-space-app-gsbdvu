@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { WidgetImage } from '@/components/WidgetImage';
+import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { useThemeContext } from '@/contexts/ThemeContext';
 
 /**
@@ -16,7 +16,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
  * - Demonstrate the visual identity of Safe Space
  */
 export function WidgetPreviewCard() {
-  const { themeKey, theme } = useThemeContext();
+  const { theme } = useThemeContext();
 
   return (
     <View style={[styles.card, { backgroundColor: theme.card }]}>
@@ -28,7 +28,7 @@ export function WidgetPreviewCard() {
       </Text>
       
       <View style={styles.widgetContainer}>
-        <WidgetImage themeKey={themeKey} size={140} />
+        <SafeSpaceLogo size={140} useGradient={true} />
       </View>
 
       <Text style={[styles.description, { color: theme.textSecondary }]}>

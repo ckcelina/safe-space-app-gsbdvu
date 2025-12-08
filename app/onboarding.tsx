@@ -81,14 +81,13 @@ export default function OnboardingScreen() {
   return (
     <SafeSpaceScreen scrollable={true} keyboardAware={false} useGradient={true}>
       <View style={styles.content}>
-        {/* App Icon - with hidden tap gesture */}
+        {/* App Icon - with hidden tap gesture - now using gradient version like widget/app icon */}
         <View style={styles.iconContainer}>
           <TouchableOpacity 
             onPress={handleLogoTap}
             activeOpacity={1}
-            style={[styles.iconBackground, { backgroundColor: theme.card, borderColor: theme.primary }]}
           >
-            <SafeSpaceLogo size={64} color={theme.primary} />
+            <SafeSpaceLogo size={120} useGradient={true} />
           </TouchableOpacity>
         </View>
 
@@ -162,16 +161,6 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginBottom: 32,
-  },
-  iconBackground: {
-    width: 120,
-    height: 120,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.12)',
-    elevation: 6,
   },
   title: {
     fontSize: 42,
