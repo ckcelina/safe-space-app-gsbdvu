@@ -237,57 +237,64 @@ export default function HomeScreen() {
       return 'Topics';
     }
 
-    // Romantic partner
-    if ([
-      'partner',
-      'boyfriend',
-      'girlfriend',
-      'husband',
-      'wife',
-      'spouse',
-      'fiancé',
-      'fiancée'
-    ].includes(type)) {
-      return 'Partner';
-    }
-
-    // Parents
-    if ([
-      'mom',
-      'mother',
-      'dad',
+    // FAMILY keywords - using contains-based matching
+    const familyKeywords = [
       'father',
+      'dad',
+      'mother',
+      'mom',
       'parent',
-      'parents'
-    ].includes(type)) {
-      return 'Parents';
-    }
-
-    // Other family members (including sister and brother)
-    if ([
+      'parents',
+      'stepdad',
+      'stepmom',
+      'step-parent',
       'sister',
       'brother',
       'sibling',
-      'daughter',
       'son',
+      'daughter',
       'child',
       'children',
-      'kid',
       'cousin',
       'aunt',
       'uncle',
-      'grandma',
-      'grandmother',
-      'grandpa',
       'grandfather',
+      'grandmother',
       'grandparent',
-      'niece',
-      'nephew'
-    ].includes(type)) {
+      'in-law',
+      'spouse',
+      'husband',
+      'wife',
+    ];
+
+    // Check if any family keyword is contained in the relationship type
+    if (familyKeywords.some(keyword => type.includes(keyword))) {
       return 'Family';
     }
 
-    // Default group
+    // FRIENDS keywords - using contains-based matching
+    const friendsKeywords = [
+      'friend',
+      'best friend',
+      'coworker',
+      'colleague',
+      'boss',
+      'manager',
+      'classmate',
+      'roommate',
+      'neighbor',
+      'neighbour',
+      'acquaintance',
+      'mentor',
+      'partner', // partner can be friend or family context
+    ];
+
+    // Check if any friends keyword is contained in the relationship type
+    if (friendsKeywords.some(keyword => type.includes(keyword))) {
+      return 'Friends';
+    }
+
+    // Default to Friends if no match
     return 'Friends';
   }, []);
 
@@ -326,11 +333,12 @@ export default function HomeScreen() {
   const handleAddPerson = useCallback(() => {
     console.log('[Home] handleAddPerson called, isPremium:', isPremium, 'persons.length:', persons.length);
     
-    if (!isPremium && persons.length >= 2) {
-      console.log('[Home] Free user limit reached, showing premium modal');
-      setShowPremiumModal(true);
-      return;
-    }
+    // TEMPORARILY DISABLED: Premium lock for testing
+    // if (!isPremium && persons.length >= 2) {
+    //   console.log('[Home] Free user limit reached, showing premium modal');
+    //   setShowPremiumModal(true);
+    //   return;
+    // }
 
     console.log('[Home] Opening Add Person modal');
     setShowAddModal(true);
@@ -487,10 +495,18 @@ export default function HomeScreen() {
   // Subject/Topic modal handlers
   const handleAddSubject = useCallback(() => {
     console.log('[Home] Opening Add Subject modal');
+    
+    // TEMPORARILY DISABLED: Premium lock for testing
+    // if (!isPremium && persons.length >= 2) {
+    //   console.log('[Home] Free user limit reached, showing premium modal');
+    //   setShowPremiumModal(true);
+    //   return;
+    // }
+
     setShowSubjectModal(true);
     setSelectedTopic(null);
     setCustomTopic('');
-  }, []);
+  }, [isPremium, persons.length]);
 
   const handleCloseSubjectModal = useCallback(() => {
     console.log('[Home] Closing Add Subject modal');
@@ -837,7 +853,7 @@ export default function HomeScreen() {
               <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.modalKeyboardView}
-                keyboardVerticalOffset={0}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
               >
                 <View style={styles.modalHeader}>
                   <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
@@ -968,7 +984,7 @@ export default function HomeScreen() {
               <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.modalKeyboardView}
-                keyboardVerticalOffset={0}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
               >
                 <View style={styles.modalHeader}>
                   <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add a subject or topic</Text>
