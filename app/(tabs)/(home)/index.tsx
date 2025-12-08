@@ -238,33 +238,23 @@ export default function HomeScreen() {
     }
 
     // FAMILY keywords - using contains-based matching
+    // These are the exact relationships that should be categorized as Family
     const familyKeywords = [
       'father',
       'dad',
       'mother',
       'mom',
-      'parent',
-      'parents',
-      'stepdad',
-      'stepmom',
-      'step-parent',
       'sister',
       'brother',
-      'sibling',
-      'son',
       'daughter',
-      'child',
-      'children',
-      'cousin',
+      'son',
+      'grandma',
+      'grandmother',
+      'grandpa',
+      'grandfather',
       'aunt',
       'uncle',
-      'grandfather',
-      'grandmother',
-      'grandparent',
-      'in-law',
-      'spouse',
-      'husband',
-      'wife',
+      'cousin',
     ];
 
     // Check if any family keyword is contained in the relationship type
@@ -272,29 +262,7 @@ export default function HomeScreen() {
       return 'Family';
     }
 
-    // FRIENDS keywords - using contains-based matching
-    const friendsKeywords = [
-      'friend',
-      'best friend',
-      'coworker',
-      'colleague',
-      'boss',
-      'manager',
-      'classmate',
-      'roommate',
-      'neighbor',
-      'neighbour',
-      'acquaintance',
-      'mentor',
-      'partner', // partner can be friend or family context
-    ];
-
-    // Check if any friends keyword is contained in the relationship type
-    if (friendsKeywords.some(keyword => type.includes(keyword))) {
-      return 'Friends';
-    }
-
-    // Default to Friends if no match
+    // Default to Friends for all other relationships
     return 'Friends';
   }, []);
 
@@ -309,14 +277,32 @@ export default function HomeScreen() {
       return nameMatch || relationshipMatch;
     });
 
+    // Use a Map to track which person IDs have been added to ensure no duplicates
+    const seenPersonIds = new Set<string>();
     const grouped: GroupedPersons = {};
     
     filtered.forEach((person) => {
+      // Skip if we've already processed this person
+      if (!person.id || seenPersonIds.has(person.id)) {
+        console.warn('[Home] Skipping duplicate or invalid person:', person.id, person.name);
+        return;
+      }
+
+      // Mark this person as seen
+      seenPersonIds.add(person.id);
+
+      // Categorize the person
       const category = categorizeRelationship(person.relationship_type);
+      
+      // Initialize the category array if it doesn't exist
       if (!grouped[category]) {
         grouped[category] = [];
       }
+      
+      // Add the person to their category
       grouped[category].push(person);
+      
+      console.log('[Home] Categorized person:', person.name, 'as', category, 'based on relationship:', person.relationship_type);
     });
 
     return grouped;
