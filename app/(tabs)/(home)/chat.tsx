@@ -138,14 +138,14 @@ export default function ChatScreen() {
   const { currentUser: authUser, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // PART 1: Track current subject in state
+  // Track current subject in state
   const [currentSubject, setCurrentSubject] = useState<string>('General');
 
   // Subject pill state
@@ -189,6 +189,35 @@ export default function ChatScreen() {
     }, 100);
   }, []);
 
+  // Safe backfill function - updates NULL/empty subjects to 'General'
+  const backfillSubjects = useCallback(async () => {
+    if (!personId || !authUser?.id) {
+      return;
+    }
+
+    try {
+      console.log('[Chat] Backfilling NULL/empty subjects to "General"...');
+      
+      // Update messages with NULL or empty subject to 'General'
+      const { error: updateError } = await supabase
+        .from('messages')
+        .update({ subject: 'General' })
+        .eq('person_id', personId)
+        .eq('user_id', authUser.id)
+        .or('subject.is.null,subject.eq.');
+
+      if (updateError) {
+        console.error('[Chat] Backfill error:', updateError);
+        // Don't throw - this is non-critical
+      } else {
+        console.log('[Chat] Backfill completed successfully');
+      }
+    } catch (err) {
+      console.error('[Chat] Backfill unexpected error:', err);
+      // Don't throw - this is non-critical
+    }
+  }, [personId, authUser?.id]);
+
   const loadMessages = useCallback(async () => {
     if (!personId) {
       console.warn('[Chat] loadMessages: personId is missing');
@@ -213,7 +242,8 @@ export default function ChatScreen() {
       setError(null);
       console.log('[Chat] Loading messages for person:', personId);
 
-      // PART 2: Load subject column with messages
+      // FIX: Load ALL messages for this person, regardless of subject
+      // Do NOT filter by subject in the query
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -230,10 +260,16 @@ export default function ChatScreen() {
       }
 
       console.log('[Chat] Messages loaded:', data?.length || 0);
+      
+      // Store all messages
       if (isMountedRef.current) {
-        setMessages(data ?? []);
+        setAllMessages(data ?? []);
         scrollToBottom();
       }
+
+      // Perform safe backfill after loading messages
+      // This runs in the background and doesn't block the UI
+      backfillSubjects();
     } catch (err: any) {
       console.error('[Chat] loadMessages unexpected error:', err);
       if (isMountedRef.current) {
@@ -244,7 +280,7 @@ export default function ChatScreen() {
         setLoading(false);
       }
     }
-  }, [personId, authUser?.id, scrollToBottom]);
+  }, [personId, authUser?.id, scrollToBottom, backfillSubjects]);
 
   useEffect(() => {
     if (personId && authUser?.id) {
@@ -259,11 +295,20 @@ export default function ChatScreen() {
     }
   }, [personId, authUser?.id, loadMessages]);
 
+  // Filter messages for display based on current subject
+  // Show messages where subject matches OR subject is NULL/empty (treat as General)
+  const displayedMessages = React.useMemo(() => {
+    return allMessages.filter((msg) => {
+      const msgSubject = msg.subject || 'General'; // Treat NULL/empty as General
+      return msgSubject === currentSubject;
+    });
+  }, [allMessages, currentSubject]);
+
   useEffect(() => {
-    if (messages.length > 0) {
+    if (displayedMessages.length > 0) {
       scrollToBottom();
     }
-  }, [messages.length, scrollToBottom]);
+  }, [displayedMessages.length, scrollToBottom]);
 
   const handleRetry = useCallback(() => {
     loadMessages();
@@ -296,7 +341,7 @@ export default function ChatScreen() {
 
     try {
       console.log('[Chat] Inserting user message...');
-      // PART 2: Save subject with outgoing messages
+      // Save message with current subject
       const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
         .insert({
@@ -324,7 +369,7 @@ export default function ChatScreen() {
 
       let updatedMessages: Message[] = [];
       if (isMountedRef.current) {
-        setMessages((prev) => {
+        setAllMessages((prev) => {
           updatedMessages = [...prev, insertedMessage];
           return updatedMessages;
         });
@@ -345,7 +390,7 @@ export default function ChatScreen() {
           createdAt: msg.created_at,
         }));
 
-      // PART 3: Inject subject into AI prompt
+      // Pass current subject to AI
       const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
         'generate-ai-response',
         {
@@ -379,7 +424,7 @@ export default function ChatScreen() {
         "I'm here with you. Tell me more about how you're feeling.";
 
       console.log('[Chat] Inserting AI message...');
-      // PART 2: Save subject with AI response
+      // Save AI response with current subject
       const { data: aiInserted, error: aiInsertError } = await supabase
         .from('messages')
         .insert({
@@ -406,7 +451,7 @@ export default function ChatScreen() {
       console.log('[Chat] AI message inserted:', aiInserted.id);
 
       if (isMountedRef.current) {
-        setMessages((prev) => [...prev, aiInserted]);
+        setAllMessages((prev) => [...prev, aiInserted]);
         scrollToBottom();
         setIsTyping(false);
         setIsSending(false);
@@ -442,7 +487,6 @@ export default function ChatScreen() {
   // Subject pill handlers
   const handleSubjectPress = useCallback((subject: string) => {
     console.log('[Chat] Subject selected:', subject);
-    // PART 1: Update currentSubject when pill is selected
     setCurrentSubject(subject);
   }, []);
 
@@ -485,7 +529,7 @@ export default function ChatScreen() {
       setAvailableSubjects((prev) => [...prev, newSubject]);
     }
 
-    // PART 1: Select the new subject (updates currentSubject)
+    // Select the new subject
     setCurrentSubject(newSubject);
     closeAddSubjectModal();
   }, [customSubjectInput, quickSelectedSubject, availableSubjects, closeAddSubjectModal]);
@@ -608,7 +652,7 @@ export default function ChatScreen() {
           onContentSizeChange={scrollToBottom}
           keyboardShouldPersistTaps="handled"
         >
-          {messages.length === 0 && !loading ? (
+          {displayedMessages.length === 0 && !loading ? (
             <View style={styles.emptyChat}>
               <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
                 <IconSymbol
@@ -624,6 +668,11 @@ export default function ChatScreen() {
               <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
                 Share your thoughts and feelings about {personName}
               </Text>
+              {currentSubject !== 'General' && allMessages.length > 0 && (
+                <Text style={[styles.emptyHint, { color: theme.textSecondary }]}>
+                  No messages for &quot;{currentSubject}&quot; yet. Switch to &quot;General&quot; to see other messages.
+                </Text>
+              )}
               {error && (
                 <TouchableOpacity style={{ marginTop: 12 }} onPress={handleRetry}>
                   <Text style={{ color: theme.primary, fontWeight: '600' }}>
@@ -634,7 +683,7 @@ export default function ChatScreen() {
             </View>
           ) : (
             <React.Fragment>
-              {messages.map((message) => (
+              {displayedMessages.map((message) => (
                 <ChatBubble
                   key={message.id}
                   message={message.content}
@@ -930,6 +979,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  emptyHint: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 12,
+    fontStyle: 'italic',
   },
   inputContainer: {
     paddingHorizontal: 16,
