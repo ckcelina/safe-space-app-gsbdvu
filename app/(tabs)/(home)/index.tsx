@@ -104,6 +104,7 @@ export default function HomeScreen() {
       setError(null);
       console.log('[Home] Fetching persons for user:', userId);
       
+      // FIXED: Always filter by user_id to prevent data leakage
       const { data: personsData, error: personsError } = await supabase
         .from('persons')
         .select('*')
@@ -131,6 +132,7 @@ export default function HomeScreen() {
       const personsWithMessages = await Promise.all(
         personsData.map(async (person) => {
           try {
+            // FIXED: Always filter by BOTH user_id AND person_id
             const { data: messages } = await supabase
               .from('messages')
               .select('content, created_at, role')
@@ -187,13 +189,20 @@ export default function HomeScreen() {
       return;
     }
 
+    if (!userId) {
+      console.error('[Home] Cannot delete person - userId is missing');
+      showErrorToast('You must be logged in');
+      return;
+    }
+
     console.log('[Home] Deleting person:', personId);
 
     try {
-      // Delete all messages for this person
+      // FIXED: Delete messages with BOTH user_id AND person_id filter
       const { error: messagesError } = await supabase
         .from('messages')
         .delete()
+        .eq('user_id', userId)
         .eq('person_id', personId);
 
       if (messagesError) {
@@ -202,11 +211,12 @@ export default function HomeScreen() {
         return;
       }
 
-      // Delete the person
+      // FIXED: Delete person with BOTH id AND user_id filter
       const { error: personError } = await supabase
         .from('persons')
         .delete()
-        .eq('id', personId);
+        .eq('id', personId)
+        .eq('user_id', userId);
 
       if (personError) {
         console.error('[Home] Error deleting person:', personError);
@@ -225,7 +235,7 @@ export default function HomeScreen() {
       console.error('[Home] Unexpected error deleting person:', error);
       showErrorToast('An unexpected error occurred');
     }
-  }, []);
+  }, [userId]);
 
   const categorizeRelationship = useCallback((relationshipType: string | null | undefined): string => {
     if (!relationshipType) return 'Friends';
@@ -238,7 +248,6 @@ export default function HomeScreen() {
     }
 
     // FAMILY keywords - using contains-based matching
-    // These are the exact relationships that should be categorized as Family
     const familyKeywords = [
       'father',
       'dad',
@@ -277,12 +286,12 @@ export default function HomeScreen() {
       return nameMatch || relationshipMatch;
     });
 
-    // Use a Map to track which person IDs have been added to ensure no duplicates
+    // FIXED: Use a Map to track which person IDs have been added to ensure no duplicates
     const seenPersonIds = new Set<string>();
     const grouped: GroupedPersons = {};
     
     filtered.forEach((person) => {
-      // Skip if we've already processed this person
+      // Skip if we've already processed this person or if ID is missing
       if (!person.id || seenPersonIds.has(person.id)) {
         console.warn('[Home] Skipping duplicate or invalid person:', person.id, person.name);
         return;
@@ -381,6 +390,17 @@ export default function HomeScreen() {
 
       if (error) {
         console.error('[Home] Error creating person:', error);
+        
+        // FIXED: Handle duplicate person error gracefully
+        if (error.code === '23505') {
+          if (isMountedRef.current) {
+            setNameError('You already have a person with this name');
+            showErrorToast('This person already exists');
+            setSaving(false);
+          }
+          return;
+        }
+        
         if (isMountedRef.current) {
           showErrorToast('Failed to add person. Please try again.');
           setSaving(false);
@@ -515,7 +535,6 @@ export default function HomeScreen() {
       return;
     }
 
-    // 1) GET userId
     if (!userId) {
       console.error('[Home] No userId available for subject save');
       showErrorToast('You must be logged in to add a subject');
@@ -526,8 +545,7 @@ export default function HomeScreen() {
     setSavingSubject(true);
 
     try {
-      // 2) CREATE OR REUSE A PERSON ROW IN SUPABASE
-      // Query persons table for existing row
+      // FIXED: Check for existing topic with BOTH user_id AND name
       const { data: existingPersons, error: queryError } = await supabase
         .from('persons')
         .select('*')
@@ -549,7 +567,7 @@ export default function HomeScreen() {
         console.log('[Home] Subject already exists, using existing person:', existingPersons);
         person = existingPersons;
       } else {
-        // Insert new row
+        // Insert new row with user_id
         console.log('[Home] Creating new subject person');
         const { data: newPerson, error: insertError } = await supabase
           .from('persons')
@@ -563,7 +581,13 @@ export default function HomeScreen() {
 
         if (insertError) {
           console.error('[Home] Error creating subject person:', insertError);
-          showErrorToast('Failed to create subject');
+          
+          // FIXED: Handle duplicate error gracefully
+          if (insertError.code === '23505') {
+            showErrorToast('This topic already exists');
+          } else {
+            showErrorToast('Failed to create subject');
+          }
           setSavingSubject(false);
           return;
         }
@@ -572,7 +596,6 @@ export default function HomeScreen() {
         person = newPerson;
       }
 
-      // 3) NAVIGATE TO THE EXISTING CHAT SCREEN
       if (!person.id) {
         console.error('[Home] Person ID is missing');
         showErrorToast('Invalid subject data');

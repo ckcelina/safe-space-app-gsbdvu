@@ -198,7 +198,7 @@ export default function ChatScreen() {
     try {
       console.log('[Chat] Backfilling NULL/empty subjects to "General"...');
       
-      // Update messages with NULL or empty subject to 'General'
+      // FIXED: Update with BOTH user_id AND person_id filter
       const { error: updateError } = await supabase
         .from('messages')
         .update({ subject: 'General' })
@@ -240,10 +240,10 @@ export default function ChatScreen() {
     try {
       setLoading(true);
       setError(null);
-      console.log('[Chat] Loading messages for person:', personId);
+      console.log('[Chat] Loading messages for person:', personId, 'user:', authUser.id);
 
-      // FIX: Load ALL messages for this person, regardless of subject
-      // Do NOT filter by subject in the query
+      // FIXED: Load ALL messages for this person with BOTH user_id AND person_id filter
+      // This prevents data leakage between users
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -341,7 +341,7 @@ export default function ChatScreen() {
 
     try {
       console.log('[Chat] Inserting user message...');
-      // Save message with current subject
+      // FIXED: Save message with user_id, person_id, and subject
       const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
         .insert({
@@ -349,7 +349,7 @@ export default function ChatScreen() {
           person_id: personId,
           role: 'user',
           content: text,
-          subject: currentSubject, // Include current subject
+          subject: currentSubject,
           created_at: new Date().toISOString(),
         })
         .select('*')
@@ -399,7 +399,7 @@ export default function ChatScreen() {
             personName,
             personRelationshipType: relationshipType || 'Unknown',
             messages: recentMessages,
-            currentSubject: currentSubject, // Pass current subject to AI
+            currentSubject: currentSubject,
           },
         }
       );
@@ -424,7 +424,7 @@ export default function ChatScreen() {
         "I'm here with you. Tell me more about how you're feeling.";
 
       console.log('[Chat] Inserting AI message...');
-      // Save AI response with current subject
+      // FIXED: Save AI response with user_id, person_id, and subject
       const { data: aiInserted, error: aiInsertError } = await supabase
         .from('messages')
         .insert({
@@ -432,7 +432,7 @@ export default function ChatScreen() {
           person_id: personId,
           role: 'assistant',
           content: replyText,
-          subject: currentSubject, // Include current subject
+          subject: currentSubject,
           created_at: new Date().toISOString(),
         })
         .select('*')
