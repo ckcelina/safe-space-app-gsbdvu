@@ -96,13 +96,23 @@ export default function FloatingTabBar({
     }
   }, [activeTabIndex, animatedValue]);
 
-  const handleTabPress = (route: Href) => {
+  const handleTabPress = (route: Href, index: number) => {
     console.log('[FloatingTabBar] Tab pressed, navigating to:', route);
-    // Use replace instead of push to properly switch between tabs
-    router.replace(route);
+    
+    try {
+      // Use replace instead of push to properly switch between tabs
+      // This prevents navigation stack buildup
+      router.replace(route);
+    } catch (error) {
+      console.error('[FloatingTabBar] Navigation error:', error);
+      // Fallback: try push if replace fails
+      try {
+        router.push(route);
+      } catch (fallbackError) {
+        console.error('[FloatingTabBar] Fallback navigation also failed:', fallbackError);
+      }
+    }
   };
-
-  // Remove unnecessary tabBarStyle animation to prevent flickering
 
   const tabWidthPercent = ((100 / tabs.length) - 1).toFixed(2);
 
@@ -178,31 +188,30 @@ export default function FloatingTabBar({
               const isActive = activeTabIndex === index;
 
               return (
-                <React.Fragment key={index}>
-                <TouchableOpacity
-                  key={index} // Use index as key
-                  style={styles.tab}
-                  onPress={() => handleTabPress(tab.route)}
-                  activeOpacity={0.7}
-                >
-                  <View key={index} style={styles.tabContent}>
-                    <IconSymbol
-                      ios_icon_name={tab.iosIcon || tab.icon}
-                      android_material_icon_name={tab.icon}
-                      size={24}
-                      color={isActive ? theme.colors.primary : (theme.dark ? '#98989D' : '#000000')}
-                    />
-                    <Text
-                      style={[
-                        styles.tabLabel,
-                        { color: theme.dark ? '#98989D' : '#8E8E93' },
-                        isActive && { color: theme.colors.primary, fontWeight: '600' },
-                      ]}
-                    >
-                      {tab.label}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                <React.Fragment key={`tab-${index}-${tab.name}`}>
+                  <TouchableOpacity
+                    style={styles.tab}
+                    onPress={() => handleTabPress(tab.route, index)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.tabContent}>
+                      <IconSymbol
+                        ios_icon_name={tab.iosIcon || tab.icon}
+                        android_material_icon_name={tab.icon}
+                        size={24}
+                        color={isActive ? theme.colors.primary : (theme.dark ? '#98989D' : '#000000')}
+                      />
+                      <Text
+                        style={[
+                          styles.tabLabel,
+                          { color: theme.dark ? '#98989D' : '#8E8E93' },
+                          isActive && { color: theme.colors.primary, fontWeight: '600' },
+                        ]}
+                      >
+                        {tab.label}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                 </React.Fragment>
               );
             })}

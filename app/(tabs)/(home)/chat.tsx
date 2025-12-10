@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Keyboard,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -144,6 +145,7 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Track current subject in state
   const [currentSubject, setCurrentSubject] = useState<string>('General');
@@ -165,6 +167,7 @@ export default function ChatScreen() {
       setCurrentSubject(initialSubject);
     }
   }, [initialSubject]);
+
   const [addSubjectModalVisible, setAddSubjectModalVisible] = useState(false);
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [quickSelectedSubject, setQuickSelectedSubject] = useState<string | null>(null);
@@ -176,6 +179,27 @@ export default function ChatScreen() {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+    };
+  }, []);
+
+  // Keyboard listeners for better Android support
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
     };
   }, []);
 
@@ -539,7 +563,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         style={[styles.container, { backgroundColor: theme.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <StatusBarGradient />
 
@@ -633,7 +657,7 @@ export default function ChatScreen() {
             <Text style={[styles.errorBannerText, { color: '#FFFFFF' }]}>
               {error}
             </Text>
-            <TouchableOpacity onPress={() => setError(null)} style={styles.dismissButton}>
+            <TouchableOpacity onPress={() => setError(null)} style={styles.dismissButton} activeOpacity={0.7}>
               <IconSymbol
                 ios_icon_name="xmark"
                 android_material_icon_name="close"
@@ -674,7 +698,7 @@ export default function ChatScreen() {
                 </Text>
               )}
               {error && (
-                <TouchableOpacity style={{ marginTop: 12 }} onPress={handleRetry}>
+                <TouchableOpacity style={{ marginTop: 12 }} onPress={handleRetry} activeOpacity={0.7}>
                   <Text style={{ color: theme.primary, fontWeight: '600' }}>
                     Try loading messages again
                   </Text>
@@ -698,7 +722,7 @@ export default function ChatScreen() {
           {isTyping && <TypingIndicator />}
         </ScrollView>
 
-        <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+        <View style={[styles.inputContainer, { backgroundColor: theme.card, paddingBottom: Platform.OS === 'android' ? Math.max(keyboardHeight * 0.05, 16) : 16 }]}>
           <View style={styles.inputRow}>
             <View style={styles.inputColumn}>
               <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
@@ -780,6 +804,7 @@ export default function ChatScreen() {
                     },
                   ]}
                   onPress={() => handleQuickSubjectSelect(subject)}
+                  activeOpacity={0.7}
                 >
                   <Text
                     style={[
@@ -826,6 +851,7 @@ export default function ChatScreen() {
             <TouchableOpacity
               style={[styles.modalButton, { backgroundColor: theme.background }]}
               onPress={closeAddSubjectModal}
+              activeOpacity={0.7}
             >
               <Text style={[styles.modalButtonText, { color: theme.textPrimary }]}>
                 Cancel
@@ -834,6 +860,7 @@ export default function ChatScreen() {
             <TouchableOpacity
               style={[styles.modalButton, { backgroundColor: theme.primary }]}
               onPress={saveSubject}
+              activeOpacity={0.7}
             >
               <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
                 Save subject
@@ -991,7 +1018,6 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 16 : 16,
     borderRadius: 20,
   },
   inputRow: {

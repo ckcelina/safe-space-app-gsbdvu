@@ -1,9 +1,11 @@
 
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface SafeSpaceLogoProps {
   size?: number;
@@ -28,22 +30,27 @@ const themeGradients: Record<ThemeKey, [string, string]> = {
  * - Theme-aware coloring (automatically matches selected theme)
  * - Optional gradient background (like the widget/app icon)
  * - Consistent design across all screens
+ * - Responsive sizing based on screen width
  * 
  * Props:
- * - size: Size of the logo (default: 64)
+ * - size: Size of the logo (default: responsive based on screen width)
  * - color: Override color (if not provided, uses theme primary color)
  * - useGradient: Whether to show gradient background like widget (default: false)
  */
-export function SafeSpaceLogo({ size = 64, color, useGradient = false }: SafeSpaceLogoProps) {
+export function SafeSpaceLogo({ size, color, useGradient = false }: SafeSpaceLogoProps) {
   const { theme, themeKey } = useThemeContext();
+  
+  // Responsive sizing: default to 10% of screen width, clamped between 48 and 120
+  const responsiveSize = size || Math.min(Math.max(SCREEN_WIDTH * 0.1, 48), 120);
+  
   const finalColor = color || theme.primary;
   const gradient = themeGradients[themeKey];
-  const iconSize = size * 0.6; // Icon is 60% of container size
+  const iconSize = responsiveSize * 0.6; // Icon is 60% of container size
 
   if (useGradient) {
     // Render with gradient background (like widget/app icon)
     return (
-      <View style={[styles.container, { width: size, height: size, borderRadius: size * 0.2 }]}>
+      <View style={[styles.container, { width: responsiveSize, height: responsiveSize, borderRadius: responsiveSize * 0.2 }]}>
         <LinearGradient
           colors={gradient}
           start={{ x: 0, y: 0 }}
@@ -59,7 +66,7 @@ export function SafeSpaceLogo({ size = 64, color, useGradient = false }: SafeSpa
   }
 
   // Render icon only with theme color
-  return <HeartBubbleIcon size={size} color={finalColor} />;
+  return <HeartBubbleIcon size={responsiveSize} color={finalColor} />;
 }
 
 /**
@@ -75,9 +82,11 @@ export function SafeSpaceLogo({ size = 64, color, useGradient = false }: SafeSpa
  * - Onboarding screen
  * - Empty states
  * - Error states
+ * 
+ * The icon scales responsively based on the size prop.
  */
 function HeartBubbleIcon({ size, color = '#FFFFFF' }: { size: number; color?: string }) {
-  const strokeWidth = size * 0.04; // 4% of size for clean lines
+  const strokeWidth = Math.max(size * 0.04, 2); // 4% of size, minimum 2px for visibility
   const viewBox = 100; // Use 100x100 viewBox for easy calculations
 
   return (
@@ -145,8 +154,8 @@ function HeartBubbleIcon({ size, color = '#FFFFFF' }: { size: number; color?: st
       />
 
       {/* Small decorative dots for extra detail */}
-      <Circle cx="35" cy="30" r={strokeWidth * 0.8} fill={color} opacity={0.6} />
-      <Circle cx="65" cy="30" r={strokeWidth * 0.8} fill={color} opacity={0.6} />
+      <Circle cx="35" cy="30" r={Math.max(strokeWidth * 0.8, 1)} fill={color} opacity={0.6} />
+      <Circle cx="65" cy="30" r={Math.max(strokeWidth * 0.8, 1)} fill={color} opacity={0.6} />
     </Svg>
   );
 }
