@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Modal, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Modal, Text, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
 import { SafeSpaceTitle, SafeSpaceSubtitle } from '@/components/ui/SafeSpaceText';
@@ -9,6 +9,8 @@ import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
   const { theme } = useThemeContext();
@@ -87,7 +89,7 @@ export default function OnboardingScreen() {
             onPress={handleLogoTap}
             activeOpacity={1}
           >
-            <SafeSpaceLogo size={120} useGradient={true} />
+            <SafeSpaceLogo size={Math.min(SCREEN_WIDTH * 0.3, 120)} useGradient={true} />
           </TouchableOpacity>
         </View>
 
@@ -157,25 +159,26 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: SCREEN_HEIGHT * 0.05,
+    minHeight: SCREEN_HEIGHT * 0.7,
   },
   iconContainer: {
-    marginBottom: 32,
+    marginBottom: SCREEN_HEIGHT * 0.04,
   },
   title: {
-    fontSize: 42,
-    marginBottom: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.11, 42),
+    marginBottom: SCREEN_HEIGHT * 0.02,
   },
   subtitle: {
-    maxWidth: 360,
+    maxWidth: Math.min(SCREEN_WIDTH * 0.85, 360),
     paddingHorizontal: 16,
-    marginBottom: 48,
-    fontSize: 17,
-    lineHeight: 26,
+    marginBottom: SCREEN_HEIGHT * 0.06,
+    fontSize: Math.min(SCREEN_WIDTH * 0.045, 17),
+    lineHeight: Math.min(SCREEN_WIDTH * 0.068, 26),
   },
   buttonContainer: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: Math.min(SCREEN_WIDTH * 0.9, 400),
   },
   modalOverlay: {
     flex: 1,
@@ -188,20 +191,20 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     borderRadius: 24,
-    padding: 32,
+    padding: Math.min(SCREEN_WIDTH * 0.08, 32),
     boxShadow: '0px 8px 32px rgba(0, 0, 0, 0.24)',
     elevation: 12,
   },
   modalTitle: {
-    fontSize: 28,
+    fontSize: Math.min(SCREEN_WIDTH * 0.07, 28),
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 12,
   },
   modalDescription: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: Math.min(SCREEN_HEIGHT * 0.04, 32),
     lineHeight: 24,
   },
   modalButtons: {

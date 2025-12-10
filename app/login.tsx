@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +13,8 @@ import { supabase } from '@/lib/supabase';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function LoginScreen() {
   const { theme } = useThemeContext();
@@ -291,16 +293,17 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: Math.min(SCREEN_WIDTH * 0.06, 24),
+    paddingVertical: SCREEN_HEIGHT * 0.025,
+    minHeight: SCREEN_HEIGHT * 0.85,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: SCREEN_HEIGHT * 0.05,
   },
   titleContainer: {
-    marginBottom: 32,
+    marginBottom: Math.min(SCREEN_HEIGHT * 0.04, 32),
   },
   form: {
     width: '100%',

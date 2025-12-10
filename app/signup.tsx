@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,8 @@ import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function SignupScreen() {
   const { theme } = useThemeContext();
@@ -296,16 +298,17 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: Math.min(SCREEN_WIDTH * 0.06, 24),
+    paddingVertical: SCREEN_HEIGHT * 0.025,
+    minHeight: SCREEN_HEIGHT * 0.85,
   },
   content: {
     flex: 1,
-    paddingVertical: 20,
+    paddingVertical: SCREEN_HEIGHT * 0.025,
   },
   themePreview: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: Math.min(SCREEN_HEIGHT * 0.03, 24),
   },
   themePreviewRow: {
     flexDirection: 'row',
@@ -313,14 +316,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   themeCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: Math.min(SCREEN_WIDTH * 0.1, 40),
+    height: Math.min(SCREEN_WIDTH * 0.1, 40),
+    borderRadius: Math.min(SCREEN_WIDTH * 0.05, 20),
     boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 2,
   },
   titleContainer: {
-    marginBottom: 24,
+    marginBottom: Math.min(SCREEN_HEIGHT * 0.03, 24),
   },
   form: {
     width: '100%',
@@ -375,7 +378,7 @@ const styles = StyleSheet.create({
     height: 8,
   },
   disclaimerContainer: {
-    marginTop: 32,
+    marginTop: Math.min(SCREEN_HEIGHT * 0.04, 32),
     paddingHorizontal: 8,
     paddingBottom: 16,
   },

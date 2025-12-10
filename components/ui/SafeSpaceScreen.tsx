@@ -7,11 +7,14 @@ import {
   Platform,
   StyleSheet,
   ViewStyle,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { StatusBarGradient } from './StatusBarGradient';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface SafeSpaceScreenProps {
   children: ReactNode;
@@ -106,12 +109,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: Math.min(SCREEN_WIDTH * 0.06, 24),
+    paddingVertical: SCREEN_HEIGHT * 0.025,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: Math.min(SCREEN_WIDTH * 0.06, 24),
+    paddingVertical: SCREEN_HEIGHT * 0.025,
   },
 });
