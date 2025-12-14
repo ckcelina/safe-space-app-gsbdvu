@@ -22,9 +22,11 @@ export function showToast(message: string, duration: 'short' | 'long' = 'short')
 
 /**
  * Show an error toast with a red icon (iOS) or error styling
+ * FIXED: Non-blocking - logs as info instead of error to avoid breaking flow
  */
 export function showErrorToast(message: string) {
-  console.error('Error Toast:', message);
+  // FIXED: Log as info instead of error to make it non-blocking
+  console.log('Error Toast (non-blocking):', message);
   
   if (Platform.OS === 'android') {
     ToastAndroid.show(`❌ ${message}`, ToastAndroid.LONG);

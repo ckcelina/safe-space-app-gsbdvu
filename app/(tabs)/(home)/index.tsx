@@ -63,6 +63,59 @@ const QUICK_TOPICS = [
   'Money & Finances',
 ];
 
+/**
+ * Categorize a relationship into Family, Friends, Topics, or Other
+ * FIXED: Explicit mapping with case-insensitive matching
+ */
+const categorizeRelationship = (relationshipType: string | null | undefined): string => {
+  if (!relationshipType) return 'Friends';
+  
+  const type = relationshipType.toLowerCase().trim();
+
+  // Topics - check first before other categories
+  if (type === 'topic') {
+    return 'Topics';
+  }
+
+  // FAMILY keywords - exact match or contains
+  const familyKeywords = [
+    'father',
+    'mother',
+    'dad',
+    'mom',
+    'brother',
+    'sister',
+    'son',
+    'daughter',
+    'parent',
+    'spouse',
+    'husband',
+    'wife',
+    'cousin',
+    'uncle',
+    'aunt',
+    'grandfather',
+    'grandmother',
+    'grandpa',
+    'grandma',
+    'family',
+  ];
+
+  // Check if the relationship type matches any family keyword
+  if (familyKeywords.some(keyword => type === keyword || type.includes(keyword))) {
+    return 'Family';
+  }
+
+  // FRIENDS keywords - contains-based matching
+  const friendsKeywords = ['friend', 'best friend', 'classmate'];
+  if (friendsKeywords.some(keyword => type.includes(keyword))) {
+    return 'Friends';
+  }
+
+  // Default to Other for unrecognized relationships
+  return 'Other';
+};
+
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
@@ -237,44 +290,11 @@ export default function HomeScreen() {
     }
   }, [userId]);
 
-  const categorizeRelationship = useCallback((relationshipType: string | null | undefined): string => {
-    if (!relationshipType) return 'Friends';
-    
-    const type = relationshipType.toLowerCase().trim();
-
-    // Topics - check first before other categories
-    if (type === 'topic') {
-      return 'Topics';
-    }
-
-    // FAMILY keywords - using contains-based matching
-    const familyKeywords = [
-      'father',
-      'dad',
-      'mother',
-      'mom',
-      'sister',
-      'brother',
-      'daughter',
-      'son',
-      'grandma',
-      'grandmother',
-      'grandpa',
-      'grandfather',
-      'aunt',
-      'uncle',
-      'cousin',
-    ];
-
-    // Check if any family keyword is contained in the relationship type
-    if (familyKeywords.some(keyword => type.includes(keyword))) {
-      return 'Family';
-    }
-
-    // Default to Friends for all other relationships
-    return 'Friends';
-  }, []);
-
+  /**
+   * FIXED: Deduplicate and group persons
+   * - Dedupe by person.id (or fallback key)
+   * - Group by relationship category
+   */
   const filteredAndGroupedPersons = useMemo(() => {
     const filtered = persons.filter((person) => {
       if (!searchQuery.trim()) return true;
@@ -286,21 +306,29 @@ export default function HomeScreen() {
       return nameMatch || relationshipMatch;
     });
 
-    // FIXED: Use a Map to track which person IDs have been added to ensure no duplicates
+    // FIXED: Deduplicate by person.id
     const seenPersonIds = new Set<string>();
-    const grouped: GroupedPersons = {};
+    const dedupedPersons: PersonWithLastMessage[] = [];
     
     filtered.forEach((person) => {
-      // Skip if we've already processed this person or if ID is missing
-      if (!person.id || seenPersonIds.has(person.id)) {
-        console.warn('[Home] Skipping duplicate or invalid person:', person.id, person.name);
+      // Generate a stable unique key
+      const personKey = person.id || `${userId}:${person.name?.toLowerCase() || 'unknown'}`;
+      
+      // Skip if we've already processed this person
+      if (seenPersonIds.has(personKey)) {
+        console.warn('[Home] Skipping duplicate person:', personKey, person.name);
         return;
       }
 
       // Mark this person as seen
-      seenPersonIds.add(person.id);
+      seenPersonIds.add(personKey);
+      dedupedPersons.push(person);
+    });
 
-      // Categorize the person
+    // FIXED: Group by relationship category
+    const grouped: GroupedPersons = {};
+    
+    dedupedPersons.forEach((person) => {
       const category = categorizeRelationship(person.relationship_type);
       
       // Initialize the category array if it doesn't exist
@@ -315,9 +343,9 @@ export default function HomeScreen() {
     });
 
     return grouped;
-  }, [persons, searchQuery, categorizeRelationship]);
+  }, [persons, searchQuery, userId]);
 
-  const groupOrder = ['Family', 'Friends', 'Topics'];
+  const groupOrder = ['Family', 'Friends', 'Topics', 'Other'];
   const visibleGroups = useMemo(() => {
     return groupOrder.filter(groupName => {
       const groupPersons = filteredAndGroupedPersons[groupName];
@@ -354,6 +382,13 @@ export default function HomeScreen() {
     setShowPremiumModal(false);
   }, []);
 
+  /**
+   * FIXED: Handle person creation with duplicate checking
+   * - Check for existing person before insert (case-insensitive)
+   * - Handle Supabase error 23505 gracefully
+   * - Only update local state after successful insert
+   * - Reload persons list if insert fails
+   */
   const handleSave = useCallback(async () => {
     console.log('[Home] handleSave called with name:', name, 'relationshipType:', relationshipType);
     
@@ -374,9 +409,58 @@ export default function HomeScreen() {
     setSaving(true);
 
     try {
+      const trimmedName = name.trim();
+      
+      // FIXED: Check if person already exists (case-insensitive)
+      console.log('[Home] Checking for existing person with name:', trimmedName);
+      const { data: existingPerson, error: queryError } = await supabase
+        .from('persons')
+        .select('*')
+        .eq('user_id', userId)
+        .ilike('name', trimmedName)
+        .maybeSingle();
+
+      if (queryError && queryError.code !== 'PGRST116') {
+        console.error('[Home] Error checking for existing person:', queryError);
+        if (isMountedRef.current) {
+          showErrorToast('Failed to check existing people');
+          setSaving(false);
+        }
+        return;
+      }
+
+      if (existingPerson) {
+        console.log('[Home] Person already exists:', existingPerson);
+        if (isMountedRef.current) {
+          setNameError('You already have a person with this name');
+          showErrorToast('This person already exists');
+          setSaving(false);
+          
+          // Navigate to existing person's chat
+          if (existingPerson.id) {
+            console.log('[Home] Navigating to existing person chat');
+            setShowAddModal(false);
+            setName('');
+            setRelationshipType('');
+            setNameError('');
+            
+            router.push({
+              pathname: '/(tabs)/(home)/chat',
+              params: { 
+                personId: existingPerson.id, 
+                personName: existingPerson.name || 'Chat',
+                relationshipType: existingPerson.relationship_type || ''
+              },
+            });
+          }
+        }
+        return;
+      }
+
+      // Insert new person
       const personData = {
         user_id: userId,
-        name: name.trim(),
+        name: trimmedName,
         relationship_type: relationshipType.trim() || null,
       };
       
@@ -391,11 +475,15 @@ export default function HomeScreen() {
       if (error) {
         console.error('[Home] Error creating person:', error);
         
-        // FIXED: Handle duplicate person error gracefully
+        // FIXED: Handle duplicate person error gracefully (error code 23505)
         if (error.code === '23505') {
+          console.log('[Home] Duplicate key error caught, reloading persons list');
           if (isMountedRef.current) {
             setNameError('You already have a person with this name');
             showErrorToast('This person already exists');
+            
+            // Reload persons list to ensure UI is in sync
+            await fetchPersonsWithLastMessage();
             setSaving(false);
           }
           return;
@@ -410,6 +498,7 @@ export default function HomeScreen() {
 
       console.log('[Home] Person created successfully:', data);
       
+      // FIXED: Only update local state after successful insert
       if (isMountedRef.current) {
         showSuccessToast('Person added successfully!');
         
@@ -526,6 +615,9 @@ export default function HomeScreen() {
     setSelectedTopic(topic);
   }, []);
 
+  /**
+   * FIXED: Handle subject/topic creation with duplicate checking
+   */
   const handleSaveSubject = useCallback(async () => {
     const subjectString = customTopic.trim() || selectedTopic;
     
@@ -545,12 +637,13 @@ export default function HomeScreen() {
     setSavingSubject(true);
 
     try {
-      // FIXED: Check for existing topic with BOTH user_id AND name
-      const { data: existingPersons, error: queryError } = await supabase
+      // FIXED: Check for existing topic with case-insensitive name match
+      console.log('[Home] Checking for existing topic with name:', subjectString);
+      const { data: existingPerson, error: queryError } = await supabase
         .from('persons')
         .select('*')
         .eq('user_id', userId)
-        .eq('name', subjectString)
+        .ilike('name', subjectString)
         .maybeSingle();
 
       if (queryError && queryError.code !== 'PGRST116') {
@@ -562,10 +655,11 @@ export default function HomeScreen() {
 
       let person: Person;
 
-      if (existingPersons) {
+      if (existingPerson) {
         // Row already exists, use it
-        console.log('[Home] Subject already exists, using existing person:', existingPersons);
-        person = existingPersons;
+        console.log('[Home] Subject already exists, using existing person:', existingPerson);
+        person = existingPerson;
+        showErrorToast('This topic already exists');
       } else {
         // Insert new row with user_id
         console.log('[Home] Creating new subject person');
@@ -582,12 +676,18 @@ export default function HomeScreen() {
         if (insertError) {
           console.error('[Home] Error creating subject person:', insertError);
           
-          // FIXED: Handle duplicate error gracefully
+          // FIXED: Handle duplicate error gracefully (error code 23505)
           if (insertError.code === '23505') {
+            console.log('[Home] Duplicate key error for topic, reloading persons list');
             showErrorToast('This topic already exists');
-          } else {
-            showErrorToast('Failed to create subject');
+            
+            // Reload persons list to ensure UI is in sync
+            await fetchPersonsWithLastMessage();
+            setSavingSubject(false);
+            return;
           }
+          
+          showErrorToast('Failed to create subject');
           setSavingSubject(false);
           return;
         }
@@ -827,7 +927,8 @@ export default function HomeScreen() {
                             {groupPersons.map((person, personIndex) => {
                               if (!person) return null;
 
-                              const personKey = `person-${groupName}-${person.id ?? person.uuid ?? personIndex}`;
+                              // FIXED: Use person.id as key (or fallback)
+                              const personKey = person.id || `${userId}:${person.name?.toLowerCase() || personIndex}`;
 
                               return (
                                 <Swipeable
