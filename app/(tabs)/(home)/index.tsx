@@ -65,7 +65,7 @@ const QUICK_TOPICS = [
 
 /**
  * Categorize a relationship into Family, Friends, Topics, or Other
- * FIXED: Explicit mapping with case-insensitive matching
+ * FIXED: Complete list of family keywords with case-insensitive matching
  */
 const categorizeRelationship = (relationshipType: string | null | undefined): string => {
   if (!relationshipType) return 'Friends';
@@ -77,43 +77,43 @@ const categorizeRelationship = (relationshipType: string | null | undefined): st
     return 'Topics';
   }
 
-  // FAMILY keywords - exact match or contains
+  // FAMILY keywords - exact match (case-insensitive, trimmed)
   const familyKeywords = [
+    'family',
     'father',
-    'mother',
     'dad',
+    'mother',
     'mom',
-    'brother',
-    'sister',
-    'son',
-    'daughter',
     'parent',
-    'spouse',
+    'sister',
+    'brother',
     'husband',
     'wife',
-    'cousin',
-    'uncle',
+    'partner',
+    'fiancé',
+    'fiance',
+    'son',
+    'daughter',
+    'child',
     'aunt',
+    'uncle',
+    'cousin',
     'grandfather',
+    'grandma',
     'grandmother',
     'grandpa',
-    'grandma',
-    'family',
+    'niece',
+    'nephew',
+    'in-law',
   ];
 
   // Check if the relationship type matches any family keyword
-  if (familyKeywords.some(keyword => type === keyword || type.includes(keyword))) {
+  if (familyKeywords.includes(type)) {
     return 'Family';
   }
 
-  // FRIENDS keywords - contains-based matching
-  const friendsKeywords = ['friend', 'best friend', 'classmate'];
-  if (friendsKeywords.some(keyword => type.includes(keyword))) {
-    return 'Friends';
-  }
-
-  // Default to Other for unrecognized relationships
-  return 'Other';
+  // Default to Friends for all other relationships
+  return 'Friends';
 };
 
 export default function HomeScreen() {
