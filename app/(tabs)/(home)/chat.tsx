@@ -13,6 +13,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -125,6 +126,9 @@ export default function ChatScreen() {
 
   // Check if this is a topic chat
   const isTopicChat = relationshipType === 'Topic';
+
+  // Get safe area insets for proper keyboard offset
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!personId) {
@@ -558,12 +562,17 @@ export default function ChatScreen() {
     closeAddSubjectModal();
   }, [customSubjectInput, quickSelectedSubject, availableSubjects, closeAddSubjectModal]);
 
+  // Calculate keyboard offset based on safe area insets
+  // For iOS: use top inset + header height
+  // For Android: use height behavior instead
+  const keyboardVerticalOffset = Platform.OS === 'ios' ? insets.top + 60 : 0;
+
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoidingView
         style={[styles.container, { backgroundColor: theme.background }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={keyboardVerticalOffset}
       >
         <StatusBarGradient />
 
@@ -610,6 +619,7 @@ export default function ChatScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.pillsScrollContent}
+            keyboardShouldPersistTaps="handled"
           >
             {availableSubjects.map((subject, index) => (
               <SubjectPill
@@ -675,6 +685,7 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
           onContentSizeChange={scrollToBottom}
           keyboardShouldPersistTaps="handled"
+          contentInsetAdjustmentBehavior="automatic"
         >
           {displayedMessages.length === 0 && !loading ? (
             <View style={styles.emptyChat}>
@@ -722,7 +733,7 @@ export default function ChatScreen() {
           {isTyping && <TypingIndicator />}
         </ScrollView>
 
-        <View style={[styles.inputContainer, { backgroundColor: theme.card, paddingBottom: Platform.OS === 'android' ? Math.max(keyboardHeight * 0.05, 16) : 16 }]}>
+        <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
           <View style={styles.inputRow}>
             <View style={styles.inputColumn}>
               <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
@@ -1018,6 +1029,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 16,
     borderRadius: 20,
   },
   inputRow: {

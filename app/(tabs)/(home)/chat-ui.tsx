@@ -11,7 +11,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -49,6 +49,7 @@ export default function ChatScreenUI({
   loading = false,
 }: ChatScreenUIProps) {
   const { theme } = useThemeContext();
+  const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
   const [inputText, setInputText] = useState('');
   const [inputHeight, setInputHeight] = useState(0);
@@ -114,6 +115,9 @@ export default function ChatScreenUI({
 
   const canSend = inputText.trim().length > 0 && !loading;
 
+  // Calculate keyboard offset based on safe area insets
+  const keyboardVerticalOffset = Platform.OS === 'ios' ? insets.top + 60 : 0;
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
@@ -122,7 +126,7 @@ export default function ChatScreenUI({
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={keyboardVerticalOffset}
       >
         {/* Header */}
         <View style={[styles.header, { backgroundColor: theme.card }]}>
@@ -165,6 +169,8 @@ export default function ChatScreenUI({
           ]}
           ListEmptyComponent={renderEmptyState}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentInsetAdjustmentBehavior="automatic"
           onContentSizeChange={() => {
             if (messages.length > 0) {
               flatListRef.current?.scrollToEnd({ animated: true });
@@ -304,7 +310,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
+    paddingBottom: 16,
     boxShadow: '0px -2px 4px rgba(0, 0, 0, 0.08)',
     elevation: 4,
   },
