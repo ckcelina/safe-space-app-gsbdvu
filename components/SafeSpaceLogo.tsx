@@ -11,6 +11,7 @@ interface SafeSpaceLogoProps {
   size?: number;
   color?: string;
   useGradient?: boolean;
+  themeKey?: ThemeKey; // Allow explicit theme override for widget previews
 }
 
 const themeGradients: Record<ThemeKey, [string, string]> = {
@@ -26,25 +27,39 @@ const themeGradients: Record<ThemeKey, [string, string]> = {
  * The official Safe Space logo used throughout the app.
  * Uses the same "Heart inside Speech Bubble" icon as the app icon and widget.
  * 
+ * This is the SINGLE SOURCE OF TRUTH for all Safe Space logos in the app.
+ * 
  * Features:
  * - Theme-aware coloring (automatically matches selected theme)
  * - Optional gradient background (like the widget/app icon)
  * - Consistent design across all screens
  * - Responsive sizing based on screen width
  * 
+ * Usage:
+ * - App icon preview
+ * - Widget preview
+ * - Onboarding screen
+ * - Empty states
+ * - Error states
+ * - Branding elements
+ * 
  * Props:
  * - size: Size of the logo (default: responsive based on screen width)
  * - color: Override color (if not provided, uses theme primary color)
  * - useGradient: Whether to show gradient background like widget (default: false)
+ * - themeKey: Explicit theme override for widget previews (optional)
  */
-export function SafeSpaceLogo({ size, color, useGradient = false }: SafeSpaceLogoProps) {
-  const { theme, themeKey } = useThemeContext();
+export function SafeSpaceLogo({ size, color, useGradient = false, themeKey: explicitThemeKey }: SafeSpaceLogoProps) {
+  const { theme, themeKey: contextThemeKey } = useThemeContext();
+  
+  // Use explicit theme key if provided, otherwise use context theme key
+  const activeThemeKey = explicitThemeKey || contextThemeKey;
   
   // Responsive sizing: default to 10% of screen width, clamped between 48 and 120
   const responsiveSize = size || Math.min(Math.max(SCREEN_WIDTH * 0.1, 48), 120);
   
   const finalColor = color || theme.primary;
-  const gradient = themeGradients[themeKey];
+  const gradient = themeGradients[activeThemeKey];
   const iconSize = responsiveSize * 0.6; // Icon is 60% of container size
 
   if (useGradient) {

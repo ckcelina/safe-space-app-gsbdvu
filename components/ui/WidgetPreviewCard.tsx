@@ -10,6 +10,9 @@ import { useThemeContext } from '@/contexts/ThemeContext';
  * Displays a preview of the Safe Space app icon/widget
  * with the current theme applied.
  * 
+ * This component uses the unified SafeSpaceLogo component
+ * to ensure consistency across all logo displays.
+ * 
  * This component can be used to:
  * - Show users what their home screen widget will look like
  * - Preview the app icon with different themes

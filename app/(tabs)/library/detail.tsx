@@ -142,6 +142,10 @@ export default function LibraryDetailScreen() {
     }
   };
 
+  const handleSettingsPress = () => {
+    router.push('/(tabs)/settings');
+  };
+
   useEffect(() => {
     // Animate the image and title on load
     Animated.parallel([
@@ -334,7 +338,7 @@ export default function LibraryDetailScreen() {
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {/* Header with back button and heart */}
+              {/* Header with back button, settings, and heart - ALL THEME-AWARE */}
               <View style={styles.header}>
                 <TouchableOpacity
                   onPress={() => router.back()}
@@ -344,17 +348,27 @@ export default function LibraryDetailScreen() {
                   <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
                 
-                <TouchableOpacity
-                  onPress={toggleSaveTopic}
-                  style={[styles.heartButton, { backgroundColor: theme.card }]}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={isSaved ? 'heart' : 'heart-outline'}
-                    size={24}
-                    color={isSaved ? '#FF6B6B' : theme.textPrimary}
-                  />
-                </TouchableOpacity>
+                <View style={styles.headerRight}>
+                  <TouchableOpacity
+                    onPress={toggleSaveTopic}
+                    style={[styles.heartButton, { backgroundColor: theme.card }]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={isSaved ? 'heart' : 'heart-outline'}
+                      size={24}
+                      color={isSaved ? '#FF6B6B' : theme.textPrimary}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSettingsPress}
+                    style={[styles.settingsButton, { backgroundColor: theme.card }]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="settings-outline" size={24} color={theme.textPrimary} />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* Topic image with fade-in animation */}
@@ -504,6 +518,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 4,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   backButton: {
     width: 44,
     height: 44,
@@ -514,6 +533,15 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   heartButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
+  },
+  settingsButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
