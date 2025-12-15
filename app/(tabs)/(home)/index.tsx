@@ -28,10 +28,6 @@ interface PersonWithLastMessage extends Person {
   lastMessageTime?: string;
 }
 
-interface GroupedPersons {
-  [key: string]: PersonWithLastMessage[];
-}
-
 const DeleteAction = ({ onPress }: { onPress: () => void }) => (
   <TouchableOpacity 
     onPress={onPress}
@@ -62,59 +58,6 @@ const QUICK_TOPICS = [
   'Studies / School',
   'Money & Finances',
 ];
-
-/**
- * Categorize a relationship into Family, Friends, Topics, or Other
- * FIXED: Complete list of family keywords with case-insensitive matching
- */
-const categorizeRelationship = (relationshipType: string | null | undefined): string => {
-  if (!relationshipType) return 'Friends';
-  
-  const type = relationshipType.toLowerCase().trim();
-
-  // Topics - check first before other categories
-  if (type === 'topic') {
-    return 'Topics';
-  }
-
-  // FAMILY keywords - exact match (case-insensitive, trimmed)
-  const familyKeywords = [
-    'family',
-    'father',
-    'dad',
-    'mother',
-    'mom',
-    'parent',
-    'sister',
-    'brother',
-    'husband',
-    'wife',
-    'partner',
-    'fiancé',
-    'fiance',
-    'son',
-    'daughter',
-    'child',
-    'aunt',
-    'uncle',
-    'cousin',
-    'grandfather',
-    'grandma',
-    'grandmother',
-    'grandpa',
-    'niece',
-    'nephew',
-    'in-law',
-  ];
-
-  // Check if the relationship type matches any family keyword
-  if (familyKeywords.includes(type)) {
-    return 'Family';
-  }
-
-  // Default to Friends for all other relationships
-  return 'Friends';
-};
 
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
@@ -157,7 +100,7 @@ export default function HomeScreen() {
       setError(null);
       console.log('[Home] Fetching persons for user:', userId);
       
-      // FIXED: Always filter by user_id to prevent data leakage
+      // Always filter by user_id to prevent data leakage
       const { data: personsData, error: personsError } = await supabase
         .from('persons')
         .select('*')
@@ -185,7 +128,7 @@ export default function HomeScreen() {
       const personsWithMessages = await Promise.all(
         personsData.map(async (person) => {
           try {
-            // FIXED: Always filter by BOTH user_id AND person_id
+            // Always filter by BOTH user_id AND person_id
             const { data: messages } = await supabase
               .from('messages')
               .select('content, created_at, role')
@@ -251,7 +194,7 @@ export default function HomeScreen() {
     console.log('[Home] Deleting person:', personId);
 
     try {
-      // FIXED: Delete messages with BOTH user_id AND person_id filter
+      // Delete messages with BOTH user_id AND person_id filter
       const { error: messagesError } = await supabase
         .from('messages')
         .delete()
@@ -264,7 +207,7 @@ export default function HomeScreen() {
         return;
       }
 
-      // FIXED: Delete person with BOTH id AND user_id filter
+      // Delete person with BOTH id AND user_id filter
       const { error: personError } = await supabase
         .from('persons')
         .delete()
@@ -291,11 +234,11 @@ export default function HomeScreen() {
   }, [userId]);
 
   /**
-   * FIXED: Deduplicate and group persons
-   * - Dedupe by person.id (or fallback key)
-   * - Group by relationship category
+   * SIMPLIFIED: Filter and deduplicate persons without grouping by relationship
+   * - All people appear in a single unified list
+   * - Ordered by most recently added (created_at DESC)
    */
-  const filteredAndGroupedPersons = useMemo(() => {
+  const filteredPersons = useMemo(() => {
     const filtered = persons.filter((person) => {
       if (!searchQuery.trim()) return true;
       
@@ -306,7 +249,7 @@ export default function HomeScreen() {
       return nameMatch || relationshipMatch;
     });
 
-    // FIXED: Deduplicate by person.id
+    // Deduplicate by person.id
     const seenPersonIds = new Set<string>();
     const dedupedPersons: PersonWithLastMessage[] = [];
     
@@ -325,33 +268,9 @@ export default function HomeScreen() {
       dedupedPersons.push(person);
     });
 
-    // FIXED: Group by relationship category
-    const grouped: GroupedPersons = {};
-    
-    dedupedPersons.forEach((person) => {
-      const category = categorizeRelationship(person.relationship_type);
-      
-      // Initialize the category array if it doesn't exist
-      if (!grouped[category]) {
-        grouped[category] = [];
-      }
-      
-      // Add the person to their category
-      grouped[category].push(person);
-      
-      console.log('[Home] Categorized person:', person.name, 'as', category, 'based on relationship:', person.relationship_type);
-    });
-
-    return grouped;
+    console.log('[Home] Filtered persons count:', dedupedPersons.length);
+    return dedupedPersons;
   }, [persons, searchQuery, userId]);
-
-  const groupOrder = ['Family', 'Friends', 'Topics', 'Other'];
-  const visibleGroups = useMemo(() => {
-    return groupOrder.filter(groupName => {
-      const groupPersons = filteredAndGroupedPersons[groupName];
-      return groupPersons && groupPersons.length > 0;
-    });
-  }, [filteredAndGroupedPersons]);
 
   const handleAddPerson = useCallback(() => {
     console.log('[Home] handleAddPerson called, isPremium:', isPremium, 'persons.length:', persons.length);
@@ -383,11 +302,7 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * FIXED: Handle person creation with duplicate checking
-   * - Check for existing person before insert (case-insensitive)
-   * - Handle Supabase error 23505 gracefully
-   * - Only update local state after successful insert
-   * - Reload persons list if insert fails
+   * Handle person creation with duplicate checking
    */
   const handleSave = useCallback(async () => {
     console.log('[Home] handleSave called with name:', name, 'relationshipType:', relationshipType);
@@ -411,7 +326,7 @@ export default function HomeScreen() {
     try {
       const trimmedName = name.trim();
       
-      // FIXED: Check if person already exists (case-insensitive)
+      // Check if person already exists (case-insensitive)
       console.log('[Home] Checking for existing person with name:', trimmedName);
       const { data: existingPerson, error: queryError } = await supabase
         .from('persons')
@@ -475,7 +390,7 @@ export default function HomeScreen() {
       if (error) {
         console.error('[Home] Error creating person:', error);
         
-        // FIXED: Handle duplicate person error gracefully (error code 23505)
+        // Handle duplicate person error gracefully (error code 23505)
         if (error.code === '23505') {
           console.log('[Home] Duplicate key error caught, reloading persons list');
           if (isMountedRef.current) {
@@ -498,7 +413,7 @@ export default function HomeScreen() {
 
       console.log('[Home] Person created successfully:', data);
       
-      // FIXED: Only update local state after successful insert
+      // Only update local state after successful insert
       if (isMountedRef.current) {
         showSuccessToast('Person added successfully!');
         
@@ -616,7 +531,7 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * FIXED: Handle subject/topic creation with duplicate checking
+   * Handle subject/topic creation with duplicate checking
    */
   const handleSaveSubject = useCallback(async () => {
     const subjectString = customTopic.trim() || selectedTopic;
@@ -637,7 +552,7 @@ export default function HomeScreen() {
     setSavingSubject(true);
 
     try {
-      // FIXED: Check for existing topic with case-insensitive name match
+      // Check for existing topic with case-insensitive name match
       console.log('[Home] Checking for existing topic with name:', subjectString);
       const { data: existingPerson, error: queryError } = await supabase
         .from('persons')
@@ -676,7 +591,7 @@ export default function HomeScreen() {
         if (insertError) {
           console.error('[Home] Error creating subject person:', insertError);
           
-          // FIXED: Handle duplicate error gracefully (error code 23505)
+          // Handle duplicate error gracefully (error code 23505)
           if (insertError.code === '23505') {
             console.log('[Home] Duplicate key error for topic, reloading persons list');
             showErrorToast('This topic already exists');
@@ -896,8 +811,8 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               ) : !error && !loading ? (
-                <View style={styles.groupedList}>
-                  {visibleGroups.length === 0 ? (
+                <View style={styles.peopleList}>
+                  {filteredPersons.length === 0 ? (
                     <View style={styles.noResultsContainer}>
                       <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
                         No matches found
@@ -907,48 +822,35 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                   ) : (
-                    visibleGroups.map((groupName, groupIndex) => {
-                      const groupPersons = filteredAndGroupedPersons[groupName] || [];
+                    <>
+                      <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
+                        People
+                      </Text>
 
-                      if (!groupPersons || groupPersons.length === 0) {
-                        return null;
-                      }
+                      <View style={styles.peopleCards}>
+                        {filteredPersons.map((person, personIndex) => {
+                          if (!person) return null;
 
-                      return (
-                        <View
-                          key={`group-${groupName}-${groupIndex}`}
-                          style={styles.group}
-                        >
-                          <Text style={[styles.groupHeader, { color: theme.buttonText }]}>
-                            {groupName}
-                          </Text>
+                          // Use person.id as key (or fallback)
+                          const personKey = person.id || `${userId}:${person.name?.toLowerCase() || personIndex}`;
 
-                          <View style={styles.groupCards}>
-                            {groupPersons.map((person, personIndex) => {
-                              if (!person) return null;
-
-                              // FIXED: Use person.id as key (or fallback)
-                              const personKey = person.id || `${userId}:${person.name?.toLowerCase() || personIndex}`;
-
-                              return (
-                                <Swipeable
-                                  key={personKey}
-                                  renderRightActions={() => (
-                                    <DeleteAction onPress={() => handleDeletePerson(person.id!)} />
-                                  )}
-                                  overshootRight={false}
-                                >
-                                  <PersonCard
-                                    person={person}
-                                    onPress={() => handlePersonPress(person)}
-                                  />
-                                </Swipeable>
-                              );
-                            })}
-                          </View>
-                        </View>
-                      );
-                    })
+                          return (
+                            <Swipeable
+                              key={personKey}
+                              renderRightActions={() => (
+                                <DeleteAction onPress={() => handleDeletePerson(person.id!)} />
+                              )}
+                              overshootRight={false}
+                            >
+                              <PersonCard
+                                person={person}
+                                onPress={() => handlePersonPress(person)}
+                              />
+                            </Swipeable>
+                          );
+                        })}
+                      </View>
+                    </>
                   )}
                 </View>
               ) : null}
@@ -1475,19 +1377,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  groupedList: {
+  peopleList: {
     paddingBottom: 20,
   },
-  group: {
-    marginBottom: 32,
-  },
-  groupHeader: {
+  sectionHeader: {
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 12,
     opacity: 0.9,
   },
-  groupCards: {
+  peopleCards: {
     gap: 12,
   },
   noResultsContainer: {
