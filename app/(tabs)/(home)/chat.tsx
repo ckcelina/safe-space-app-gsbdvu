@@ -38,8 +38,8 @@ const DEFAULT_SUBJECTS = [
   'Family in General',
   'Romantic Relationships',
   'Friendships',
-  'Money & Finances',
   'Studies / School',
+  'Money & Finances',
 ];
 
 // Quick select subjects (excluding General)
@@ -181,6 +181,7 @@ export default function ChatScreen() {
   const [addSubjectModalVisible, setAddSubjectModalVisible] = useState(false);
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [quickSelectedSubject, setQuickSelectedSubject] = useState<string | null>(null);
+  const [customSubjectFocused, setCustomSubjectFocused] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const isMountedRef = useRef(true);
@@ -211,7 +212,6 @@ export default function ChatScreen() {
     try {
       console.log('[Chat] Backfilling NULL/empty subjects to "General"...');
       
-      // FIXED: Update with BOTH user_id AND person_id filter
       const { error: updateError } = await supabase
         .from('messages')
         .update({ subject: 'General' })
@@ -221,13 +221,11 @@ export default function ChatScreen() {
 
       if (updateError) {
         console.error('[Chat] Backfill error:', updateError);
-        // Don't throw - this is non-critical
       } else {
         console.log('[Chat] Backfill completed successfully');
       }
     } catch (err) {
       console.error('[Chat] Backfill unexpected error:', err);
-      // Don't throw - this is non-critical
     }
   }, [personId, authUser?.id]);
 
@@ -255,8 +253,6 @@ export default function ChatScreen() {
       setError(null);
       console.log('[Chat] Loading messages for person:', personId, 'user:', authUser.id);
 
-      // FIXED: Load ALL messages for this person with BOTH user_id AND person_id filter
-      // This prevents data leakage between users
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -274,14 +270,11 @@ export default function ChatScreen() {
 
       console.log('[Chat] Messages loaded:', data?.length || 0);
       
-      // Store all messages
       if (isMountedRef.current) {
         setAllMessages(data ?? []);
         scrollToBottom();
       }
 
-      // Perform safe backfill after loading messages
-      // This runs in the background and doesn't block the UI
       backfillSubjects();
     } catch (err: any) {
       console.error('[Chat] loadMessages unexpected error:', err);
@@ -309,10 +302,9 @@ export default function ChatScreen() {
   }, [personId, authUser?.id, loadMessages]);
 
   // Filter messages for display based on current subject
-  // Show messages where subject matches OR subject is NULL/empty (treat as General)
   const displayedMessages = React.useMemo(() => {
     return allMessages.filter((msg) => {
-      const msgSubject = msg.subject || 'General'; // Treat NULL/empty as General
+      const msgSubject = msg.subject || 'General';
       return msgSubject === currentSubject;
     });
   }, [allMessages, currentSubject]);
@@ -327,14 +319,11 @@ export default function ChatScreen() {
     loadMessages();
   }, [loadMessages]);
 
-  // Helper function to check if two strings are too similar (loop detection)
   const areSimilar = useCallback((str1: string, str2: string): boolean => {
-    // Normalize strings: lowercase, trim, remove punctuation
     const normalize = (s: string) => s.toLowerCase().trim().replace(/[.,!?;:]/g, '');
     const norm1 = normalize(str1);
     const norm2 = normalize(str2);
 
-    // Check if they start with the same phrase (first 20 chars)
     const prefix1 = norm1.substring(0, 20);
     const prefix2 = norm2.substring(0, 20);
     
@@ -342,7 +331,6 @@ export default function ChatScreen() {
       return true;
     }
 
-    // Check if one contains the other (for short messages)
     if (norm1.length < 50 && norm2.length < 50) {
       if (norm1.includes(norm2) || norm2.includes(norm1)) {
         return true;
@@ -371,7 +359,6 @@ export default function ChatScreen() {
       return;
     }
 
-    // CRITICAL: Check if we're already generating a response
     if (isGeneratingRef.current) {
       console.log('[Chat] sendMessage: Already generating, skipping');
       return;
@@ -388,7 +375,6 @@ export default function ChatScreen() {
 
     try {
       console.log('[Chat] Inserting user message...');
-      // FIXED: Save message with user_id, person_id, and subject
       const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
         .insert({
@@ -415,7 +401,6 @@ export default function ChatScreen() {
 
       console.log('[Chat] User message inserted:', insertedMessage.id);
       
-      // CRITICAL: Track this message ID as the one we're processing
       lastProcessedUserMessageIdRef.current = insertedMessage.id;
 
       let updatedMessages: Message[] = [];
@@ -435,8 +420,6 @@ export default function ChatScreen() {
         setIsTyping(true);
       }
 
-      // CRITICAL FIX: Include last 20 messages (not just 10) for better context
-      // Filter by current subject to ensure context is relevant
       const subjectMessages = updatedMessages.filter((msg) => {
         const msgSubject = msg.subject || 'General';
         return msgSubject === currentSubject;
@@ -445,7 +428,7 @@ export default function ChatScreen() {
       const recentMessages = subjectMessages
         .slice(-20)
         .map((msg) => ({
-          role: msg.role, // Use 'role' field directly
+          role: msg.role,
           content: msg.content,
           createdAt: msg.created_at,
         }));
@@ -457,12 +440,10 @@ export default function ChatScreen() {
         subject: currentSubject,
       });
 
-      // Get the last assistant message for loop detection
       const lastAssistantMessage = subjectMessages
         .filter((m) => m.role === 'assistant')
         .slice(-1)[0];
 
-      // Pass current subject to AI
       const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
         'generate-ai-response',
         {
@@ -496,18 +477,15 @@ export default function ChatScreen() {
         aiResponse?.reply ||
         "I'm here with you. Tell me more about how you're feeling.";
 
-      // LOOP DETECTION: Check if the reply is too similar to the last assistant message
       if (lastAssistantMessage && areSimilar(replyText, lastAssistantMessage.content)) {
         console.warn('[Chat] Loop detected! AI response is too similar to previous response');
         console.log('[Chat] Previous:', lastAssistantMessage.content.substring(0, 50));
         console.log('[Chat] Current:', replyText.substring(0, 50));
         
-        // Use a fallback that acknowledges the user's message
         replyText = `I hear you. Can you tell me more about what you're experiencing with ${personName}?`;
       }
 
       console.log('[Chat] Inserting AI message...');
-      // FIXED: Save AI response with user_id, person_id, and subject
       const { data: aiInserted, error: aiInsertError } = await supabase
         .from('messages')
         .insert({
@@ -561,7 +539,6 @@ export default function ChatScreen() {
       if (router.canGoBack()) {
         router.back();
       } else {
-        // Fallback to home if no history
         router.replace('/(tabs)/(home)');
       }
     } catch (error) {
@@ -570,7 +547,6 @@ export default function ChatScreen() {
     }
   }, []);
 
-  // Subject pill handlers
   const handleSubjectPress = useCallback((subject: string) => {
     console.log('[Chat] Subject selected:', subject);
     setCurrentSubject(subject);
@@ -578,10 +554,10 @@ export default function ChatScreen() {
 
   const openAddSubjectModal = useCallback(() => {
     console.log('[Chat] Opening Add Subject modal');
-
     setAddSubjectModalVisible(true);
     setCustomSubjectInput('');
     setQuickSelectedSubject(null);
+    setCustomSubjectFocused(false);
   }, []);
 
   const closeAddSubjectModal = useCallback(() => {
@@ -589,6 +565,7 @@ export default function ChatScreen() {
     setAddSubjectModalVisible(false);
     setCustomSubjectInput('');
     setQuickSelectedSubject(null);
+    setCustomSubjectFocused(false);
   }, []);
 
   const handleQuickSubjectSelect = useCallback((subject: string) => {
@@ -599,7 +576,6 @@ export default function ChatScreen() {
   const saveSubject = useCallback(() => {
     const customSubject = customSubjectInput.trim();
     
-    // Determine which subject to use (custom overrides quick select)
     const newSubject = customSubject || quickSelectedSubject;
 
     if (!newSubject) {
@@ -610,12 +586,10 @@ export default function ChatScreen() {
 
     console.log('[Chat] Saving subject:', newSubject);
 
-    // Add to available subjects if it doesn't exist
     if (!availableSubjects.includes(newSubject)) {
       setAvailableSubjects((prev) => [...prev, newSubject]);
     }
 
-    // Select the new subject
     setCurrentSubject(newSubject);
     closeAddSubjectModal();
   }, [customSubjectInput, quickSelectedSubject, availableSubjects, closeAddSubjectModal]);
@@ -627,7 +601,6 @@ export default function ChatScreen() {
           <StatusBarGradient />
 
           <View style={[styles.header, { backgroundColor: theme.card }]}>
-            {/* Back button - more prominent for topic chats */}
             <TouchableOpacity 
               onPress={handleBackPress} 
               style={[
@@ -735,7 +708,6 @@ export default function ChatScreen() {
             showsVerticalScrollIndicator={false}
             onContentSizeChange={scrollToBottom}
             keyboardShouldPersistTaps="handled"
-            contentInsetAdjustmentBehavior="automatic"
           >
             {displayedMessages.length === 0 && !loading ? (
               <View style={styles.emptyChat}>
@@ -788,7 +760,7 @@ export default function ChatScreen() {
             styles.inputContainer, 
             { 
               backgroundColor: theme.card,
-              paddingBottom: Math.max(insets.bottom, 8),
+              paddingBottom: insets.bottom || 8,
             }
           ]}>
             <View style={styles.inputRow}>
@@ -862,72 +834,92 @@ export default function ChatScreen() {
               Choose what you&apos;d like to focus on in this conversation.
             </Text>
 
-            {/* Quick Select Subjects */}
-            <View style={styles.quickSelectContainer}>
-              <Text style={[styles.quickSelectLabel, { color: theme.textPrimary }]}>
-                Quick select:
-              </Text>
-              <View style={styles.quickSelectGrid}>
-                {QUICK_SELECT_SUBJECTS.map((subject, index) => (
-                  <TouchableOpacity
-                    key={`quick-${index}-${subject}`}
-                    style={[
-                      styles.quickSelectButton,
-                      {
-                        backgroundColor:
-                          quickSelectedSubject === subject
-                            ? theme.primary + '20'
-                            : theme.background,
-                        borderColor:
-                          quickSelectedSubject === subject
-                            ? theme.primary
-                            : theme.textSecondary + '40',
-                      },
-                    ]}
-                    onPress={() => handleQuickSubjectSelect(subject)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
+            <ScrollView
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Quick Select Subjects */}
+              <View style={styles.quickSelectContainer}>
+                <Text style={[styles.quickSelectLabel, { color: theme.textPrimary }]}>
+                  Quick select:
+                </Text>
+                <View style={styles.quickSelectGrid}>
+                  {QUICK_SELECT_SUBJECTS.map((subject, index) => (
+                    <TouchableOpacity
+                      key={`quick-${index}-${subject}`}
+                      onPress={() => handleQuickSubjectSelect(subject)}
+                      activeOpacity={0.7}
                       style={[
-                        styles.quickSelectText,
+                        styles.quickSelectButton,
                         {
-                          color:
+                          backgroundColor:
+                            quickSelectedSubject === subject
+                              ? theme.primary + '20'
+                              : theme.background,
+                          borderWidth: 1.5,
+                          borderColor:
                             quickSelectedSubject === subject
                               ? theme.primary
-                              : theme.textPrimary,
-                          fontWeight: quickSelectedSubject === subject ? '600' : '500',
+                              : theme.textSecondary + '40',
                         },
                       ]}
                     >
-                      {subject}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.quickSelectText,
+                          {
+                            color:
+                              quickSelectedSubject === subject
+                                ? theme.primary
+                                : theme.textPrimary,
+                            fontWeight: quickSelectedSubject === subject ? '600' : '500',
+                          },
+                        ]}
+                      >
+                        {subject}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            </View>
 
-            {/* Custom Subject Input */}
-            <View style={styles.customInputContainer}>
-              <Text style={[styles.customInputLabel, { color: theme.textPrimary }]}>
-                Custom subject:
-              </Text>
-              <TextInput
-                style={[
-                  styles.customInput,
+              {/* Custom Subject Input */}
+              <View style={styles.customInputContainer}>
+                <Text style={[styles.customInputLabel, { color: theme.textPrimary }]}>
+                  Custom subject:
+                </Text>
+                <View style={[
+                  styles.customInputWrapper,
                   {
                     backgroundColor: theme.background,
-                    color: theme.textPrimary,
-                    borderColor: theme.textSecondary + '40',
+                    borderWidth: customSubjectFocused ? 2 : 1.5,
+                    borderColor: customSubjectFocused
+                      ? theme.primary
+                      : theme.textSecondary + '40',
                   },
-                ]}
-                placeholder="Type your own subject..."
-                placeholderTextColor={theme.textSecondary}
-                value={customSubjectInput}
-                onChangeText={setCustomSubjectInput}
-                cursorColor={theme.primary}
-                selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-              />
-            </View>
+                ]}>
+                  <TextInput
+                    style={[styles.customInput, { color: theme.textPrimary }]}
+                    placeholder="Type your own subject..."
+                    placeholderTextColor={theme.textSecondary}
+                    value={customSubjectInput}
+                    onChangeText={setCustomSubjectInput}
+                    onFocus={() => setCustomSubjectFocused(true)}
+                    onBlur={() => setCustomSubjectFocused(false)}
+                    autoCapitalize="sentences"
+                    autoCorrect={false}
+                    maxLength={100}
+                    returnKeyType="done"
+                    onSubmitEditing={saveSubject}
+                    autoFocus={false}
+                    cursorColor={theme.primary}
+                    selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                  />
+                </View>
+              </View>
+            </ScrollView>
 
             {/* Modal Buttons */}
             <View style={styles.modalButtons}>
@@ -1137,7 +1129,9 @@ const styles = StyleSheet.create({
   // Modal styles
   modalContent: {
     paddingHorizontal: 20,
-    paddingBottom: 32,
+    paddingTop: 16,
+    paddingBottom: 24,
+    maxHeight: '85%',
   },
   modalTitle: {
     fontSize: 24,
@@ -1148,9 +1142,15 @@ const styles = StyleSheet.create({
   modalSubtitle: {
     fontSize: 14,
     fontWeight: '500',
-    marginBottom: 24,
+    marginBottom: 20,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalScrollContent: {
+    paddingBottom: 16,
   },
   quickSelectContainer: {
     marginBottom: 24,
@@ -1169,29 +1169,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    borderWidth: 1,
   },
   quickSelectText: {
     fontSize: 14,
   },
   customInputContainer: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   customInputLabel: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
   },
-  customInput: {
+  customInputWrapper: {
     borderRadius: 12,
-    borderWidth: 1,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+  },
+  customInput: {
     fontSize: 16,
+    lineHeight: 20,
+    minHeight: 20,
   },
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
+    marginTop: 16,
   },
   modalButton: {
     flex: 1,

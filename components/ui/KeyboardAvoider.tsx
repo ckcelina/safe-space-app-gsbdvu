@@ -15,47 +15,34 @@ interface KeyboardAvoiderProps {
    * Default: true
    */
   enabled?: boolean;
-  /**
-   * Additional offset for special cases (e.g., headers in modals).
-   * Use sparingly - most cases should use 0.
-   * Default: 0
-   */
-  additionalOffset?: number;
 }
 
 /**
- * Universal keyboard avoidance component that eliminates gaps between
- * the keyboard and input fields across all screens.
- *
- * KEY FEATURES:
- * - NO GAPS: Input sits directly on keyboard with zero space
- * - Platform-specific behavior (iOS: padding, Android: height)
- * - Zero keyboardVerticalOffset by default (no extra spacing)
- * - Works in modals, bottom sheets, and regular screens
- * - Single source of truth for keyboard handling
- *
- * USAGE:
- * Wrap your screen content (including ScrollView if needed):
+ * UNIVERSAL KEYBOARD HANDLER - SINGLE SOURCE OF TRUTH
  * 
+ * RULES:
+ * - iOS: behavior="padding" (moves content up)
+ * - Android: behavior="height" (resizes container)
+ * - keyboardVerticalOffset: 0 (NO GAPS, input sits directly on keyboard)
+ * - Use ONE per screen/modal (never nest)
+ * 
+ * USAGE:
  * <KeyboardAvoider>
- *   <ScrollView>
+ *   <ScrollView keyboardShouldPersistTaps="handled">
  *     <YourContent />
  *   </ScrollView>
  * </KeyboardAvoider>
- *
- * For modals, wrap the modal content:
  * 
- * <Modal>
- *   <KeyboardAvoider>
- *     <YourModalContent />
- *   </KeyboardAvoider>
- * </Modal>
+ * DO NOT:
+ * - Add paddingBottom to inputs
+ * - Add marginBottom spacers
+ * - Nest KeyboardAvoidingViews
+ * - Use different keyboard logic per screen
  */
 export function KeyboardAvoider({
   children,
   style,
   enabled = true,
-  additionalOffset = 0,
 }: KeyboardAvoiderProps) {
   if (!enabled) {
     return <>{children}</>;
@@ -65,7 +52,7 @@ export function KeyboardAvoider({
     <KeyboardAvoidingView
       style={[styles.container, style]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={additionalOffset}
+      keyboardVerticalOffset={0}
       enabled={enabled}
     >
       {children}

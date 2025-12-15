@@ -103,7 +103,6 @@ export default function AddPersonScreen() {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            bounces={false}
           >
             <Text style={[styles.title, { color: theme.textPrimary }]}>
               Who would you like to add?
@@ -202,11 +201,11 @@ export default function AddPersonScreen() {
             </View>
           </ScrollView>
 
-          {/* Footer Buttons - Fixed at bottom, NO extra padding */}
+          {/* Footer Buttons - sits directly above keyboard, NO extra padding */}
           <View style={[
             styles.footer, 
             { 
-              paddingBottom: Math.max(insets.bottom, 12),
+              paddingBottom: insets.bottom || 12,
               backgroundColor: theme.card,
             }
           ]}>

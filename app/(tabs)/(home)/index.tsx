@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput, LogBox } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, TextInput, LogBox } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -64,7 +64,6 @@ export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
   
-  // CRITICAL: Separate state for People and Topics
   const [people, setPeople] = useState<PersonWithLastMessage[]>([]);
   const [topics, setTopics] = useState<PersonWithLastMessage[]>([]);
   
@@ -89,7 +88,6 @@ export default function HomeScreen() {
   const [relationshipInputFocused, setRelationshipInputFocused] = useState(false);
   const [customTopicFocused, setCustomTopicFocused] = useState(false);
 
-  // Use ref to track if component is mounted
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -99,11 +97,6 @@ export default function HomeScreen() {
     };
   }, []);
 
-  /**
-   * CRITICAL FIX: Fetch People and Topics separately
-   * - People: relationship_type != 'Topic'
-   * - Topics: relationship_type = 'Topic'
-   */
   const fetchData = useCallback(async () => {
     if (!userId) {
       console.log('[Home] No userId available');
@@ -115,7 +108,6 @@ export default function HomeScreen() {
       setError(null);
       console.log('[Home] Fetching people and topics for user:', userId);
       
-      // Fetch ONLY people (NOT topics)
       const { data: peopleData, error: peopleError } = await supabase
         .from('persons')
         .select('*')
@@ -132,7 +124,6 @@ export default function HomeScreen() {
         return;
       }
 
-      // Fetch ONLY topics
       const { data: topicsData, error: topicsError } = await supabase
         .from('persons')
         .select('*')
@@ -152,7 +143,6 @@ export default function HomeScreen() {
       console.log('[Home] People loaded:', peopleData?.length || 0);
       console.log('[Home] Topics loaded:', topicsData?.length || 0);
 
-      // Process people with last messages
       const peopleWithMessages = peopleData && peopleData.length > 0
         ? await Promise.all(
             peopleData.map(async (person) => {
@@ -183,7 +173,6 @@ export default function HomeScreen() {
           )
         : [];
 
-      // Process topics with last messages
       const topicsWithMessages = topicsData && topicsData.length > 0
         ? await Promise.all(
             topicsData.map(async (topic) => {
@@ -255,7 +244,6 @@ export default function HomeScreen() {
     console.log('[Home] Deleting:', isTopic ? 'topic' : 'person', personId);
 
     try {
-      // CRITICAL: Delete messages with BOTH user_id AND person_id filter
       const { error: messagesError } = await supabase
         .from('messages')
         .delete()
@@ -268,7 +256,6 @@ export default function HomeScreen() {
         return;
       }
 
-      // CRITICAL: Delete person/topic with BOTH id AND user_id filter
       const { error: deleteError } = await supabase
         .from('persons')
         .delete()
@@ -281,7 +268,6 @@ export default function HomeScreen() {
         return;
       }
 
-      // Update local state
       if (isMountedRef.current) {
         if (isTopic) {
           setTopics(prev => prev.filter(t => t.id !== personId));
@@ -299,9 +285,6 @@ export default function HomeScreen() {
     }
   }, [userId]);
 
-  /**
-   * Filter people (exclude topics)
-   */
   const filteredPeople = useMemo(() => {
     const filtered = people.filter((person) => {
       if (!searchQuery.trim()) return true;
@@ -317,9 +300,6 @@ export default function HomeScreen() {
     return filtered;
   }, [people, searchQuery]);
 
-  /**
-   * Filter topics
-   */
   const filteredTopics = useMemo(() => {
     const filtered = topics.filter((topic) => {
       if (!searchQuery.trim()) return true;
@@ -359,11 +339,6 @@ export default function HomeScreen() {
     setShowPremiumModal(false);
   }, []);
 
-  /**
-   * FIXED: Handle person creation WITHOUT duplicate checking
-   * - Creates ONLY a Person record (NOT a topic)
-   * - Appears ONLY in People list
-   */
   const handleSave = useCallback(async () => {
     console.log('[Home] handleSave called with name:', name, 'relationshipType:', relationshipType);
     
@@ -387,8 +362,6 @@ export default function HomeScreen() {
       const trimmedName = name.trim();
       const trimmedRelationship = relationshipType.trim();
       
-      // CRITICAL: Create a Person record (NOT a topic)
-      // relationship_type should NOT be 'Topic'
       const personData = {
         user_id: userId,
         name: trimmedName,
@@ -528,7 +501,6 @@ export default function HomeScreen() {
     }
   }, [role, theme.textSecondary]);
 
-  // Subject/Topic modal handlers
   const handleAddSubject = useCallback(() => {
     console.log('[Home] Opening Add Subject modal');
 
@@ -551,11 +523,6 @@ export default function HomeScreen() {
     setSelectedTopic(topic);
   }, []);
 
-  /**
-   * FIXED: Handle topic creation WITHOUT duplicate checking
-   * - Creates ONLY a Topic record (relationship_type = 'Topic')
-   * - Appears ONLY in Topics list
-   */
   const handleSaveSubject = useCallback(async () => {
     const subjectString = customTopic.trim() || selectedTopic;
     
@@ -575,7 +542,6 @@ export default function HomeScreen() {
     setSavingSubject(true);
 
     try {
-      // CRITICAL: Create a Topic record with relationship_type = 'Topic'
       console.log('[Home] Creating new topic');
       const { data: newTopic, error: insertError } = await supabase
         .from('persons')
@@ -605,12 +571,10 @@ export default function HomeScreen() {
 
       console.log('[Home] Navigating to chat for topic:', newTopic.name, 'id:', newTopic.id);
 
-      // Close modal
       setShowSubjectModal(false);
       setSelectedTopic(null);
       setCustomTopic('');
 
-      // Navigate to chat
       router.push({
         pathname: '/(tabs)/(home)/chat',
         params: {
@@ -621,7 +585,6 @@ export default function HomeScreen() {
         },
       });
 
-      // Refresh data to show the new topic
       await fetchData();
 
     } catch (error: any) {
@@ -811,7 +774,6 @@ export default function HomeScreen() {
                     </View>
                   ) : (
                     <>
-                      {/* PEOPLE SECTION */}
                       {filteredPeople.length > 0 && (
                         <View style={styles.section}>
                           <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
@@ -842,7 +804,6 @@ export default function HomeScreen() {
                         </View>
                       )}
 
-                      {/* TOPICS SECTION */}
                       {filteredTopics.length > 0 && (
                         <View style={styles.section}>
                           <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
@@ -904,7 +865,6 @@ export default function HomeScreen() {
                     contentContainerStyle={styles.modalBodyContent}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
-                    bounces={false}
                   >
                     <View style={styles.fieldContainer}>
                       <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
@@ -1024,7 +984,7 @@ export default function HomeScreen() {
               </KeyboardAvoider>
             </SwipeableModal>
 
-            {/* Add Topic Modal */}
+            {/* Add Topic Modal - FIXED: Now has working inputs */}
             <SwipeableModal
               visible={showSubjectModal}
               onClose={handleCloseSubjectModal}
@@ -1050,7 +1010,6 @@ export default function HomeScreen() {
                     contentContainerStyle={styles.modalBodyContent}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
-                    bounces={false}
                   >
                     <Text style={[styles.helperText, { color: theme.textSecondary }]}>
                       What would you like to focus on?
@@ -1065,13 +1024,15 @@ export default function HomeScreen() {
                           style={[
                             styles.topicChip,
                             {
-                              backgroundColor: selectedTopic === topic 
-                                ? theme.primary 
-                                : theme.background,
+                              backgroundColor:
+                                selectedTopic === topic 
+                                  ? theme.primary 
+                                  : theme.background,
                               borderWidth: 1.5,
-                              borderColor: selectedTopic === topic 
-                                ? theme.primary 
-                                : theme.textSecondary + '40',
+                              borderColor:
+                                selectedTopic === topic 
+                                  ? theme.primary 
+                                  : theme.textSecondary + '40',
                             }
                           ]}
                         >
