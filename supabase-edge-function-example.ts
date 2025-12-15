@@ -15,7 +15,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
 interface Message {
-  sender: 'user' | 'ai';
+  role: 'user' | 'assistant';
   content: string;
   createdAt: string;
 }
@@ -43,24 +43,51 @@ serve(async (req) => {
   try {
     const { personId, personName, personRelationshipType, messages, currentSubject }: RequestBody = await req.json();
 
-    console.log('Generating AI response for person:', personName);
-    console.log('Relationship type:', personRelationshipType);
+    console.log('=== AI Request Debug Info ===');
+    console.log('Person:', personName);
+    console.log('Relationship:', personRelationshipType);
     console.log('Current subject:', currentSubject);
     console.log('Message history length:', messages.length);
+    console.log('Message roles:', messages.map(m => m.role).join(', '));
+    console.log('Last user message:', messages.filter(m => m.role === 'user').slice(-1)[0]?.content?.substring(0, 50));
+    console.log('============================');
 
-    // Build the system prompt
-    let systemPrompt = `You are a compassionate and empathetic AI therapist helping someone talk through their feelings about people in their life. The person they're discussing is named ${personName} (${personRelationshipType}). Listen actively, ask thoughtful questions, and provide supportive guidance. Keep responses concise and conversational.`;
+    // CRITICAL: Build comprehensive system prompt with context
+    let systemPrompt = `You are a compassionate and empathetic AI therapist helping someone talk through their feelings about people in their life. The person they're discussing is named ${personName}`;
+    
+    // Add relationship context
+    if (personRelationshipType && personRelationshipType !== 'Unknown') {
+      systemPrompt += ` (their ${personRelationshipType})`;
+    }
+    
+    systemPrompt += `. Listen actively, ask thoughtful questions, and provide supportive guidance. Keep responses concise and conversational.`;
 
-    // IMPORTANT: Add subject context to the AI prompt if provided
-    if (currentSubject && currentSubject.trim()) {
-      systemPrompt += `\n\nCurrent focus of this conversation: ${currentSubject}. Please tailor your response to this subject.`;
+    // CRITICAL: Add subject context to the AI prompt if provided
+    if (currentSubject && currentSubject.trim() && currentSubject !== 'General') {
+      systemPrompt += `\n\nCurrent focus of this conversation: ${currentSubject}. Please tailor your response to this specific subject and acknowledge what the user has shared about it.`;
     }
 
-    // Convert messages to OpenAI format
-    const openAIMessages = messages.map((msg) => ({
-      role: msg.sender === 'user' ? 'user' : 'assistant',
+    // CRITICAL: Add context about deceased status if mentioned in conversation
+    const conversationText = messages.map(m => m.content).join(' ').toLowerCase();
+    if (conversationText.includes('passed away') || 
+        conversationText.includes('died') || 
+        conversationText.includes('deceased') ||
+        conversationText.includes('lost him') ||
+        conversationText.includes('lost her')) {
+      systemPrompt += `\n\nIMPORTANT: The user has mentioned that ${personName} has passed away. Be sensitive to this and acknowledge their grief. Do not ask questions as if the person is still alive.`;
+    }
+
+    // CRITICAL: Ensure we have the full conversation history (last 20 messages)
+    // This prevents the AI from losing context
+    const conversationHistory = messages.slice(-20).map((msg) => ({
+      role: msg.role,
       content: msg.content,
     }));
+
+    console.log('Sending to OpenAI:');
+    console.log('- System prompt length:', systemPrompt.length);
+    console.log('- Conversation history:', conversationHistory.length, 'messages');
+    console.log('- Roles in order:', conversationHistory.map(m => m.role).join(' -> '));
 
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -76,7 +103,7 @@ serve(async (req) => {
             role: 'system',
             content: systemPrompt,
           },
-          ...openAIMessages,
+          ...conversationHistory,
         ],
         temperature: 0.7,
         max_tokens: 500,
@@ -91,6 +118,8 @@ serve(async (req) => {
 
     const data = await response.json();
     const reply = data.choices[0]?.message?.content || 'I understand. Tell me more.';
+
+    console.log('AI reply generated:', reply.substring(0, 50) + '...');
 
     return new Response(
       JSON.stringify({ reply }),

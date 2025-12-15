@@ -160,6 +160,10 @@ export default function ChatScreen() {
   // Subject pill state
   const [availableSubjects, setAvailableSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
 
+  // CRITICAL: Track last processed user message ID to prevent loops
+  const lastProcessedUserMessageIdRef = useRef<string | null>(null);
+  const isGeneratingRef = useRef(false);
+
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
     if (initialSubject && initialSubject.trim()) {
@@ -345,6 +349,31 @@ export default function ChatScreen() {
     loadMessages();
   }, [loadMessages]);
 
+  // Helper function to check if two strings are too similar (loop detection)
+  const areSimilar = useCallback((str1: string, str2: string): boolean => {
+    // Normalize strings: lowercase, trim, remove punctuation
+    const normalize = (s: string) => s.toLowerCase().trim().replace(/[.,!?;:]/g, '');
+    const norm1 = normalize(str1);
+    const norm2 = normalize(str2);
+
+    // Check if they start with the same phrase (first 20 chars)
+    const prefix1 = norm1.substring(0, 20);
+    const prefix2 = norm2.substring(0, 20);
+    
+    if (prefix1 === prefix2 && prefix1.length > 10) {
+      return true;
+    }
+
+    // Check if one contains the other (for short messages)
+    if (norm1.length < 50 && norm2.length < 50) {
+      if (norm1.includes(norm2) || norm2.includes(norm1)) {
+        return true;
+      }
+    }
+
+    return false;
+  }, []);
+
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
@@ -364,9 +393,18 @@ export default function ChatScreen() {
       return;
     }
 
+    // CRITICAL: Check if we're already generating a response
+    if (isGeneratingRef.current) {
+      console.log('[Chat] sendMessage: Already generating, skipping');
+      return;
+    }
+
     console.log('[Chat] sendMessage: Starting send process');
     console.log('[Chat] Current subject:', currentSubject);
+    console.log('[Chat] chatId (personId):', personId);
+    
     setIsSending(true);
+    isGeneratingRef.current = true;
     setError(null);
     setInputText('');
 
@@ -392,11 +430,15 @@ export default function ChatScreen() {
           setInputText(text);
           setError(insertError?.message || 'Failed to send message. Please try again.');
           setIsSending(false);
+          isGeneratingRef.current = false;
         }
         return;
       }
 
       console.log('[Chat] User message inserted:', insertedMessage.id);
+      
+      // CRITICAL: Track this message ID as the one we're processing
+      lastProcessedUserMessageIdRef.current = insertedMessage.id;
 
       let updatedMessages: Message[] = [];
       if (isMountedRef.current) {
@@ -409,17 +451,38 @@ export default function ChatScreen() {
       scrollToBottom();
 
       console.log('[Chat] Calling AI Edge Function...');
+      console.log('[Chat] Total messages in history:', updatedMessages.length);
+      
       if (isMountedRef.current) {
         setIsTyping(true);
       }
 
-      const recentMessages = updatedMessages
-        .slice(-10)
+      // CRITICAL FIX: Include last 20 messages (not just 10) for better context
+      // Filter by current subject to ensure context is relevant
+      const subjectMessages = updatedMessages.filter((msg) => {
+        const msgSubject = msg.subject || 'General';
+        return msgSubject === currentSubject;
+      });
+      
+      const recentMessages = subjectMessages
+        .slice(-20)
         .map((msg) => ({
-          sender: msg.role === 'user' ? ('user' as const) : ('ai' as const),
+          role: msg.role, // Use 'role' field directly
           content: msg.content,
           createdAt: msg.created_at,
         }));
+
+      console.log('[Chat] Sending to AI:', {
+        chatId: personId,
+        messageCount: recentMessages.length,
+        lastUserMessageId: insertedMessage.id,
+        subject: currentSubject,
+      });
+
+      // Get the last assistant message for loop detection
+      const lastAssistantMessage = subjectMessages
+        .filter((m) => m.role === 'assistant')
+        .slice(-1)[0];
 
       // Pass current subject to AI
       const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
@@ -440,6 +503,7 @@ export default function ChatScreen() {
         if (isMountedRef.current) {
           setIsTyping(false);
           setIsSending(false);
+          isGeneratingRef.current = false;
           setError(
             (fnError as any)?.message ||
               'Failed to generate AI reply. Please try again.'
@@ -448,11 +512,21 @@ export default function ChatScreen() {
         return;
       }
 
-      console.log('[Chat] AI response received:', aiResponse);
+      console.log('[Chat] AI response received');
 
-      const replyText =
+      let replyText =
         aiResponse?.reply ||
         "I'm here with you. Tell me more about how you're feeling.";
+
+      // LOOP DETECTION: Check if the reply is too similar to the last assistant message
+      if (lastAssistantMessage && areSimilar(replyText, lastAssistantMessage.content)) {
+        console.warn('[Chat] Loop detected! AI response is too similar to previous response');
+        console.log('[Chat] Previous:', lastAssistantMessage.content.substring(0, 50));
+        console.log('[Chat] Current:', replyText.substring(0, 50));
+        
+        // Use a fallback that acknowledges the user's message
+        replyText = `I hear you. Can you tell me more about what you're experiencing with ${personName}?`;
+      }
 
       console.log('[Chat] Inserting AI message...');
       // FIXED: Save AI response with user_id, person_id, and subject
@@ -474,6 +548,7 @@ export default function ChatScreen() {
         if (isMountedRef.current) {
           setIsTyping(false);
           setIsSending(false);
+          isGeneratingRef.current = false;
           setError(aiInsertError?.message || 'Failed to save AI reply.');
         }
         return;
@@ -486,6 +561,7 @@ export default function ChatScreen() {
         scrollToBottom();
         setIsTyping(false);
         setIsSending(false);
+        isGeneratingRef.current = false;
       }
       console.log('[Chat] sendMessage: Complete');
     } catch (err: any) {
@@ -495,9 +571,10 @@ export default function ChatScreen() {
         setError(err?.message || 'An unexpected error occurred');
         setIsTyping(false);
         setIsSending(false);
+        isGeneratingRef.current = false;
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, scrollToBottom]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, scrollToBottom, areSimilar]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 

@@ -5,6 +5,7 @@ export interface Message {
   person_id: string;
   role: 'user' | 'assistant';
   content: string;
+  subject?: string; // Added subject field for topic-based conversations
   created_at: string;
 }
 
