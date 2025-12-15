@@ -76,12 +76,12 @@ export default function AddPersonScreen() {
 
   // Calculate responsive dimensions
   const headerHeight = Platform.OS === 'android' ? 60 : 44;
-  const keyboardVerticalOffset = Platform.OS === 'ios' ? insets.top + headerHeight : 0;
+  const keyboardVerticalOffset = Platform.OS === 'ios' ? 0 : 0;
 
   return (
     <SafeSpaceScreen scrollable={false} keyboardAware={false}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
         keyboardVerticalOffset={keyboardVerticalOffset}
       >
@@ -103,6 +103,7 @@ export default function AddPersonScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          bounces={false}
         >
           <Text style={[styles.title, { color: theme.textPrimary }]}>
             Who would you like to add?
@@ -122,8 +123,8 @@ export default function AddPersonScreen() {
                 styles.textInputWrapper, 
                 { 
                   backgroundColor: theme.background, 
-                  borderWidth: 1, 
-                  borderColor: nameError ? '#FF3B30' : 'rgba(0, 0, 0, 0.1)' 
+                  borderWidth: 1.5, 
+                  borderColor: nameError ? '#FF3B30' : theme.primary 
                 }
               ]}>
                 <TextInput
@@ -143,6 +144,7 @@ export default function AddPersonScreen() {
                   maxLength={50}
                   editable={!saving}
                   returnKeyType="next"
+                  autoFocus={true}
                 />
               </View>
               {nameError ? (
@@ -158,8 +160,8 @@ export default function AddPersonScreen() {
                 styles.textInputWrapper, 
                 { 
                   backgroundColor: theme.background, 
-                  borderWidth: 1, 
-                  borderColor: 'rgba(0, 0, 0, 0.1)' 
+                  borderWidth: 1.5, 
+                  borderColor: theme.primary 
                 }
               ]}>
                 <TextInput
@@ -248,6 +250,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: '5%',
     paddingBottom: 24,
+    flexGrow: 1,
   },
   title: {
     fontSize: Math.min(SCREEN_WIDTH * 0.07, 28),
@@ -276,7 +279,7 @@ const styles = StyleSheet.create({
   textInputWrapper: {
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
   },
   textInput: {
     fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
@@ -287,6 +290,7 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 12,
     marginTop: 6,
+    fontWeight: '500',
   },
   bottomSpacer: {
     height: 40,
@@ -298,6 +302,7 @@ const styles = StyleSheet.create({
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   secondaryButton: {
     flex: 1,

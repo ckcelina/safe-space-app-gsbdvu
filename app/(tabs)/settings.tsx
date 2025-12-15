@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   TextInput,
   Dimensions,
+  KeyboardAvoidingView,
 } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -61,7 +62,7 @@ export default function SettingsScreen() {
   };
 
   const handleLogout = async () => {
-    console.log('Logout button pressed');
+    console.log('[Settings] Logout button pressed');
     
     try {
       console.log('[Settings] Starting sign out...');
@@ -71,8 +72,11 @@ export default function SettingsScreen() {
       
       console.log('[Settings] Sign out successful, navigating to onboarding');
       
-      // Navigate to onboarding and reset the navigation stack
-      router.replace('/onboarding');
+      // Use a small delay to ensure state is cleared
+      setTimeout(() => {
+        // Navigate to onboarding and reset the navigation stack
+        router.replace('/onboarding');
+      }, 100);
     } catch (error) {
       console.error('[Settings] signOut error:', error);
       showErrorToast("Couldn't log out. Please try again.");
@@ -120,11 +124,11 @@ export default function SettingsScreen() {
     setIsDeleting(true);
 
     try {
-      console.log('Starting account deletion process...');
+      console.log('[Settings] Starting account deletion process...');
       const result = await deleteUserAccount(userId);
 
       if (result.success) {
-        console.log('Account deleted successfully');
+        console.log('[Settings] Account deleted successfully');
         setShowDeleteModal(false);
         
         // Sign out the user
@@ -135,12 +139,12 @@ export default function SettingsScreen() {
           router.replace('/onboarding');
         }, 500);
       } else {
-        console.error('Account deletion failed:', result.error);
+        console.error('[Settings] Account deletion failed:', result.error);
         setShowDeleteModal(false);
         showErrorToast('Something went wrong. Please try again.');
       }
     } catch (error: any) {
-      console.error('Unexpected error deleting account:', error);
+      console.error('[Settings] Unexpected error deleting account:', error);
       setShowDeleteModal(false);
       showErrorToast('Something went wrong. Please try again.');
     } finally {
@@ -152,7 +156,7 @@ export default function SettingsScreen() {
     try {
       await openSupportEmail();
     } catch (error) {
-      console.error('Error opening support email:', error);
+      console.error('[Settings] Error opening support email:', error);
       showErrorToast('Could not open email app');
     }
   };
@@ -370,7 +374,7 @@ export default function SettingsScreen() {
                 </View>
               </View>
 
-              {/* Card 2: Account information (NEW) */}
+              {/* Card 2: Account information */}
               <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                   Account information
@@ -695,132 +699,141 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* Change Password Modal (NEW) */}
+      {/* Change Password Modal */}
       <Modal
         visible={showChangePasswordModal}
         transparent={true}
         animationType="slide"
         onRequestClose={handleCloseChangePasswordModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
-            <View style={styles.modalIconContainer}>
-              <IconSymbol
-                ios_icon_name="lock.fill"
-                android_material_icon_name="lock"
-                size={48}
-                color={theme.primary}
-              />
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <ScrollView
+            contentContainerStyle={styles.modalScrollContent}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+              <View style={styles.modalIconContainer}>
+                <IconSymbol
+                  ios_icon_name="lock.fill"
+                  android_material_icon_name="lock"
+                  size={48}
+                  color={theme.primary}
+                />
+              </View>
 
-            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-              Change password
-            </Text>
-
-            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-              Update your password to keep your account secure.
-            </Text>
-
-            {/* Current Password Input */}
-            <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                Current password
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                Change password
               </Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    backgroundColor: theme.background,
-                    color: theme.textPrimary,
-                    borderColor: theme.primary,
-                  },
-                ]}
-                placeholder="Enter current password"
-                placeholderTextColor={theme.textSecondary}
-                secureTextEntry
-                value={currentPassword}
-                onChangeText={setCurrentPassword}
-                autoCapitalize="none"
-                editable={!isUpdatingPassword}
-              />
-            </View>
 
-            {/* New Password Input */}
-            <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                New password
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+                Update your password to keep your account secure.
               </Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    backgroundColor: theme.background,
-                    color: theme.textPrimary,
-                    borderColor: theme.primary,
-                  },
-                ]}
-                placeholder="Enter new password"
-                placeholderTextColor={theme.textSecondary}
-                secureTextEntry
-                value={newPassword}
-                onChangeText={setNewPassword}
-                autoCapitalize="none"
-                editable={!isUpdatingPassword}
-              />
-            </View>
 
-            {/* Confirm New Password Input */}
-            <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                Confirm new password
-              </Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    backgroundColor: theme.background,
-                    color: theme.textPrimary,
-                    borderColor: theme.primary,
-                  },
-                ]}
-                placeholder="Confirm new password"
-                placeholderTextColor={theme.textSecondary}
-                secureTextEntry
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                autoCapitalize="none"
-                editable={!isUpdatingPassword}
-              />
-            </View>
-
-            {/* Buttons */}
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
-                onPress={handleCloseChangePasswordModal}
-                disabled={isUpdatingPassword}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
-                  Cancel
+              {/* Current Password Input */}
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  Current password
                 </Text>
-              </TouchableOpacity>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.background,
+                      color: theme.textPrimary,
+                      borderColor: theme.primary,
+                    },
+                  ]}
+                  placeholder="Enter current password"
+                  placeholderTextColor={theme.textSecondary}
+                  secureTextEntry
+                  value={currentPassword}
+                  onChangeText={setCurrentPassword}
+                  autoCapitalize="none"
+                  editable={!isUpdatingPassword}
+                />
+              </View>
 
-              <TouchableOpacity
-                style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
-                onPress={handleSavePassword}
-                disabled={isUpdatingPassword}
-                activeOpacity={0.8}
-              >
-                {isUpdatingPassword ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.modalButtonText}>Save</Text>
-                )}
-              </TouchableOpacity>
+              {/* New Password Input */}
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  New password
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.background,
+                      color: theme.textPrimary,
+                      borderColor: theme.primary,
+                    },
+                  ]}
+                  placeholder="Enter new password"
+                  placeholderTextColor={theme.textSecondary}
+                  secureTextEntry
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  autoCapitalize="none"
+                  editable={!isUpdatingPassword}
+                />
+              </View>
+
+              {/* Confirm New Password Input */}
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  Confirm new password
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.background,
+                      color: theme.textPrimary,
+                      borderColor: theme.primary,
+                    },
+                  ]}
+                  placeholder="Confirm new password"
+                  placeholderTextColor={theme.textSecondary}
+                  secureTextEntry
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  autoCapitalize="none"
+                  editable={!isUpdatingPassword}
+                />
+              </View>
+
+              {/* Buttons */}
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                  onPress={handleCloseChangePasswordModal}
+                  disabled={isUpdatingPassword}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
+                  onPress={handleSavePassword}
+                  disabled={isUpdatingPassword}
+                  activeOpacity={0.8}
+                >
+                  {isUpdatingPassword ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalButtonText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -843,7 +856,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: '5%',
     paddingTop: Platform.OS === 'android' ? 16 : 8,
     paddingBottom: 8,
   },
@@ -865,7 +878,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 32,
+    marginBottom: Math.min(SCREEN_HEIGHT * 0.04, 32),
   },
   title: {
     fontSize: Math.min(SCREEN_WIDTH * 0.08, 32),
@@ -880,15 +893,15 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    padding: '5%',
+    marginBottom: '5%',
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: Math.min(SCREEN_WIDTH * 0.05, 20),
     fontWeight: '700',
-    marginBottom: 20,
+    marginBottom: '5%',
   },
   row: {
     flexDirection: 'row',
@@ -901,13 +914,14 @@ const styles = StyleSheet.create({
   rowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   rowLabel: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '500',
   },
   rowValue: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '600',
     flex: 1,
     textAlign: 'right',
@@ -943,7 +957,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   label: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '500',
     marginBottom: 12,
   },
@@ -953,7 +967,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   pill: {
-    paddingHorizontal: 20,
+    paddingHorizontal: '5%',
     paddingVertical: 12,
     borderRadius: 24,
     borderWidth: 2,
@@ -979,8 +993,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   accountSection: {
-    marginTop: 40,
-    marginBottom: 20,
+    marginTop: '10%',
+    marginBottom: '5%',
   },
   sectionTitle: {
     fontSize: 18,
@@ -990,7 +1004,7 @@ const styles = StyleSheet.create({
   },
   dangerCard: {
     borderRadius: 16,
-    padding: 20,
+    padding: '5%',
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },
@@ -1000,14 +1014,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
-    paddingHorizontal: 24,
+    paddingHorizontal: '6%',
     borderRadius: 12,
     gap: 8,
     marginBottom: 12,
   },
   deleteButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '600',
   },
   helperText: {
@@ -1022,6 +1036,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: '5%',
   },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: '10%',
+  },
   modalContent: {
     borderRadius: 20,
     padding: '8%',
@@ -1032,7 +1051,7 @@ const styles = StyleSheet.create({
   },
   modalIconContainer: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: '5%',
   },
   modalTitle: {
     fontSize: Math.min(SCREEN_WIDTH * 0.06, 24),
@@ -1044,7 +1063,7 @@ const styles = StyleSheet.create({
     fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 24,
     textAlign: 'center',
-    marginBottom: 28,
+    marginBottom: '7%',
   },
   modalButton: {
     paddingVertical: 14,
@@ -1054,7 +1073,7 @@ const styles = StyleSheet.create({
   },
   modalButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '600',
   },
   modalButtons: {
@@ -1073,7 +1092,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '600',
   },
   confirmDeleteButton: {
@@ -1081,11 +1100,11 @@ const styles = StyleSheet.create({
   },
   confirmDeleteButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '600',
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: '5%',
   },
   inputLabel: {
     fontSize: 14,
@@ -1095,7 +1114,7 @@ const styles = StyleSheet.create({
   textInput: {
     padding: 16,
     borderRadius: 12,
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     borderWidth: 1,
   },
 });
