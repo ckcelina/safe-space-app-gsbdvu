@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, TextInput, LogBox } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput, LogBox } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +16,6 @@ import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
-import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
 
@@ -63,8 +62,11 @@ const QUICK_TOPICS = [
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
-  const [persons, setPersons] = useState<PersonWithLastMessage[]>([]);
+  
+  // CRITICAL: Separate state for People and Topics
+  const [people, setPeople] = useState<PersonWithLastMessage[]>([]);
   const [topics, setTopics] = useState<PersonWithLastMessage[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -91,7 +93,12 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const fetchPersonsWithLastMessage = useCallback(async () => {
+  /**
+   * CRITICAL FIX: Fetch People and Topics separately
+   * - People: relationship_type != 'Topic'
+   * - Topics: relationship_type = 'Topic'
+   */
+  const fetchData = useCallback(async () => {
     if (!userId) {
       console.log('[Home] No userId available');
       return;
@@ -100,18 +107,18 @@ export default function HomeScreen() {
     try {
       setLoading(true);
       setError(null);
-      console.log('[Home] Fetching persons and topics for user:', userId);
+      console.log('[Home] Fetching people and topics for user:', userId);
       
-      // Fetch ONLY persons (exclude topics)
-      const { data: personsData, error: personsError } = await supabase
+      // Fetch ONLY people (NOT topics)
+      const { data: peopleData, error: peopleError } = await supabase
         .from('persons')
         .select('*')
         .eq('user_id', userId)
         .neq('relationship_type', 'Topic')
         .order('created_at', { ascending: false });
 
-      if (personsError) {
-        console.error('[Home] Error fetching persons:', personsError);
+      if (peopleError) {
+        console.error('[Home] Error fetching people:', peopleError);
         if (isMountedRef.current) {
           setError('Failed to load your people. Please try again.');
           showErrorToast('Failed to load your people');
@@ -136,13 +143,13 @@ export default function HomeScreen() {
         return;
       }
 
-      console.log('[Home] Persons loaded:', personsData?.length || 0);
+      console.log('[Home] People loaded:', peopleData?.length || 0);
       console.log('[Home] Topics loaded:', topicsData?.length || 0);
 
-      // Process persons with last messages
-      const personsWithMessages = personsData && personsData.length > 0 
+      // Process people with last messages
+      const peopleWithMessages = peopleData && peopleData.length > 0
         ? await Promise.all(
-            personsData.map(async (person) => {
+            peopleData.map(async (person) => {
               try {
                 const { data: messages } = await supabase
                   .from('messages')
@@ -202,7 +209,7 @@ export default function HomeScreen() {
         : [];
 
       if (isMountedRef.current) {
-        setPersons(personsWithMessages);
+        setPeople(peopleWithMessages);
         setTopics(topicsWithMessages);
       }
     } catch (error: any) {
@@ -220,13 +227,13 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (userId) {
-      fetchPersonsWithLastMessage();
+      fetchData();
     } else {
       setLoading(false);
     }
-  }, [userId, fetchPersonsWithLastMessage]);
+  }, [userId, fetchData]);
 
-  const handleDeletePerson = useCallback(async (personId: string, isTopicType: boolean = false) => {
+  const handleDeletePerson = useCallback(async (personId: string, isTopic: boolean = false) => {
     if (!personId) {
       console.error('[Home] Cannot delete - personId is missing');
       showErrorToast('Invalid data');
@@ -239,10 +246,10 @@ export default function HomeScreen() {
       return;
     }
 
-    console.log('[Home] Deleting:', isTopicType ? 'topic' : 'person', personId);
+    console.log('[Home] Deleting:', isTopic ? 'topic' : 'person', personId);
 
     try {
-      // Delete messages with BOTH user_id AND person_id filter
+      // CRITICAL: Delete messages with BOTH user_id AND person_id filter
       const { error: messagesError } = await supabase
         .from('messages')
         .delete()
@@ -255,7 +262,7 @@ export default function HomeScreen() {
         return;
       }
 
-      // Delete person/topic with BOTH id AND user_id filter
+      // CRITICAL: Delete person/topic with BOTH id AND user_id filter
       const { error: deleteError } = await supabase
         .from('persons')
         .delete()
@@ -264,17 +271,17 @@ export default function HomeScreen() {
 
       if (deleteError) {
         console.error('[Home] Error deleting:', deleteError);
-        showErrorToast(isTopicType ? 'Failed to delete topic' : 'Failed to delete person');
+        showErrorToast(isTopic ? 'Failed to delete topic' : 'Failed to delete person');
         return;
       }
 
       // Update local state
       if (isMountedRef.current) {
-        if (isTopicType) {
+        if (isTopic) {
           setTopics(prev => prev.filter(t => t.id !== personId));
           showSuccessToast('Topic deleted');
         } else {
-          setPersons(prev => prev.filter(p => p.id !== personId));
+          setPeople(prev => prev.filter(p => p.id !== personId));
           showSuccessToast('Person deleted');
         }
       }
@@ -287,10 +294,10 @@ export default function HomeScreen() {
   }, [userId]);
 
   /**
-   * Filter persons (exclude topics)
+   * Filter people (exclude topics)
    */
-  const filteredPersons = useMemo(() => {
-    const filtered = persons.filter((person) => {
+  const filteredPeople = useMemo(() => {
+    const filtered = people.filter((person) => {
       if (!searchQuery.trim()) return true;
       
       const query = searchQuery.toLowerCase();
@@ -300,25 +307,9 @@ export default function HomeScreen() {
       return nameMatch || relationshipMatch;
     });
 
-    // Deduplicate by person.id
-    const seenPersonIds = new Set<string>();
-    const dedupedPersons: PersonWithLastMessage[] = [];
-    
-    filtered.forEach((person) => {
-      const personKey = person.id || `${userId}:${person.name?.toLowerCase() || 'unknown'}`;
-      
-      if (seenPersonIds.has(personKey)) {
-        console.warn('[Home] Skipping duplicate person:', personKey, person.name);
-        return;
-      }
-
-      seenPersonIds.add(personKey);
-      dedupedPersons.push(person);
-    });
-
-    console.log('[Home] Filtered persons count:', dedupedPersons.length);
-    return dedupedPersons;
-  }, [persons, searchQuery, userId]);
+    console.log('[Home] Filtered people count:', filtered.length);
+    return filtered;
+  }, [people, searchQuery]);
 
   /**
    * Filter topics
@@ -333,35 +324,18 @@ export default function HomeScreen() {
       return nameMatch;
     });
 
-    // Deduplicate by topic.id
-    const seenTopicIds = new Set<string>();
-    const dedupedTopics: PersonWithLastMessage[] = [];
-    
-    filtered.forEach((topic) => {
-      const topicKey = topic.id || `${userId}:${topic.name?.toLowerCase() || 'unknown'}`;
-      
-      if (seenTopicIds.has(topicKey)) {
-        console.warn('[Home] Skipping duplicate topic:', topicKey, topic.name);
-        return;
-      }
-
-      seenTopicIds.add(topicKey);
-      dedupedTopics.push(topic);
-    });
-
-    console.log('[Home] Filtered topics count:', dedupedTopics.length);
-    return dedupedTopics;
-  }, [topics, searchQuery, userId]);
+    console.log('[Home] Filtered topics count:', filtered.length);
+    return filtered;
+  }, [topics, searchQuery]);
 
   const handleAddPerson = useCallback(() => {
-    console.log('[Home] handleAddPerson called, isPremium:', isPremium, 'persons.length:', persons.length);
+    console.log('[Home] handleAddPerson called');
     
-    console.log('[Home] Opening Add Person modal');
     setShowAddModal(true);
     setName('');
     setRelationshipType('');
     setNameError('');
-  }, [isPremium, persons.length]);
+  }, []);
 
   const handleCloseModal = useCallback(() => {
     console.log('[Home] Closing Add Person modal');
@@ -376,7 +350,9 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * Handle person creation (NOT topics)
+   * FIXED: Handle person creation WITHOUT duplicate checking
+   * - Creates ONLY a Person record (NOT a topic)
+   * - Appears ONLY in People list
    */
   const handleSave = useCallback(async () => {
     console.log('[Home] handleSave called with name:', name, 'relationshipType:', relationshipType);
@@ -399,59 +375,14 @@ export default function HomeScreen() {
 
     try {
       const trimmedName = name.trim();
+      const trimmedRelationship = relationshipType.trim();
       
-      // Check if person already exists (case-insensitive, exclude topics)
-      console.log('[Home] Checking for existing person with name:', trimmedName);
-      const { data: existingPerson, error: queryError } = await supabase
-        .from('persons')
-        .select('*')
-        .eq('user_id', userId)
-        .ilike('name', trimmedName)
-        .neq('relationship_type', 'Topic')
-        .maybeSingle();
-
-      if (queryError && queryError.code !== 'PGRST116') {
-        console.error('[Home] Error checking for existing person:', queryError);
-        if (isMountedRef.current) {
-          showErrorToast('Failed to check existing people');
-          setSaving(false);
-        }
-        return;
-      }
-
-      if (existingPerson) {
-        console.log('[Home] Person already exists:', existingPerson);
-        if (isMountedRef.current) {
-          setNameError('You already have a person with this name');
-          showErrorToast('This person already exists');
-          setSaving(false);
-          
-          // Navigate to existing person's chat
-          if (existingPerson.id) {
-            console.log('[Home] Navigating to existing person chat');
-            setShowAddModal(false);
-            setName('');
-            setRelationshipType('');
-            setNameError('');
-            
-            router.push({
-              pathname: '/(tabs)/(home)/chat',
-              params: { 
-                personId: existingPerson.id, 
-                personName: existingPerson.name || 'Chat',
-                relationshipType: existingPerson.relationship_type || ''
-              },
-            });
-          }
-        }
-        return;
-      }
-
-      // Insert new person (NOT a topic)
+      // CRITICAL: Create a Person record (NOT a topic)
+      // relationship_type should NOT be 'Topic'
       const personData = {
         user_id: userId,
         name: trimmedName,
-        relationship_type: relationshipType.trim() || null,
+        relationship_type: trimmedRelationship || null,
       };
       
       console.log('[Home] Inserting person data:', personData);
@@ -474,7 +405,6 @@ export default function HomeScreen() {
 
       console.log('[Home] Person created successfully:', data);
       
-      // Only update local state after successful insert
       if (isMountedRef.current) {
         showSuccessToast('Person added successfully!');
         
@@ -483,8 +413,8 @@ export default function HomeScreen() {
         setRelationshipType('');
         setNameError('');
         
-        console.log('[Home] Refreshing persons list');
-        await fetchPersonsWithLastMessage();
+        console.log('[Home] Refreshing data');
+        await fetchData();
       }
       
     } catch (error: any) {
@@ -498,7 +428,7 @@ export default function HomeScreen() {
         console.log('[Home] Save process complete');
       }
     }
-  }, [name, relationshipType, userId, fetchPersonsWithLastMessage]);
+  }, [name, relationshipType, userId, fetchData]);
 
   const handlePersonPress = useCallback((person: Person) => {
     if (!person.id) {
@@ -595,7 +525,7 @@ export default function HomeScreen() {
     setShowSubjectModal(true);
     setSelectedTopic(null);
     setCustomTopic('');
-  }, [isPremium, topics.length]);
+  }, []);
 
   const handleCloseSubjectModal = useCallback(() => {
     console.log('[Home] Closing Add Subject modal');
@@ -610,7 +540,9 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * Handle topic creation (NOT persons)
+   * FIXED: Handle topic creation WITHOUT duplicate checking
+   * - Creates ONLY a Topic record (relationship_type = 'Topic')
+   * - Appears ONLY in Topics list
    */
   const handleSaveSubject = useCallback(async () => {
     const subjectString = customTopic.trim() || selectedTopic;
@@ -631,62 +563,35 @@ export default function HomeScreen() {
     setSavingSubject(true);
 
     try {
-      // Check for existing topic with case-insensitive name match
-      console.log('[Home] Checking for existing topic with name:', subjectString);
-      const { data: existingTopic, error: queryError } = await supabase
+      // CRITICAL: Create a Topic record with relationship_type = 'Topic'
+      console.log('[Home] Creating new topic');
+      const { data: newTopic, error: insertError } = await supabase
         .from('persons')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('relationship_type', 'Topic')
-        .ilike('name', subjectString)
-        .maybeSingle();
+        .insert([{
+          user_id: userId,
+          name: subjectString,
+          relationship_type: 'Topic',
+        }])
+        .select()
+        .single();
 
-      if (queryError && queryError.code !== 'PGRST116') {
-        console.error('[Home] Error querying topics:', queryError);
-        showErrorToast('Failed to check existing topics');
+      if (insertError) {
+        console.error('[Home] Error creating topic:', insertError);
+        showErrorToast('Failed to create topic');
         setSavingSubject(false);
         return;
       }
 
-      let topic: Person;
+      console.log('[Home] Topic created:', newTopic);
 
-      if (existingTopic) {
-        // Topic already exists, use it
-        console.log('[Home] Topic already exists, using existing topic:', existingTopic);
-        topic = existingTopic;
-        showErrorToast('This topic already exists');
-      } else {
-        // Insert new topic with relationship_type = 'Topic'
-        console.log('[Home] Creating new topic');
-        const { data: newTopic, error: insertError } = await supabase
-          .from('persons')
-          .insert([{
-            user_id: userId,
-            name: subjectString,
-            relationship_type: 'Topic',
-          }])
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('[Home] Error creating topic:', insertError);
-          showErrorToast('Failed to create topic');
-          setSavingSubject(false);
-          return;
-        }
-
-        console.log('[Home] Topic created:', newTopic);
-        topic = newTopic;
-      }
-
-      if (!topic.id) {
+      if (!newTopic.id) {
         console.error('[Home] Topic ID is missing');
         showErrorToast('Invalid topic data');
         setSavingSubject(false);
         return;
       }
 
-      console.log('[Home] Navigating to chat for topic:', topic.name, 'id:', topic.id);
+      console.log('[Home] Navigating to chat for topic:', newTopic.name, 'id:', newTopic.id);
 
       // Close modal
       setShowSubjectModal(false);
@@ -697,15 +602,15 @@ export default function HomeScreen() {
       router.push({
         pathname: '/(tabs)/(home)/chat',
         params: {
-          personId: topic.id,
-          personName: topic.name || 'Topic',
+          personId: newTopic.id,
+          personName: newTopic.name || 'Topic',
           relationshipType: 'Topic',
           initialSubject: subjectString,
         },
       });
 
-      // Refresh lists to show the new topic
-      await fetchPersonsWithLastMessage();
+      // Refresh data to show the new topic
+      await fetchData();
 
     } catch (error: any) {
       console.error('[Home] Unexpected error saving topic:', error);
@@ -715,7 +620,7 @@ export default function HomeScreen() {
         setSavingSubject(false);
       }
     }
-  }, [customTopic, selectedTopic, userId, fetchPersonsWithLastMessage]);
+  }, [customTopic, selectedTopic, userId, fetchData]);
 
   const planInfo = getPlanInfo();
 
@@ -727,8 +632,8 @@ export default function HomeScreen() {
     return <Redirect href="/onboarding" />;
   }
 
-  const hasAnyData = persons.length > 0 || topics.length > 0;
-  const hasFilteredResults = filteredPersons.length > 0 || filteredTopics.length > 0;
+  const hasAnyData = people.length > 0 || topics.length > 0;
+  const hasFilteredResults = filteredPeople.length > 0 || filteredTopics.length > 0;
 
   return (
     <>
@@ -859,7 +764,7 @@ export default function HomeScreen() {
                     <SafeSpaceLogo size={48} color={theme.primary} />
                     <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
                     <TouchableOpacity
-                      onPress={fetchPersonsWithLastMessage}
+                      onPress={fetchData}
                       style={[styles.retryButton, { backgroundColor: theme.primary }]}
                       activeOpacity={0.8}
                     >
@@ -895,21 +800,19 @@ export default function HomeScreen() {
                   ) : (
                     <>
                       {/* PEOPLE SECTION */}
-                      {filteredPersons.length > 0 && (
+                      {filteredPeople.length > 0 && (
                         <View style={styles.section}>
                           <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
                             People
                           </Text>
 
                           <View style={styles.cards}>
-                            {filteredPersons.map((person, personIndex) => {
-                              if (!person) return null;
-
-                              const personKey = person.id || `person-${userId}:${person.name?.toLowerCase() || personIndex}`;
+                            {filteredPeople.map((person) => {
+                              if (!person || !person.id) return null;
 
                               return (
                                 <Swipeable
-                                  key={personKey}
+                                  key={person.id}
                                   renderRightActions={() => (
                                     <DeleteAction onPress={() => handleDeletePerson(person.id!, false)} />
                                   )}
@@ -918,6 +821,7 @@ export default function HomeScreen() {
                                   <PersonCard
                                     person={person}
                                     onPress={() => handlePersonPress(person)}
+                                    isTopic={false}
                                   />
                                 </Swipeable>
                               );
@@ -934,14 +838,12 @@ export default function HomeScreen() {
                           </Text>
 
                           <View style={styles.cards}>
-                            {filteredTopics.map((topic, topicIndex) => {
-                              if (!topic) return null;
-
-                              const topicKey = topic.id || `topic-${userId}:${topic.name?.toLowerCase() || topicIndex}`;
+                            {filteredTopics.map((topic) => {
+                              if (!topic || !topic.id) return null;
 
                               return (
                                 <Swipeable
-                                  key={topicKey}
+                                  key={topic.id}
                                   renderRightActions={() => (
                                     <DeleteAction onPress={() => handleDeletePerson(topic.id!, true)} />
                                   )}
@@ -970,132 +872,134 @@ export default function HomeScreen() {
               animationType="slide"
               showHandle={true}
             >
-              <KeyboardAvoider>
-                <View style={styles.modalKeyboardView}>
-                  <View style={styles.modalHeader}>
-                    <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
-                    <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
-                      <IconSymbol
-                        ios_icon_name="xmark"
-                        android_material_icon_name="close"
-                        size={24}
-                        color={theme.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  <ScrollView
-                    style={styles.modalBody}
-                    contentContainerStyle={styles.modalBodyContent}
-                    keyboardShouldPersistTaps="handled"
-                    showsVerticalScrollIndicator={false}
-                    bounces={false}
-                  >
-                    <View style={styles.fieldContainer}>
-                      <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                        Name <Text style={styles.required}>*</Text>
-                      </Text>
-                      <View style={[
-                        styles.textInputWrapper, 
-                        { 
-                          backgroundColor: theme.background, 
-                          borderWidth: 1.5, 
-                          borderColor: nameError ? '#FF3B30' : theme.textSecondary + '40'
-                        }
-                      ]}>
-                        <TextInput
-                          style={[styles.textInput, { color: theme.textPrimary }]}
-                          placeholder="Enter their name"
-                          placeholderTextColor={theme.textSecondary}
-                          value={name}
-                          onChangeText={(text) => {
-                            console.log('[Home] Name changed to:', text);
-                            setName(text);
-                            if (nameError && text.trim()) {
-                              setNameError('');
-                            }
-                          }}
-                          autoCapitalize="words"
-                          autoCorrect={false}
-                          maxLength={50}
-                          editable={!saving}
-                          returnKeyType="next"
-                          autoFocus={true}
-                          cursorColor={theme.primary}
-                          selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-                        />
-                      </View>
-                      {nameError ? (
-                        <Text style={styles.errorTextSmall}>{nameError}</Text>
-                      ) : null}
-                    </View>
-
-                    <View style={styles.fieldContainer}>
-                      <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                        Relationship Type
-                      </Text>
-                      <View style={[
-                        styles.textInputWrapper, 
-                        { 
-                          backgroundColor: theme.background, 
-                          borderWidth: 1.5, 
-                          borderColor: theme.textSecondary + '40'
-                        }
-                      ]}>
-                        <TextInput
-                          style={[styles.textInput, { color: theme.textPrimary }]}
-                          placeholder="partner, ex, friend, parent..."
-                          placeholderTextColor={theme.textSecondary}
-                          value={relationshipType}
-                          onChangeText={(text) => {
-                            console.log('[Home] Relationship type changed to:', text);
-                            setRelationshipType(text);
-                          }}
-                          autoCapitalize="words"
-                          autoCorrect={false}
-                          maxLength={50}
-                          editable={!saving}
-                          returnKeyType="done"
-                          onSubmitEditing={handleSave}
-                          cursorColor={theme.primary}
-                          selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-                        />
-                      </View>
-                    </View>
-                  </ScrollView>
-
-                  <View style={styles.modalFooter}>
-                    <TouchableOpacity
-                      onPress={handleCloseModal}
-                      style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
-                      disabled={saving}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
-                        Cancel
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleSave}
-                      style={styles.primaryButton}
-                      disabled={saving}
-                      activeOpacity={0.8}
-                    >
-                      <LinearGradient
-                        colors={theme.primaryGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.primaryButtonGradient}
-                      >
-                        <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
-                          {saving ? 'Saving...' : 'Save'}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.modalKeyboardView}
+                keyboardVerticalOffset={0}
+              >
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
+                  <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
+                    <IconSymbol
+                      ios_icon_name="xmark"
+                      android_material_icon_name="close"
+                      size={24}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
                 </View>
-              </KeyboardAvoider>
+
+                <ScrollView
+                  style={styles.modalBody}
+                  contentContainerStyle={styles.modalBodyContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  bounces={false}
+                >
+                  <View style={styles.fieldContainer}>
+                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                      Name <Text style={styles.required}>*</Text>
+                    </Text>
+                    <View style={[
+                      styles.textInputWrapper, 
+                      { 
+                        backgroundColor: theme.background, 
+                        borderWidth: 1.5, 
+                        borderColor: nameError ? '#FF3B30' : theme.textSecondary + '40'
+                      }
+                    ]}>
+                      <TextInput
+                        style={[styles.textInput, { color: theme.textPrimary }]}
+                        placeholder="Enter their name"
+                        placeholderTextColor={theme.textSecondary}
+                        value={name}
+                        onChangeText={(text) => {
+                          console.log('[Home] Name changed to:', text);
+                          setName(text);
+                          if (nameError && text.trim()) {
+                            setNameError('');
+                          }
+                        }}
+                        autoCapitalize="words"
+                        autoCorrect={false}
+                        maxLength={50}
+                        editable={!saving}
+                        returnKeyType="next"
+                        autoFocus={true}
+                        cursorColor={theme.primary}
+                        selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                      />
+                    </View>
+                    {nameError ? (
+                      <Text style={styles.errorTextSmall}>{nameError}</Text>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.fieldContainer}>
+                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                      Relationship Type
+                    </Text>
+                    <View style={[
+                      styles.textInputWrapper, 
+                      { 
+                        backgroundColor: theme.background, 
+                        borderWidth: 1.5, 
+                        borderColor: theme.textSecondary + '40'
+                      }
+                    ]}>
+                      <TextInput
+                        style={[styles.textInput, { color: theme.textPrimary }]}
+                        placeholder="partner, ex, friend, parent..."
+                        placeholderTextColor={theme.textSecondary}
+                        value={relationshipType}
+                        onChangeText={(text) => {
+                          console.log('[Home] Relationship type changed to:', text);
+                          setRelationshipType(text);
+                        }}
+                        autoCapitalize="words"
+                        autoCorrect={false}
+                        maxLength={50}
+                        editable={!saving}
+                        returnKeyType="done"
+                        onSubmitEditing={handleSave}
+                        cursorColor={theme.primary}
+                        selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                      />
+                    </View>
+                  </View>
+                </ScrollView>
+
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    onPress={handleCloseModal}
+                    style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                    disabled={saving}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSave}
+                    style={styles.primaryButton}
+                    disabled={saving}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={theme.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.primaryButtonGradient}
+                    >
+                      <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
+                        {saving ? 'Saving...' : 'Save'}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </KeyboardAvoidingView>
             </SwipeableModal>
 
             <SwipeableModal
@@ -1104,127 +1008,129 @@ export default function HomeScreen() {
               animationType="slide"
               showHandle={true}
             >
-              <KeyboardAvoider>
-                <View style={styles.modalKeyboardView}>
-                  <View style={styles.modalHeader}>
-                    <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Topic</Text>
-                    <TouchableOpacity onPress={handleCloseSubjectModal} style={styles.closeButton}>
-                      <IconSymbol
-                        ios_icon_name="xmark"
-                        android_material_icon_name="close"
-                        size={24}
-                        color={theme.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  <ScrollView
-                    style={styles.modalBody}
-                    contentContainerStyle={styles.modalBodyContent}
-                    keyboardShouldPersistTaps="handled"
-                    showsVerticalScrollIndicator={false}
-                    bounces={false}
-                  >
-                    <Text style={[styles.helperText, { color: theme.textSecondary }]}>
-                      What would you like to focus on?
-                    </Text>
-
-                    <View style={styles.topicsContainer}>
-                      {QUICK_TOPICS.map((topic, index) => (
-                        <TouchableOpacity
-                          key={`topic-${index}`}
-                          onPress={() => handleTopicSelect(topic)}
-                          activeOpacity={0.7}
-                          style={[
-                            styles.topicChip,
-                            {
-                              backgroundColor: selectedTopic === topic 
-                                ? theme.primary 
-                                : theme.background,
-                              borderWidth: 1.5,
-                              borderColor: selectedTopic === topic 
-                                ? theme.primary 
-                                : theme.textSecondary + '40',
-                            }
-                          ]}
-                        >
-                          <Text style={[
-                            styles.topicChipText,
-                            {
-                              color: selectedTopic === topic 
-                                ? theme.buttonText 
-                                : theme.textPrimary,
-                            }
-                          ]}>
-                            {topic}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
-                    <View style={styles.fieldContainer}>
-                      <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                        Custom subject or topic
-                      </Text>
-                      <View style={[
-                        styles.textInputWrapper, 
-                        { 
-                          backgroundColor: theme.background, 
-                          borderWidth: 1.5, 
-                          borderColor: theme.textSecondary + '40'
-                        }
-                      ]}>
-                        <TextInput
-                          style={[styles.textInput, { color: theme.textPrimary }]}
-                          placeholder="Enter your own subject..."
-                          placeholderTextColor={theme.textSecondary}
-                          value={customTopic}
-                          onChangeText={setCustomTopic}
-                          autoCapitalize="sentences"
-                          autoCorrect={false}
-                          maxLength={100}
-                          returnKeyType="done"
-                          onSubmitEditing={handleSaveSubject}
-                          editable={!savingSubject}
-                          cursorColor={theme.primary}
-                          selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-                        />
-                      </View>
-                    </View>
-                  </ScrollView>
-
-                  <View style={styles.modalFooter}>
-                    <TouchableOpacity
-                      onPress={handleCloseSubjectModal}
-                      style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
-                      disabled={savingSubject}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
-                        Cancel
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleSaveSubject}
-                      style={styles.primaryButton}
-                      disabled={savingSubject}
-                      activeOpacity={0.8}
-                    >
-                      <LinearGradient
-                        colors={theme.primaryGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.primaryButtonGradient}
-                      >
-                        <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
-                          {savingSubject ? 'Saving...' : 'Save'}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.modalKeyboardView}
+                keyboardVerticalOffset={0}
+              >
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Topic</Text>
+                  <TouchableOpacity onPress={handleCloseSubjectModal} style={styles.closeButton}>
+                    <IconSymbol
+                      ios_icon_name="xmark"
+                      android_material_icon_name="close"
+                      size={24}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
                 </View>
-              </KeyboardAvoider>
+
+                <ScrollView
+                  style={styles.modalBody}
+                  contentContainerStyle={styles.modalBodyContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  bounces={false}
+                >
+                  <Text style={[styles.helperText, { color: theme.textSecondary }]}>
+                    What would you like to focus on?
+                  </Text>
+
+                  <View style={styles.topicsContainer}>
+                    {QUICK_TOPICS.map((topic, index) => (
+                      <TouchableOpacity
+                        key={`topic-${index}`}
+                        onPress={() => handleTopicSelect(topic)}
+                        activeOpacity={0.7}
+                        style={[
+                          styles.topicChip,
+                          {
+                            backgroundColor: selectedTopic === topic 
+                              ? theme.primary 
+                              : theme.background,
+                            borderWidth: 1.5,
+                            borderColor: selectedTopic === topic 
+                              ? theme.primary 
+                              : theme.textSecondary + '40',
+                          }
+                        ]}
+                      >
+                        <Text style={[
+                          styles.topicChipText,
+                          {
+                            color: selectedTopic === topic 
+                              ? theme.buttonText 
+                              : theme.textPrimary,
+                          }
+                        ]}>
+                          {topic}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <View style={styles.fieldContainer}>
+                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                      Custom subject or topic
+                    </Text>
+                    <View style={[
+                      styles.textInputWrapper, 
+                      { 
+                        backgroundColor: theme.background, 
+                        borderWidth: 1.5, 
+                        borderColor: theme.textSecondary + '40'
+                      }
+                    ]}>
+                      <TextInput
+                        style={[styles.textInput, { color: theme.textPrimary }]}
+                        placeholder="Enter your own subject..."
+                        placeholderTextColor={theme.textSecondary}
+                        value={customTopic}
+                        onChangeText={setCustomTopic}
+                        autoCapitalize="sentences"
+                        autoCorrect={false}
+                        maxLength={100}
+                        returnKeyType="done"
+                        onSubmitEditing={handleSaveSubject}
+                        editable={!savingSubject}
+                        cursorColor={theme.primary}
+                        selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                      />
+                    </View>
+                  </View>
+                </ScrollView>
+
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    onPress={handleCloseSubjectModal}
+                    style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                    disabled={savingSubject}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSaveSubject}
+                    style={styles.primaryButton}
+                    disabled={savingSubject}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={theme.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.primaryButtonGradient}
+                    >
+                      <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
+                        {savingSubject ? 'Saving...' : 'Save'}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </KeyboardAvoidingView>
             </SwipeableModal>
 
             <SwipeableCenterModal
@@ -1511,7 +1417,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   modalKeyboardView: {
-    flex: 1,
     maxHeight: '85%',
   },
   modalHeader: {
@@ -1584,9 +1489,6 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 12,
     marginTop: 6,
-  },
-  bottomSpacer: {
-    height: 60,
   },
   modalFooter: {
     flexDirection: 'row',
