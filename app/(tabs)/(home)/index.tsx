@@ -963,7 +963,7 @@ export default function HomeScreen() {
               <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.modalKeyboardView}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                keyboardVerticalOffset={0}
               >
                 <View style={styles.modalHeader}>
                   <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
@@ -1050,6 +1050,8 @@ export default function HomeScreen() {
                       />
                     </View>
                   </View>
+
+                  <View style={styles.bottomSpacer} />
                 </ScrollView>
 
                 <View style={styles.modalFooter}>
@@ -1094,10 +1096,10 @@ export default function HomeScreen() {
               <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.modalKeyboardView}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                keyboardVerticalOffset={0}
               >
                 <View style={styles.modalHeader}>
-                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add a subject or topic</Text>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Topic</Text>
                   <TouchableOpacity onPress={handleCloseSubjectModal} style={styles.closeButton}>
                     <IconSymbol
                       ios_icon_name="xmark"
@@ -1179,6 +1181,8 @@ export default function HomeScreen() {
                       />
                     </View>
                   </View>
+
+                  <View style={styles.bottomSpacer} />
                 </ScrollView>
 
                 <View style={styles.modalFooter}>
@@ -1574,6 +1578,9 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 12,
     marginTop: 6,
+  },
+  bottomSpacer: {
+    height: 60,
   },
   modalFooter: {
     flexDirection: 'row',

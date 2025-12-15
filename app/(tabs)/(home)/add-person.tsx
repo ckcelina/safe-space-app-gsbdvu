@@ -75,7 +75,7 @@ export default function AddPersonScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -173,6 +173,8 @@ export default function AddPersonScreen() {
               </View>
             </View>
           </View>
+
+          <View style={styles.bottomSpacer} />
         </ScrollView>
 
         <View style={styles.footer}>
@@ -273,6 +275,9 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 12,
     marginTop: 6,
+  },
+  bottomSpacer: {
+    height: 40,
   },
   footer: {
     flexDirection: 'row',
