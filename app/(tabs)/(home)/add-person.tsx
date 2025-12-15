@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity, TextInput, ScrollView, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
 import { IconSymbol } from '@/components/IconSymbol';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -74,150 +75,144 @@ export default function AddPersonScreen() {
     }
   };
 
-  // Calculate responsive dimensions
-  const headerHeight = Platform.OS === 'android' ? 60 : 44;
-  const keyboardVerticalOffset = Platform.OS === 'ios' ? 0 : 0;
-
   return (
     <SafeSpaceScreen scrollable={false} keyboardAware={false}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.container}
-        keyboardVerticalOffset={keyboardVerticalOffset}
-      >
-        <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? insets.top + 16 : insets.top }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <IconSymbol
-              ios_icon_name="chevron.left"
-              android_material_icon_name="arrow_back"
-              size={24}
-              color={theme.textPrimary}
-            />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Add Person</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          <Text style={[styles.title, { color: theme.textPrimary }]}>
-            Who would you like to add?
-          </Text>
-
-          <Text style={[styles.description, { color: theme.textSecondary }]}>
-            Add someone you&apos;d like to talk about in your Safe Space. This could be a friend,
-            family member, colleague, or anyone else.
-          </Text>
-
-          <View style={styles.form}>
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                Name <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[
-                styles.textInputWrapper, 
-                { 
-                  backgroundColor: theme.background, 
-                  borderWidth: 1.5, 
-                  borderColor: nameError ? '#FF3B30' : theme.primary 
-                }
-              ]}>
-                <TextInput
-                  style={[styles.textInput, { color: theme.textPrimary }]}
-                  placeholder="Enter their name"
-                  placeholderTextColor={theme.textSecondary}
-                  value={name}
-                  onChangeText={(text) => {
-                    console.log('[AddPerson] Name changed to:', text);
-                    setName(text);
-                    if (nameError && text.trim()) {
-                      setNameError('');
-                    }
-                  }}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  maxLength={50}
-                  editable={!saving}
-                  returnKeyType="next"
-                  autoFocus={true}
-                />
-              </View>
-              {nameError ? (
-                <Text style={styles.errorTextSmall}>{nameError}</Text>
-              ) : null}
-            </View>
-
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                Relationship Type
-              </Text>
-              <View style={[
-                styles.textInputWrapper, 
-                { 
-                  backgroundColor: theme.background, 
-                  borderWidth: 1.5, 
-                  borderColor: theme.primary 
-                }
-              ]}>
-                <TextInput
-                  style={[styles.textInput, { color: theme.textPrimary }]}
-                  placeholder="partner, ex, friend, parent..."
-                  placeholderTextColor={theme.textSecondary}
-                  value={relationshipType}
-                  onChangeText={(text) => {
-                    console.log('[AddPerson] Relationship type changed to:', text);
-                    setRelationshipType(text);
-                  }}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  maxLength={50}
-                  editable={!saving}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSave}
-                />
-              </View>
-            </View>
+      <KeyboardAvoider>
+        <View style={styles.container}>
+          <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? insets.top + 16 : insets.top }]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <IconSymbol
+                ios_icon_name="chevron.left"
+                android_material_icon_name="arrow_back"
+                size={24}
+                color={theme.textPrimary}
+              />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Add Person</Text>
+            <View style={styles.headerSpacer} />
           </View>
 
-          <View style={styles.bottomSpacer} />
-        </ScrollView>
-
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
-            disabled={saving}
-            activeOpacity={0.7}
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
           >
-            <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
-              Cancel
+            <Text style={[styles.title, { color: theme.textPrimary }]}>
+              Who would you like to add?
             </Text>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={handleSave}
-            style={styles.primaryButton}
-            disabled={saving}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={theme.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.primaryButtonGradient}
+            <Text style={[styles.description, { color: theme.textSecondary }]}>
+              Add someone you&apos;d like to talk about in your Safe Space. This could be a friend,
+              family member, colleague, or anyone else.
+            </Text>
+
+            <View style={styles.form}>
+              <View style={styles.fieldContainer}>
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                  Name <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={[
+                  styles.textInputWrapper, 
+                  { 
+                    backgroundColor: theme.background, 
+                    borderWidth: 1.5, 
+                    borderColor: nameError ? '#FF3B30' : theme.primary 
+                  }
+                ]}>
+                  <TextInput
+                    style={[styles.textInput, { color: theme.textPrimary }]}
+                    placeholder="Enter their name"
+                    placeholderTextColor={theme.textSecondary}
+                    value={name}
+                    onChangeText={(text) => {
+                      console.log('[AddPerson] Name changed to:', text);
+                      setName(text);
+                      if (nameError && text.trim()) {
+                        setNameError('');
+                      }
+                    }}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    maxLength={50}
+                    editable={!saving}
+                    returnKeyType="next"
+                    autoFocus={true}
+                  />
+                </View>
+                {nameError ? (
+                  <Text style={styles.errorTextSmall}>{nameError}</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.fieldContainer}>
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                  Relationship Type
+                </Text>
+                <View style={[
+                  styles.textInputWrapper, 
+                  { 
+                    backgroundColor: theme.background, 
+                    borderWidth: 1.5, 
+                    borderColor: theme.primary 
+                  }
+                ]}>
+                  <TextInput
+                    style={[styles.textInput, { color: theme.textPrimary }]}
+                    placeholder="partner, ex, friend, parent..."
+                    placeholderTextColor={theme.textSecondary}
+                    value={relationshipType}
+                    onChangeText={(text) => {
+                      console.log('[AddPerson] Relationship type changed to:', text);
+                      setRelationshipType(text);
+                    }}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    maxLength={50}
+                    editable={!saving}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSave}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.bottomSpacer} />
+          </ScrollView>
+
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+              disabled={saving}
+              activeOpacity={0.7}
             >
-              <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
-                {saving ? 'Saving...' : 'Save'}
+              <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
+                Cancel
               </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleSave}
+              style={styles.primaryButton}
+              disabled={saving}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={theme.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.primaryButtonGradient}
+              >
+                <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
+                  {saving ? 'Saving...' : 'Save'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
     </SafeSpaceScreen>
   );
 }
@@ -298,7 +293,7 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     paddingHorizontal: '5%',
-    paddingTop: 16,
+    paddingTop: 12,
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
