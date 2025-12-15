@@ -10,13 +10,17 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface PersonCardProps {
   person: Person & { lastMessage?: string };
   onPress: () => void;
+  isTopic?: boolean;
 }
 
-export function PersonCard({ person, onPress }: PersonCardProps) {
+export function PersonCard({ person, onPress, isTopic = false }: PersonCardProps) {
   const { theme } = useThemeContext();
 
   // Get first letter of name for avatar with null check
   const initial = person.name && person.name.length > 0 ? person.name.charAt(0).toUpperCase() : '?';
+
+  // Determine the label to show
+  const label = isTopic ? 'Topic' : person.relationship_type;
 
   return (
     <TouchableOpacity
@@ -36,9 +40,9 @@ export function PersonCard({ person, onPress }: PersonCardProps) {
           <Text style={[styles.name, { color: theme.textPrimary }]}>
             {person.name || 'Unknown'}
           </Text>
-          {person.relationship_type && (
+          {label && (
             <Text style={[styles.relationship, { color: theme.textSecondary }]}>
-              {person.relationship_type}
+              {label}
             </Text>
           )}
         </View>

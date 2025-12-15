@@ -63,6 +63,7 @@ export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
   const [persons, setPersons] = useState<PersonWithLastMessage[]>([]);
+  const [topics, setTopics] = useState<PersonWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -98,13 +99,14 @@ export default function HomeScreen() {
     try {
       setLoading(true);
       setError(null);
-      console.log('[Home] Fetching persons for user:', userId);
+      console.log('[Home] Fetching persons and topics for user:', userId);
       
-      // Always filter by user_id to prevent data leakage
+      // Fetch ONLY persons (exclude topics)
       const { data: personsData, error: personsError } = await supabase
         .from('persons')
         .select('*')
         .eq('user_id', userId)
+        .neq('relationship_type', 'Topic')
         .order('created_at', { ascending: false });
 
       if (personsError) {
@@ -116,49 +118,94 @@ export default function HomeScreen() {
         return;
       }
 
-      console.log('[Home] Persons loaded:', personsData?.length || 0);
+      // Fetch ONLY topics
+      const { data: topicsData, error: topicsError } = await supabase
+        .from('persons')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('relationship_type', 'Topic')
+        .order('created_at', { ascending: false });
 
-      if (!personsData || personsData.length === 0) {
+      if (topicsError) {
+        console.error('[Home] Error fetching topics:', topicsError);
         if (isMountedRef.current) {
-          setPersons([]);
+          setError('Failed to load your topics. Please try again.');
+          showErrorToast('Failed to load your topics');
         }
         return;
       }
 
-      const personsWithMessages = await Promise.all(
-        personsData.map(async (person) => {
-          try {
-            // Always filter by BOTH user_id AND person_id
-            const { data: messages } = await supabase
-              .from('messages')
-              .select('content, created_at, role')
-              .eq('user_id', userId)
-              .eq('person_id', person.id)
-              .order('created_at', { ascending: false })
-              .limit(1);
+      console.log('[Home] Persons loaded:', personsData?.length || 0);
+      console.log('[Home] Topics loaded:', topicsData?.length || 0);
 
-            const lastMessage = messages?.[0];
-            return {
-              ...person,
-              lastMessage: lastMessage?.content || 'No messages yet',
-              lastMessageTime: lastMessage?.created_at,
-            };
-          } catch (err) {
-            console.error('[Home] Error fetching messages for person:', person.id, err);
-            return {
-              ...person,
-              lastMessage: 'No messages yet',
-              lastMessageTime: undefined,
-            };
-          }
-        })
-      );
+      // Process persons with last messages
+      const personsWithMessages = personsData && personsData.length > 0 
+        ? await Promise.all(
+            personsData.map(async (person) => {
+              try {
+                const { data: messages } = await supabase
+                  .from('messages')
+                  .select('content, created_at, role')
+                  .eq('user_id', userId)
+                  .eq('person_id', person.id)
+                  .order('created_at', { ascending: false })
+                  .limit(1);
+
+                const lastMessage = messages?.[0];
+                return {
+                  ...person,
+                  lastMessage: lastMessage?.content || 'No messages yet',
+                  lastMessageTime: lastMessage?.created_at,
+                };
+              } catch (err) {
+                console.error('[Home] Error fetching messages for person:', person.id, err);
+                return {
+                  ...person,
+                  lastMessage: 'No messages yet',
+                  lastMessageTime: undefined,
+                };
+              }
+            })
+          )
+        : [];
+
+      // Process topics with last messages
+      const topicsWithMessages = topicsData && topicsData.length > 0
+        ? await Promise.all(
+            topicsData.map(async (topic) => {
+              try {
+                const { data: messages } = await supabase
+                  .from('messages')
+                  .select('content, created_at, role')
+                  .eq('user_id', userId)
+                  .eq('person_id', topic.id)
+                  .order('created_at', { ascending: false })
+                  .limit(1);
+
+                const lastMessage = messages?.[0];
+                return {
+                  ...topic,
+                  lastMessage: lastMessage?.content || 'No messages yet',
+                  lastMessageTime: lastMessage?.created_at,
+                };
+              } catch (err) {
+                console.error('[Home] Error fetching messages for topic:', topic.id, err);
+                return {
+                  ...topic,
+                  lastMessage: 'No messages yet',
+                  lastMessageTime: undefined,
+                };
+              }
+            })
+          )
+        : [];
 
       if (isMountedRef.current) {
         setPersons(personsWithMessages);
+        setTopics(topicsWithMessages);
       }
     } catch (error: any) {
-      console.error('[Home] Unexpected error fetching persons:', error);
+      console.error('[Home] Unexpected error fetching data:', error);
       if (isMountedRef.current) {
         setError('An unexpected error occurred. Please try again.');
         showErrorToast('Failed to load data');
@@ -178,20 +225,20 @@ export default function HomeScreen() {
     }
   }, [userId, fetchPersonsWithLastMessage]);
 
-  const handleDeletePerson = useCallback(async (personId: string) => {
+  const handleDeletePerson = useCallback(async (personId: string, isTopicType: boolean = false) => {
     if (!personId) {
-      console.error('[Home] Cannot delete person - personId is missing');
-      showErrorToast('Invalid person data');
+      console.error('[Home] Cannot delete - personId is missing');
+      showErrorToast('Invalid data');
       return;
     }
 
     if (!userId) {
-      console.error('[Home] Cannot delete person - userId is missing');
+      console.error('[Home] Cannot delete - userId is missing');
       showErrorToast('You must be logged in');
       return;
     }
 
-    console.log('[Home] Deleting person:', personId);
+    console.log('[Home] Deleting:', isTopicType ? 'topic' : 'person', personId);
 
     try {
       // Delete messages with BOTH user_id AND person_id filter
@@ -207,36 +254,39 @@ export default function HomeScreen() {
         return;
       }
 
-      // Delete person with BOTH id AND user_id filter
-      const { error: personError } = await supabase
+      // Delete person/topic with BOTH id AND user_id filter
+      const { error: deleteError } = await supabase
         .from('persons')
         .delete()
         .eq('id', personId)
         .eq('user_id', userId);
 
-      if (personError) {
-        console.error('[Home] Error deleting person:', personError);
-        showErrorToast('Failed to delete person');
+      if (deleteError) {
+        console.error('[Home] Error deleting:', deleteError);
+        showErrorToast(isTopicType ? 'Failed to delete topic' : 'Failed to delete person');
         return;
       }
 
       // Update local state
       if (isMountedRef.current) {
-        setPersons(prev => prev.filter(p => p.id !== personId));
-        showSuccessToast('Person deleted');
+        if (isTopicType) {
+          setTopics(prev => prev.filter(t => t.id !== personId));
+          showSuccessToast('Topic deleted');
+        } else {
+          setPersons(prev => prev.filter(p => p.id !== personId));
+          showSuccessToast('Person deleted');
+        }
       }
 
-      console.log('[Home] Person deleted successfully');
+      console.log('[Home] Deleted successfully');
     } catch (error: any) {
-      console.error('[Home] Unexpected error deleting person:', error);
+      console.error('[Home] Unexpected error deleting:', error);
       showErrorToast('An unexpected error occurred');
     }
   }, [userId]);
 
   /**
-   * SIMPLIFIED: Filter and deduplicate persons without grouping by relationship
-   * - All people appear in a single unified list
-   * - Ordered by most recently added (created_at DESC)
+   * Filter persons (exclude topics)
    */
   const filteredPersons = useMemo(() => {
     const filtered = persons.filter((person) => {
@@ -254,16 +304,13 @@ export default function HomeScreen() {
     const dedupedPersons: PersonWithLastMessage[] = [];
     
     filtered.forEach((person) => {
-      // Generate a stable unique key
       const personKey = person.id || `${userId}:${person.name?.toLowerCase() || 'unknown'}`;
       
-      // Skip if we've already processed this person
       if (seenPersonIds.has(personKey)) {
         console.warn('[Home] Skipping duplicate person:', personKey, person.name);
         return;
       }
 
-      // Mark this person as seen
       seenPersonIds.add(personKey);
       dedupedPersons.push(person);
     });
@@ -272,16 +319,42 @@ export default function HomeScreen() {
     return dedupedPersons;
   }, [persons, searchQuery, userId]);
 
+  /**
+   * Filter topics
+   */
+  const filteredTopics = useMemo(() => {
+    const filtered = topics.filter((topic) => {
+      if (!searchQuery.trim()) return true;
+      
+      const query = searchQuery.toLowerCase();
+      const nameMatch = topic.name?.toLowerCase().includes(query) || false;
+      
+      return nameMatch;
+    });
+
+    // Deduplicate by topic.id
+    const seenTopicIds = new Set<string>();
+    const dedupedTopics: PersonWithLastMessage[] = [];
+    
+    filtered.forEach((topic) => {
+      const topicKey = topic.id || `${userId}:${topic.name?.toLowerCase() || 'unknown'}`;
+      
+      if (seenTopicIds.has(topicKey)) {
+        console.warn('[Home] Skipping duplicate topic:', topicKey, topic.name);
+        return;
+      }
+
+      seenTopicIds.add(topicKey);
+      dedupedTopics.push(topic);
+    });
+
+    console.log('[Home] Filtered topics count:', dedupedTopics.length);
+    return dedupedTopics;
+  }, [topics, searchQuery, userId]);
+
   const handleAddPerson = useCallback(() => {
     console.log('[Home] handleAddPerson called, isPremium:', isPremium, 'persons.length:', persons.length);
     
-    // TEMPORARILY DISABLED: Premium lock for testing
-    // if (!isPremium && persons.length >= 2) {
-    //   console.log('[Home] Free user limit reached, showing premium modal');
-    //   setShowPremiumModal(true);
-    //   return;
-    // }
-
     console.log('[Home] Opening Add Person modal');
     setShowAddModal(true);
     setName('');
@@ -302,7 +375,7 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * Handle person creation with duplicate checking
+   * Handle person creation (NOT topics)
    */
   const handleSave = useCallback(async () => {
     console.log('[Home] handleSave called with name:', name, 'relationshipType:', relationshipType);
@@ -326,13 +399,14 @@ export default function HomeScreen() {
     try {
       const trimmedName = name.trim();
       
-      // Check if person already exists (case-insensitive)
+      // Check if person already exists (case-insensitive, exclude topics)
       console.log('[Home] Checking for existing person with name:', trimmedName);
       const { data: existingPerson, error: queryError } = await supabase
         .from('persons')
         .select('*')
         .eq('user_id', userId)
         .ilike('name', trimmedName)
+        .neq('relationship_type', 'Topic')
         .maybeSingle();
 
       if (queryError && queryError.code !== 'PGRST116') {
@@ -372,7 +446,7 @@ export default function HomeScreen() {
         return;
       }
 
-      // Insert new person
+      // Insert new person (NOT a topic)
       const personData = {
         user_id: userId,
         name: trimmedName,
@@ -389,20 +463,6 @@ export default function HomeScreen() {
 
       if (error) {
         console.error('[Home] Error creating person:', error);
-        
-        // Handle duplicate person error gracefully (error code 23505)
-        if (error.code === '23505') {
-          console.log('[Home] Duplicate key error caught, reloading persons list');
-          if (isMountedRef.current) {
-            setNameError('You already have a person with this name');
-            showErrorToast('This person already exists');
-            
-            // Reload persons list to ensure UI is in sync
-            await fetchPersonsWithLastMessage();
-            setSaving(false);
-          }
-          return;
-        }
         
         if (isMountedRef.current) {
           showErrorToast('Failed to add person. Please try again.');
@@ -463,6 +523,31 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const handleTopicPress = useCallback((topic: Person) => {
+    if (!topic.id) {
+      console.error('[Home] Cannot navigate to chat - topic.id is missing');
+      showErrorToast('Invalid topic data');
+      return;
+    }
+
+    console.log('[Home] Navigating to chat for topic:', topic.name, 'id:', topic.id);
+    
+    try {
+      router.push({
+        pathname: '/(tabs)/(home)/chat',
+        params: { 
+          personId: topic.id, 
+          personName: topic.name || 'Topic',
+          relationshipType: 'Topic',
+          initialSubject: topic.name
+        },
+      });
+    } catch (error) {
+      console.error('[Home] Navigation error:', error);
+      showErrorToast('Failed to open chat');
+    }
+  }, []);
+
   const handleSettingsPress = useCallback(() => {
     try {
       router.push('/(tabs)/settings');
@@ -505,18 +590,11 @@ export default function HomeScreen() {
   // Subject/Topic modal handlers
   const handleAddSubject = useCallback(() => {
     console.log('[Home] Opening Add Subject modal');
-    
-    // TEMPORARILY DISABLED: Premium lock for testing
-    // if (!isPremium && persons.length >= 2) {
-    //   console.log('[Home] Free user limit reached, showing premium modal');
-    //   setShowPremiumModal(true);
-    //   return;
-    // }
 
     setShowSubjectModal(true);
     setSelectedTopic(null);
     setCustomTopic('');
-  }, [isPremium, persons.length]);
+  }, [isPremium, topics.length]);
 
   const handleCloseSubjectModal = useCallback(() => {
     console.log('[Home] Closing Add Subject modal');
@@ -531,7 +609,7 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * Handle subject/topic creation with duplicate checking
+   * Handle topic creation (NOT persons)
    */
   const handleSaveSubject = useCallback(async () => {
     const subjectString = customTopic.trim() || selectedTopic;
@@ -554,31 +632,32 @@ export default function HomeScreen() {
     try {
       // Check for existing topic with case-insensitive name match
       console.log('[Home] Checking for existing topic with name:', subjectString);
-      const { data: existingPerson, error: queryError } = await supabase
+      const { data: existingTopic, error: queryError } = await supabase
         .from('persons')
         .select('*')
         .eq('user_id', userId)
+        .eq('relationship_type', 'Topic')
         .ilike('name', subjectString)
         .maybeSingle();
 
       if (queryError && queryError.code !== 'PGRST116') {
-        console.error('[Home] Error querying persons:', queryError);
-        showErrorToast('Failed to check existing subjects');
+        console.error('[Home] Error querying topics:', queryError);
+        showErrorToast('Failed to check existing topics');
         setSavingSubject(false);
         return;
       }
 
-      let person: Person;
+      let topic: Person;
 
-      if (existingPerson) {
-        // Row already exists, use it
-        console.log('[Home] Subject already exists, using existing person:', existingPerson);
-        person = existingPerson;
+      if (existingTopic) {
+        // Topic already exists, use it
+        console.log('[Home] Topic already exists, using existing topic:', existingTopic);
+        topic = existingTopic;
         showErrorToast('This topic already exists');
       } else {
-        // Insert new row with user_id
-        console.log('[Home] Creating new subject person');
-        const { data: newPerson, error: insertError } = await supabase
+        // Insert new topic with relationship_type = 'Topic'
+        console.log('[Home] Creating new topic');
+        const { data: newTopic, error: insertError } = await supabase
           .from('persons')
           .insert([{
             user_id: userId,
@@ -589,36 +668,24 @@ export default function HomeScreen() {
           .single();
 
         if (insertError) {
-          console.error('[Home] Error creating subject person:', insertError);
-          
-          // Handle duplicate error gracefully (error code 23505)
-          if (insertError.code === '23505') {
-            console.log('[Home] Duplicate key error for topic, reloading persons list');
-            showErrorToast('This topic already exists');
-            
-            // Reload persons list to ensure UI is in sync
-            await fetchPersonsWithLastMessage();
-            setSavingSubject(false);
-            return;
-          }
-          
-          showErrorToast('Failed to create subject');
+          console.error('[Home] Error creating topic:', insertError);
+          showErrorToast('Failed to create topic');
           setSavingSubject(false);
           return;
         }
 
-        console.log('[Home] Subject person created:', newPerson);
-        person = newPerson;
+        console.log('[Home] Topic created:', newTopic);
+        topic = newTopic;
       }
 
-      if (!person.id) {
-        console.error('[Home] Person ID is missing');
-        showErrorToast('Invalid subject data');
+      if (!topic.id) {
+        console.error('[Home] Topic ID is missing');
+        showErrorToast('Invalid topic data');
         setSavingSubject(false);
         return;
       }
 
-      console.log('[Home] Navigating to chat for subject:', person.name, 'id:', person.id);
+      console.log('[Home] Navigating to chat for topic:', topic.name, 'id:', topic.id);
 
       // Close modal
       setShowSubjectModal(false);
@@ -629,18 +696,18 @@ export default function HomeScreen() {
       router.push({
         pathname: '/(tabs)/(home)/chat',
         params: {
-          personId: person.id,
-          personName: person.name || 'Topic',
-          relationshipType: person.relationship_type || '',
+          personId: topic.id,
+          personName: topic.name || 'Topic',
+          relationshipType: 'Topic',
           initialSubject: subjectString,
         },
       });
 
-      // Refresh persons list to show the new topic
+      // Refresh lists to show the new topic
       await fetchPersonsWithLastMessage();
 
     } catch (error: any) {
-      console.error('[Home] Unexpected error saving subject:', error);
+      console.error('[Home] Unexpected error saving topic:', error);
       showErrorToast('An unexpected error occurred');
     } finally {
       if (isMountedRef.current) {
@@ -658,6 +725,9 @@ export default function HomeScreen() {
   if (!currentUser) {
     return <Redirect href="/onboarding" />;
   }
+
+  const hasAnyData = persons.length > 0 || topics.length > 0;
+  const hasFilteredResults = filteredPersons.length > 0 || filteredTopics.length > 0;
 
   return (
     <>
@@ -726,7 +796,7 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              {persons.length > 0 && (
+              {hasAnyData && (
                 <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                   <IconSymbol
                     ios_icon_name="magnifyingglass"
@@ -800,19 +870,19 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {!error && persons.length === 0 && !loading ? (
+              {!error && !hasAnyData && !loading ? (
                 <View style={styles.emptyState}>
                   <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                     <SafeSpaceLogo size={48} color={theme.primary} />
                   </View>
-                  <Text style={[styles.emptyText, { color: theme.buttonText }]}>No one added yet</Text>
+                  <Text style={[styles.emptyText, { color: theme.buttonText }]}>Nothing added yet</Text>
                   <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-                    Tap &apos;Add Person&apos; to start
+                    Tap &apos;Add Person&apos; or &apos;Add Topic&apos; to start
                   </Text>
                 </View>
               ) : !error && !loading ? (
-                <View style={styles.peopleList}>
-                  {filteredPersons.length === 0 ? (
+                <>
+                  {!hasFilteredResults && searchQuery.trim() ? (
                     <View style={styles.noResultsContainer}>
                       <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
                         No matches found
@@ -823,36 +893,73 @@ export default function HomeScreen() {
                     </View>
                   ) : (
                     <>
-                      <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
-                        People
-                      </Text>
+                      {/* PEOPLE SECTION */}
+                      {filteredPersons.length > 0 && (
+                        <View style={styles.section}>
+                          <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
+                            People
+                          </Text>
 
-                      <View style={styles.peopleCards}>
-                        {filteredPersons.map((person, personIndex) => {
-                          if (!person) return null;
+                          <View style={styles.cards}>
+                            {filteredPersons.map((person, personIndex) => {
+                              if (!person) return null;
 
-                          // Use person.id as key (or fallback)
-                          const personKey = person.id || `${userId}:${person.name?.toLowerCase() || personIndex}`;
+                              const personKey = person.id || `person-${userId}:${person.name?.toLowerCase() || personIndex}`;
 
-                          return (
-                            <Swipeable
-                              key={personKey}
-                              renderRightActions={() => (
-                                <DeleteAction onPress={() => handleDeletePerson(person.id!)} />
-                              )}
-                              overshootRight={false}
-                            >
-                              <PersonCard
-                                person={person}
-                                onPress={() => handlePersonPress(person)}
-                              />
-                            </Swipeable>
-                          );
-                        })}
-                      </View>
+                              return (
+                                <Swipeable
+                                  key={personKey}
+                                  renderRightActions={() => (
+                                    <DeleteAction onPress={() => handleDeletePerson(person.id!, false)} />
+                                  )}
+                                  overshootRight={false}
+                                >
+                                  <PersonCard
+                                    person={person}
+                                    onPress={() => handlePersonPress(person)}
+                                  />
+                                </Swipeable>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      )}
+
+                      {/* TOPICS SECTION */}
+                      {filteredTopics.length > 0 && (
+                        <View style={styles.section}>
+                          <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
+                            Topics
+                          </Text>
+
+                          <View style={styles.cards}>
+                            {filteredTopics.map((topic, topicIndex) => {
+                              if (!topic) return null;
+
+                              const topicKey = topic.id || `topic-${userId}:${topic.name?.toLowerCase() || topicIndex}`;
+
+                              return (
+                                <Swipeable
+                                  key={topicKey}
+                                  renderRightActions={() => (
+                                    <DeleteAction onPress={() => handleDeletePerson(topic.id!, true)} />
+                                  )}
+                                  overshootRight={false}
+                                >
+                                  <PersonCard
+                                    person={topic}
+                                    onPress={() => handleTopicPress(topic)}
+                                    isTopic={true}
+                                  />
+                                </Swipeable>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      )}
                     </>
                   )}
-                </View>
+                </>
               ) : null}
             </ScrollView>
 
@@ -1377,8 +1484,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  peopleList: {
-    paddingBottom: 20,
+  section: {
+    marginBottom: 32,
   },
   sectionHeader: {
     fontSize: 18,
@@ -1386,7 +1493,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     opacity: 0.9,
   },
-  peopleCards: {
+  cards: {
     gap: 12,
   },
   noResultsContainer: {
