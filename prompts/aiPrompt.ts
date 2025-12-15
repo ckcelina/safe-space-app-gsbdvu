@@ -120,7 +120,7 @@ Please tailor your response to this specific subject. Acknowledge what the user 
 /**
  * Detect if conversation mentions death/loss
  */
-export function detectDeathMention(messages: Array<{ content: string }>): boolean {
+export function detectDeathMention(messages: { content: string }[]): boolean {
   const conversationText = messages.map(m => m.content).join(' ').toLowerCase();
   return (
     conversationText.includes('passed away') ||

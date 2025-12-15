@@ -11,8 +11,6 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,6 +26,8 @@ import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast } from '@/utils/toast';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Default subjects list
 const DEFAULT_SUBJECTS = [
@@ -169,9 +169,12 @@ export default function ChatScreen() {
       console.log('[Chat] Setting initial subject from params:', initialSubject);
       
       // Add to available subjects if not already present
-      if (!availableSubjects.includes(initialSubject)) {
-        setAvailableSubjects((prev) => [...prev, initialSubject]);
-      }
+      setAvailableSubjects((prev) => {
+        if (!prev.includes(initialSubject)) {
+          return [...prev, initialSubject];
+        }
+        return prev;
+      });
       
       // Set as current subject
       setCurrentSubject(initialSubject);
@@ -586,13 +589,16 @@ export default function ChatScreen() {
 
     console.log('[Chat] Saving subject:', newSubject);
 
-    if (!availableSubjects.includes(newSubject)) {
-      setAvailableSubjects((prev) => [...prev, newSubject]);
-    }
+    setAvailableSubjects((prev) => {
+      if (!prev.includes(newSubject)) {
+        return [...prev, newSubject];
+      }
+      return prev;
+    });
 
     setCurrentSubject(newSubject);
     closeAddSubjectModal();
-  }, [customSubjectInput, quickSelectedSubject, availableSubjects, closeAddSubjectModal]);
+  }, [customSubjectInput, quickSelectedSubject, closeAddSubjectModal]);
 
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>

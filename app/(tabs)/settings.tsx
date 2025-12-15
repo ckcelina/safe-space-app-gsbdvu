@@ -14,8 +14,6 @@ import {
   Dimensions,
   KeyboardAvoidingView,
 } from 'react-native';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +26,8 @@ import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();

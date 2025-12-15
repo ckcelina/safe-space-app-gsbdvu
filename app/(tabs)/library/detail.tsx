@@ -1,21 +1,21 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, ActivityIndicator, Dimensions } from 'react-native';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
-import { Ionicons } from '@expo/vector-icons';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { supabase } from '@/lib/supabase';
 import { showErrorToast } from '@/utils/toast';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Haptics from 'expo-haptics';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
 
@@ -107,11 +107,7 @@ export default function LibraryDetailScreen() {
   const topic: Topic | undefined = libraryTopics.find(t => t.id === topicId);
 
   // Load saved status on mount
-  useEffect(() => {
-    loadSavedStatus();
-  }, [topicId]);
-
-  const loadSavedStatus = async () => {
+  const loadSavedStatus = useCallback(async () => {
     try {
       const saved = await AsyncStorage.getItem(SAVED_TOPICS_KEY);
       if (saved) {
@@ -121,7 +117,11 @@ export default function LibraryDetailScreen() {
     } catch (error) {
       console.error('[LibraryDetail] Error loading saved status:', error);
     }
-  };
+  }, [topicId]);
+
+  useEffect(() => {
+    loadSavedStatus();
+  }, [loadSavedStatus]);
 
   const toggleSaveTopic = async () => {
     try {
