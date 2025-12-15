@@ -151,7 +151,7 @@ export default function AddPersonScreen() {
                     maxLength={50}
                     editable={!saving}
                     returnKeyType="next"
-                    autoFocus={true}
+                    autoFocus={false}
                     cursorColor={theme.primary}
                     selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
                   />
@@ -193,6 +193,7 @@ export default function AddPersonScreen() {
                     editable={!saving}
                     returnKeyType="done"
                     onSubmitEditing={handleSave}
+                    autoFocus={false}
                     cursorColor={theme.primary}
                     selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
                   />

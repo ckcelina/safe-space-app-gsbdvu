@@ -18,6 +18,7 @@ import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
@@ -82,6 +83,11 @@ export default function HomeScreen() {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [customTopic, setCustomTopic] = useState('');
   const [savingSubject, setSavingSubject] = useState(false);
+
+  // Focus states for modals
+  const [nameInputFocused, setNameInputFocused] = useState(false);
+  const [relationshipInputFocused, setRelationshipInputFocused] = useState(false);
+  const [customTopicFocused, setCustomTopicFocused] = useState(false);
 
   // Use ref to track if component is mounted
   const isMountedRef = useRef(true);
@@ -335,6 +341,8 @@ export default function HomeScreen() {
     setName('');
     setRelationshipType('');
     setNameError('');
+    setNameInputFocused(false);
+    setRelationshipInputFocused(false);
   }, []);
 
   const handleCloseModal = useCallback(() => {
@@ -343,6 +351,8 @@ export default function HomeScreen() {
     setName('');
     setRelationshipType('');
     setNameError('');
+    setNameInputFocused(false);
+    setRelationshipInputFocused(false);
   }, []);
 
   const handleClosePremiumModal = useCallback(() => {
@@ -525,6 +535,7 @@ export default function HomeScreen() {
     setShowSubjectModal(true);
     setSelectedTopic(null);
     setCustomTopic('');
+    setCustomTopicFocused(false);
   }, []);
 
   const handleCloseSubjectModal = useCallback(() => {
@@ -532,6 +543,7 @@ export default function HomeScreen() {
     setShowSubjectModal(false);
     setSelectedTopic(null);
     setCustomTopic('');
+    setCustomTopicFocused(false);
   }, []);
 
   const handleTopicSelect = useCallback((topic: string) => {
@@ -866,271 +878,285 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
+            {/* Add Person Modal */}
             <SwipeableModal
               visible={showAddModal}
               onClose={handleCloseModal}
               animationType="slide"
               showHandle={true}
             >
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.modalKeyboardView}
-                keyboardVerticalOffset={0}
-              >
-                <View style={styles.modalHeader}>
-                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
-                  <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
-                    <IconSymbol
-                      ios_icon_name="xmark"
-                      android_material_icon_name="close"
-                      size={24}
-                      color={theme.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView
-                  style={styles.modalBody}
-                  contentContainerStyle={styles.modalBodyContent}
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
-                  bounces={false}
-                >
-                  <View style={styles.fieldContainer}>
-                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                      Name <Text style={styles.required}>*</Text>
-                    </Text>
-                    <View style={[
-                      styles.textInputWrapper, 
-                      { 
-                        backgroundColor: theme.background, 
-                        borderWidth: 1.5, 
-                        borderColor: nameError ? '#FF3B30' : theme.textSecondary + '40'
-                      }
-                    ]}>
-                      <TextInput
-                        style={[styles.textInput, { color: theme.textPrimary }]}
-                        placeholder="Enter their name"
-                        placeholderTextColor={theme.textSecondary}
-                        value={name}
-                        onChangeText={(text) => {
-                          console.log('[Home] Name changed to:', text);
-                          setName(text);
-                          if (nameError && text.trim()) {
-                            setNameError('');
-                          }
-                        }}
-                        autoCapitalize="words"
-                        autoCorrect={false}
-                        maxLength={50}
-                        editable={!saving}
-                        returnKeyType="next"
-                        autoFocus={true}
-                        cursorColor={theme.primary}
-                        selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+              <KeyboardAvoider>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Person</Text>
+                    <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
+                      <IconSymbol
+                        ios_icon_name="xmark"
+                        android_material_icon_name="close"
+                        size={24}
+                        color={theme.textSecondary}
                       />
-                    </View>
-                    {nameError ? (
-                      <Text style={styles.errorTextSmall}>{nameError}</Text>
-                    ) : null}
+                    </TouchableOpacity>
                   </View>
 
-                  <View style={styles.fieldContainer}>
-                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                      Relationship Type
-                    </Text>
-                    <View style={[
-                      styles.textInputWrapper, 
-                      { 
-                        backgroundColor: theme.background, 
-                        borderWidth: 1.5, 
-                        borderColor: theme.textSecondary + '40'
-                      }
-                    ]}>
-                      <TextInput
-                        style={[styles.textInput, { color: theme.textPrimary }]}
-                        placeholder="partner, ex, friend, parent..."
-                        placeholderTextColor={theme.textSecondary}
-                        value={relationshipType}
-                        onChangeText={(text) => {
-                          console.log('[Home] Relationship type changed to:', text);
-                          setRelationshipType(text);
-                        }}
-                        autoCapitalize="words"
-                        autoCorrect={false}
-                        maxLength={50}
-                        editable={!saving}
-                        returnKeyType="done"
-                        onSubmitEditing={handleSave}
-                        cursorColor={theme.primary}
-                        selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-                      />
-                    </View>
-                  </View>
-                </ScrollView>
-
-                <View style={styles.modalFooter}>
-                  <TouchableOpacity
-                    onPress={handleCloseModal}
-                    style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
-                    disabled={saving}
-                    activeOpacity={0.7}
+                  <ScrollView
+                    style={styles.modalBody}
+                    contentContainerStyle={styles.modalBodyContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
                   >
-                    <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleSave}
-                    style={styles.primaryButton}
-                    disabled={saving}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={theme.primaryGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.primaryButtonGradient}
-                    >
-                      <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
-                        {saving ? 'Saving...' : 'Save'}
+                    <View style={styles.fieldContainer}>
+                      <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                        Name <Text style={styles.required}>*</Text>
                       </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                      <View style={[
+                        styles.textInputWrapper, 
+                        { 
+                          backgroundColor: theme.background, 
+                          borderWidth: nameInputFocused ? 2 : 1.5, 
+                          borderColor: nameError 
+                            ? '#FF3B30' 
+                            : nameInputFocused 
+                              ? theme.primary 
+                              : theme.textSecondary + '40'
+                        }
+                      ]}>
+                        <TextInput
+                          style={[styles.textInput, { color: theme.textPrimary }]}
+                          placeholder="Enter their name"
+                          placeholderTextColor={theme.textSecondary}
+                          value={name}
+                          onChangeText={(text) => {
+                            console.log('[Home] Name changed to:', text);
+                            setName(text);
+                            if (nameError && text.trim()) {
+                              setNameError('');
+                            }
+                          }}
+                          onFocus={() => setNameInputFocused(true)}
+                          onBlur={() => setNameInputFocused(false)}
+                          autoCapitalize="words"
+                          autoCorrect={false}
+                          maxLength={50}
+                          editable={!saving}
+                          returnKeyType="next"
+                          autoFocus={false}
+                          cursorColor={theme.primary}
+                          selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                        />
+                      </View>
+                      {nameError ? (
+                        <Text style={styles.errorTextSmall}>{nameError}</Text>
+                      ) : null}
+                    </View>
+
+                    <View style={styles.fieldContainer}>
+                      <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                        Relationship Type
+                      </Text>
+                      <View style={[
+                        styles.textInputWrapper, 
+                        { 
+                          backgroundColor: theme.background, 
+                          borderWidth: relationshipInputFocused ? 2 : 1.5, 
+                          borderColor: relationshipInputFocused 
+                            ? theme.primary 
+                            : theme.textSecondary + '40'
+                        }
+                      ]}>
+                        <TextInput
+                          style={[styles.textInput, { color: theme.textPrimary }]}
+                          placeholder="partner, ex, friend, parent..."
+                          placeholderTextColor={theme.textSecondary}
+                          value={relationshipType}
+                          onChangeText={(text) => {
+                            console.log('[Home] Relationship type changed to:', text);
+                            setRelationshipType(text);
+                          }}
+                          onFocus={() => setRelationshipInputFocused(true)}
+                          onBlur={() => setRelationshipInputFocused(false)}
+                          autoCapitalize="words"
+                          autoCorrect={false}
+                          maxLength={50}
+                          editable={!saving}
+                          returnKeyType="done"
+                          onSubmitEditing={handleSave}
+                          autoFocus={false}
+                          cursorColor={theme.primary}
+                          selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                        />
+                      </View>
+                    </View>
+                  </ScrollView>
+
+                  <View style={styles.modalFooter}>
+                    <TouchableOpacity
+                      onPress={handleCloseModal}
+                      style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                      disabled={saving}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={handleSave}
+                      style={styles.primaryButton}
+                      disabled={saving}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={theme.primaryGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.primaryButtonGradient}
+                      >
+                        <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
+                          {saving ? 'Saving...' : 'Save'}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </KeyboardAvoidingView>
+              </KeyboardAvoider>
             </SwipeableModal>
 
+            {/* Add Topic Modal */}
             <SwipeableModal
               visible={showSubjectModal}
               onClose={handleCloseSubjectModal}
               animationType="slide"
               showHandle={true}
             >
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.modalKeyboardView}
-                keyboardVerticalOffset={0}
-              >
-                <View style={styles.modalHeader}>
-                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Topic</Text>
-                  <TouchableOpacity onPress={handleCloseSubjectModal} style={styles.closeButton}>
-                    <IconSymbol
-                      ios_icon_name="xmark"
-                      android_material_icon_name="close"
-                      size={24}
-                      color={theme.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView
-                  style={styles.modalBody}
-                  contentContainerStyle={styles.modalBodyContent}
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
-                  bounces={false}
-                >
-                  <Text style={[styles.helperText, { color: theme.textSecondary }]}>
-                    What would you like to focus on?
-                  </Text>
-
-                  <View style={styles.topicsContainer}>
-                    {QUICK_TOPICS.map((topic, index) => (
-                      <TouchableOpacity
-                        key={`topic-${index}`}
-                        onPress={() => handleTopicSelect(topic)}
-                        activeOpacity={0.7}
-                        style={[
-                          styles.topicChip,
-                          {
-                            backgroundColor: selectedTopic === topic 
-                              ? theme.primary 
-                              : theme.background,
-                            borderWidth: 1.5,
-                            borderColor: selectedTopic === topic 
-                              ? theme.primary 
-                              : theme.textSecondary + '40',
-                          }
-                        ]}
-                      >
-                        <Text style={[
-                          styles.topicChipText,
-                          {
-                            color: selectedTopic === topic 
-                              ? theme.buttonText 
-                              : theme.textPrimary,
-                          }
-                        ]}>
-                          {topic}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <View style={styles.fieldContainer}>
-                    <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                      Custom subject or topic
-                    </Text>
-                    <View style={[
-                      styles.textInputWrapper, 
-                      { 
-                        backgroundColor: theme.background, 
-                        borderWidth: 1.5, 
-                        borderColor: theme.textSecondary + '40'
-                      }
-                    ]}>
-                      <TextInput
-                        style={[styles.textInput, { color: theme.textPrimary }]}
-                        placeholder="Enter your own subject..."
-                        placeholderTextColor={theme.textSecondary}
-                        value={customTopic}
-                        onChangeText={setCustomTopic}
-                        autoCapitalize="sentences"
-                        autoCorrect={false}
-                        maxLength={100}
-                        returnKeyType="done"
-                        onSubmitEditing={handleSaveSubject}
-                        editable={!savingSubject}
-                        cursorColor={theme.primary}
-                        selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+              <KeyboardAvoider>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Topic</Text>
+                    <TouchableOpacity onPress={handleCloseSubjectModal} style={styles.closeButton}>
+                      <IconSymbol
+                        ios_icon_name="xmark"
+                        android_material_icon_name="close"
+                        size={24}
+                        color={theme.textSecondary}
                       />
-                    </View>
+                    </TouchableOpacity>
                   </View>
-                </ScrollView>
 
-                <View style={styles.modalFooter}>
-                  <TouchableOpacity
-                    onPress={handleCloseSubjectModal}
-                    style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
-                    disabled={savingSubject}
-                    activeOpacity={0.7}
+                  <ScrollView
+                    style={styles.modalBody}
+                    contentContainerStyle={styles.modalBodyContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
                   >
-                    <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
-                      Cancel
+                    <Text style={[styles.helperText, { color: theme.textSecondary }]}>
+                      What would you like to focus on?
                     </Text>
-                  </TouchableOpacity>
 
-                  <TouchableOpacity
-                    onPress={handleSaveSubject}
-                    style={styles.primaryButton}
-                    disabled={savingSubject}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={theme.primaryGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.primaryButtonGradient}
-                    >
-                      <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
-                        {savingSubject ? 'Saving...' : 'Save'}
+                    <View style={styles.topicsContainer}>
+                      {QUICK_TOPICS.map((topic, index) => (
+                        <TouchableOpacity
+                          key={`topic-${index}`}
+                          onPress={() => handleTopicSelect(topic)}
+                          activeOpacity={0.7}
+                          style={[
+                            styles.topicChip,
+                            {
+                              backgroundColor: selectedTopic === topic 
+                                ? theme.primary 
+                                : theme.background,
+                              borderWidth: 1.5,
+                              borderColor: selectedTopic === topic 
+                                ? theme.primary 
+                                : theme.textSecondary + '40',
+                            }
+                          ]}
+                        >
+                          <Text style={[
+                            styles.topicChipText,
+                            {
+                              color: selectedTopic === topic 
+                                ? theme.buttonText 
+                                : theme.textPrimary,
+                            }
+                          ]}>
+                            {topic}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <View style={styles.fieldContainer}>
+                      <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                        Custom subject or topic
                       </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                      <View style={[
+                        styles.textInputWrapper, 
+                        { 
+                          backgroundColor: theme.background, 
+                          borderWidth: customTopicFocused ? 2 : 1.5, 
+                          borderColor: customTopicFocused 
+                            ? theme.primary 
+                            : theme.textSecondary + '40'
+                        }
+                      ]}>
+                        <TextInput
+                          style={[styles.textInput, { color: theme.textPrimary }]}
+                          placeholder="Enter your own subject..."
+                          placeholderTextColor={theme.textSecondary}
+                          value={customTopic}
+                          onChangeText={setCustomTopic}
+                          onFocus={() => setCustomTopicFocused(true)}
+                          onBlur={() => setCustomTopicFocused(false)}
+                          autoCapitalize="sentences"
+                          autoCorrect={false}
+                          maxLength={100}
+                          returnKeyType="done"
+                          onSubmitEditing={handleSaveSubject}
+                          editable={!savingSubject}
+                          autoFocus={false}
+                          cursorColor={theme.primary}
+                          selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                        />
+                      </View>
+                    </View>
+                  </ScrollView>
+
+                  <View style={styles.modalFooter}>
+                    <TouchableOpacity
+                      onPress={handleCloseSubjectModal}
+                      style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                      disabled={savingSubject}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={handleSaveSubject}
+                      style={styles.primaryButton}
+                      disabled={savingSubject}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={theme.primaryGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.primaryButtonGradient}
+                      >
+                        <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
+                          {savingSubject ? 'Saving...' : 'Save'}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </KeyboardAvoidingView>
+              </KeyboardAvoider>
             </SwipeableModal>
 
             <SwipeableCenterModal
@@ -1416,7 +1442,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  modalKeyboardView: {
+  modalContent: {
     maxHeight: '85%',
   },
   modalHeader: {
