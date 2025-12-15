@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity, TextInput, KeyboardAvoidingView, ScrollView, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -10,9 +11,12 @@ import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
 import { IconSymbol } from '@/components/IconSymbol';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 export default function AddPersonScreen() {
   const { userId } = useAuth();
   const { theme } = useThemeContext();
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [relationshipType, setRelationshipType] = useState('');
   const [nameError, setNameError] = useState('');
@@ -70,14 +74,18 @@ export default function AddPersonScreen() {
     }
   };
 
+  // Calculate responsive dimensions
+  const headerHeight = Platform.OS === 'android' ? 60 : 44;
+  const keyboardVerticalOffset = Platform.OS === 'ios' ? insets.top + headerHeight : 0;
+
   return (
     <SafeSpaceScreen scrollable={false} keyboardAware={false}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+        keyboardVerticalOffset={keyboardVerticalOffset}
       >
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? insets.top + 16 : insets.top }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <IconSymbol
               ios_icon_name="chevron.left"
@@ -87,7 +95,7 @@ export default function AddPersonScreen() {
             />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Add Person</Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.headerSpacer} />
         </View>
 
         <ScrollView
@@ -177,7 +185,7 @@ export default function AddPersonScreen() {
           <View style={styles.bottomSpacer} />
         </ScrollView>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <TouchableOpacity
             onPress={() => router.back()}
             style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
@@ -220,30 +228,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 24,
-    paddingTop: Platform.OS === 'android' ? 24 : 0,
+    paddingHorizontal: '5%',
+    paddingBottom: 16,
   },
   backButton: {
     padding: 8,
     marginLeft: -8,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: Math.min(SCREEN_WIDTH * 0.045, 18),
     fontWeight: '600',
+  },
+  headerSpacer: {
+    width: 40,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
+    paddingHorizontal: '5%',
     paddingBottom: 24,
   },
   title: {
-    fontSize: 28,
+    fontSize: Math.min(SCREEN_WIDTH * 0.07, 28),
     fontWeight: 'bold',
     marginBottom: 12,
   },
   description: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 22,
     marginBottom: 32,
   },
@@ -254,7 +266,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   inputLabel: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '600',
     marginBottom: 8,
   },
@@ -267,7 +279,7 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === 'ios' ? 14 : 12,
   },
   textInput: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 20,
     minHeight: 20,
   },
@@ -281,8 +293,8 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
+    paddingHorizontal: '5%',
     paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
@@ -296,7 +308,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '600',
   },
   primaryButton: {
@@ -310,7 +322,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonText: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: 'bold',
   },
 });

@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   flatListContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: '5%',
     paddingTop: Platform.OS === 'android' ? 16 : 8,
     paddingBottom: 120,
   },
@@ -391,12 +391,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: Math.min(SCREEN_WIDTH * 0.08, 32),
     fontWeight: 'bold',
     marginBottom: 8,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 22,
   },
   searchContainer: {
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   bubbleTitle: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '700',
     marginBottom: 8,
     lineHeight: 20,
@@ -496,20 +496,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
-    paddingHorizontal: 32,
+    paddingHorizontal: '8%',
   },
   noResultsIcon: {
     marginBottom: 16,
     opacity: 0.6,
   },
   noResultsTitle: {
-    fontSize: 22,
+    fontSize: Math.min(SCREEN_WIDTH * 0.055, 22),
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',
   },
   noResultsText: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 24,
     textAlign: 'center',
   },

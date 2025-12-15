@@ -1,9 +1,11 @@
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Person } from '@/types/database.types';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface PersonCardProps {
   person: Person & { lastMessage?: string };
@@ -74,19 +76,19 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   avatarText: {
-    fontSize: 22,
+    fontSize: Math.min(SCREEN_WIDTH * 0.055, 22),
     fontWeight: 'bold',
   },
   info: {
     flex: 1,
   },
   name: {
-    fontSize: 18,
+    fontSize: Math.min(SCREEN_WIDTH * 0.045, 18),
     fontWeight: '600',
     marginBottom: 4,
   },
   relationship: {
-    fontSize: 14,
+    fontSize: Math.min(SCREEN_WIDTH * 0.035, 14),
     textTransform: 'capitalize',
   },
 });

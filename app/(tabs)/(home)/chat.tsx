@@ -11,7 +11,10 @@ import {
   Platform,
   Animated,
   Keyboard,
+  Dimensions,
 } from 'react-native';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
@@ -892,7 +895,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: '5%',
     paddingVertical: 12,
     paddingTop: Platform.OS === 'android' ? 48 : 60,
     borderRadius: 20,
@@ -913,7 +916,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: Math.min(SCREEN_WIDTH * 0.06, 24),
     fontWeight: 'bold',
     flexShrink: 1,
   },
@@ -928,7 +931,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: Math.min(SCREEN_WIDTH * 0.035, 14),
     fontWeight: '500',
     marginTop: 2,
     textTransform: 'capitalize',
@@ -987,7 +990,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messagesContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: '5%',
     paddingVertical: 16,
     paddingBottom: 20,
   },
@@ -996,7 +999,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
-    paddingHorizontal: 40,
+    paddingHorizontal: '10%',
   },
   emptyIconContainer: {
     width: 80,
@@ -1007,13 +1010,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyText: {
-    fontSize: 24,
+    fontSize: Math.min(SCREEN_WIDTH * 0.06, 24),
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtext: {
-    fontSize: 14,
+    fontSize: Math.min(SCREEN_WIDTH * 0.035, 14),
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 20,
@@ -1027,7 +1030,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   inputContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: '5%',
     paddingTop: 12,
     paddingBottom: 16,
     borderRadius: 20,
@@ -1046,7 +1049,7 @@ const styles = StyleSheet.create({
     maxHeight: 100,
   },
   input: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 20,
   },
   sendButton: {

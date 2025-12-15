@@ -1,6 +1,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, ActivityIndicator, Dimensions } from 'react-native';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -491,7 +493,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: '5%',
     paddingTop: Platform.OS === 'android' ? 16 : 8,
     paddingBottom: 120,
   },
@@ -525,7 +527,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: 220,
+    height: Math.min(SCREEN_HEIGHT * 0.25, 220),
     borderRadius: 20,
     overflow: 'hidden',
     boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.15)',
@@ -543,11 +545,11 @@ const styles = StyleSheet.create({
     height: 80,
   },
   topicTitle: {
-    fontSize: 28,
+    fontSize: Math.min(SCREEN_WIDTH * 0.07, 28),
     fontWeight: 'bold',
     marginBottom: 24,
     paddingHorizontal: 8,
-    lineHeight: 34,
+    lineHeight: Math.min(SCREEN_WIDTH * 0.085, 34),
   },
   sectionContainer: {
     marginBottom: 16,
@@ -559,12 +561,12 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: Math.min(SCREEN_WIDTH * 0.05, 20),
     fontWeight: '700',
     marginBottom: 12,
   },
   sectionText: {
-    fontSize: 15,
+    fontSize: Math.min(SCREEN_WIDTH * 0.0375, 15),
     lineHeight: 22,
   },
   listContainer: {
@@ -583,7 +585,7 @@ const styles = StyleSheet.create({
   },
   listItemText: {
     flex: 1,
-    fontSize: 15,
+    fontSize: Math.min(SCREEN_WIDTH * 0.0375, 15),
     lineHeight: 22,
   },
   disclaimer: {
@@ -613,7 +615,7 @@ const styles = StyleSheet.create({
   },
   askAIButton: {
     paddingVertical: 20,
-    paddingHorizontal: 32,
+    paddingHorizontal: '8%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -622,38 +624,39 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   askAIButtonText: {
-    fontSize: 18,
+    fontSize: Math.min(SCREEN_WIDTH * 0.045, 18),
     fontWeight: 'bold',
     textAlign: 'center',
+    flexShrink: 1,
   },
   errorContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: '8%',
     paddingTop: 60,
   },
   errorTitle: {
-    fontSize: 24,
+    fontSize: Math.min(SCREEN_WIDTH * 0.06, 24),
     fontWeight: 'bold',
     marginTop: 20,
     marginBottom: 12,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 24,
     textAlign: 'center',
     marginBottom: 32,
   },
   errorButton: {
-    paddingHorizontal: 32,
+    paddingHorizontal: '8%',
     paddingVertical: 14,
     borderRadius: 12,
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },
   errorButtonText: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '600',
   },
 });

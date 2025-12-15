@@ -41,7 +41,7 @@ interface FloatingTabBarProps {
 
 export default function FloatingTabBar({
   tabs,
-  containerWidth = screenWidth / 2.5,
+  containerWidth = Math.min(screenWidth * 0.4, 200),
   borderRadius = 35,
   bottomMargin
 }: FloatingTabBarProps) {
@@ -100,8 +100,7 @@ export default function FloatingTabBar({
     console.log('[FloatingTabBar] Tab pressed, navigating to:', route);
     
     try {
-      // Use replace instead of push to properly switch between tabs
-      // This prevents navigation stack buildup
+      // Use replace to properly switch between tabs without stack buildup
       router.replace(route);
     } catch (error) {
       console.error('[FloatingTabBar] Navigation error:', error);
@@ -136,7 +135,7 @@ export default function FloatingTabBar({
     blurContainer: {
       ...styles.blurContainer,
       borderWidth: 1.2,
-      borderColor: 'rgba(255, 255, 255, 1)',
+      borderColor: theme.dark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 1)',
       ...Platform.select({
         ios: {
           backgroundColor: theme.dark

@@ -1229,7 +1229,7 @@ export default function HomeScreen() {
                     ios_icon_name="lock.fill"
                     android_material_icon_name="lock"
                     size={48}
-                    color="#FFD700"
+                    color={theme.primary}
                   />
                 </View>
                 
@@ -1258,12 +1258,12 @@ export default function HomeScreen() {
                     activeOpacity={0.8}
                   >
                     <LinearGradient
-                      colors={['#FFD700', '#FFA500']}
+                      colors={theme.primaryGradient}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.premiumPrimaryButtonGradient}
                     >
-                      <Text style={styles.premiumPrimaryButtonText}>
+                      <Text style={[styles.premiumPrimaryButtonText, { color: theme.buttonText }]}>
                         Learn about Premium
                       </Text>
                     </LinearGradient>
@@ -1671,7 +1671,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   premiumPrimaryButtonText: {
-    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: 'bold',
   },

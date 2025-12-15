@@ -11,7 +11,10 @@ import {
   Modal,
   ActivityIndicator,
   TextInput,
+  Dimensions,
 } from 'react-native';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -858,20 +861,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: '5%',
     paddingBottom: 40,
   },
   header: {
     marginBottom: 32,
   },
   title: {
-    fontSize: 32,
+    fontSize: Math.min(SCREEN_WIDTH * 0.08, 32),
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 22,
     textAlign: 'center',
   },
@@ -1017,11 +1020,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: '5%',
   },
   modalContent: {
     borderRadius: 20,
-    padding: 32,
+    padding: '8%',
     width: '100%',
     maxWidth: 400,
     boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
@@ -1032,13 +1035,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: Math.min(SCREEN_WIDTH * 0.06, 24),
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 12,
   },
   modalText: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 24,
     textAlign: 'center',
     marginBottom: 28,
