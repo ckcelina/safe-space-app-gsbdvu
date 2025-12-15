@@ -1,45 +1,27 @@
 
-// Supabase Edge Function: generate-ai-response
-// Deploy this to your Supabase project as an Edge Function
-// 
-// To deploy:
-// 1. Install Supabase CLI: npm install -g supabase
-// 2. Login: supabase login
-// 3. Link project: supabase link --project-ref zjzvkxvahrbuuyzjzxol
-// 4. Deploy: supabase functions deploy generate-ai-response
-//
-// IMPORTANT: This Edge Function contains the CANONICAL AI PROMPT.
-// Do NOT create duplicate prompts elsewhere in the codebase.
-
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  createdAt: string;
-}
-
-interface RequestBody {
-  personId: string;
-  personName: string;
-  personRelationshipType: string;
-  messages: Message[];
-  currentSubject?: string; // Optional subject focus for the conversation
-}
-
 /**
- * CANONICAL AI SYSTEM PROMPT GENERATOR
- * This is the SINGLE SOURCE OF TRUTH for AI personality and behavior.
+ * Canonical AI System Prompt for Safe Space
+ * 
+ * This is the SINGLE SOURCE OF TRUTH for the AI's personality and behavior.
+ * All AI calls must use this prompt.
+ * 
+ * DO NOT create duplicate prompts elsewhere in the codebase.
  */
-function generateAISystemPrompt(params: {
+
+export interface AIPromptParams {
   personName: string;
   relationshipType?: string;
   currentSubject?: string;
-  hasDeathMention?: boolean;
-}): string {
-  const { personName, relationshipType, currentSubject, hasDeathMention } = params;
+  conversationContext?: {
+    hasDeathMention?: boolean;
+  };
+}
+
+/**
+ * Generate the complete AI system prompt with context
+ */
+export function generateAISystemPrompt(params: AIPromptParams): string {
+  const { personName, relationshipType, currentSubject, conversationContext } = params;
 
   let systemPrompt = `You are a compassionate, warm, and supportive AI relationship coach helping someone navigate their feelings and relationships. The person they're discussing is named ${personName}`;
   
@@ -128,7 +110,7 @@ Please tailor your response to this specific subject. Acknowledge what the user 
   }
 
   // Add grief context if detected
-  if (hasDeathMention) {
+  if (conversationContext?.hasDeathMention) {
     systemPrompt += `\n\nIMPORTANT: The user has mentioned that ${personName} has passed away. Be especially sensitive to their grief. Acknowledge their loss with compassion. Do not ask questions as if the person is still alive. Offer support for processing grief and honoring their memory.`;
   }
 
@@ -138,7 +120,7 @@ Please tailor your response to this specific subject. Acknowledge what the user 
 /**
  * Detect if conversation mentions death/loss
  */
-function detectDeathMention(messages: Message[]): boolean {
+export function detectDeathMention(messages: Array<{ content: string }>): boolean {
   const conversationText = messages.map(m => m.content).join(' ').toLowerCase();
   return (
     conversationText.includes('passed away') ||
@@ -151,117 +133,12 @@ function detectDeathMention(messages: Message[]): boolean {
   );
 }
 
-serve(async (req) => {
-  // Handle CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    });
-  }
+/**
+ * Fallback message when AI fails
+ */
+export const AI_FALLBACK_MESSAGE = "I'm having trouble responding right now, but I want you to know your feelings matter. Please try again in a moment.";
 
-  try {
-    const { personId, personName, personRelationshipType, messages, currentSubject }: RequestBody = await req.json();
-
-    console.log('=== AI Request Debug Info ===');
-    console.log('Person:', personName);
-    console.log('Relationship:', personRelationshipType);
-    console.log('Current subject:', currentSubject);
-    console.log('Message history length:', messages.length);
-    console.log('Message roles:', messages.map(m => m.role).join(', '));
-    console.log('Last user message:', messages.filter(m => m.role === 'user').slice(-1)[0]?.content?.substring(0, 50));
-    console.log('============================');
-
-    // Detect death mention in conversation
-    const hasDeathMention = detectDeathMention(messages);
-    if (hasDeathMention) {
-      console.log('⚠️ Death/loss mention detected - using grief-sensitive prompt');
-    }
-
-    // Generate the canonical system prompt
-    const systemPrompt = generateAISystemPrompt({
-      personName,
-      relationshipType: personRelationshipType,
-      currentSubject,
-      hasDeathMention,
-    });
-
-    // Prepare conversation history (last 20 messages for context)
-    const conversationHistory = messages.slice(-20).map((msg) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
-
-    console.log('Sending to OpenAI:');
-    console.log('- System prompt length:', systemPrompt.length);
-    console.log('- Conversation history:', conversationHistory.length, 'messages');
-    console.log('- Roles in order:', conversationHistory.map(m => m.role).join(' -> '));
-
-    // Validate OpenAI API key
-    if (!OPENAI_API_KEY) {
-      console.error('❌ OPENAI_API_KEY is not set in environment variables');
-      throw new Error('OpenAI API key is not configured');
-    }
-
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4',
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
-          },
-          ...conversationHistory,
-        ],
-        temperature: 0.7,
-        max_tokens: 500,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`OpenAI API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const reply = data.choices[0]?.message?.content || "I'm here with you. Tell me more about what you're feeling.";
-
-    console.log('✅ AI reply generated:', reply.substring(0, 50) + '...');
-
-    return new Response(
-      JSON.stringify({ reply }),
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
-  } catch (error) {
-    console.error('❌ Error in generate-ai-response:', error);
-    
-    return new Response(
-      JSON.stringify({
-        reply: "I'm having trouble responding right now, but I want you to know your feelings matter. Please try again in a moment.",
-        error: error.message,
-      }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
-  }
-});
+/**
+ * Default supportive message for empty conversations
+ */
+export const AI_DEFAULT_MESSAGE = "I'm here with you. Tell me more about what you're feeling.";
