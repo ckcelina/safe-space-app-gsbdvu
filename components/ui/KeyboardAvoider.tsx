@@ -1,83 +1,62 @@
 
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
-  Keyboard,
   StyleSheet,
   ViewStyle,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface KeyboardAvoiderProps {
   children: ReactNode;
   style?: ViewStyle;
   /**
-   * Additional offset to add on top of safe area insets.
-   * Use this for header heights if needed.
-   * Default: 0
-   */
-  additionalOffset?: number;
-  /**
-   * Whether to use 'padding' or 'position' behavior on iOS.
-   * Default: 'padding'
-   */
-  iosBehavior?: 'padding' | 'position';
-  /**
    * Whether to enable keyboard avoidance.
    * Default: true
    */
   enabled?: boolean;
+  /**
+   * Additional offset for special cases (e.g., headers in modals).
+   * Use sparingly - most cases should use 0.
+   * Default: 0
+   */
+  additionalOffset?: number;
 }
 
 /**
  * Universal keyboard avoidance component that eliminates gaps between
  * the keyboard and input fields across all screens.
  *
- * Features:
- * - Platform-specific behavior (iOS: padding, Android: relies on windowSoftInputMode)
- * - Correct keyboardVerticalOffset calculation using safe area insets
- * - No extra padding/margin that causes gaps
- * - Works in modals and bottom sheets
+ * KEY FEATURES:
+ * - NO GAPS: Input sits directly on keyboard with zero space
+ * - Platform-specific behavior (iOS: padding, Android: height)
+ * - Zero keyboardVerticalOffset by default (no extra spacing)
+ * - Works in modals, bottom sheets, and regular screens
+ * - Single source of truth for keyboard handling
  *
- * Usage:
+ * USAGE:
+ * Wrap your screen content (including ScrollView if needed):
+ * 
  * <KeyboardAvoider>
- *   <YourContent />
+ *   <ScrollView>
+ *     <YourContent />
+ *   </ScrollView>
  * </KeyboardAvoider>
+ *
+ * For modals, wrap the modal content:
+ * 
+ * <Modal>
+ *   <KeyboardAvoider>
+ *     <YourModalContent />
+ *   </KeyboardAvoider>
+ * </Modal>
  */
 export function KeyboardAvoider({
   children,
   style,
-  additionalOffset = 0,
-  iosBehavior = 'padding',
   enabled = true,
+  additionalOffset = 0,
 }: KeyboardAvoiderProps) {
-  const insets = useSafeAreaInsets();
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-
-  useEffect(() => {
-    const showSubscription = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setKeyboardVisible(true)
-    );
-    const hideSubscription = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardVisible(false)
-    );
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
-  // Calculate keyboard offset
-  // On iOS: use top inset + additional offset (for headers, etc.)
-  // On Android: behavior is undefined, rely on windowSoftInputMode="adjustResize"
-  const keyboardVerticalOffset = Platform.OS === 'ios' 
-    ? insets.top + additionalOffset 
-    : 0;
-
   if (!enabled) {
     return <>{children}</>;
   }
@@ -85,8 +64,8 @@ export function KeyboardAvoider({
   return (
     <KeyboardAvoidingView
       style={[styles.container, style]}
-      behavior={Platform.OS === 'ios' ? iosBehavior : undefined}
-      keyboardVerticalOffset={keyboardVerticalOffset}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={additionalOffset}
       enabled={enabled}
     >
       {children}

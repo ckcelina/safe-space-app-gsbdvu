@@ -12,7 +12,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function AddPersonScreen() {
   const { userId } = useAuth();
@@ -22,6 +22,10 @@ export default function AddPersonScreen() {
   const [relationshipType, setRelationshipType] = useState('');
   const [nameError, setNameError] = useState('');
   const [saving, setSaving] = useState(false);
+  
+  // Focus states for clear visual feedback
+  const [nameFocused, setNameFocused] = useState(false);
+  const [relationshipFocused, setRelationshipFocused] = useState(false);
 
   const handleSave = async () => {
     console.log('[AddPerson] handleSave called with name:', name, 'relationshipType:', relationshipType);
@@ -79,6 +83,7 @@ export default function AddPersonScreen() {
     <SafeSpaceScreen scrollable={false} keyboardAware={false}>
       <KeyboardAvoider>
         <View style={styles.container}>
+          {/* Header */}
           <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? insets.top + 16 : insets.top }]}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <IconSymbol
@@ -92,6 +97,7 @@ export default function AddPersonScreen() {
             <View style={styles.headerSpacer} />
           </View>
 
+          {/* Scrollable Content */}
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
@@ -109,6 +115,7 @@ export default function AddPersonScreen() {
             </Text>
 
             <View style={styles.form}>
+              {/* Name Field */}
               <View style={styles.fieldContainer}>
                 <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
                   Name <Text style={styles.required}>*</Text>
@@ -117,8 +124,12 @@ export default function AddPersonScreen() {
                   styles.textInputWrapper, 
                   { 
                     backgroundColor: theme.background, 
-                    borderWidth: 1.5, 
-                    borderColor: nameError ? '#FF3B30' : theme.primary 
+                    borderWidth: nameFocused ? 2 : 1.5, 
+                    borderColor: nameError 
+                      ? '#FF3B30' 
+                      : nameFocused 
+                        ? theme.primary 
+                        : theme.textSecondary + '40'
                   }
                 ]}>
                   <TextInput
@@ -133,12 +144,16 @@ export default function AddPersonScreen() {
                         setNameError('');
                       }
                     }}
+                    onFocus={() => setNameFocused(true)}
+                    onBlur={() => setNameFocused(false)}
                     autoCapitalize="words"
                     autoCorrect={false}
                     maxLength={50}
                     editable={!saving}
                     returnKeyType="next"
                     autoFocus={true}
+                    cursorColor={theme.primary}
+                    selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
                   />
                 </View>
                 {nameError ? (
@@ -146,6 +161,7 @@ export default function AddPersonScreen() {
                 ) : null}
               </View>
 
+              {/* Relationship Type Field */}
               <View style={styles.fieldContainer}>
                 <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
                   Relationship Type
@@ -154,8 +170,10 @@ export default function AddPersonScreen() {
                   styles.textInputWrapper, 
                   { 
                     backgroundColor: theme.background, 
-                    borderWidth: 1.5, 
-                    borderColor: theme.primary 
+                    borderWidth: relationshipFocused ? 2 : 1.5, 
+                    borderColor: relationshipFocused 
+                      ? theme.primary 
+                      : theme.textSecondary + '40'
                   }
                 ]}>
                   <TextInput
@@ -167,21 +185,30 @@ export default function AddPersonScreen() {
                       console.log('[AddPerson] Relationship type changed to:', text);
                       setRelationshipType(text);
                     }}
+                    onFocus={() => setRelationshipFocused(true)}
+                    onBlur={() => setRelationshipFocused(false)}
                     autoCapitalize="words"
                     autoCorrect={false}
                     maxLength={50}
                     editable={!saving}
                     returnKeyType="done"
                     onSubmitEditing={handleSave}
+                    cursorColor={theme.primary}
+                    selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
                   />
                 </View>
               </View>
             </View>
-
-            <View style={styles.bottomSpacer} />
           </ScrollView>
 
-          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          {/* Footer Buttons - Fixed at bottom, NO extra padding */}
+          <View style={[
+            styles.footer, 
+            { 
+              paddingBottom: Math.max(insets.bottom, 12),
+              backgroundColor: theme.card,
+            }
+          ]}>
             <TouchableOpacity
               onPress={() => router.back()}
               style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
@@ -245,7 +272,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: '5%',
     paddingBottom: 24,
-    flexGrow: 1,
   },
   title: {
     fontSize: Math.min(SCREEN_WIDTH * 0.07, 28),
@@ -287,9 +313,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontWeight: '500',
   },
-  bottomSpacer: {
-    height: 40,
-  },
   footer: {
     flexDirection: 'row',
     paddingHorizontal: '5%',
@@ -297,7 +320,6 @@ const styles = StyleSheet.create({
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   secondaryButton: {
     flex: 1,

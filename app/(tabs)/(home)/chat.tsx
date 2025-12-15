@@ -9,11 +9,10 @@ import {
   ScrollView,
   Platform,
   Animated,
-  Keyboard,
   Dimensions,
 } from 'react-native';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
@@ -152,6 +151,7 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
 
   // Track current subject in state
   const [currentSubject, setCurrentSubject] = useState<string>('General');
@@ -578,6 +578,7 @@ export default function ChatScreen() {
 
   const openAddSubjectModal = useCallback(() => {
     console.log('[Chat] Opening Add Subject modal');
+
     setAddSubjectModalVisible(true);
     setCustomSubjectInput('');
     setQuickSelectedSubject(null);
@@ -593,7 +594,6 @@ export default function ChatScreen() {
   const handleQuickSubjectSelect = useCallback((subject: string) => {
     console.log('[Chat] Quick subject selected:', subject);
     setQuickSelectedSubject(subject);
-    setCustomSubjectInput(''); // Clear custom input when quick subject is selected
   }, []);
 
   const saveSubject = useCallback(() => {
@@ -622,7 +622,7 @@ export default function ChatScreen() {
 
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
-      <KeyboardAvoider additionalOffset={60}>
+      <KeyboardAvoider>
         <View style={[styles.container, { backgroundColor: theme.background }]}>
           <StatusBarGradient />
 
@@ -783,16 +783,32 @@ export default function ChatScreen() {
             {isTyping && <TypingIndicator />}
           </ScrollView>
 
-          <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+          {/* Input Container - NO EXTRA PADDING, sits directly on keyboard */}
+          <View style={[
+            styles.inputContainer, 
+            { 
+              backgroundColor: theme.card,
+              paddingBottom: Math.max(insets.bottom, 8),
+            }
+          ]}>
             <View style={styles.inputRow}>
               <View style={styles.inputColumn}>
-                <View style={[styles.inputWrapper, { backgroundColor: theme.background }]}>
+                <View style={[
+                  styles.inputWrapper, 
+                  { 
+                    backgroundColor: theme.background,
+                    borderWidth: inputFocused ? 2 : 1,
+                    borderColor: inputFocused ? theme.primary : theme.textSecondary + '40',
+                  }
+                ]}>
                   <TextInput
                     style={[styles.input, { color: theme.textPrimary }]}
                     placeholder="Tell me what's going on…"
                     placeholderTextColor={theme.textSecondary}
                     value={inputText}
                     onChangeText={setInputText}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
                     multiline
                     editable={!isSending && !loading}
                     onSubmitEditing={() => {
@@ -800,6 +816,8 @@ export default function ChatScreen() {
                         sendMessage();
                       }
                     }}
+                    cursorColor={theme.primary}
+                    selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
                   />
                 </View>
               </View>
@@ -906,6 +924,8 @@ export default function ChatScreen() {
                 placeholderTextColor={theme.textSecondary}
                 value={customSubjectInput}
                 onChangeText={setCustomSubjectInput}
+                cursorColor={theme.primary}
+                selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
               />
             </View>
 
@@ -1082,8 +1102,8 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: '5%',
     paddingTop: 12,
-    paddingBottom: 12,
-    borderRadius: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.08)',
   },
   inputRow: {
     flexDirection: 'row',
@@ -1101,6 +1121,7 @@ const styles = StyleSheet.create({
   input: {
     fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 20,
+    minHeight: 24,
   },
   sendButton: {
     width: 44,
