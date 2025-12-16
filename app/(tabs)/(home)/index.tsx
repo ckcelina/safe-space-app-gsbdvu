@@ -68,6 +68,7 @@ const DEFAULT_TOPICS = [
  * ✓ Tap into Relationship: focus outline visible
  * ✓ Keyboard never opens just by tapping "Add Person" button
  * ✓ No checkmark icons in input fields
+ * ✓ Keyboard scrolling works exactly like Add Topic modal
  */
 
 export default function HomeScreen() {
@@ -918,7 +919,7 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Modal - NO checkmark icons in inputs */}
+            {/* Add Person Modal - Updated to match Add Topic keyboard behavior */}
             <Modal
               visible={isAddPersonOpen}
               transparent={true}
@@ -950,14 +951,14 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                       </View>
 
-                      {/* ScrollView with inputs */}
+                      {/* ScrollView with inputs - matching Add Topic structure */}
                       <ScrollView
                         style={styles.modalScrollView}
                         contentContainerStyle={styles.modalScrollContent}
                         keyboardShouldPersistTaps="handled"
                         showsVerticalScrollIndicator={false}
                       >
-                        {/* Name Input Row - NO checkmark icon */}
+                        {/* Name Input Row */}
                         <View style={styles.inputFieldContainer}>
                           <Text style={styles.inputLabel}>Name</Text>
                           <View style={[
@@ -980,6 +981,7 @@ export default function HomeScreen() {
                               maxLength={50}
                               editable={!savingPerson}
                               returnKeyType="next"
+                              autoFocus={false}
                             />
                           </View>
                           {personNameError ? (
@@ -987,7 +989,7 @@ export default function HomeScreen() {
                           ) : null}
                         </View>
 
-                        {/* Relationship Type Input Row - NO checkmark icon */}
+                        {/* Relationship Type Input Row */}
                         <View style={styles.inputFieldContainer}>
                           <Text style={styles.inputLabel}>Relationship Type</Text>
                           <View style={styles.inputRowContainer}>
@@ -1492,7 +1494,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  // Add Person Modal Styles - NO checkmark icons
+  // Add Person Modal Styles - Updated to match Add Topic keyboard behavior
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
