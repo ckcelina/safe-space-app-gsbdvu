@@ -13,7 +13,6 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
-import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
@@ -48,15 +47,17 @@ const DeleteAction = ({ onPress }: { onPress: () => void }) => (
   </TouchableOpacity>
 );
 
-const QUICK_TOPICS = [
-  'Work / Career',
-  'Self-esteem & Confidence',
-  'Mental Health & Disorders',
-  'Family in General',
-  'Romantic Relationships',
-  'Friendships',
-  'Studies / School',
-  'Money & Finances',
+// Default topics array - used as fallback if DB returns empty
+const DEFAULT_TOPICS = [
+  'Anxiety',
+  'Social Anxiety',
+  'Self-esteem',
+  'Stress',
+  'Work/Career',
+  'Relationships',
+  'Grief',
+  'Anger',
+  'Motivation',
 ];
 
 export default function HomeScreen() {
@@ -81,11 +82,12 @@ export default function HomeScreen() {
   const [personNameFocused, setPersonNameFocused] = useState(false);
   const [personRelationshipFocused, setPersonRelationshipFocused] = useState(false);
 
-  // Subject/Topic modal state
-  const [showSubjectModal, setShowSubjectModal] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-  const [customTopic, setCustomTopic] = useState('');
-  const [savingSubject, setSavingSubject] = useState(false);
+  // Add Topic modal state - single source of truth
+  const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
+  const [selectedQuickTopic, setSelectedQuickTopic] = useState<string | null>(null);
+  const [customTopicName, setCustomTopicName] = useState('');
+  const [topicError, setTopicError] = useState('');
+  const [savingTopic, setSavingTopic] = useState(false);
   const [customTopicFocused, setCustomTopicFocused] = useState(false);
 
   const isMountedRef = useRef(true);
@@ -319,10 +321,11 @@ export default function HomeScreen() {
     console.log('[Home] Add Person button pressed');
     
     // Close Add Topic modal if open
-    if (showSubjectModal) {
-      setShowSubjectModal(false);
-      setSelectedTopic(null);
-      setCustomTopic('');
+    if (isAddTopicOpen) {
+      setIsAddTopicOpen(false);
+      setSelectedQuickTopic(null);
+      setCustomTopicName('');
+      setTopicError('');
       setCustomTopicFocused(false);
     }
     
@@ -335,7 +338,7 @@ export default function HomeScreen() {
     
     // Open Add Person modal
     setIsAddPersonOpen(true);
-  }, [showSubjectModal]);
+  }, [isAddTopicOpen]);
 
   const handleCloseAddPersonModal = useCallback(() => {
     console.log('[Home] Closing Add Person modal');
@@ -423,6 +426,146 @@ export default function HomeScreen() {
       }
     }
   }, [personName, personRelationship, userId, fetchData]);
+
+  // Add Topic button handler - closes Add Person modal if open, resets form, opens modal
+  const handleAddTopicPress = useCallback(() => {
+    console.log('[Home] Add Topic button pressed');
+    
+    // Close Add Person modal if open
+    if (isAddPersonOpen) {
+      setIsAddPersonOpen(false);
+      setPersonName('');
+      setPersonRelationship('');
+      setPersonNameError('');
+      setPersonNameFocused(false);
+      setPersonRelationshipFocused(false);
+    }
+    
+    // Reset Add Topic form state
+    setCustomTopicName('');
+    setSelectedQuickTopic(null);
+    setTopicError('');
+    setCustomTopicFocused(false);
+    
+    // Open Add Topic modal
+    setIsAddTopicOpen(true);
+  }, [isAddPersonOpen]);
+
+  const handleCloseAddTopicModal = useCallback(() => {
+    console.log('[Home] Closing Add Topic modal');
+    setIsAddTopicOpen(false);
+    setCustomTopicName('');
+    setSelectedQuickTopic(null);
+    setTopicError('');
+    setCustomTopicFocused(false);
+  }, []);
+
+  const handleQuickTopicSelect = useCallback((topic: string) => {
+    console.log('[Home] Quick topic selected:', topic);
+    setSelectedQuickTopic(topic);
+    setCustomTopicName(topic); // Fill the TextInput with the selected topic
+    setTopicError(''); // Clear any error
+  }, []);
+
+  const handleSaveAddTopic = useCallback(async () => {
+    console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic);
+    
+    // Final topic name is customTopicName if non-empty, else selectedQuickTopic
+    const topicName = customTopicName.trim() || selectedQuickTopic;
+    
+    // Validate topic name is not empty
+    if (!topicName) {
+      console.log('[Home] Topic validation failed - topic is empty');
+      setTopicError('Please select or enter a topic');
+      return;
+    }
+
+    if (!userId) {
+      console.error('[Home] No userId available');
+      showErrorToast('You must be logged in to add a topic');
+      return;
+    }
+
+    console.log('[Home] Starting save process for topic:', topicName, 'userId:', userId);
+    setTopicError('');
+    setSavingTopic(true);
+
+    try {
+      // Check for duplicates before inserting
+      const { data: existingTopics, error: checkError } = await supabase
+        .from('persons')
+        .select('*', { count: 'exact' })
+        .eq('name', topicName)
+        .eq('user_id', userId)
+        .eq('relationship_type', 'Topic');
+
+      if (checkError) {
+        console.error('[Home] Error checking for duplicate topics:', checkError);
+        showErrorToast('Failed to save topic. Please try again.');
+        setSavingTopic(false);
+        return;
+      }
+
+      if (existingTopics && existingTopics.length > 0) {
+        console.log('[Home] Topic already exists:', topicName);
+        setTopicError('This topic already exists');
+        setSavingTopic(false);
+        return;
+      }
+
+      // Insert topic for current authenticated user
+      const topicData = {
+        user_id: userId,
+        name: topicName,
+        relationship_type: 'Topic',
+      };
+      
+      console.log('[Home] Inserting topic data:', topicData);
+      
+      const { data, error } = await supabase
+        .from('persons')
+        .insert([topicData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Home] Error creating topic:', error);
+        
+        if (isMountedRef.current) {
+          showErrorToast('Failed to add topic. Please try again.');
+          setSavingTopic(false);
+        }
+        return;
+      }
+
+      console.log('[Home] Topic created successfully:', data);
+      
+      if (isMountedRef.current) {
+        showSuccessToast('Topic added successfully!');
+        
+        // Close modal
+        setIsAddTopicOpen(false);
+        setCustomTopicName('');
+        setSelectedQuickTopic(null);
+        setTopicError('');
+        
+        // Refresh Topics list immediately
+        console.log('[Home] Refreshing data');
+        await fetchData();
+      }
+      
+    } catch (error: any) {
+      console.error('[Home] Unexpected error creating topic:', error);
+      if (isMountedRef.current) {
+        showErrorToast('An unexpected error occurred');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setSavingTopic(false);
+        console.log('[Home] Save process complete');
+      }
+    }
+  }, [customTopicName, selectedQuickTopic, userId, fetchData]);
 
   const handleClosePremiumModal = useCallback(() => {
     setShowPremiumModal(false);
@@ -515,102 +658,6 @@ export default function HomeScreen() {
       };
     }
   }, [role, theme.textSecondary]);
-
-  const handleAddSubject = useCallback(() => {
-    console.log('[Home] Opening Add Subject modal');
-
-    setShowSubjectModal(true);
-    setSelectedTopic(null);
-    setCustomTopic('');
-    setCustomTopicFocused(false);
-  }, []);
-
-  const handleCloseSubjectModal = useCallback(() => {
-    console.log('[Home] Closing Add Subject modal');
-    setShowSubjectModal(false);
-    setSelectedTopic(null);
-    setCustomTopic('');
-    setCustomTopicFocused(false);
-  }, []);
-
-  const handleTopicSelect = useCallback((topic: string) => {
-    console.log('[Home] Topic selected:', topic);
-    setSelectedTopic(topic);
-  }, []);
-
-  const handleSaveSubject = useCallback(async () => {
-    const subjectString = customTopic.trim() || selectedTopic;
-    
-    if (!subjectString) {
-      console.log('[Home] No subject selected or entered');
-      showErrorToast('Please select or enter a subject');
-      return;
-    }
-
-    if (!userId) {
-      console.error('[Home] No userId available for subject save');
-      showErrorToast('You must be logged in to add a subject');
-      return;
-    }
-
-    console.log('[Home] Saving subject:', subjectString, 'for userId:', userId);
-    setSavingSubject(true);
-
-    try {
-      console.log('[Home] Creating new topic');
-      const { data: newTopic, error: insertError } = await supabase
-        .from('persons')
-        .insert([{
-          user_id: userId,
-          name: subjectString,
-          relationship_type: 'Topic',
-        }])
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('[Home] Error creating topic:', insertError);
-        showErrorToast('Failed to create topic');
-        setSavingSubject(false);
-        return;
-      }
-
-      console.log('[Home] Topic created:', newTopic);
-
-      if (!newTopic.id) {
-        console.error('[Home] Topic ID is missing');
-        showErrorToast('Invalid topic data');
-        setSavingSubject(false);
-        return;
-      }
-
-      console.log('[Home] Navigating to chat for topic:', newTopic.name, 'id:', newTopic.id);
-
-      setShowSubjectModal(false);
-      setSelectedTopic(null);
-      setCustomTopic('');
-
-      router.push({
-        pathname: '/(tabs)/(home)/chat',
-        params: {
-          personId: newTopic.id,
-          personName: newTopic.name || 'Topic',
-          relationshipType: 'Topic',
-          initialSubject: subjectString,
-        },
-      });
-
-      await fetchData();
-
-    } catch (error: any) {
-      console.error('[Home] Unexpected error saving topic:', error);
-      showErrorToast('An unexpected error occurred');
-    } finally {
-      if (isMountedRef.current) {
-        setSavingSubject(false);
-      }
-    }
-  }, [customTopic, selectedTopic, userId, fetchData]);
 
   const planInfo = getPlanInfo();
 
@@ -736,7 +783,7 @@ export default function HomeScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={handleAddSubject}
+                  onPress={handleAddTopicPress}
                   activeOpacity={0.8}
                   style={styles.addButton}
                 >
@@ -1038,141 +1085,190 @@ export default function HomeScreen() {
               </Pressable>
             </Modal>
 
-            {/* Add Topic Modal */}
-            <SwipeableModal
-              visible={showSubjectModal}
-              onClose={handleCloseSubjectModal}
+            {/* Add Topic Modal - REBUILT with proper bottom-sheet structure */}
+            <Modal
+              visible={isAddTopicOpen}
+              transparent={true}
               animationType="slide"
-              showHandle={true}
+              onRequestClose={handleCloseAddTopicModal}
             >
-              <View style={styles.modalContentWrapper}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add Topic</Text>
-                    <TouchableOpacity onPress={handleCloseSubjectModal} style={styles.closeButton}>
-                      <IconSymbol
-                        ios_icon_name="xmark"
-                        android_material_icon_name="close"
-                        size={24}
-                        color={theme.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  </View>
+              <Pressable 
+                style={styles.addTopicModalOverlay}
+                onPress={handleCloseAddTopicModal}
+              >
+                <KeyboardAvoidingView
+                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                  style={styles.addTopicKeyboardAvoid}
+                >
+                  <Pressable onPress={(e) => e.stopPropagation()}>
+                    <View style={[
+                      styles.addTopicSheetCard, 
+                      { 
+                        backgroundColor: theme.cardBackground,
+                        paddingBottom: Math.max(insets.bottom, 16) + 24,
+                      }
+                    ]}>
+                      {/* Header */}
+                      <View style={styles.addTopicModalHeader}>
+                        <Text style={[styles.addTopicModalTitle, { color: theme.textPrimary }]}>
+                          Add Topic
+                        </Text>
+                        <TouchableOpacity 
+                          onPress={handleCloseAddTopicModal} 
+                          style={styles.addTopicCloseButton}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <IconSymbol
+                            ios_icon_name="xmark"
+                            android_material_icon_name="close"
+                            size={24}
+                            color={theme.textSecondary}
+                          />
+                        </TouchableOpacity>
+                      </View>
 
-                  <ScrollView
-                    style={styles.modalBody}
-                    contentContainerStyle={styles.modalBodyContent}
-                    keyboardShouldPersistTaps="handled"
-                    showsVerticalScrollIndicator={false}
-                  >
-                    <Text style={[styles.helperText, { color: theme.textSecondary }]}>
-                      What would you like to focus on?
-                    </Text>
+                      {/* ScrollView with chips and input */}
+                      <ScrollView
+                        style={styles.addTopicScrollView}
+                        contentContainerStyle={styles.addTopicScrollContent}
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {/* Quick-select topic chips */}
+                        <View style={styles.addTopicChipsContainer}>
+                          <Text style={[styles.addTopicHelperText, { color: theme.textSecondary }]}>
+                            Quick select:
+                          </Text>
+                          <View style={styles.addTopicChipsWrapper}>
+                            {DEFAULT_TOPICS.map((topic, index) => (
+                              <TouchableOpacity
+                                key={`topic-chip-${index}`}
+                                onPress={() => handleQuickTopicSelect(topic)}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.addTopicChip,
+                                  {
+                                    backgroundColor:
+                                      selectedQuickTopic === topic 
+                                        ? theme.primary 
+                                        : theme.background,
+                                    borderWidth: 1.5,
+                                    borderColor:
+                                      selectedQuickTopic === topic 
+                                        ? theme.primary 
+                                        : theme.textSecondary + '40',
+                                  }
+                                ]}
+                              >
+                                <Text style={[
+                                  styles.addTopicChipText,
+                                  {
+                                    color: selectedQuickTopic === topic 
+                                      ? theme.buttonText 
+                                      : theme.textPrimary,
+                                  }
+                                ]}>
+                                  {topic}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
 
-                    <View style={styles.topicsContainer}>
-                      {QUICK_TOPICS.map((topic, index) => (
-                        <TouchableOpacity
-                          key={`topic-${index}`}
-                          onPress={() => handleTopicSelect(topic)}
-                          activeOpacity={0.7}
-                          style={[
-                            styles.topicChip,
-                            {
-                              backgroundColor:
-                                selectedTopic === topic 
-                                  ? theme.primary 
-                                  : theme.background,
-                              borderWidth: 1.5,
-                              borderColor:
-                                selectedTopic === topic 
+                        {/* Custom Topic Input */}
+                        <View style={styles.addTopicFieldContainer}>
+                          <Text style={[styles.addTopicInputLabel, { color: theme.textPrimary }]}>
+                            Or type a custom topic:
+                          </Text>
+                          <View style={[
+                            styles.addTopicTextInputWrapper, 
+                            { 
+                              backgroundColor: theme.background, 
+                              borderWidth: customTopicFocused ? 2 : 1.5, 
+                              borderColor: topicError 
+                                ? '#FF3B30' 
+                                : customTopicFocused 
                                   ? theme.primary 
                                   : theme.textSecondary + '40',
                             }
-                          ]}
-                        >
-                          <Text style={[
-                            styles.topicChipText,
-                            {
-                              color: selectedTopic === topic 
-                                ? theme.buttonText 
-                                : theme.textPrimary,
-                            }
                           ]}>
-                            {topic}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                            <TextInput
+                              style={[styles.addTopicTextInput, { color: theme.textPrimary }]}
+                              placeholder="Enter your own topic..."
+                              placeholderTextColor={theme.textSecondary}
+                              value={customTopicName}
+                              onChangeText={(text) => {
+                                console.log('[Home] Custom topic name changed to:', text);
+                                setCustomTopicName(text);
+                                if (topicError && text.trim()) {
+                                  setTopicError('');
+                                }
+                                // Clear selected quick topic when user types
+                                if (text.trim() && selectedQuickTopic) {
+                                  setSelectedQuickTopic(null);
+                                }
+                              }}
+                              onFocus={() => {
+                                console.log('[Home] Custom topic input focused');
+                                setCustomTopicFocused(true);
+                              }}
+                              onBlur={() => {
+                                console.log('[Home] Custom topic input blurred');
+                                setCustomTopicFocused(false);
+                              }}
+                              autoCapitalize="sentences"
+                              autoCorrect={false}
+                              maxLength={100}
+                              editable={!savingTopic}
+                              returnKeyType="done"
+                              onSubmitEditing={handleSaveAddTopic}
+                              autoFocus={false}
+                              cursorColor={theme.primary}
+                              selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                            />
+                          </View>
+                          {topicError ? (
+                            <Text style={styles.addTopicErrorText}>{topicError}</Text>
+                          ) : null}
+                        </View>
+
+                        {/* Bottom row buttons */}
+                        <View style={styles.addTopicModalFooter}>
+                          <TouchableOpacity
+                            onPress={handleCloseAddTopicModal}
+                            style={[styles.addTopicSecondaryButton, { borderColor: theme.textSecondary }]}
+                            disabled={savingTopic}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.addTopicSecondaryButtonText, { color: theme.textSecondary }]}>
+                              Cancel
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            onPress={handleSaveAddTopic}
+                            style={styles.addTopicPrimaryButton}
+                            disabled={savingTopic}
+                            activeOpacity={0.8}
+                          >
+                            <LinearGradient
+                              colors={theme.primaryGradient}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.addTopicPrimaryButtonGradient}
+                            >
+                              <Text style={[styles.addTopicPrimaryButtonText, { color: theme.buttonText }]}>
+                                {savingTopic ? 'Saving...' : 'Save'}
+                              </Text>
+                            </LinearGradient>
+                          </TouchableOpacity>
+                        </View>
+                      </ScrollView>
                     </View>
-
-                    <View style={styles.fieldContainer}>
-                      <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
-                        Custom subject or topic
-                      </Text>
-                      <View style={[
-                        styles.textInputWrapper, 
-                        { 
-                          backgroundColor: theme.background, 
-                          borderWidth: customTopicFocused ? 2 : 1.5, 
-                          borderColor: customTopicFocused 
-                            ? theme.primary 
-                            : theme.textSecondary + '40'
-                        }
-                      ]}>
-                        <TextInput
-                          style={[styles.textInput, { color: theme.textPrimary }]}
-                          placeholder="Enter your own subject..."
-                          placeholderTextColor={theme.textSecondary}
-                          value={customTopic}
-                          onChangeText={setCustomTopic}
-                          onFocus={() => setCustomTopicFocused(true)}
-                          onBlur={() => setCustomTopicFocused(false)}
-                          autoCapitalize="sentences"
-                          autoCorrect={false}
-                          maxLength={100}
-                          returnKeyType="done"
-                          onSubmitEditing={handleSaveSubject}
-                          editable={!savingSubject}
-                          autoFocus={false}
-                          cursorColor={theme.primary}
-                          selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-                        />
-                      </View>
-                    </View>
-                  </ScrollView>
-
-                  <View style={styles.modalFooter}>
-                    <TouchableOpacity
-                      onPress={handleCloseSubjectModal}
-                      style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
-                      disabled={savingSubject}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.secondaryButtonText, { color: theme.textSecondary }]}>
-                        Cancel
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleSaveSubject}
-                      style={styles.primaryButton}
-                      disabled={savingSubject}
-                      activeOpacity={0.8}
-                    >
-                      <LinearGradient
-                        colors={theme.primaryGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.primaryButtonGradient}
-                      >
-                        <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>
-                          {savingSubject ? 'Saving...' : 'Save'}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </SwipeableModal>
+                  </Pressable>
+                </KeyboardAvoidingView>
+              </Pressable>
+            </Modal>
 
             <SwipeableCenterModal
               visible={showPremiumModal}
@@ -1554,87 +1650,97 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  // Add Topic Modal Styles (kept from original)
-  modalContentWrapper: {
-    maxHeight: '85%',
-  },
-  modalContent: {
+  // Add Topic Modal Styles - REBUILT with proper bottom-sheet structure
+  addTopicModalOverlay: {
     flex: 1,
-    minHeight: 400,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
-  modalHeader: {
+  addTopicKeyboardAvoid: {
+    justifyContent: 'flex-end',
+  },
+  addTopicSheetCard: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    minHeight: 500,
+    maxHeight: '75%',
+    paddingTop: 20,
+  },
+  addTopicModalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingBottom: 16,
-    paddingTop: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
-  modalTitle: {
+  addTopicModalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
   },
-  closeButton: {
+  addTopicCloseButton: {
     padding: 4,
   },
-  modalBody: {
+  addTopicScrollView: {
     flex: 1,
   },
-  modalBodyContent: {
+  addTopicScrollContent: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 16,
+    paddingBottom: 40,
   },
-  helperText: {
+  addTopicChipsContainer: {
+    marginBottom: 28,
+  },
+  addTopicHelperText: {
     fontSize: 15,
-    marginBottom: 20,
-    lineHeight: 20,
+    marginBottom: 12,
+    fontWeight: '500',
   },
-  topicsContainer: {
+  addTopicChipsWrapper: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 28,
   },
-  topicChip: {
+  addTopicChip: {
     paddingVertical: 12,
     paddingHorizontal: 18,
     borderRadius: 24,
   },
-  topicChipText: {
+  addTopicChipText: {
     fontSize: 14,
     fontWeight: '600',
   },
-  fieldContainer: {
+  addTopicFieldContainer: {
     marginBottom: 24,
   },
-  inputLabel: {
+  addTopicInputLabel: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
   },
-  textInputWrapper: {
+  addTopicTextInputWrapper: {
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'ios' ? 14 : 12,
   },
-  textInput: {
+  addTopicTextInput: {
     fontSize: 16,
     lineHeight: 20,
     minHeight: 20,
   },
-  modalFooter: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+  addTopicErrorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginTop: 6,
   },
-  secondaryButton: {
+  addTopicModalFooter: {
+    flexDirection: 'row',
+    paddingTop: 16,
+    gap: 12,
+  },
+  addTopicSecondaryButton: {
     flex: 1,
     paddingVertical: 16,
     borderRadius: 50,
@@ -1642,21 +1748,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryButtonText: {
+  addTopicSecondaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },
-  primaryButton: {
+  addTopicPrimaryButton: {
     flex: 1,
     borderRadius: 50,
     overflow: 'hidden',
   },
-  primaryButtonGradient: {
+  addTopicPrimaryButtonGradient: {
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryButtonText: {
+  addTopicPrimaryButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
   },
