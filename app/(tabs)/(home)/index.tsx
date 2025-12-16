@@ -70,6 +70,7 @@ const DEFAULT_TOPICS = [
  * ✓ No checkmark icons in input fields
  * ✓ Keyboard scrolling works exactly like Add Topic modal
  * ✓ Footer buttons stay visible above keyboard
+ * ✓ Scroll-to-focused-input behavior implemented
  */
 
 export default function HomeScreen() {
@@ -101,6 +102,7 @@ export default function HomeScreen() {
   const [customTopicFocused, setCustomTopicFocused] = useState(false);
 
   const isMountedRef = useRef(true);
+  const personScrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -935,7 +937,7 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Modal - Fixed: Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
+            {/* Add Person Modal - FIXED: Matches Add Topic structure exactly */}
             <Modal
               visible={isAddPersonOpen}
               transparent={true}
@@ -951,7 +953,7 @@ export default function HomeScreen() {
                   onPress={(e) => e.stopPropagation()}
                 >
                   <KeyboardAvoidingView
-                    style={styles.keyboardAvoidingView}
+                    style={{ flex: 1 }}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     keyboardVerticalOffset={0}
                   >
@@ -968,12 +970,15 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                       </View>
 
-                      {/* ScrollView with inputs ONLY */}
+                      {/* ScrollView with inputs ONLY - FIXED: Added proper contentContainerStyle */}
                       <ScrollView
+                        ref={personScrollViewRef}
                         style={styles.modalScrollView}
-                        contentContainerStyle={styles.modalScrollContent}
+                        contentContainerStyle={[
+                          styles.modalScrollContent,
+                          { paddingBottom: insets.bottom + 140 }
+                        ]}
                         keyboardShouldPersistTaps="handled"
-                        keyboardDismissMode="interactive"
                         showsVerticalScrollIndicator={false}
                       >
                         {/* Name Input Row */}
@@ -993,6 +998,9 @@ export default function HomeScreen() {
                                 if (personNameError && text.trim()) {
                                   setPersonNameError('');
                                 }
+                              }}
+                              onFocus={() => {
+                                personScrollViewRef.current?.scrollTo({ y: 0, animated: true });
                               }}
                               autoCapitalize="words"
                               autoCorrect={false}
@@ -1017,6 +1025,9 @@ export default function HomeScreen() {
                               placeholderTextColor="#999"
                               value={personRelationship}
                               onChangeText={setPersonRelationship}
+                              onFocus={() => {
+                                personScrollViewRef.current?.scrollTo({ y: 120, animated: true });
+                              }}
                               autoCapitalize="words"
                               autoCorrect={false}
                               maxLength={50}
@@ -1063,7 +1074,7 @@ export default function HomeScreen() {
               </Pressable>
             </Modal>
 
-            {/* Add Topic Modal - FIXED: Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
+            {/* Add Topic Modal - UNCHANGED */}
             <Modal
               visible={isAddTopicOpen}
               transparent={true}
@@ -1495,7 +1506,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  // Add Person Modal Styles - Fixed structure
+  // Add Person Modal Styles - FIXED to match Add Topic exactly
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
@@ -1503,9 +1514,6 @@ const styles = StyleSheet.create({
   },
   modalSheetContainer: {
     justifyContent: 'flex-end',
-  },
-  keyboardAvoidingView: {
-    width: '100%',
   },
   modalSheet: {
     backgroundColor: '#FFFFFF',
@@ -1618,7 +1626,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFF',
   },
-  // Add Topic Modal Styles - FIXED: Footer buttons OUTSIDE ScrollView
+  // Add Topic Modal Styles - UNCHANGED
   addTopicModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
