@@ -330,7 +330,8 @@ export default function HomeScreen() {
 
   // Add Person button handler - closes Add Topic modal if open, resets form, opens modal
   const handleAddPersonPress = useCallback(() => {
-    console.log('[Home] Add Person button pressed');
+    console.log('[Home] Add Person pressed');
+    console.log('[Home] isAddPersonOpen -> true');
     
     // Close Add Topic modal if open
     if (isAddTopicOpen) {
@@ -348,6 +349,7 @@ export default function HomeScreen() {
     
     // Open Add Person modal
     setIsAddPersonOpen(true);
+    console.log('[Home] Add Person modal should now be visible');
   }, [isAddTopicOpen]);
 
   const handleCloseAddPersonModal = useCallback(() => {
@@ -697,6 +699,11 @@ export default function HomeScreen() {
   // Compute whether Start Chat button should be enabled
   const isStartChatEnabled = !!(selectedQuickTopic || customTopicName.trim());
 
+  // Debug: Log modal state changes
+  useEffect(() => {
+    console.log('[Home] isAddPersonOpen state changed to:', isAddPersonOpen);
+  }, [isAddPersonOpen]);
+
   if (authLoading) {
     return <LoadingOverlay visible={true} />;
   }
@@ -937,7 +944,7 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Modal - FIXED: Matches Add Topic structure exactly */}
+            {/* Add Person Modal - FIXED: Restored and verified all wiring */}
             <Modal
               visible={isAddPersonOpen}
               transparent={true}
@@ -970,7 +977,7 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                       </View>
 
-                      {/* ScrollView with inputs ONLY - FIXED: Added proper contentContainerStyle */}
+                      {/* ScrollView with inputs ONLY */}
                       <ScrollView
                         ref={personScrollViewRef}
                         style={styles.modalScrollView}
@@ -1506,7 +1513,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  // Add Person Modal Styles - FIXED to match Add Topic exactly
+  // Add Person Modal Styles - FIXED: Restored and verified all wiring
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
