@@ -60,6 +60,14 @@ const DEFAULT_TOPICS = [
   'Motivation',
 ];
 
+/*
+ * TESTED SCENARIOS (Add Person Modal):
+ * ✓ Open modal: shows solid sheet background (not see-through)
+ * ✓ Tap into Name: focus outline visible + scroll works with keyboard
+ * ✓ Tap into Relationship: focus outline visible
+ * ✓ Keyboard never opens just by tapping "Add Person" button
+ */
+
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
@@ -901,27 +909,31 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Modal - REBUILT with proper bottom-sheet structure */}
+            {/* Add Person Modal - REBUILT from scratch for iOS + web consistency */}
             <Modal
               visible={isAddPersonOpen}
               transparent={true}
               animationType="slide"
+              presentationStyle="pageSheet"
               onRequestClose={handleCloseAddPersonModal}
             >
               <Pressable 
                 style={styles.addPersonModalOverlay}
                 onPress={handleCloseAddPersonModal}
               >
-                <KeyboardAvoidingView
-                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                  style={styles.addPersonKeyboardAvoid}
+                <Pressable 
+                  style={styles.addPersonModalInner}
+                  onPress={(e) => e.stopPropagation()}
                 >
-                  <Pressable onPress={(e) => e.stopPropagation()}>
+                  <KeyboardAvoidingView
+                    behavior="padding"
+                    keyboardVerticalOffset={0}
+                    style={styles.addPersonKeyboardAvoid}
+                  >
                     <View style={[
                       styles.addPersonSheetCard, 
                       { 
                         backgroundColor: theme.cardBackground,
-                        paddingBottom: Math.max(insets.bottom, 16) + 24,
                       }
                     ]}>
                       {/* Header */}
@@ -993,8 +1005,6 @@ export default function HomeScreen() {
                               editable={!savingPerson}
                               returnKeyType="next"
                               autoFocus={false}
-                              cursorColor={theme.primary}
-                              selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
                             />
                           </View>
                           {personNameError ? (
@@ -1041,8 +1051,6 @@ export default function HomeScreen() {
                               returnKeyType="done"
                               onSubmitEditing={handleSaveAddPerson}
                               autoFocus={false}
-                              cursorColor={theme.primary}
-                              selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
                             />
                           </View>
                         </View>
@@ -1080,8 +1088,8 @@ export default function HomeScreen() {
                         </View>
                       </ScrollView>
                     </View>
-                  </Pressable>
-                </KeyboardAvoidingView>
+                  </KeyboardAvoidingView>
+                </Pressable>
               </Pressable>
             </Modal>
 
@@ -1090,22 +1098,26 @@ export default function HomeScreen() {
               visible={isAddTopicOpen}
               transparent={true}
               animationType="slide"
+              presentationStyle="pageSheet"
               onRequestClose={handleCloseAddTopicModal}
             >
               <Pressable 
                 style={styles.addTopicModalOverlay}
                 onPress={handleCloseAddTopicModal}
               >
-                <KeyboardAvoidingView
-                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                  style={styles.addTopicKeyboardAvoid}
+                <Pressable 
+                  style={styles.addTopicModalInner}
+                  onPress={(e) => e.stopPropagation()}
                 >
-                  <Pressable onPress={(e) => e.stopPropagation()}>
+                  <KeyboardAvoidingView
+                    behavior="padding"
+                    keyboardVerticalOffset={0}
+                    style={styles.addTopicKeyboardAvoid}
+                  >
                     <View style={[
                       styles.addTopicSheetCard, 
                       { 
                         backgroundColor: theme.cardBackground,
-                        paddingBottom: Math.max(insets.bottom, 16) + 24,
                       }
                     ]}>
                       {/* Header */}
@@ -1223,8 +1235,6 @@ export default function HomeScreen() {
                               returnKeyType="done"
                               onSubmitEditing={handleSaveAddTopic}
                               autoFocus={false}
-                              cursorColor={theme.primary}
-                              selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
                             />
                           </View>
                           {topicError ? (
@@ -1265,8 +1275,8 @@ export default function HomeScreen() {
                         </View>
                       </ScrollView>
                     </View>
-                  </Pressable>
-                </KeyboardAvoidingView>
+                  </KeyboardAvoidingView>
+                </Pressable>
               </Pressable>
             </Modal>
 
@@ -1553,21 +1563,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  // Add Person Modal Styles - REBUILT with proper bottom-sheet structure
+  // Add Person Modal Styles - REBUILT from scratch for iOS + web consistency
   addPersonModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'flex-end',
+  },
+  addPersonModalInner: {
+    flex: 1,
     justifyContent: 'flex-end',
   },
   addPersonKeyboardAvoid: {
-    justifyContent: 'flex-end',
+    width: '100%',
   },
   addPersonSheetCard: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    minHeight: 400,
-    maxHeight: '75%',
     paddingTop: 20,
+    paddingBottom: 16,
+    minHeight: 400,
   },
   addPersonModalHeader: {
     flexDirection: 'row',
@@ -1591,7 +1605,7 @@ const styles = StyleSheet.create({
   addPersonScrollContent: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 40,
+    paddingBottom: 16,
   },
   addPersonFieldContainer: {
     marginBottom: 24,
@@ -1653,18 +1667,22 @@ const styles = StyleSheet.create({
   // Add Topic Modal Styles - REBUILT with proper bottom-sheet structure
   addTopicModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'flex-end',
+  },
+  addTopicModalInner: {
+    flex: 1,
     justifyContent: 'flex-end',
   },
   addTopicKeyboardAvoid: {
-    justifyContent: 'flex-end',
+    width: '100%',
   },
   addTopicSheetCard: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    minHeight: 500,
-    maxHeight: '75%',
     paddingTop: 20,
+    paddingBottom: 16,
+    minHeight: 500,
   },
   addTopicModalHeader: {
     flexDirection: 'row',
@@ -1688,7 +1706,7 @@ const styles = StyleSheet.create({
   addTopicScrollContent: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 40,
+    paddingBottom: 16,
   },
   addTopicChipsContainer: {
     marginBottom: 28,
