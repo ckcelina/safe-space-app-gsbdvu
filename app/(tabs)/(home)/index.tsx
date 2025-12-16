@@ -69,6 +69,7 @@ const DEFAULT_TOPICS = [
  * ✓ Keyboard never opens just by tapping "Add Person" button
  * ✓ No checkmark icons in input fields
  * ✓ Keyboard scrolling works exactly like Add Topic modal
+ * ✓ Footer buttons stay visible above keyboard
  */
 
 export default function HomeScreen() {
@@ -919,7 +920,7 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Modal - Updated to match Add Topic keyboard behavior */}
+            {/* Add Person Modal - Fixed: Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
             <Modal
               visible={isAddPersonOpen}
               transparent={true}
@@ -935,8 +936,9 @@ export default function HomeScreen() {
                   onPress={(e) => e.stopPropagation()}
                 >
                   <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={styles.keyboardAvoidingView}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    keyboardVerticalOffset={0}
                   >
                     <View style={styles.modalSheet}>
                       {/* Header */}
@@ -951,11 +953,12 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                       </View>
 
-                      {/* ScrollView with inputs - matching Add Topic structure */}
+                      {/* ScrollView with inputs ONLY */}
                       <ScrollView
                         style={styles.modalScrollView}
                         contentContainerStyle={styles.modalScrollContent}
                         keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="interactive"
                         showsVerticalScrollIndicator={false}
                       >
                         {/* Name Input Row */}
@@ -985,7 +988,7 @@ export default function HomeScreen() {
                             />
                           </View>
                           {personNameError ? (
-                            <Text style={styles.errorText}>{personNameError}</Text>
+                            <Text style={styles.errorTextInline}>{personNameError}</Text>
                           ) : null}
                         </View>
 
@@ -1008,37 +1011,37 @@ export default function HomeScreen() {
                             />
                           </View>
                         </View>
-
-                        {/* Bottom row buttons */}
-                        <View style={styles.modalFooter}>
-                          <TouchableOpacity
-                            onPress={handleCloseAddPersonModal}
-                            style={styles.cancelButton}
-                            disabled={savingPerson}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            onPress={handleSaveAddPerson}
-                            style={styles.saveButton}
-                            disabled={savingPerson}
-                            activeOpacity={0.8}
-                          >
-                            <LinearGradient
-                              colors={theme.primaryGradient}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 1 }}
-                              style={styles.saveButtonGradient}
-                            >
-                              <Text style={styles.saveButtonText}>
-                                {savingPerson ? 'Saving...' : 'Save'}
-                              </Text>
-                            </LinearGradient>
-                          </TouchableOpacity>
-                        </View>
                       </ScrollView>
+
+                      {/* Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
+                      <View style={styles.modalFooter}>
+                        <TouchableOpacity
+                          onPress={handleCloseAddPersonModal}
+                          style={styles.cancelButton}
+                          disabled={savingPerson}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={handleSaveAddPerson}
+                          style={styles.saveButton}
+                          disabled={savingPerson}
+                          activeOpacity={0.8}
+                        >
+                          <LinearGradient
+                            colors={theme.primaryGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.saveButtonGradient}
+                          >
+                            <Text style={styles.saveButtonText}>
+                              {savingPerson ? 'Saving...' : 'Save'}
+                            </Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </KeyboardAvoidingView>
                 </Pressable>
@@ -1494,7 +1497,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  // Add Person Modal Styles - Updated to match Add Topic keyboard behavior
+  // Add Person Modal Styles - Fixed structure
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
@@ -1511,8 +1514,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     paddingTop: 20,
-    paddingBottom: 16,
     minHeight: 360,
+    maxHeight: '90%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.15,
@@ -1540,9 +1543,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalScrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
   },
   inputFieldContainer: {
     marginBottom: 20,
@@ -1573,7 +1576,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     minHeight: 44,
   },
-  errorText: {
+  errorTextInline: {
     color: '#FF3B30',
     fontSize: 12,
     marginTop: 6,
@@ -1581,8 +1584,12 @@ const styles = StyleSheet.create({
   },
   modalFooter: {
     flexDirection: 'row',
-    paddingTop: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     gap: 12,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5E5',
   },
   cancelButton: {
     flex: 1,
