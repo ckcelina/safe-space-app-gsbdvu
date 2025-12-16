@@ -65,9 +65,9 @@ const DEFAULT_TOPICS = [
  * TESTED SCENARIOS (Add Person Modal):
  * ✓ Open modal: shows solid white sheet background (not see-through)
  * ✓ Tap into Name: focus outline visible + scroll works with keyboard
- * ✓ Tap into Relationship: focus outline visible + checkmark icon visible and tappable
+ * ✓ Tap into Relationship: focus outline visible
  * ✓ Keyboard never opens just by tapping "Add Person" button
- * ✓ Checkmark icon triggers save on both iOS and web
+ * ✓ No checkmark icons in input fields
  */
 
 export default function HomeScreen() {
@@ -918,7 +918,7 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Modal - REBUILT with solid white background + checkmark icons */}
+            {/* Add Person Modal - NO checkmark icons in inputs */}
             <Modal
               visible={isAddPersonOpen}
               transparent={true}
@@ -957,7 +957,7 @@ export default function HomeScreen() {
                         keyboardShouldPersistTaps="handled"
                         showsVerticalScrollIndicator={false}
                       >
-                        {/* Name Input Row */}
+                        {/* Name Input Row - NO checkmark icon */}
                         <View style={styles.inputFieldContainer}>
                           <Text style={styles.inputLabel}>Name</Text>
                           <View style={[
@@ -981,25 +981,13 @@ export default function HomeScreen() {
                               editable={!savingPerson}
                               returnKeyType="next"
                             />
-                            <TouchableOpacity
-                              onPress={handleSaveAddPerson}
-                              style={styles.checkIconButton}
-                              disabled={savingPerson}
-                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
-                              <Ionicons 
-                                name="checkmark-circle" 
-                                size={28} 
-                                color={savingPerson ? '#ccc' : theme.primary} 
-                              />
-                            </TouchableOpacity>
                           </View>
                           {personNameError ? (
                             <Text style={styles.errorText}>{personNameError}</Text>
                           ) : null}
                         </View>
 
-                        {/* Relationship Type Input Row */}
+                        {/* Relationship Type Input Row - NO checkmark icon */}
                         <View style={styles.inputFieldContainer}>
                           <Text style={styles.inputLabel}>Relationship Type</Text>
                           <View style={styles.inputRowContainer}>
@@ -1016,18 +1004,6 @@ export default function HomeScreen() {
                               returnKeyType="done"
                               onSubmitEditing={handleSaveAddPerson}
                             />
-                            <TouchableOpacity
-                              onPress={handleSaveAddPerson}
-                              style={styles.checkIconButton}
-                              disabled={savingPerson}
-                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
-                              <Ionicons 
-                                name="checkmark-circle" 
-                                size={28} 
-                                color={savingPerson ? '#ccc' : theme.primary} 
-                              />
-                            </TouchableOpacity>
                           </View>
                         </View>
 
@@ -1067,7 +1043,7 @@ export default function HomeScreen() {
               </Pressable>
             </Modal>
 
-            {/* Add Topic Modal - REBUILT with solid white background + check icon */}
+            {/* Add Topic Modal - UNCHANGED */}
             <Modal
               visible={isAddTopicOpen}
               transparent={true}
@@ -1516,7 +1492,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  // Add Person Modal Styles - REBUILT with solid white background + checkmark icons
+  // Add Person Modal Styles - NO checkmark icons
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
@@ -1595,10 +1571,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     minHeight: 44,
   },
-  checkIconButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
   errorText: {
     color: '#FF3B30',
     fontSize: 12,
@@ -1639,7 +1611,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFF',
   },
-  // Add Topic Modal Styles - REBUILT with solid white background + check icon
+  // Add Topic Modal Styles - UNCHANGED
   addTopicModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
