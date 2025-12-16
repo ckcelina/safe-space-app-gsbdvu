@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity, TextInput, ScrollView, Dimensions } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, Platform, TouchableOpacity, TextInput, ScrollView, Dimensions, KeyboardAvoidingView } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +9,6 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
 import { IconSymbol } from '@/components/IconSymbol';
-import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -18,6 +17,7 @@ export default function AddPersonScreen() {
   const { userId } = useAuth();
   const { theme } = useThemeContext();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
   const [name, setName] = useState('');
   const [relationshipType, setRelationshipType] = useState('');
   const [nameError, setNameError] = useState('');
@@ -81,7 +81,11 @@ export default function AddPersonScreen() {
 
   return (
     <SafeSpaceScreen scrollable={false} keyboardAware={false}>
-      <KeyboardAvoider>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+        keyboardVerticalOffset={insets.top + 80}
+      >
         <View style={styles.container}>
           {/* Header */}
           <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? insets.top + 16 : insets.top }]}>
@@ -99,8 +103,12 @@ export default function AddPersonScreen() {
 
           {/* Scrollable Content */}
           <ScrollView
+            ref={scrollRef}
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: (insets.bottom || 12) + 220 }
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
@@ -143,7 +151,10 @@ export default function AddPersonScreen() {
                         setNameError('');
                       }
                     }}
-                    onFocus={() => setNameFocused(true)}
+                    onFocus={() => {
+                      setNameFocused(true);
+                      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
+                    }}
                     onBlur={() => setNameFocused(false)}
                     autoCapitalize="words"
                     autoCorrect={false}
@@ -184,7 +195,10 @@ export default function AddPersonScreen() {
                       console.log('[AddPerson] Relationship type changed to:', text);
                       setRelationshipType(text);
                     }}
-                    onFocus={() => setRelationshipFocused(true)}
+                    onFocus={() => {
+                      setRelationshipFocused(true);
+                      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 140, animated: true }));
+                    }}
                     onBlur={() => setRelationshipFocused(false)}
                     autoCapitalize="words"
                     autoCorrect={false}
@@ -239,7 +253,7 @@ export default function AddPersonScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoider>
+      </KeyboardAvoidingView>
     </SafeSpaceScreen>
   );
 }
@@ -284,7 +298,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   form: {
-    flex: 1,
   },
   fieldContainer: {
     marginBottom: 24,
