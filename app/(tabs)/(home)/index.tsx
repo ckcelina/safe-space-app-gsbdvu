@@ -443,9 +443,9 @@ export default function HomeScreen() {
       setPersonNameError('');
     }
     
-    // Reset Add Topic form state
-    setCustomTopicName('');
+    // Reset Add Topic form state (on open)
     setSelectedQuickTopic(null);
+    setCustomTopicName('');
     setTopicError('');
     setCustomTopicFocused(false);
     
@@ -465,20 +465,34 @@ export default function HomeScreen() {
   const handleQuickTopicSelect = useCallback((topic: string) => {
     console.log('[Home] Quick topic selected:', topic);
     setSelectedQuickTopic(topic);
-    setCustomTopicName(topic); // Fill the TextInput with the selected topic
+    setCustomTopicName(''); // Clear custom input when chip is selected
     setTopicError(''); // Clear any error
   }, []);
+
+  const handleConfirmCustomTopic = useCallback(() => {
+    console.log('[Home] Confirm custom topic button pressed');
+    const trimmedTopic = customTopicName.trim();
+    
+    if (!trimmedTopic) {
+      setTopicError('Please enter a topic name');
+      return;
+    }
+    
+    // Set the custom topic as selected
+    setSelectedQuickTopic(trimmedTopic);
+    setTopicError('');
+  }, [customTopicName]);
 
   const handleSaveAddTopic = useCallback(async () => {
     console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic);
     
-    // Final topic name is customTopicName if non-empty, else selectedQuickTopic
-    const topicName = customTopicName.trim() || selectedQuickTopic;
+    // Final topic name is selectedQuickTopic (from chip OR confirmed custom input)
+    const topicName = selectedQuickTopic;
     
     // Validate topic name is not empty
     if (!topicName) {
       console.log('[Home] Topic validation failed - topic is empty');
-      setTopicError('Please select or enter a topic');
+      setTopicError('Please select a chip or type and confirm a topic');
       return;
     }
 
@@ -545,11 +559,12 @@ export default function HomeScreen() {
       if (isMountedRef.current) {
         showSuccessToast('Topic added successfully!');
         
-        // Close modal
+        // Close modal and reset state
         setIsAddTopicOpen(false);
-        setCustomTopicName('');
         setSelectedQuickTopic(null);
+        setCustomTopicName('');
         setTopicError('');
+        setCustomTopicFocused(false);
         
         // Refresh Topics list immediately
         console.log('[Home] Refreshing data');
@@ -1052,12 +1067,11 @@ export default function HomeScreen() {
               </Pressable>
             </Modal>
 
-            {/* Add Topic Modal - REBUILT with proper bottom-sheet structure */}
+            {/* Add Topic Modal - REBUILT with solid white background + check icon */}
             <Modal
               visible={isAddTopicOpen}
               transparent={true}
               animationType="slide"
-              presentationStyle="pageSheet"
               onRequestClose={handleCloseAddTopicModal}
             >
               <Pressable 
@@ -1069,19 +1083,13 @@ export default function HomeScreen() {
                   onPress={(e) => e.stopPropagation()}
                 >
                   <KeyboardAvoidingView
-                    behavior="padding"
-                    keyboardVerticalOffset={0}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={styles.addTopicKeyboardAvoid}
                   >
-                    <View style={[
-                      styles.addTopicSheetCard, 
-                      { 
-                        backgroundColor: theme.cardBackground,
-                      }
-                    ]}>
+                    <View style={styles.addTopicSheetCard}>
                       {/* Header */}
                       <View style={styles.addTopicModalHeader}>
-                        <Text style={[styles.addTopicModalTitle, { color: theme.textPrimary }]}>
+                        <Text style={styles.addTopicModalTitle}>
                           Add Topic
                         </Text>
                         <TouchableOpacity 
@@ -1089,12 +1097,7 @@ export default function HomeScreen() {
                           style={styles.addTopicCloseButton}
                           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
-                          <IconSymbol
-                            ios_icon_name="xmark"
-                            android_material_icon_name="close"
-                            size={24}
-                            color={theme.textSecondary}
-                          />
+                          <Ionicons name="close" size={28} color="#333" />
                         </TouchableOpacity>
                       </View>
 
@@ -1107,7 +1110,7 @@ export default function HomeScreen() {
                       >
                         {/* Quick-select topic chips */}
                         <View style={styles.addTopicChipsContainer}>
-                          <Text style={[styles.addTopicHelperText, { color: theme.textSecondary }]}>
+                          <Text style={styles.addTopicHelperText}>
                             Quick select:
                           </Text>
                           <View style={styles.addTopicChipsWrapper}>
@@ -1118,26 +1121,12 @@ export default function HomeScreen() {
                                 activeOpacity={0.7}
                                 style={[
                                   styles.addTopicChip,
-                                  {
-                                    backgroundColor:
-                                      selectedQuickTopic === topic 
-                                        ? theme.primary 
-                                        : theme.background,
-                                    borderWidth: 1.5,
-                                    borderColor:
-                                      selectedQuickTopic === topic 
-                                        ? theme.primary 
-                                        : theme.textSecondary + '40',
-                                  }
+                                  selectedQuickTopic === topic && styles.addTopicChipSelected
                                 ]}
                               >
                                 <Text style={[
                                   styles.addTopicChipText,
-                                  {
-                                    color: selectedQuickTopic === topic 
-                                      ? theme.buttonText 
-                                      : theme.textPrimary,
-                                  }
+                                  selectedQuickTopic === topic && styles.addTopicChipTextSelected
                                 ]}>
                                   {topic}
                                 </Text>
@@ -1146,27 +1135,19 @@ export default function HomeScreen() {
                           </View>
                         </View>
 
-                        {/* Custom Topic Input */}
+                        {/* Custom Topic Input with Check Icon */}
                         <View style={styles.addTopicFieldContainer}>
-                          <Text style={[styles.addTopicInputLabel, { color: theme.textPrimary }]}>
+                          <Text style={styles.addTopicInputLabel}>
                             Or type a custom topic:
                           </Text>
                           <View style={[
-                            styles.addTopicTextInputWrapper, 
-                            { 
-                              backgroundColor: theme.background, 
-                              borderWidth: customTopicFocused ? 2 : 1.5, 
-                              borderColor: topicError 
-                                ? '#FF3B30' 
-                                : customTopicFocused 
-                                  ? theme.primary 
-                                  : theme.textSecondary + '40',
-                            }
+                            styles.addTopicInputRowContainer,
+                            topicError ? styles.addTopicInputRowError : null
                           ]}>
                             <TextInput
-                              style={[styles.addTopicTextInput, { color: theme.textPrimary }]}
+                              style={styles.addTopicTextInput}
                               placeholder="Enter your own topic..."
-                              placeholderTextColor={theme.textSecondary}
+                              placeholderTextColor="#999"
                               value={customTopicName}
                               onChangeText={(text) => {
                                 console.log('[Home] Custom topic name changed to:', text);
@@ -1179,44 +1160,57 @@ export default function HomeScreen() {
                                   setSelectedQuickTopic(null);
                                 }
                               }}
-                              onFocus={() => {
-                                console.log('[Home] Custom topic input focused');
-                                setCustomTopicFocused(true);
-                              }}
-                              onBlur={() => {
-                                console.log('[Home] Custom topic input blurred');
-                                setCustomTopicFocused(false);
-                              }}
                               autoCapitalize="sentences"
                               autoCorrect={false}
                               maxLength={100}
                               editable={!savingTopic}
                               returnKeyType="done"
-                              onSubmitEditing={handleSaveAddTopic}
+                              onSubmitEditing={handleConfirmCustomTopic}
                               autoFocus={false}
                             />
+                            <TouchableOpacity
+                              onPress={handleConfirmCustomTopic}
+                              style={styles.addTopicCheckIconButton}
+                              disabled={savingTopic || !customTopicName.trim()}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                              <Ionicons 
+                                name="checkmark-circle" 
+                                size={28} 
+                                color={savingTopic || !customTopicName.trim() ? '#ccc' : theme.primary} 
+                              />
+                            </TouchableOpacity>
                           </View>
                           {topicError ? (
                             <Text style={styles.addTopicErrorText}>{topicError}</Text>
                           ) : null}
                         </View>
 
+                        {/* Selected topic indicator */}
+                        {selectedQuickTopic && (
+                          <View style={styles.addTopicSelectedIndicator}>
+                            <Text style={styles.addTopicSelectedText}>
+                              Selected: <Text style={styles.addTopicSelectedValue}>{selectedQuickTopic}</Text>
+                            </Text>
+                          </View>
+                        )}
+
                         {/* Bottom row buttons */}
                         <View style={styles.addTopicModalFooter}>
                           <TouchableOpacity
                             onPress={handleCloseAddTopicModal}
-                            style={[styles.addTopicSecondaryButton, { borderColor: theme.textSecondary }]}
+                            style={styles.addTopicCancelButton}
                             disabled={savingTopic}
                             activeOpacity={0.7}
                           >
-                            <Text style={[styles.addTopicSecondaryButtonText, { color: theme.textSecondary }]}>
+                            <Text style={styles.addTopicCancelButtonText}>
                               Cancel
                             </Text>
                           </TouchableOpacity>
 
                           <TouchableOpacity
                             onPress={handleSaveAddTopic}
-                            style={styles.addTopicPrimaryButton}
+                            style={styles.addTopicSaveButton}
                             disabled={savingTopic}
                             activeOpacity={0.8}
                           >
@@ -1224,9 +1218,9 @@ export default function HomeScreen() {
                               colors={theme.primaryGradient}
                               start={{ x: 0, y: 0 }}
                               end={{ x: 1, y: 1 }}
-                              style={styles.addTopicPrimaryButtonGradient}
+                              style={styles.addTopicSaveButtonGradient}
                             >
-                              <Text style={[styles.addTopicPrimaryButtonText, { color: theme.buttonText }]}>
+                              <Text style={styles.addTopicSaveButtonText}>
                                 {savingTopic ? 'Saving...' : 'Save'}
                               </Text>
                             </LinearGradient>
@@ -1645,7 +1639,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFF',
   },
-  // Add Topic Modal Styles - REBUILT with proper bottom-sheet structure
+  // Add Topic Modal Styles - REBUILT with solid white background + check icon
   addTopicModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
@@ -1659,11 +1653,17 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   addTopicSheetCard: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
     paddingTop: 20,
     paddingBottom: 16,
     minHeight: 500,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
   },
   addTopicModalHeader: {
     flexDirection: 'row',
@@ -1672,11 +1672,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
   },
   addTopicModalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: '#333',
   },
   addTopicCloseButton: {
     padding: 4,
@@ -1694,6 +1695,7 @@ const styles = StyleSheet.create({
   },
   addTopicHelperText: {
     fontSize: 15,
+    color: '#555',
     marginBottom: 12,
     fontWeight: '500',
   },
@@ -1706,64 +1708,111 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 18,
     borderRadius: 24,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  addTopicChipSelected: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
   },
   addTopicChipText: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#333',
+  },
+  addTopicChipTextSelected: {
+    color: '#FFF',
   },
   addTopicFieldContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   addTopicInputLabel: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#333',
     marginBottom: 8,
   },
-  addTopicTextInputWrapper: {
+  addTopicInputRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  addTopicInputRowError: {
+    borderColor: '#FF3B30',
   },
   addTopicTextInput: {
+    flex: 1,
     fontSize: 16,
-    lineHeight: 20,
-    minHeight: 20,
+    color: '#333',
+    paddingVertical: 12,
+    minHeight: 44,
+  },
+  addTopicCheckIconButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   addTopicErrorText: {
     color: '#FF3B30',
     fontSize: 12,
     marginTop: 6,
+    marginLeft: 4,
+  },
+  addTopicSelectedIndicator: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  addTopicSelectedText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  addTopicSelectedValue: {
+    fontWeight: 'bold',
+    color: '#1B5E20',
   },
   addTopicModalFooter: {
     flexDirection: 'row',
-    paddingTop: 16,
+    paddingTop: 24,
     gap: 12,
   },
-  addTopicSecondaryButton: {
+  addTopicCancelButton: {
     flex: 1,
     paddingVertical: 16,
     borderRadius: 50,
     borderWidth: 2,
+    borderColor: '#999',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addTopicSecondaryButtonText: {
+  addTopicCancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#666',
   },
-  addTopicPrimaryButton: {
+  addTopicSaveButton: {
     flex: 1,
     borderRadius: 50,
     overflow: 'hidden',
   },
-  addTopicPrimaryButtonGradient: {
+  addTopicSaveButtonGradient: {
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addTopicPrimaryButtonText: {
+  addTopicSaveButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: '#FFF',
   },
   premiumModalInner: {
     padding: 32,
