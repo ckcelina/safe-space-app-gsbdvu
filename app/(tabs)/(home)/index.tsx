@@ -471,30 +471,28 @@ export default function HomeScreen() {
     setTopicError(''); // Clear any error
   }, []);
 
-  const handleConfirmCustomTopic = useCallback(() => {
-    console.log('[Home] Confirm custom topic button pressed');
-    const trimmedTopic = customTopicName.trim();
-    
-    if (!trimmedTopic) {
-      setTopicError('Please enter a topic name');
-      return;
+  const handleCustomTopicChange = useCallback((text: string) => {
+    console.log('[Home] Custom topic name changed to:', text);
+    setCustomTopicName(text);
+    if (topicError && text.trim()) {
+      setTopicError('');
     }
-    
-    // Set the custom topic as selected
-    setSelectedQuickTopic(trimmedTopic);
-    setTopicError('');
-  }, [customTopicName]);
+    // Clear selected quick topic when user types
+    if (text.trim() && selectedQuickTopic) {
+      setSelectedQuickTopic(null);
+    }
+  }, [topicError, selectedQuickTopic]);
 
   const handleSaveAddTopic = useCallback(async () => {
     console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic);
     
-    // Final topic name is selectedQuickTopic (from chip OR confirmed custom input)
-    const topicName = selectedQuickTopic;
+    // Determine final topic name: selectedQuickTopic (from chip) OR customTopicName (typed)
+    const topicName = selectedQuickTopic || customTopicName.trim();
     
     // Validate topic name is not empty
     if (!topicName) {
       console.log('[Home] Topic validation failed - topic is empty');
-      setTopicError('Please select a chip or type and confirm a topic');
+      setTopicError('Please select a topic or type a custom one');
       return;
     }
 
@@ -568,7 +566,21 @@ export default function HomeScreen() {
         setTopicError('');
         setCustomTopicFocused(false);
         
-        // Refresh Topics list immediately
+        // Navigate to chat screen with the new topic
+        if (data && data.id) {
+          console.log('[Home] Navigating to chat for new topic:', data.name, 'id:', data.id);
+          router.push({
+            pathname: '/(tabs)/(home)/chat',
+            params: { 
+              personId: data.id, 
+              personName: data.name || 'Topic',
+              relationshipType: 'Topic',
+              initialSubject: data.name
+            },
+          });
+        }
+        
+        // Refresh Topics list
         console.log('[Home] Refreshing data');
         await fetchData();
       }
@@ -679,6 +691,9 @@ export default function HomeScreen() {
   }, [role, theme.textSecondary]);
 
   const planInfo = getPlanInfo();
+
+  // Compute whether Start Chat button should be enabled
+  const isStartChatEnabled = !!(selectedQuickTopic || customTopicName.trim());
 
   if (authLoading) {
     return <LoadingOverlay visible={true} />;
@@ -1048,7 +1063,7 @@ export default function HomeScreen() {
               </Pressable>
             </Modal>
 
-            {/* Add Topic Modal - UNCHANGED */}
+            {/* Add Topic Modal - FIXED: Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
             <Modal
               visible={isAddTopicOpen}
               transparent={true}
@@ -1064,8 +1079,9 @@ export default function HomeScreen() {
                   onPress={(e) => e.stopPropagation()}
                 >
                   <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={styles.addTopicKeyboardAvoid}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    keyboardVerticalOffset={0}
                   >
                     <View style={styles.addTopicSheetCard}>
                       {/* Header */}
@@ -1082,11 +1098,12 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                       </View>
 
-                      {/* ScrollView with chips and input */}
+                      {/* ScrollView with chips and input ONLY */}
                       <ScrollView
                         style={styles.addTopicScrollView}
                         contentContainerStyle={styles.addTopicScrollContent}
                         keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="interactive"
                         showsVerticalScrollIndicator={false}
                       >
                         {/* Quick-select topic chips */}
@@ -1116,7 +1133,7 @@ export default function HomeScreen() {
                           </View>
                         </View>
 
-                        {/* Custom Topic Input with Check Icon */}
+                        {/* Custom Topic Input */}
                         <View style={styles.addTopicFieldContainer}>
                           <Text style={styles.addTopicInputLabel}>
                             Or type a custom topic:
@@ -1130,37 +1147,15 @@ export default function HomeScreen() {
                               placeholder="Enter your own topic..."
                               placeholderTextColor="#999"
                               value={customTopicName}
-                              onChangeText={(text) => {
-                                console.log('[Home] Custom topic name changed to:', text);
-                                setCustomTopicName(text);
-                                if (topicError && text.trim()) {
-                                  setTopicError('');
-                                }
-                                // Clear selected quick topic when user types
-                                if (text.trim() && selectedQuickTopic) {
-                                  setSelectedQuickTopic(null);
-                                }
-                              }}
+                              onChangeText={handleCustomTopicChange}
                               autoCapitalize="sentences"
                               autoCorrect={false}
                               maxLength={100}
                               editable={!savingTopic}
                               returnKeyType="done"
-                              onSubmitEditing={handleConfirmCustomTopic}
+                              onSubmitEditing={handleSaveAddTopic}
                               autoFocus={false}
                             />
-                            <TouchableOpacity
-                              onPress={handleConfirmCustomTopic}
-                              style={styles.addTopicCheckIconButton}
-                              disabled={savingTopic || !customTopicName.trim()}
-                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
-                              <Ionicons 
-                                name="checkmark-circle" 
-                                size={28} 
-                                color={savingTopic || !customTopicName.trim() ? '#ccc' : theme.primary} 
-                              />
-                            </TouchableOpacity>
                           </View>
                           {topicError ? (
                             <Text style={styles.addTopicErrorText}>{topicError}</Text>
@@ -1175,39 +1170,42 @@ export default function HomeScreen() {
                             </Text>
                           </View>
                         )}
-
-                        {/* Bottom row buttons */}
-                        <View style={styles.addTopicModalFooter}>
-                          <TouchableOpacity
-                            onPress={handleCloseAddTopicModal}
-                            style={styles.addTopicCancelButton}
-                            disabled={savingTopic}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={styles.addTopicCancelButtonText}>
-                              Cancel
-                            </Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            onPress={handleSaveAddTopic}
-                            style={styles.addTopicSaveButton}
-                            disabled={savingTopic}
-                            activeOpacity={0.8}
-                          >
-                            <LinearGradient
-                              colors={theme.primaryGradient}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 1 }}
-                              style={styles.addTopicSaveButtonGradient}
-                            >
-                              <Text style={styles.addTopicSaveButtonText}>
-                                {savingTopic ? 'Saving...' : 'Save'}
-                              </Text>
-                            </LinearGradient>
-                          </TouchableOpacity>
-                        </View>
                       </ScrollView>
+
+                      {/* Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
+                      <View style={styles.addTopicModalFooter}>
+                        <TouchableOpacity
+                          onPress={handleCloseAddTopicModal}
+                          style={styles.addTopicCancelButton}
+                          disabled={savingTopic}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.addTopicCancelButtonText}>
+                            Cancel
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={handleSaveAddTopic}
+                          style={[
+                            styles.addTopicSaveButton,
+                            !isStartChatEnabled && styles.addTopicSaveButtonDisabled
+                          ]}
+                          disabled={savingTopic || !isStartChatEnabled}
+                          activeOpacity={0.8}
+                        >
+                          <LinearGradient
+                            colors={isStartChatEnabled ? theme.primaryGradient : ['#ccc', '#ccc']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.addTopicSaveButtonGradient}
+                          >
+                            <Text style={styles.addTopicSaveButtonText}>
+                              {savingTopic ? 'Saving...' : 'Start Chat'}
+                            </Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </KeyboardAvoidingView>
                 </Pressable>
@@ -1620,7 +1618,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFF',
   },
-  // Add Topic Modal Styles - UNCHANGED
+  // Add Topic Modal Styles - FIXED: Footer buttons OUTSIDE ScrollView
   addTopicModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
@@ -1638,8 +1636,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     paddingTop: 20,
-    paddingBottom: 16,
     minHeight: 500,
+    maxHeight: '90%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.15,
@@ -1734,10 +1732,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     minHeight: 44,
   },
-  addTopicCheckIconButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
   addTopicErrorText: {
     color: '#FF3B30',
     fontSize: 12,
@@ -1763,8 +1757,12 @@ const styles = StyleSheet.create({
   },
   addTopicModalFooter: {
     flexDirection: 'row',
-    paddingTop: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     gap: 12,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5E5',
   },
   addTopicCancelButton: {
     flex: 1,
@@ -1784,6 +1782,9 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 50,
     overflow: 'hidden',
+  },
+  addTopicSaveButtonDisabled: {
+    opacity: 0.5,
   },
   addTopicSaveButtonGradient: {
     paddingVertical: 16,
