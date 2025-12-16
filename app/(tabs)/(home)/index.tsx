@@ -18,6 +18,7 @@ import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
+import AddPersonSheet from '@/components/ui/AddPersonSheet';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
@@ -88,10 +89,6 @@ export default function HomeScreen() {
 
   // Add Person modal state - single source of truth
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
-  const [personName, setPersonName] = useState('');
-  const [personRelationship, setPersonRelationship] = useState('');
-  const [personNameError, setPersonNameError] = useState('');
-  const [savingPerson, setSavingPerson] = useState(false);
 
   // Add Topic modal state - single source of truth
   const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
@@ -102,7 +99,6 @@ export default function HomeScreen() {
   const [customTopicFocused, setCustomTopicFocused] = useState(false);
 
   const isMountedRef = useRef(true);
-  const personScrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -328,7 +324,7 @@ export default function HomeScreen() {
     return filtered;
   }, [topics, searchQuery]);
 
-  // Add Person button handler - closes Add Topic modal if open, resets form, opens modal
+  // Add Person button handler - closes Add Topic modal if open, opens modal
   const handleAddPersonPress = useCallback(() => {
     console.log('[Home] Add Person pressed');
     console.log('[Home] isAddPersonOpen -> true');
@@ -342,100 +338,12 @@ export default function HomeScreen() {
       setCustomTopicFocused(false);
     }
     
-    // Reset Add Person form state
-    setPersonName('');
-    setPersonRelationship('');
-    setPersonNameError('');
-    
     // Open Add Person modal
     setIsAddPersonOpen(true);
     console.log('[Home] Add Person modal should now be visible');
   }, [isAddTopicOpen]);
 
-  const handleCloseAddPersonModal = useCallback(() => {
-    console.log('[Home] Closing Add Person modal');
-    setIsAddPersonOpen(false);
-    setPersonName('');
-    setPersonRelationship('');
-    setPersonNameError('');
-  }, []);
 
-  const handleSaveAddPerson = useCallback(async () => {
-    console.log('[Home] Save Add Person called with name:', personName, 'relationship:', personRelationship);
-    
-    // Validate name is not empty
-    if (!personName.trim()) {
-      console.log('[Home] Name validation failed - name is empty');
-      setPersonNameError('Name is required');
-      return;
-    }
-
-    if (!userId) {
-      console.error('[Home] No userId available');
-      showErrorToast('You must be logged in to add a person');
-      return;
-    }
-
-    console.log('[Home] Starting save process for userId:', userId);
-    setPersonNameError('');
-    setSavingPerson(true);
-
-    try {
-      const trimmedName = personName.trim();
-      const trimmedRelationship = personRelationship.trim();
-      
-      const personData = {
-        user_id: userId,
-        name: trimmedName,
-        relationship_type: trimmedRelationship || null,
-      };
-      
-      console.log('[Home] Inserting person data:', personData);
-      
-      const { data, error } = await supabase
-        .from('persons')
-        .insert([personData])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('[Home] Error creating person:', error);
-        
-        if (isMountedRef.current) {
-          showErrorToast('Failed to add person. Please try again.');
-          setSavingPerson(false);
-        }
-        return;
-      }
-
-      console.log('[Home] Person created successfully:', data);
-      
-      if (isMountedRef.current) {
-        showSuccessToast('Person added successfully!');
-        
-        // Close modal
-        setIsAddPersonOpen(false);
-        setPersonName('');
-        setPersonRelationship('');
-        setPersonNameError('');
-        
-        // Refresh People list immediately
-        console.log('[Home] Refreshing data');
-        await fetchData();
-      }
-      
-    } catch (error: any) {
-      console.error('[Home] Unexpected error creating person:', error);
-      if (isMountedRef.current) {
-        showErrorToast('An unexpected error occurred');
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setSavingPerson(false);
-        console.log('[Home] Save process complete');
-      }
-    }
-  }, [personName, personRelationship, userId, fetchData]);
 
   // Add Topic button handler - closes Add Person modal if open, resets form, opens modal
   const handleAddTopicPress = useCallback(() => {
@@ -444,9 +352,6 @@ export default function HomeScreen() {
     // Close Add Person modal if open
     if (isAddPersonOpen) {
       setIsAddPersonOpen(false);
-      setPersonName('');
-      setPersonRelationship('');
-      setPersonNameError('');
     }
     
     // Reset Add Topic form state (on open)
@@ -944,142 +849,18 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Modal - FIXED: Restored and verified all wiring */}
-            <Modal
+            {/* Add Person Sheet - NEW COMPONENT */}
+            <AddPersonSheet
               visible={isAddPersonOpen}
-              transparent={true}
-              animationType="slide"
-              onRequestClose={handleCloseAddPersonModal}
-            >
-              <Pressable 
-                style={styles.modalOverlay}
-                onPress={handleCloseAddPersonModal}
-              >
-                <Pressable 
-                  style={styles.modalSheetContainer}
-                  onPress={(e) => e.stopPropagation()}
-                >
-                  <KeyboardAvoidingView
-                    style={{ flex: 1 }}
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    keyboardVerticalOffset={0}
-                  >
-                    <View style={styles.modalSheet}>
-                      {/* Header */}
-                      <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Add Person</Text>
-                        <TouchableOpacity 
-                          onPress={handleCloseAddPersonModal} 
-                          style={styles.closeButton}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Ionicons name="close" size={28} color="#333" />
-                        </TouchableOpacity>
-                      </View>
-
-                      {/* ScrollView with inputs ONLY */}
-                      <ScrollView
-                        ref={personScrollViewRef}
-                        style={styles.modalScrollView}
-                        contentContainerStyle={[
-                          styles.modalScrollContent,
-                          { paddingBottom: insets.bottom + 140 }
-                        ]}
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
-                      >
-                        {/* Name Input Row */}
-                        <View style={styles.inputFieldContainer}>
-                          <Text style={styles.inputLabel}>Name</Text>
-                          <View style={[
-                            styles.inputRowContainer,
-                            personNameError ? styles.inputRowError : null
-                          ]}>
-                            <TextInput
-                              style={styles.inputField}
-                              placeholder="Enter their name"
-                              placeholderTextColor="#999"
-                              value={personName}
-                              onChangeText={(text) => {
-                                setPersonName(text);
-                                if (personNameError && text.trim()) {
-                                  setPersonNameError('');
-                                }
-                              }}
-                              onFocus={() => {
-                                personScrollViewRef.current?.scrollTo({ y: 0, animated: true });
-                              }}
-                              autoCapitalize="words"
-                              autoCorrect={false}
-                              maxLength={50}
-                              editable={!savingPerson}
-                              returnKeyType="next"
-                              autoFocus={false}
-                            />
-                          </View>
-                          {personNameError ? (
-                            <Text style={styles.errorTextInline}>{personNameError}</Text>
-                          ) : null}
-                        </View>
-
-                        {/* Relationship Type Input Row */}
-                        <View style={styles.inputFieldContainer}>
-                          <Text style={styles.inputLabel}>Relationship Type</Text>
-                          <View style={styles.inputRowContainer}>
-                            <TextInput
-                              style={styles.inputField}
-                              placeholder="partner, ex, friend, parent..."
-                              placeholderTextColor="#999"
-                              value={personRelationship}
-                              onChangeText={setPersonRelationship}
-                              onFocus={() => {
-                                personScrollViewRef.current?.scrollTo({ y: 120, animated: true });
-                              }}
-                              autoCapitalize="words"
-                              autoCorrect={false}
-                              maxLength={50}
-                              editable={!savingPerson}
-                              returnKeyType="done"
-                              onSubmitEditing={handleSaveAddPerson}
-                            />
-                          </View>
-                        </View>
-                      </ScrollView>
-
-                      {/* Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
-                      <View style={styles.modalFooter}>
-                        <TouchableOpacity
-                          onPress={handleCloseAddPersonModal}
-                          style={styles.cancelButton}
-                          disabled={savingPerson}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          onPress={handleSaveAddPerson}
-                          style={styles.saveButton}
-                          disabled={savingPerson}
-                          activeOpacity={0.8}
-                        >
-                          <LinearGradient
-                            colors={theme.primaryGradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.saveButtonGradient}
-                          >
-                            <Text style={styles.saveButtonText}>
-                              {savingPerson ? 'Saving...' : 'Save'}
-                            </Text>
-                          </LinearGradient>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </KeyboardAvoidingView>
-                </Pressable>
-              </Pressable>
-            </Modal>
+              onClose={() => setIsAddPersonOpen(false)}
+              userId={userId}
+              theme={theme}
+              insets={insets}
+              onSaved={() => {
+                setIsAddPersonOpen(false);
+                fetchData(); // refresh people list
+              }}
+            />
 
             {/* Add Topic Modal - UNCHANGED */}
             <Modal
@@ -1513,126 +1294,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  // Add Person Modal Styles - FIXED: Restored and verified all wiring
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    justifyContent: 'flex-end',
-  },
-  modalSheetContainer: {
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingTop: 20,
-    minHeight: 360,
-    maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  modalScrollView: {
-    flex: 1,
-  },
-  modalScrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 24,
-  },
-  inputFieldContainer: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#555',
-    marginBottom: 8,
-  },
-  inputRowContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  inputRowError: {
-    borderColor: '#FF3B30',
-  },
-  inputField: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-    paddingVertical: 12,
-    minHeight: 44,
-  },
-  errorTextInline: {
-    color: '#FF3B30',
-    fontSize: 12,
-    marginTop: 6,
-    marginLeft: 4,
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 50,
-    borderWidth: 2,
-    borderColor: '#999',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  saveButton: {
-    flex: 1,
-    borderRadius: 50,
-    overflow: 'hidden',
-  },
-  saveButtonGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFF',
-  },
+
   // Add Topic Modal Styles - UNCHANGED
   addTopicModalOverlay: {
     flex: 1,
