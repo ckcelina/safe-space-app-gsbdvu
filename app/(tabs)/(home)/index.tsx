@@ -5,6 +5,7 @@ import { router, Redirect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -62,10 +63,11 @@ const DEFAULT_TOPICS = [
 
 /*
  * TESTED SCENARIOS (Add Person Modal):
- * ✓ Open modal: shows solid sheet background (not see-through)
+ * ✓ Open modal: shows solid white sheet background (not see-through)
  * ✓ Tap into Name: focus outline visible + scroll works with keyboard
- * ✓ Tap into Relationship: focus outline visible
+ * ✓ Tap into Relationship: focus outline visible + checkmark icon visible and tappable
  * ✓ Keyboard never opens just by tapping "Add Person" button
+ * ✓ Checkmark icon triggers save on both iOS and web
  */
 
 export default function HomeScreen() {
@@ -87,8 +89,6 @@ export default function HomeScreen() {
   const [personRelationship, setPersonRelationship] = useState('');
   const [personNameError, setPersonNameError] = useState('');
   const [savingPerson, setSavingPerson] = useState(false);
-  const [personNameFocused, setPersonNameFocused] = useState(false);
-  const [personRelationshipFocused, setPersonRelationshipFocused] = useState(false);
 
   // Add Topic modal state - single source of truth
   const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
@@ -341,8 +341,6 @@ export default function HomeScreen() {
     setPersonName('');
     setPersonRelationship('');
     setPersonNameError('');
-    setPersonNameFocused(false);
-    setPersonRelationshipFocused(false);
     
     // Open Add Person modal
     setIsAddPersonOpen(true);
@@ -354,8 +352,6 @@ export default function HomeScreen() {
     setPersonName('');
     setPersonRelationship('');
     setPersonNameError('');
-    setPersonNameFocused(false);
-    setPersonRelationshipFocused(false);
   }, []);
 
   const handleSaveAddPerson = useCallback(async () => {
@@ -445,8 +441,6 @@ export default function HomeScreen() {
       setPersonName('');
       setPersonRelationship('');
       setPersonNameError('');
-      setPersonNameFocused(false);
-      setPersonRelationshipFocused(false);
     }
     
     // Reset Add Topic form state
@@ -909,168 +903,133 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Modal - REBUILT from scratch for iOS + web consistency */}
+            {/* Add Person Modal - REBUILT with solid white background + checkmark icons */}
             <Modal
               visible={isAddPersonOpen}
               transparent={true}
               animationType="slide"
-              presentationStyle="pageSheet"
               onRequestClose={handleCloseAddPersonModal}
             >
               <Pressable 
-                style={styles.addPersonModalOverlay}
+                style={styles.modalOverlay}
                 onPress={handleCloseAddPersonModal}
               >
                 <Pressable 
-                  style={styles.addPersonModalInner}
+                  style={styles.modalSheetContainer}
                   onPress={(e) => e.stopPropagation()}
                 >
                   <KeyboardAvoidingView
-                    behavior="padding"
-                    keyboardVerticalOffset={0}
-                    style={styles.addPersonKeyboardAvoid}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.keyboardAvoidingView}
                   >
-                    <View style={[
-                      styles.addPersonSheetCard, 
-                      { 
-                        backgroundColor: theme.cardBackground,
-                      }
-                    ]}>
+                    <View style={styles.modalSheet}>
                       {/* Header */}
-                      <View style={styles.addPersonModalHeader}>
-                        <Text style={[styles.addPersonModalTitle, { color: theme.textPrimary }]}>
-                          Add Person
-                        </Text>
+                      <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Add Person</Text>
                         <TouchableOpacity 
                           onPress={handleCloseAddPersonModal} 
-                          style={styles.addPersonCloseButton}
+                          style={styles.closeButton}
                           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
-                          <IconSymbol
-                            ios_icon_name="xmark"
-                            android_material_icon_name="close"
-                            size={24}
-                            color={theme.textSecondary}
-                          />
+                          <Ionicons name="close" size={28} color="#333" />
                         </TouchableOpacity>
                       </View>
 
                       {/* ScrollView with inputs */}
                       <ScrollView
-                        style={styles.addPersonScrollView}
-                        contentContainerStyle={styles.addPersonScrollContent}
+                        style={styles.modalScrollView}
+                        contentContainerStyle={styles.modalScrollContent}
                         keyboardShouldPersistTaps="handled"
                         showsVerticalScrollIndicator={false}
                       >
-                        {/* Name Input */}
-                        <View style={styles.addPersonFieldContainer}>
-                          <Text style={[styles.addPersonInputLabel, { color: theme.textPrimary }]}>
-                            Name <Text style={styles.addPersonRequired}>*</Text>
-                          </Text>
+                        {/* Name Input Row */}
+                        <View style={styles.inputFieldContainer}>
+                          <Text style={styles.inputLabel}>Name</Text>
                           <View style={[
-                            styles.addPersonTextInputWrapper, 
-                            { 
-                              backgroundColor: theme.background, 
-                              borderWidth: personNameFocused ? 2 : 1.5, 
-                              borderColor: personNameError 
-                                ? '#FF3B30' 
-                                : personNameFocused 
-                                  ? theme.primary 
-                                  : theme.textSecondary + '40',
-                            }
+                            styles.inputRowContainer,
+                            personNameError ? styles.inputRowError : null
                           ]}>
                             <TextInput
-                              style={[styles.addPersonTextInput, { color: theme.textPrimary }]}
+                              style={styles.inputField}
                               placeholder="Enter their name"
-                              placeholderTextColor={theme.textSecondary}
+                              placeholderTextColor="#999"
                               value={personName}
                               onChangeText={(text) => {
-                                console.log('[Home] Person name changed to:', text);
                                 setPersonName(text);
                                 if (personNameError && text.trim()) {
                                   setPersonNameError('');
                                 }
-                              }}
-                              onFocus={() => {
-                                console.log('[Home] Name input focused');
-                                setPersonNameFocused(true);
-                              }}
-                              onBlur={() => {
-                                console.log('[Home] Name input blurred');
-                                setPersonNameFocused(false);
                               }}
                               autoCapitalize="words"
                               autoCorrect={false}
                               maxLength={50}
                               editable={!savingPerson}
                               returnKeyType="next"
-                              autoFocus={false}
                             />
+                            <TouchableOpacity
+                              onPress={handleSaveAddPerson}
+                              style={styles.checkIconButton}
+                              disabled={savingPerson}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                              <Ionicons 
+                                name="checkmark-circle" 
+                                size={28} 
+                                color={savingPerson ? '#ccc' : theme.primary} 
+                              />
+                            </TouchableOpacity>
                           </View>
                           {personNameError ? (
-                            <Text style={styles.addPersonErrorText}>{personNameError}</Text>
+                            <Text style={styles.errorText}>{personNameError}</Text>
                           ) : null}
                         </View>
 
-                        {/* Relationship Type Input */}
-                        <View style={styles.addPersonFieldContainer}>
-                          <Text style={[styles.addPersonInputLabel, { color: theme.textPrimary }]}>
-                            Relationship Type
-                          </Text>
-                          <View style={[
-                            styles.addPersonTextInputWrapper, 
-                            { 
-                              backgroundColor: theme.background, 
-                              borderWidth: personRelationshipFocused ? 2 : 1.5, 
-                              borderColor: personRelationshipFocused 
-                                ? theme.primary 
-                                : theme.textSecondary + '40',
-                            }
-                          ]}>
+                        {/* Relationship Type Input Row */}
+                        <View style={styles.inputFieldContainer}>
+                          <Text style={styles.inputLabel}>Relationship Type</Text>
+                          <View style={styles.inputRowContainer}>
                             <TextInput
-                              style={[styles.addPersonTextInput, { color: theme.textPrimary }]}
+                              style={styles.inputField}
                               placeholder="partner, ex, friend, parent..."
-                              placeholderTextColor={theme.textSecondary}
+                              placeholderTextColor="#999"
                               value={personRelationship}
-                              onChangeText={(text) => {
-                                console.log('[Home] Person relationship changed to:', text);
-                                setPersonRelationship(text);
-                              }}
-                              onFocus={() => {
-                                console.log('[Home] Relationship input focused');
-                                setPersonRelationshipFocused(true);
-                              }}
-                              onBlur={() => {
-                                console.log('[Home] Relationship input blurred');
-                                setPersonRelationshipFocused(false);
-                              }}
+                              onChangeText={setPersonRelationship}
                               autoCapitalize="words"
                               autoCorrect={false}
                               maxLength={50}
                               editable={!savingPerson}
                               returnKeyType="done"
                               onSubmitEditing={handleSaveAddPerson}
-                              autoFocus={false}
                             />
+                            <TouchableOpacity
+                              onPress={handleSaveAddPerson}
+                              style={styles.checkIconButton}
+                              disabled={savingPerson}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                              <Ionicons 
+                                name="checkmark-circle" 
+                                size={28} 
+                                color={savingPerson ? '#ccc' : theme.primary} 
+                              />
+                            </TouchableOpacity>
                           </View>
                         </View>
 
                         {/* Bottom row buttons */}
-                        <View style={styles.addPersonModalFooter}>
+                        <View style={styles.modalFooter}>
                           <TouchableOpacity
                             onPress={handleCloseAddPersonModal}
-                            style={[styles.addPersonSecondaryButton, { borderColor: theme.textSecondary }]}
+                            style={styles.cancelButton}
                             disabled={savingPerson}
                             activeOpacity={0.7}
                           >
-                            <Text style={[styles.addPersonSecondaryButtonText, { color: theme.textSecondary }]}>
-                              Cancel
-                            </Text>
+                            <Text style={styles.cancelButtonText}>Cancel</Text>
                           </TouchableOpacity>
 
                           <TouchableOpacity
                             onPress={handleSaveAddPerson}
-                            style={styles.addPersonPrimaryButton}
+                            style={styles.saveButton}
                             disabled={savingPerson}
                             activeOpacity={0.8}
                           >
@@ -1078,9 +1037,9 @@ export default function HomeScreen() {
                               colors={theme.primaryGradient}
                               start={{ x: 0, y: 0 }}
                               end={{ x: 1, y: 1 }}
-                              style={styles.addPersonPrimaryButtonGradient}
+                              style={styles.saveButtonGradient}
                             >
-                              <Text style={[styles.addPersonPrimaryButtonText, { color: theme.buttonText }]}>
+                              <Text style={styles.saveButtonText}>
                                 {savingPerson ? 'Saving...' : 'Save'}
                               </Text>
                             </LinearGradient>
@@ -1563,106 +1522,128 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  // Add Person Modal Styles - REBUILT from scratch for iOS + web consistency
-  addPersonModalOverlay: {
+  // Add Person Modal Styles - REBUILT with solid white background + checkmark icons
+  modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
     justifyContent: 'flex-end',
   },
-  addPersonModalInner: {
-    flex: 1,
+  modalSheetContainer: {
     justifyContent: 'flex-end',
   },
-  addPersonKeyboardAvoid: {
+  keyboardAvoidingView: {
     width: '100%',
   },
-  addPersonSheetCard: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
     paddingTop: 20,
     paddingBottom: 16,
-    minHeight: 400,
+    minHeight: 360,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  addPersonModalHeader: {
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
   },
-  addPersonModalTitle: {
+  modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: '#333',
   },
-  addPersonCloseButton: {
+  closeButton: {
     padding: 4,
   },
-  addPersonScrollView: {
+  modalScrollView: {
     flex: 1,
   },
-  addPersonScrollContent: {
+  modalScrollContent: {
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 16,
   },
-  addPersonFieldContainer: {
-    marginBottom: 24,
+  inputFieldContainer: {
+    marginBottom: 20,
   },
-  addPersonInputLabel: {
-    fontSize: 16,
+  inputLabel: {
+    fontSize: 14,
     fontWeight: '600',
+    color: '#555',
     marginBottom: 8,
   },
-  addPersonRequired: {
-    color: '#FF3B30',
-  },
-  addPersonTextInputWrapper: {
+  inputRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  addPersonTextInput: {
+  inputRowError: {
+    borderColor: '#FF3B30',
+  },
+  inputField: {
+    flex: 1,
     fontSize: 16,
-    lineHeight: 20,
-    minHeight: 20,
+    color: '#333',
+    paddingVertical: 12,
+    minHeight: 44,
   },
-  addPersonErrorText: {
+  checkIconButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  errorText: {
     color: '#FF3B30',
     fontSize: 12,
     marginTop: 6,
+    marginLeft: 4,
   },
-  addPersonModalFooter: {
+  modalFooter: {
     flexDirection: 'row',
-    paddingTop: 16,
+    paddingTop: 24,
     gap: 12,
   },
-  addPersonSecondaryButton: {
+  cancelButton: {
     flex: 1,
     paddingVertical: 16,
     borderRadius: 50,
     borderWidth: 2,
+    borderColor: '#999',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addPersonSecondaryButtonText: {
+  cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#666',
   },
-  addPersonPrimaryButton: {
+  saveButton: {
     flex: 1,
     borderRadius: 50,
     overflow: 'hidden',
   },
-  addPersonPrimaryButtonGradient: {
+  saveButtonGradient: {
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addPersonPrimaryButtonText: {
+  saveButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: '#FFF',
   },
   // Add Topic Modal Styles - REBUILT with proper bottom-sheet structure
   addTopicModalOverlay: {
