@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
@@ -65,44 +66,101 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       return;
     }
 
-    if (!userId) {
-      console.error('[AddPersonSheet] No userId available');
-      showErrorToast('You must be logged in to add a person');
-      return;
-    }
-
-    console.log('[AddPersonSheet] Starting save process for person:', name, 'userId:', userId);
     setError('');
     setSaving(true);
 
     try {
-      // Insert person for current authenticated user
-      const personData = {
-        user_id: userId,
-        name: name.trim(),
-        relationship_type: relationshipType.trim() || null,
-      };
+      // Step 1: Resolve userId
+      let resolvedUserId = userId;
+      console.log('[AddPersonSheet] Initial userId from props:', resolvedUserId);
 
-      console.log('[AddPersonSheet] Inserting person data:', personData);
+      if (!resolvedUserId) {
+        console.log('[AddPersonSheet] No userId from props, fetching from supabase.auth.getUser()');
+        const { data: authData, error: authErr } = await supabase.auth.getUser();
+        
+        if (authErr) {
+          console.error('[AddPersonSheet] Auth error when fetching user:', authErr);
+          console.error('[AddPersonSheet] Auth error code:', authErr.code);
+          console.error('[AddPersonSheet] Auth error message:', authErr.message);
+        }
+        
+        resolvedUserId = authData?.user?.id;
+        console.log('[AddPersonSheet] Resolved userId from auth:', resolvedUserId);
+      }
 
-      const { data, error: insertError } = await supabase
-        .from('persons')
-        .insert([personData])
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('[AddPersonSheet] Error creating person:', insertError);
-        showErrorToast('Failed to add person. Please try again.');
+      // Step 2: Check if we have a valid userId
+      if (!resolvedUserId) {
+        console.error('[AddPersonSheet] No resolvedUserId available after fallback');
+        showErrorToast('Not signed in. Please log in again.');
         setSaving(false);
         return;
       }
 
+      // Step 3: Prepare payload
+      const payload = {
+        user_id: resolvedUserId,
+        name: name.trim(),
+        relationship_type: relationshipType.trim() ? relationshipType.trim() : null,
+      };
+
+      console.log('[AddPersonSheet] Inserting person with payload:', payload);
+
+      // Step 4: Execute insert
+      const { data, error: insertError } = await supabase
+        .from('persons')
+        .insert([payload])
+        .select()
+        .single();
+
+      // Step 5: Handle errors
+      if (insertError) {
+        console.error('[AddPersonSheet] Supabase insert error:', insertError);
+        console.error('[AddPersonSheet] payload:', payload);
+        console.log('[AddPersonSheet] error.code:', insertError.code);
+        console.log('[AddPersonSheet] error.message:', insertError.message);
+        console.log('[AddPersonSheet] error.details:', insertError.details);
+        console.log('[AddPersonSheet] error.hint:', insertError.hint);
+
+        // Detect RLS / permission issues
+        const isRLSBlocked =
+          insertError.code === '42501' ||
+          (insertError.message &&
+            (insertError.message.toLowerCase().includes('permission denied') ||
+              insertError.message.toLowerCase().includes('row level security') ||
+              insertError.message.toLowerCase().includes('new row violates row-level security policy')));
+
+        if (isRLSBlocked) {
+          const rlsMessage = 'Blocked by Supabase security (RLS). You need an insert policy for persons.';
+          showErrorToast(rlsMessage);
+          Alert.alert(
+            'RLS BLOCKED INSERT',
+            'Fix in Supabase: create an INSERT policy on persons allowing auth.uid() = user_id.\n\n' +
+              `Error code: ${insertError.code || 'N/A'}\n` +
+              `Message: ${insertError.message || 'N/A'}\n` +
+              `Details: ${insertError.details || 'N/A'}\n` +
+              `Hint: ${insertError.hint || 'N/A'}`
+          );
+        } else {
+          const errorMessage = `Failed to add person: ${insertError.message || insertError.code || 'Unknown error'}`;
+          showErrorToast(errorMessage);
+          Alert.alert(
+            'Supabase Error',
+            `${errorMessage}\n\n` +
+              `Code: ${insertError.code || 'N/A'}\n` +
+              `Details: ${insertError.details || 'N/A'}\n` +
+              `Hint: ${insertError.hint || 'N/A'}`
+          );
+        }
+
+        setSaving(false);
+        return;
+      }
+
+      // Step 6: Success
       console.log('[AddPersonSheet] Person created successfully:', data);
       showSuccessToast('Person added successfully!');
-
-      // Call onSaved callback to refresh list and close modal
       onSaved();
+      onClose();
     } catch (error: any) {
       console.error('[AddPersonSheet] Unexpected error creating person:', error);
       showErrorToast('An unexpected error occurred');
