@@ -96,7 +96,31 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         return;
       }
 
-      // Step 3: Prepare payload
+      // Step 3: Check for duplicate person (case-insensitive)
+      console.log('[AddPersonSheet] Checking for existing person with name:', name.trim());
+      const { data: existingPerson, error: selectError } = await supabase
+        .from('persons')
+        .select('*')
+        .eq('user_id', resolvedUserId)
+        .ilike('name', name.trim())
+        .maybeSingle();
+
+      if (selectError) {
+        console.error('[AddPersonSheet] Error checking for duplicate:', selectError);
+        // Continue with insert attempt even if select fails
+      }
+
+      if (existingPerson) {
+        console.log('[AddPersonSheet] Duplicate person found:', existingPerson);
+        showErrorToast('You already added this person');
+        setSaving(false);
+        onClose();
+        return;
+      }
+
+      console.log('[AddPersonSheet] No duplicate found, proceeding with insert');
+
+      // Step 4: Prepare payload
       const payload = {
         user_id: resolvedUserId,
         name: name.trim(),
@@ -105,14 +129,14 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
 
       console.log('[AddPersonSheet] Inserting person with payload:', payload);
 
-      // Step 4: Execute insert
+      // Step 5: Execute insert
       const { data, error: insertError } = await supabase
         .from('persons')
         .insert([payload])
         .select()
         .single();
 
-      // Step 5: Handle errors
+      // Step 6: Handle errors
       if (insertError) {
         console.error('[AddPersonSheet] Supabase insert error:', insertError);
         console.error('[AddPersonSheet] payload:', payload);
@@ -156,7 +180,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         return;
       }
 
-      // Step 6: Success
+      // Step 7: Success
       console.log('[AddPersonSheet] Person created successfully:', data);
       showSuccessToast('Person added successfully!');
       onSaved();
