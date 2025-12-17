@@ -11,7 +11,6 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
@@ -112,7 +111,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
 
       if (existingPerson) {
         console.log('[AddPersonSheet] Duplicate person found:', existingPerson);
-        showErrorToast('You already added this person');
+        showErrorToast('This person already exists in your list');
         setSaving(false);
         onClose();
         return;
@@ -138,14 +137,28 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
 
       // Step 6: Handle errors
       if (insertError) {
-        console.error('[AddPersonSheet] Supabase insert error:', insertError);
-        console.error('[AddPersonSheet] payload:', payload);
-        console.log('[AddPersonSheet] error.code:', insertError.code);
-        console.log('[AddPersonSheet] error.message:', insertError.message);
-        console.log('[AddPersonSheet] error.details:', insertError.details);
-        console.log('[AddPersonSheet] error.hint:', insertError.hint);
+        // Log technical error details silently for debugging
+        console.error('[AddPersonSheet] ===== SUPABASE INSERT ERROR =====');
+        console.error('[AddPersonSheet] Error code:', insertError.code);
+        console.error('[AddPersonSheet] Error message:', insertError.message);
+        console.error('[AddPersonSheet] Error details:', insertError.details);
+        console.error('[AddPersonSheet] Error hint:', insertError.hint);
+        console.error('[AddPersonSheet] Payload:', payload);
+        console.error('[AddPersonSheet] ================================');
 
-        // Detect RLS / permission issues
+        // Re-enable Save button
+        setSaving(false);
+
+        // Handle specific error codes with user-friendly messages
+        if (insertError.code === '23505') {
+          // Duplicate key violation - this should be caught by pre-check, but handle it anyway
+          console.log('[AddPersonSheet] Duplicate key error (23505) - showing user-friendly message');
+          showErrorToast('This person already exists in your list');
+          onClose();
+          return;
+        }
+
+        // Handle RLS / permission issues
         const isRLSBlocked =
           insertError.code === '42501' ||
           (insertError.message &&
@@ -154,41 +167,36 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
               insertError.message.toLowerCase().includes('new row violates row-level security policy')));
 
         if (isRLSBlocked) {
-          const rlsMessage = 'Blocked by Supabase security (RLS). You need an insert policy for persons.';
-          showErrorToast(rlsMessage);
-          Alert.alert(
-            'RLS BLOCKED INSERT',
-            'Fix in Supabase: create an INSERT policy on persons allowing auth.uid() = user_id.\n\n' +
-              `Error code: ${insertError.code || 'N/A'}\n` +
-              `Message: ${insertError.message || 'N/A'}\n` +
-              `Details: ${insertError.details || 'N/A'}\n` +
-              `Hint: ${insertError.hint || 'N/A'}`
-          );
-        } else {
-          const errorMessage = `Failed to add person: ${insertError.message || insertError.code || 'Unknown error'}`;
-          showErrorToast(errorMessage);
-          Alert.alert(
-            'Supabase Error',
-            `${errorMessage}\n\n` +
-              `Code: ${insertError.code || 'N/A'}\n` +
-              `Details: ${insertError.details || 'N/A'}\n` +
-              `Hint: ${insertError.hint || 'N/A'}`
-          );
+          console.log('[AddPersonSheet] RLS blocked error detected');
+          showErrorToast('Unable to add person. Please check your permissions.');
+          return;
         }
 
-        setSaving(false);
+        // Generic error - show user-friendly message without technical details
+        console.log('[AddPersonSheet] Generic error - showing user-friendly message');
+        showErrorToast('Failed to add person. Please try again.');
         return;
       }
 
       // Step 7: Success
       console.log('[AddPersonSheet] Person created successfully:', data);
       showSuccessToast('Person added successfully!');
+      setSaving(false);
       onSaved();
       onClose();
     } catch (error: any) {
-      console.error('[AddPersonSheet] Unexpected error creating person:', error);
-      showErrorToast('An unexpected error occurred');
+      // Log unexpected errors silently for debugging
+      console.error('[AddPersonSheet] ===== UNEXPECTED ERROR =====');
+      console.error('[AddPersonSheet] Error:', error);
+      console.error('[AddPersonSheet] Error message:', error?.message);
+      console.error('[AddPersonSheet] Error stack:', error?.stack);
+      console.error('[AddPersonSheet] ============================');
+
+      // Re-enable Save button
       setSaving(false);
+
+      // Show user-friendly message without technical details
+      showErrorToast('An unexpected error occurred. Please try again.');
     }
   };
 
