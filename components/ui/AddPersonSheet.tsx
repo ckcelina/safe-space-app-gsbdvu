@@ -56,6 +56,12 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
     }
   }, [visible]);
 
+  /**
+   * FIXED: Handle person creation WITHOUT duplicate checking
+   * - Duplicate names are now ALLOWED
+   * - Each person is uniquely identified by UUID (person.id) and person_key
+   * - Generic error handling only
+   */
   const handleSave = async () => {
     console.log('[AddPersonSheet] Save called with name:', name, 'relationship:', relationshipType);
 
@@ -80,8 +86,6 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         
         if (authErr) {
           console.error('[AddPersonSheet] Auth error when fetching user:', authErr);
-          console.error('[AddPersonSheet] Auth error code:', authErr.code);
-          console.error('[AddPersonSheet] Auth error message:', authErr.message);
         }
         
         resolvedUserId = authData?.user?.id;
@@ -96,7 +100,9 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         return;
       }
 
-      // Step 3: Prepare payload (NO duplicate checking - duplicates are now allowed!)
+      // Step 3: Prepare payload
+      // REMOVED: Duplicate checking - duplicates are now allowed!
+      // Users can add multiple people with the same name (e.g., multiple "Mom" entries)
       const payload = {
         user_id: resolvedUserId,
         name: name.trim(),
@@ -112,7 +118,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         .select()
         .single();
 
-      // Step 5: Handle errors - show Supabase message
+      // Step 5: Handle errors - show generic error message
       if (insertError) {
         // Log technical error details silently for debugging
         console.error('[AddPersonSheet] ===== SUPABASE INSERT ERROR =====');
@@ -126,9 +132,8 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         // Re-enable Save button
         setSaving(false);
 
-        // Show the Supabase error message to the user
-        const errorMessage = insertError.message || 'Failed to add person. Please try again.';
-        showErrorToast(errorMessage);
+        // Show generic user-friendly error message
+        showErrorToast('Failed to add person. Please try again.');
         return;
       }
 
@@ -161,8 +166,8 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       // Re-enable Save button
       setSaving(false);
 
-      // Show user-friendly message
-      showErrorToast('An unexpected error occurred. Please try again.');
+      // Show generic user-friendly message
+      showErrorToast('Failed to add person. Please try again.');
     }
   };
 
