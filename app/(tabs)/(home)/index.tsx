@@ -88,6 +88,9 @@ export default function HomeScreen() {
   const [customTopicFocused, setCustomTopicFocused] = useState(false);
 
   const isMountedRef = useRef(true);
+  
+  // Track if a person was just added (for safety effect)
+  const personAddedRef = useRef(false);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -237,6 +240,22 @@ export default function HomeScreen() {
     }, [userId, fetchData])
   );
 
+  // SAFETY EFFECT: Listen for Add Person sheet closing
+  // If a person was added, trigger fetchData() to sync with Supabase
+  useEffect(() => {
+    if (!isAddPersonOpen && personAddedRef.current) {
+      console.log('[Home] Add Person sheet closed after save - triggering fetchData()');
+      personAddedRef.current = false;
+      
+      // Small delay to ensure Supabase has processed the insert
+      setTimeout(() => {
+        if (isMountedRef.current && userId) {
+          fetchData();
+        }
+      }, 300);
+    }
+  }, [isAddPersonOpen, userId, fetchData]);
+
   const handleDeletePerson = useCallback(async (personId: string, isTopic: boolean = false) => {
     if (!personId) {
       console.error('[Home] Cannot delete - personId is missing');
@@ -342,7 +361,7 @@ export default function HomeScreen() {
     console.log('[Home] Add Person modal should now be visible');
   }, [isAddTopicOpen]);
 
-  // Handle successful person save with optimistic update
+  // Handle successful person save with optimistic update + data re-sync
   const handlePersonSaved = useCallback((newPerson: Person) => {
     console.log('[Home] handlePersonSaved called with:', newPerson);
     
@@ -359,10 +378,21 @@ export default function HomeScreen() {
       lastMessageTime: undefined,
     };
     
-    // Optimistic update: prepend the new person to the list
+    // STEP 1: Optimistic update - prepend the new person to the list
     console.log('[Home] Performing optimistic update - adding person to top of list');
     setPeople(prev => [newPersonWithMessage, ...prev]);
-  }, []);
+    
+    // STEP 2: Mark that a person was added (for safety effect)
+    personAddedRef.current = true;
+    
+    // STEP 3: Data re-sync - call fetchData() to sync with Supabase
+    console.log('[Home] Triggering data re-sync with Supabase');
+    setTimeout(() => {
+      if (isMountedRef.current && userId) {
+        fetchData();
+      }
+    }, 500);
+  }, [userId, fetchData]);
 
   // Add Topic button handler - closes Add Person modal if open, resets form, opens modal
   const handleAddTopicPress = useCallback(() => {
@@ -848,7 +878,7 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Sheet - WITH OPTIMISTIC UPDATE */}
+            {/* Add Person Sheet - WITH OPTIMISTIC UPDATE + DATA RE-SYNC */}
             <AddPersonSheet
               visible={isAddPersonOpen}
               onClose={() => setIsAddPersonOpen(false)}
