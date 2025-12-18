@@ -72,6 +72,7 @@ const DEFAULT_TOPICS = [
  * ✓ Keyboard scrolling works exactly like Add Topic modal
  * ✓ Footer buttons stay visible above keyboard
  * ✓ Scroll-to-focused-input behavior implemented
+ * ✓ Optimistic update: new person appears immediately in People list
  */
 
 export default function HomeScreen() {
@@ -343,7 +344,27 @@ export default function HomeScreen() {
     console.log('[Home] Add Person modal should now be visible');
   }, [isAddTopicOpen]);
 
-
+  // Handle successful person save with optimistic update
+  const handlePersonSaved = useCallback((newPerson: Person) => {
+    console.log('[Home] handlePersonSaved called with:', newPerson);
+    
+    // Ensure the new person has relationship_type !== 'Topic' so it appears under People
+    if (newPerson.relationship_type === 'Topic') {
+      console.warn('[Home] New person has relationship_type "Topic", skipping optimistic update');
+      return;
+    }
+    
+    // Create a person with last message placeholder
+    const newPersonWithMessage: PersonWithLastMessage = {
+      ...newPerson,
+      lastMessage: 'No messages yet',
+      lastMessageTime: undefined,
+    };
+    
+    // Optimistic update: prepend the new person to the list
+    console.log('[Home] Performing optimistic update - adding person to top of list');
+    setPeople(prev => [newPersonWithMessage, ...prev]);
+  }, []);
 
   // Add Topic button handler - closes Add Person modal if open, resets form, opens modal
   const handleAddTopicPress = useCallback(() => {
@@ -849,17 +870,14 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Sheet - NEW COMPONENT */}
+            {/* Add Person Sheet - WITH OPTIMISTIC UPDATE */}
             <AddPersonSheet
               visible={isAddPersonOpen}
               onClose={() => setIsAddPersonOpen(false)}
               userId={userId}
               theme={theme}
               insets={insets}
-              onSaved={() => {
-                setIsAddPersonOpen(false);
-                fetchData(); // refresh people list
-              }}
+              onSaved={handlePersonSaved}
             />
 
             {/* Add Topic Modal - UNCHANGED */}

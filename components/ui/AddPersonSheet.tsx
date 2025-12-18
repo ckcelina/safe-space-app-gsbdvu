@@ -15,11 +15,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
+import { Person } from '@/types/database.types';
 
 interface AddPersonSheetProps {
   visible: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (newPerson: Person) => void;
   userId: string;
   theme: any;
   insets: any;
@@ -178,11 +179,21 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         return;
       }
 
-      // Step 7: Success
+      // Step 7: Success - Optimistic update
       console.log('[AddPersonSheet] Person created successfully:', data);
+      
+      // Ensure the new person has relationship_type !== 'Topic' so it appears under People
+      const newPerson: Person = {
+        ...data,
+        relationship_type: data.relationship_type || null,
+      };
+      
+      console.log('[AddPersonSheet] Calling onSaved with new person:', newPerson);
       showSuccessToast('Person added successfully!');
       setSaving(false);
-      onSaved();
+      
+      // Pass the new person to the parent for optimistic update
+      onSaved(newPerson);
       onClose();
     } catch (error: any) {
       // Log unexpected errors silently for debugging
