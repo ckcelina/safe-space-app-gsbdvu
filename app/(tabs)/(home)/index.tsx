@@ -68,6 +68,7 @@ export default function HomeScreen() {
   const { theme } = useThemeContext();
   const insets = useSafeAreaInsets();
   
+  // Single source of truth for people and topics
   const [people, setPeople] = useState<PersonWithLastMessage[]>([]);
   const [topics, setTopics] = useState<PersonWithLastMessage[]>([]);
   
@@ -88,9 +89,6 @@ export default function HomeScreen() {
   const [customTopicFocused, setCustomTopicFocused] = useState(false);
 
   const isMountedRef = useRef(true);
-  
-  // Track if a person was just added (for safety effect)
-  const personAddedRef = useRef(false);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -99,6 +97,11 @@ export default function HomeScreen() {
     };
   }, []);
 
+  /**
+   * FIXED: Fetch data with correct filtering logic
+   * - People: relationship_type != 'Topic' (includes null)
+   * - Topics: relationship_type == 'Topic'
+   */
   const fetchData = useCallback(async () => {
     if (!userId) {
       console.log('[Home] No userId available');
@@ -110,6 +113,7 @@ export default function HomeScreen() {
       setError(null);
       console.log('[Home] Fetching people and topics for user:', userId);
       
+      // Fetch people: relationship_type != 'Topic' (includes null)
       const { data: peopleData, error: peopleError } = await supabase
         .from('persons')
         .select('*')
@@ -126,6 +130,7 @@ export default function HomeScreen() {
         return;
       }
 
+      // Fetch topics: relationship_type == 'Topic'
       const { data: topicsData, error: topicsError } = await supabase
         .from('persons')
         .select('*')
@@ -230,7 +235,10 @@ export default function HomeScreen() {
     }
   }, [userId, fetchData]);
 
-  // Focus-based refresh: refresh data whenever the screen gains focus
+  /**
+   * FIXED: Focus-based refresh
+   * - Refresh data whenever the screen gains focus
+   */
   useFocusEffect(
     useCallback(() => {
       console.log('[Home] Screen focused - refreshing data');
@@ -239,22 +247,6 @@ export default function HomeScreen() {
       }
     }, [userId, fetchData])
   );
-
-  // SAFETY EFFECT: Listen for Add Person sheet closing
-  // If a person was added, trigger fetchData() to sync with Supabase
-  useEffect(() => {
-    if (!isAddPersonOpen && personAddedRef.current) {
-      console.log('[Home] Add Person sheet closed after save - triggering fetchData()');
-      personAddedRef.current = false;
-      
-      // Small delay to ensure Supabase has processed the insert
-      setTimeout(() => {
-        if (isMountedRef.current && userId) {
-          fetchData();
-        }
-      }, 300);
-    }
-  }, [isAddPersonOpen, userId, fetchData]);
 
   const handleDeletePerson = useCallback(async (personId: string, isTopic: boolean = false) => {
     if (!personId) {
@@ -361,9 +353,13 @@ export default function HomeScreen() {
     console.log('[Home] Add Person modal should now be visible');
   }, [isAddTopicOpen]);
 
-  // Handle successful person save with optimistic update + data re-sync
-  const handlePersonSaved = useCallback((newPerson: Person) => {
-    console.log('[Home] handlePersonSaved called with:', newPerson);
+  /**
+   * FIXED: Handle successful person creation with optimistic update + data re-sync
+   * - Immediately update local state by prepending the new person
+   * - Call fetchData() once to guarantee server truth
+   */
+  const handlePersonCreated = useCallback((newPerson: Person) => {
+    console.log('[Home] handlePersonCreated called with:', newPerson);
     
     // Ensure the new person has relationship_type !== 'Topic' so it appears under People
     if (newPerson.relationship_type === 'Topic') {
@@ -382,16 +378,11 @@ export default function HomeScreen() {
     console.log('[Home] Performing optimistic update - adding person to top of list');
     setPeople(prev => [newPersonWithMessage, ...prev]);
     
-    // STEP 2: Mark that a person was added (for safety effect)
-    personAddedRef.current = true;
-    
-    // STEP 3: Data re-sync - call fetchData() to sync with Supabase
+    // STEP 2: Data re-sync - call fetchData() to sync with Supabase
     console.log('[Home] Triggering data re-sync with Supabase');
-    setTimeout(() => {
-      if (isMountedRef.current && userId) {
-        fetchData();
-      }
-    }, 500);
+    if (userId) {
+      fetchData();
+    }
   }, [userId, fetchData]);
 
   // Add Topic button handler - closes Add Person modal if open, resets form, opens modal
@@ -885,7 +876,7 @@ export default function HomeScreen() {
               userId={userId}
               theme={theme}
               insets={insets}
-              onSaved={handlePersonSaved}
+              onPersonCreated={handlePersonCreated}
             />
 
             {/* Add Topic Modal - UNCHANGED */}
