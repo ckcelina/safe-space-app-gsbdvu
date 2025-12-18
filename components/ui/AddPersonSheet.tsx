@@ -96,31 +96,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         return;
       }
 
-      // Step 3: Check for duplicate person (case-insensitive)
-      console.log('[AddPersonSheet] Checking for existing person with name:', name.trim());
-      const { data: existingPerson, error: selectError } = await supabase
-        .from('persons')
-        .select('*')
-        .eq('user_id', resolvedUserId)
-        .ilike('name', name.trim())
-        .maybeSingle();
-
-      if (selectError) {
-        console.error('[AddPersonSheet] Error checking for duplicate:', selectError);
-        // Continue with insert attempt even if select fails
-      }
-
-      if (existingPerson) {
-        console.log('[AddPersonSheet] Duplicate person found:', existingPerson);
-        showErrorToast('This person already exists in your list');
-        setSaving(false);
-        onClose();
-        return;
-      }
-
-      console.log('[AddPersonSheet] No duplicate found, proceeding with insert');
-
-      // Step 4: Prepare payload
+      // Step 3: Prepare payload (NO duplicate checking - duplicates are now allowed!)
       const payload = {
         user_id: resolvedUserId,
         name: name.trim(),
@@ -129,14 +105,14 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
 
       console.log('[AddPersonSheet] Inserting person with payload:', payload);
 
-      // Step 5: Execute insert
+      // Step 4: Execute insert
       const { data, error: insertError } = await supabase
         .from('persons')
         .insert([payload])
         .select()
         .single();
 
-      // Step 6: Handle errors
+      // Step 5: Handle errors - show Supabase message
       if (insertError) {
         // Log technical error details silently for debugging
         console.error('[AddPersonSheet] ===== SUPABASE INSERT ERROR =====');
@@ -150,36 +126,13 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         // Re-enable Save button
         setSaving(false);
 
-        // Handle specific error codes with user-friendly messages
-        if (insertError.code === '23505') {
-          // Duplicate key violation - this should be caught by pre-check, but handle it anyway
-          console.log('[AddPersonSheet] Duplicate key error (23505) - showing user-friendly message');
-          showErrorToast('This person already exists in your list');
-          onClose();
-          return;
-        }
-
-        // Handle RLS / permission issues
-        const isRLSBlocked =
-          insertError.code === '42501' ||
-          (insertError.message &&
-            (insertError.message.toLowerCase().includes('permission denied') ||
-              insertError.message.toLowerCase().includes('row level security') ||
-              insertError.message.toLowerCase().includes('new row violates row-level security policy')));
-
-        if (isRLSBlocked) {
-          console.log('[AddPersonSheet] RLS blocked error detected');
-          showErrorToast('Unable to add person. Please check your permissions.');
-          return;
-        }
-
-        // Generic error - show user-friendly message without technical details
-        console.log('[AddPersonSheet] Generic error - showing user-friendly message');
-        showErrorToast('Failed to add person. Please try again.');
+        // Show the Supabase error message to the user
+        const errorMessage = insertError.message || 'Failed to add person. Please try again.';
+        showErrorToast(errorMessage);
         return;
       }
 
-      // Step 7: Success - Optimistic update
+      // Step 6: Success - Optimistic update
       console.log('[AddPersonSheet] Person created successfully:', data);
       
       // Ensure the new person has relationship_type !== 'Topic' so it appears under People
@@ -194,6 +147,8 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       
       // Pass the new person to the parent for optimistic update
       onSaved(newPerson);
+      
+      // Close the sheet
       onClose();
     } catch (error: any) {
       // Log unexpected errors silently for debugging
@@ -206,7 +161,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       // Re-enable Save button
       setSaving(false);
 
-      // Show user-friendly message without technical details
+      // Show user-friendly message
       showErrorToast('An unexpected error occurred. Please try again.');
     }
   };

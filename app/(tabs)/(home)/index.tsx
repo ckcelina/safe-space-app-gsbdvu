@@ -63,20 +63,6 @@ const DEFAULT_TOPICS = [
   'Motivation',
 ];
 
-/*
- * TESTED SCENARIOS (Add Person Modal):
- * ✓ Open modal: shows solid white sheet background (not see-through)
- * ✓ Tap into Name: focus outline visible + scroll works with keyboard
- * ✓ Tap into Relationship: focus outline visible
- * ✓ Keyboard never opens just by tapping "Add Person" button
- * ✓ No checkmark icons in input fields
- * ✓ Keyboard scrolling works exactly like Add Topic modal
- * ✓ Footer buttons stay visible above keyboard
- * ✓ Scroll-to-focused-input behavior implemented
- * ✓ Optimistic update: new person appears immediately in People list
- * ✓ Focus-based refresh: data refreshes when returning to Home screen
- */
-
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
@@ -449,29 +435,7 @@ export default function HomeScreen() {
     setSavingTopic(true);
 
     try {
-      // Check for duplicates before inserting
-      const { data: existingTopics, error: checkError } = await supabase
-        .from('persons')
-        .select('*', { count: 'exact' })
-        .eq('name', topicName)
-        .eq('user_id', userId)
-        .eq('relationship_type', 'Topic');
-
-      if (checkError) {
-        console.error('[Home] Error checking for duplicate topics:', checkError);
-        showErrorToast('Failed to save topic. Please try again.');
-        setSavingTopic(false);
-        return;
-      }
-
-      if (existingTopics && existingTopics.length > 0) {
-        console.log('[Home] Topic already exists:', topicName);
-        setTopicError('This topic already exists');
-        setSavingTopic(false);
-        return;
-      }
-
-      // Insert topic for current authenticated user
+      // Insert topic for current authenticated user (NO duplicate checking - duplicates are now allowed!)
       const topicData = {
         user_id: userId,
         name: topicName,
@@ -490,7 +454,9 @@ export default function HomeScreen() {
         console.error('[Home] Error creating topic:', error);
         
         if (isMountedRef.current) {
-          showErrorToast('Failed to add topic. Please try again.');
+          // Show the Supabase error message
+          const errorMessage = error.message || 'Failed to add topic. Please try again.';
+          showErrorToast(errorMessage);
           setSavingTopic(false);
         }
         return;
