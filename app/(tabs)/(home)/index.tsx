@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -73,6 +74,7 @@ const DEFAULT_TOPICS = [
  * ✓ Footer buttons stay visible above keyboard
  * ✓ Scroll-to-focused-input behavior implemented
  * ✓ Optimistic update: new person appears immediately in People list
+ * ✓ Focus-based refresh: data refreshes when returning to Home screen
  */
 
 export default function HomeScreen() {
@@ -238,6 +240,16 @@ export default function HomeScreen() {
       setLoading(false);
     }
   }, [userId, fetchData]);
+
+  // Focus-based refresh: refresh data whenever the screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[Home] Screen focused - refreshing data');
+      if (userId) {
+        fetchData();
+      }
+    }, [userId, fetchData])
+  );
 
   const handleDeletePerson = useCallback(async (personId: string, isTopic: boolean = false) => {
     if (!personId) {
