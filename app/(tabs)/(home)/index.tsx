@@ -113,12 +113,12 @@ export default function HomeScreen() {
       setError(null);
       console.log('[Home] Fetching people and topics for user:', userId);
       
-      // Fetch people: relationship_type != 'Topic' (includes null)
+      // Fetch people: relationship_type IS NULL OR relationship_type != 'Topic'
       const { data: peopleData, error: peopleError } = await supabase
         .from('persons')
         .select('*')
         .eq('user_id', userId)
-        .neq('relationship_type', 'Topic')
+        .or('relationship_type.is.null,relationship_type.neq.Topic')
         .order('created_at', { ascending: false });
 
       if (peopleError) {
