@@ -8,7 +8,6 @@ export { SafeSpaceLinkButton } from './SafeSpaceLinkButton';
 export { SafeSpaceScreen } from './SafeSpaceScreen';
 export { SafeSpaceText, SafeSpaceTitle, SafeSpaceCaption } from './SafeSpaceText';
 export { SafeSpaceTextInput } from './SafeSpaceTextInput';
-export { StatusBarGradient } from './StatusBarGradient';
 export { SwipeableCenterModal } from './SwipeableCenterModal';
 export { SwipeableModal } from './SwipeableModal';
 export { ThemeOptionCard } from './ThemeOptionCard';

@@ -12,7 +12,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -21,11 +21,12 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { ChatBubble } from '@/components/ui/ChatBubble';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
-import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast } from '@/utils/toast';
+import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE } from '@/constants/Layout';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -604,43 +605,50 @@ export default function ChatScreen() {
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoider>
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-          <StatusBarGradient />
+          <LinearGradient
+            colors={theme.primaryGradient}
+            style={styles.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
 
-          <View style={[styles.header, { backgroundColor: theme.card }]}>
-            <TouchableOpacity 
-              onPress={handleBackPress} 
-              style={[
-                styles.backButton,
-                isTopicChat && { backgroundColor: theme.background }
-              ]}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                ios_icon_name="chevron.left"
-                android_material_icon_name="arrow_back"
-                size={24}
-                color={theme.textPrimary}
-              />
-            </TouchableOpacity>
-            <View style={styles.headerCenter}>
-              <View style={styles.headerTitleRow}>
-                <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                  {personName}
-                </Text>
-                {isPremium && !isTopicChat && (
-                  <View style={styles.premiumBadgeSmall}>
-                    <Text style={styles.premiumBadgeSmallText}>⭐</Text>
-                  </View>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <View style={[styles.header, { height: HEADER_HEIGHT }]}>
+              <TouchableOpacity 
+                onPress={handleBackPress} 
+                style={[
+                  styles.backButton,
+                  isTopicChat && { backgroundColor: theme.background }
+                ]}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="chevron.left"
+                  android_material_icon_name="arrow_back"
+                  size={24}
+                  color={theme.textPrimary}
+                />
+              </TouchableOpacity>
+              <View style={styles.headerCenter}>
+                <View style={styles.headerTitleRow}>
+                  <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                    {personName}
+                  </Text>
+                  {isPremium && !isTopicChat && (
+                    <View style={styles.premiumBadgeSmall}>
+                      <Text style={styles.premiumBadgeSmallText}>⭐</Text>
+                    </View>
+                  )}
+                </View>
+                {relationshipType && (
+                  <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                    {relationshipType}
+                  </Text>
                 )}
               </View>
-              {relationshipType && (
-                <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-                  {relationshipType}
-                </Text>
-              )}
+              <View style={{ width: 40 }} />
             </View>
-            <View style={{ width: 40 }} />
-          </View>
+          </SafeAreaView>
 
           {/* Subject Pills Row */}
           <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
@@ -959,14 +967,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: HEADER_HEIGHT + 100,
+    zIndex: 0,
+  },
+  safeArea: {
+    zIndex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: '5%',
-    paddingVertical: 12,
-    paddingTop: Platform.OS === 'android' ? 48 : 60,
-    borderRadius: 20,
+    paddingHorizontal: HEADER_PADDING_HORIZONTAL,
   },
   backButton: {
     padding: 8,
@@ -984,7 +1000,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   headerTitle: {
-    fontSize: Math.min(SCREEN_WIDTH * 0.06, 24),
+    fontSize: HEADER_TITLE_SIZE,
     fontWeight: 'bold',
     flexShrink: 1,
   },

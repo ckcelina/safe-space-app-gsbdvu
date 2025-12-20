@@ -16,22 +16,23 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
-import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
 import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
+import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE } from '@/constants/Layout';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
+  const insets = useSafeAreaInsets();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -284,11 +285,10 @@ export default function SettingsScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       >
-        <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
             {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
-            <View style={styles.topHeader}>
+            <View style={[styles.topHeader, { height: HEADER_HEIGHT, paddingTop: insets.top }]}>
               <TouchableOpacity 
                 onPress={handleBack} 
                 style={styles.backButton}
@@ -324,7 +324,7 @@ export default function SettingsScreen() {
             >
               {/* Header */}
               <View style={styles.header}>
-                <Text style={[styles.title, { color: theme.buttonText }]}>
+                <Text style={[styles.title, { color: theme.buttonText, fontSize: HEADER_TITLE_SIZE }]}>
                   Settings
                 </Text>
                 <Text style={[styles.subtitle, { color: theme.buttonText, opacity: 0.9 }]}>
@@ -856,9 +856,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: '5%',
-    paddingTop: Platform.OS === 'android' ? 16 : 8,
-    paddingBottom: 8,
+    paddingHorizontal: HEADER_PADDING_HORIZONTAL,
   },
   backButton: {
     padding: 8,
@@ -881,7 +879,6 @@ const styles = StyleSheet.create({
     marginBottom: Math.min(SCREEN_HEIGHT * 0.04, 32),
   },
   title: {
-    fontSize: Math.min(SCREEN_WIDTH * 0.08, 32),
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',

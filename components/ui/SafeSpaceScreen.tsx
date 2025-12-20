@@ -12,7 +12,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeContext } from '@/contexts/ThemeContext';
-import { StatusBarGradient } from './StatusBarGradient';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -23,7 +22,6 @@ interface SafeSpaceScreenProps {
   useGradient?: boolean;
   contentContainerStyle?: ViewStyle;
   edges?: ('top' | 'bottom' | 'left' | 'right')[];
-  showStatusBarGradient?: boolean;
 }
 
 export function SafeSpaceScreen({
@@ -33,7 +31,6 @@ export function SafeSpaceScreen({
   useGradient = true,
   contentContainerStyle,
   edges = ['top', 'bottom'],
-  showStatusBarGradient = true,
 }: SafeSpaceScreenProps) {
   const { theme } = useThemeContext();
 
@@ -71,7 +68,6 @@ export function SafeSpaceScreen({
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       >
-        {showStatusBarGradient && <StatusBarGradient />}
         <SafeAreaView 
           style={[styles.safeArea, { backgroundColor: 'transparent' }]} 
           edges={edges}
@@ -84,7 +80,6 @@ export function SafeSpaceScreen({
 
   return (
     <View style={[styles.fullScreenContainer, { backgroundColor: theme.background }]}>
-      {showStatusBarGradient && <StatusBarGradient />}
       <SafeAreaView style={styles.safeArea} edges={edges}>
         {wrappedContent}
       </SafeAreaView>

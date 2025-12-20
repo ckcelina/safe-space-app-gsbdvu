@@ -10,6 +10,7 @@ import FloatingTabBar from '@/components/FloatingTabBar';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
+import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE } from '@/constants/Layout';
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
 
@@ -239,15 +240,6 @@ export default function LibraryScreen() {
 
   const renderListHeader = () => (
     <>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
-          Library
-        </Text>
-        <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-          Learn about different mental health topics in a safe, friendly way.
-        </Text>
-      </View>
-
       {/* Search bar */}
       <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
         <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
@@ -325,8 +317,15 @@ export default function LibraryScreen() {
           end={{ x: 1, y: 1 }}
         />
         
-        <SafeAreaView style={styles.safeArea} edges={[]}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={styles.container} {...panResponder.panHandlers}>
+            {/* Fixed Header */}
+            <View style={[styles.header, { height: HEADER_HEIGHT }]}>
+              <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
+                Library
+              </Text>
+            </View>
+
             <FlatList
               data={filteredTopics}
               renderItem={renderTopicItem}
@@ -336,7 +335,7 @@ export default function LibraryScreen() {
               ListEmptyComponent={renderEmptyComponent}
               contentContainerStyle={[
                 styles.flatListContent,
-                { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 20) + 100 }
+                { paddingBottom: Math.max(insets.bottom, 20) + 100 }
               ]}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
@@ -379,25 +378,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: HEADER_PADDING_HORIZONTAL,
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: HEADER_TITLE_SIZE,
+    fontWeight: 'bold',
+  },
   flatListContent: {
     paddingHorizontal: '5%',
+    paddingTop: 16,
   },
   columnWrapper: {
     justifyContent: 'space-between',
     marginBottom: 16,
-  },
-  header: {
-    marginBottom: 20,
-    paddingHorizontal: 8,
-  },
-  headerTitle: {
-    fontSize: Math.min(SCREEN_WIDTH * 0.08, 32),
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
-    lineHeight: 22,
   },
   searchContainer: {
     flexDirection: 'row',

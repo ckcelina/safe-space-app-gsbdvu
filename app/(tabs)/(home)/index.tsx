@@ -19,6 +19,7 @@ import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import AddPersonSheet from '@/components/ui/AddPersonSheet';
+import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE } from '@/constants/Layout';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
@@ -669,10 +670,13 @@ export default function HomeScreen() {
           end={{ x: 1, y: 1 }}
         />
         
-        <SafeAreaView style={styles.safeArea} edges={[]}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={styles.container}>
-            {/* Fixed Settings Button - positioned absolutely, outside ScrollView */}
-            <View style={[styles.fixedSettingsContainer, { top: insets.top + 8 }]}>
+            {/* Fixed Header */}
+            <View style={[styles.header, { height: HEADER_HEIGHT }]}>
+              <View style={styles.headerLeft}>
+                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
+              </View>
               <TouchableOpacity 
                 onPress={handleSettingsPress} 
                 style={styles.settingsButton}
@@ -692,17 +696,14 @@ export default function HomeScreen() {
               style={styles.scrollView}
               contentContainerStyle={[
                 styles.scrollContent,
-                { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 20) + 100 }
+                { paddingBottom: Math.max(insets.bottom, 20) + 100 }
               ]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.header}>
-                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
-                <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-                  Who would you like to talk about today?
-                </Text>
-              </View>
+              <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+                Who would you like to talk about today?
+              </Text>
 
               <View style={styles.planPillContainer}>
                 <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
@@ -1176,11 +1177,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  fixedSettingsContainer: {
-    position: 'absolute',
-    right: 24,
-    zIndex: 1000,
-    pointerEvents: 'box-none',
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: HEADER_PADDING_HORIZONTAL,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: HEADER_TITLE_SIZE,
+    fontWeight: 'bold',
   },
   settingsButton: {
     padding: 10,
@@ -1194,18 +1202,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-  },
-  header: {
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    paddingTop: 8,
   },
   headerSubtitle: {
     fontSize: 16,
     lineHeight: 22,
+    marginBottom: 16,
   },
   planPillContainer: {
     marginBottom: 16,

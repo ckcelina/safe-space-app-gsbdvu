@@ -2,18 +2,18 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, ActivityIndicator, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { supabase } from '@/lib/supabase';
 import { showErrorToast } from '@/utils/toast';
+import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE } from '@/constants/Layout';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -93,6 +93,7 @@ export default function LibraryDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const topicId = params.topicId as string;
+  const insets = useSafeAreaInsets();
 
   // Animation refs
   const imageOpacity = useRef(new Animated.Value(0)).current;
@@ -266,10 +267,9 @@ export default function LibraryDetailScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <StatusBarGradient />
-          <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
             <View style={styles.container}>
-              <View style={styles.header}>
+              <View style={[styles.header, { height: HEADER_HEIGHT }]}>
                 <TouchableOpacity
                   onPress={() => router.back()}
                   style={[styles.backButton, { backgroundColor: theme.card }]}
@@ -330,47 +330,49 @@ export default function LibraryDetailScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <StatusBarGradient />
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={styles.container}>
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Header with back button, settings, and heart - ALL THEME-AWARE */}
-              <View style={styles.header}>
+            {/* Fixed Header with back button, heart, and settings */}
+            <View style={[styles.header, { height: HEADER_HEIGHT }]}>
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={[styles.backButton, { backgroundColor: theme.card }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+              </TouchableOpacity>
+              
+              <View style={styles.headerRight}>
                 <TouchableOpacity
-                  onPress={() => router.back()}
-                  style={[styles.backButton, { backgroundColor: theme.card }]}
+                  onPress={toggleSaveTopic}
+                  style={[styles.heartButton, { backgroundColor: theme.card }]}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+                  <Ionicons
+                    name={isSaved ? 'heart' : 'heart-outline'}
+                    size={24}
+                    color={isSaved ? '#FF6B6B' : theme.textPrimary}
+                  />
                 </TouchableOpacity>
-                
-                <View style={styles.headerRight}>
-                  <TouchableOpacity
-                    onPress={toggleSaveTopic}
-                    style={[styles.heartButton, { backgroundColor: theme.card }]}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={isSaved ? 'heart' : 'heart-outline'}
-                      size={24}
-                      color={isSaved ? '#FF6B6B' : theme.textPrimary}
-                    />
-                  </TouchableOpacity>
 
-                  <TouchableOpacity
-                    onPress={handleSettingsPress}
-                    style={[styles.settingsButton, { backgroundColor: theme.card }]}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="settings-outline" size={24} color={theme.textPrimary} />
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  onPress={handleSettingsPress}
+                  style={[styles.settingsButton, { backgroundColor: theme.card }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="settings-outline" size={24} color={theme.textPrimary} />
+                </TouchableOpacity>
               </View>
+            </View>
 
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingBottom: Math.max(insets.bottom, 20) + 100 }
+              ]}
+              showsVerticalScrollIndicator={false}
+            >
               {/* Topic image with fade-in animation */}
               <Animated.View
                 style={[
@@ -508,15 +510,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: '5%',
-    paddingTop: Platform.OS === 'android' ? 16 : 8,
-    paddingBottom: 120,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingHorizontal: 4,
+    paddingHorizontal: HEADER_PADDING_HORIZONTAL,
   },
   headerRight: {
     flexDirection: 'row',
