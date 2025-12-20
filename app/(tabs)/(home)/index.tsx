@@ -671,18 +671,19 @@ export default function HomeScreen() {
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
-            {/* Fixed Settings Button - positioned absolutely */}
+            {/* Fixed Settings Button - positioned absolutely, outside ScrollView */}
             <View style={[styles.fixedSettingsContainer, { top: insets.top + 8 }]}>
               <TouchableOpacity 
                 onPress={handleSettingsPress} 
                 style={styles.settingsButton}
                 activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <IconSymbol
                   ios_icon_name="gearshape.fill"
                   android_material_icon_name="settings"
-                  size={24}
-                  color={theme.buttonText}
+                  size={26}
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
             </View>
@@ -1180,11 +1181,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 24,
     zIndex: 1000,
+    pointerEvents: 'box-none',
   },
   settingsButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 10,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.25)',
+    elevation: 4,
   },
   scrollView: {
     flex: 1,
