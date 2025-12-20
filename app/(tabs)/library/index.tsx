@@ -110,7 +110,7 @@ function TopicBubble({
               resizeMode="cover"
             />
             <LinearGradient
-              colors={['transparent', 'rgba(255, 255, 255, 0.9)']}
+              colors={['transparent', 'rgba(255, 255, 255, 0.95)']}
               style={styles.imageGradient}
             />
             {/* Heart icon */}
@@ -456,19 +456,20 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    aspectRatio: 1.2,
+    aspectRatio: 1.4,
     position: 'relative',
   },
   bubbleImage: {
     width: '100%',
     height: '100%',
+    opacity: 0.65,
   },
   imageGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 60,
+    height: 70,
   },
   heartButton: {
     position: 'absolute',
