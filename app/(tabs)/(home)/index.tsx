@@ -669,8 +669,8 @@ export default function HomeScreen() {
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
-            <View style={styles.topHeader}>
-              <View style={styles.headerSpacer} />
+            {/* Fixed Settings Button - positioned absolutely */}
+            <View style={[styles.fixedSettingsContainer, { top: insets.top + 8 }]}>
               <TouchableOpacity 
                 onPress={handleSettingsPress} 
                 style={styles.settingsButton}
@@ -1172,16 +1172,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  topHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  headerSpacer: {
-    width: 40,
+  fixedSettingsContainer: {
+    position: 'absolute',
+    right: 24,
+    zIndex: 1000,
   },
   settingsButton: {
     padding: 8,
@@ -1193,6 +1187,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
+    paddingTop: 8,
     paddingBottom: 120,
   },
   header: {
