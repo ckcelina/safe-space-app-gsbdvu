@@ -2,10 +2,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useThemeContext } from '@/contexts/ThemeContext';
-import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { Ionicons } from '@expo/vector-icons';
@@ -144,6 +143,7 @@ export default function LibraryScreen() {
   const { theme } = useThemeContext();
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
 
   // State for search and saved topics
   const [searchQuery, setSearchQuery] = useState('');
@@ -317,14 +317,15 @@ export default function LibraryScreen() {
 
   return (
     <>
-      <LinearGradient
-        colors={theme.primaryGradient}
-        style={styles.gradientBackground}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <StatusBarGradient />
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <View style={styles.fullScreenContainer}>
+        <LinearGradient
+          colors={theme.primaryGradient}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        
+        <SafeAreaView style={styles.safeArea} edges={[]}>
           <View style={styles.container} {...panResponder.panHandlers}>
             <FlatList
               data={filteredTopics}
@@ -333,14 +334,17 @@ export default function LibraryScreen() {
               numColumns={NUM_COLUMNS}
               ListHeaderComponent={renderListHeader}
               ListEmptyComponent={renderEmptyComponent}
-              contentContainerStyle={styles.flatListContent}
+              contentContainerStyle={[
+                styles.flatListContent,
+                { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 20) + 100 }
+              ]}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             />
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
 
       <FloatingTabBar
         tabs={[
@@ -365,10 +369,8 @@ export default function LibraryScreen() {
 }
 
 const styles = StyleSheet.create({
-  gradientBackground: {
+  fullScreenContainer: {
     flex: 1,
-    width: '100%',
-    height: '100%',
   },
   safeArea: {
     flex: 1,
@@ -379,8 +381,6 @@ const styles = StyleSheet.create({
   },
   flatListContent: {
     paddingHorizontal: '5%',
-    paddingTop: Platform.OS === 'android' ? 16 : 8,
-    paddingBottom: 120,
   },
   columnWrapper: {
     justifyContent: 'space-between',

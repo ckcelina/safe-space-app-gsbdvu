@@ -661,13 +661,15 @@ export default function HomeScreen() {
 
   return (
     <>
-      <LinearGradient
-        colors={theme.primaryGradient}
-        style={styles.gradientBackground}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <View style={styles.fullScreenContainer}>
+        <LinearGradient
+          colors={theme.primaryGradient}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        
+        <SafeAreaView style={styles.safeArea} edges={[]}>
           <View style={styles.container}>
             {/* Fixed Settings Button - positioned absolutely, outside ScrollView */}
             <View style={[styles.fixedSettingsContainer, { top: insets.top + 8 }]}>
@@ -688,7 +690,10 @@ export default function HomeScreen() {
 
             <ScrollView
               style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 20) + 100 }
+              ]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
@@ -1134,7 +1139,7 @@ export default function HomeScreen() {
             </SwipeableCenterModal>
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
       
       <LoadingOverlay visible={loading && !error} />
       
@@ -1161,10 +1166,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  gradientBackground: {
+  fullScreenContainer: {
     flex: 1,
-    width: '100%',
-    height: '100%',
   },
   safeArea: {
     flex: 1,
@@ -1191,8 +1194,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 120,
   },
   header: {
     marginBottom: 16,
