@@ -13,7 +13,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
-import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 
 const PRIVACY_POLICY_TEXT = `Privacy Policy — Safe Space ByCelina
 Last updated: 6 December 2025
@@ -83,7 +82,6 @@ export default function PrivacyPolicyScreen() {
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
     >
-      <StatusBarGradient />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.container}>
           {/* Header with Back Button */}

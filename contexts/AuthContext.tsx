@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Safe session refresh that checks for token existence first
-  const safeRefreshSession = async () => {
+  const safeRefreshSession = useCallback(async () => {
     try {
       const hasToken = await hasValidRefreshToken();
       
@@ -204,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('[AuthContext] Error in safeRefreshSession:', error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     console.log('[AuthContext] Initializing...');
@@ -287,7 +287,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [safeRefreshSession]);
 
   const signUp = async (email: string, password: string) => {
     try {
