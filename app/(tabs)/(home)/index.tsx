@@ -84,9 +84,11 @@ export default function HomeScreen() {
   const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
   const [selectedQuickTopic, setSelectedQuickTopic] = useState<string | null>(null);
   const [customTopicName, setCustomTopicName] = useState('');
+  const [contextLabel, setContextLabel] = useState('');
   const [topicError, setTopicError] = useState('');
   const [savingTopic, setSavingTopic] = useState(false);
   const [customTopicFocused, setCustomTopicFocused] = useState(false);
+  const [contextLabelFocused, setContextLabelFocused] = useState(false);
 
   const isMountedRef = useRef(true);
 
@@ -326,8 +328,9 @@ export default function HomeScreen() {
       
       const query = searchQuery.toLowerCase();
       const nameMatch = topic.name?.toLowerCase().includes(query) || false;
+      const contextMatch = topic.context_label?.toLowerCase().includes(query) || false;
       
-      return nameMatch;
+      return nameMatch || contextMatch;
     });
 
     console.log('[Home] Filtered topics count:', filtered.length);
@@ -344,8 +347,10 @@ export default function HomeScreen() {
       setIsAddTopicOpen(false);
       setSelectedQuickTopic(null);
       setCustomTopicName('');
+      setContextLabel('');
       setTopicError('');
       setCustomTopicFocused(false);
+      setContextLabelFocused(false);
     }
     
     // Open Add Person modal
@@ -397,8 +402,10 @@ export default function HomeScreen() {
     // Reset Add Topic form state (on open)
     setSelectedQuickTopic(null);
     setCustomTopicName('');
+    setContextLabel('');
     setTopicError('');
     setCustomTopicFocused(false);
+    setContextLabelFocused(false);
     
     // Open Add Topic modal
     setIsAddTopicOpen(true);
@@ -408,9 +415,11 @@ export default function HomeScreen() {
     console.log('[Home] Closing Add Topic modal');
     setIsAddTopicOpen(false);
     setCustomTopicName('');
+    setContextLabel('');
     setSelectedQuickTopic(null);
     setTopicError('');
     setCustomTopicFocused(false);
+    setContextLabelFocused(false);
   }, []);
 
   const handleQuickTopicSelect = useCallback((topic: string) => {
@@ -432,8 +441,13 @@ export default function HomeScreen() {
     }
   }, [topicError, selectedQuickTopic]);
 
+  const handleContextLabelChange = useCallback((text: string) => {
+    console.log('[Home] Context label changed to:', text);
+    setContextLabel(text);
+  }, []);
+
   const handleSaveAddTopic = useCallback(async () => {
-    console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic);
+    console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic, 'contextLabel:', contextLabel);
     
     // Determine final topic name: selectedQuickTopic (from chip) OR customTopicName (typed)
     const topicName = selectedQuickTopic || customTopicName.trim();
@@ -456,11 +470,13 @@ export default function HomeScreen() {
     setSavingTopic(true);
 
     try {
-      // Insert topic for current authenticated user (NO duplicate checking - duplicates are now allowed!)
+      // Insert topic for current authenticated user
+      // Duplicates are now allowed - each topic has a unique ID
       const topicData = {
         user_id: userId,
         name: topicName,
         relationship_type: 'Topic',
+        context_label: contextLabel.trim() || null,
       };
       
       console.log('[Home] Inserting topic data:', topicData);
@@ -492,8 +508,10 @@ export default function HomeScreen() {
         setIsAddTopicOpen(false);
         setSelectedQuickTopic(null);
         setCustomTopicName('');
+        setContextLabel('');
         setTopicError('');
         setCustomTopicFocused(false);
+        setContextLabelFocused(false);
         
         // Navigate to chat screen with the new topic
         if (data && data.id) {
@@ -504,7 +522,8 @@ export default function HomeScreen() {
               personId: data.id, 
               personName: data.name || 'Topic',
               relationshipType: 'Topic',
-              initialSubject: data.name
+              initialSubject: data.name,
+              contextLabel: data.context_label || ''
             },
           });
         }
@@ -525,7 +544,7 @@ export default function HomeScreen() {
         console.log('[Home] Save process complete');
       }
     }
-  }, [customTopicName, selectedQuickTopic, userId, fetchData]);
+  }, [customTopicName, selectedQuickTopic, contextLabel, userId, fetchData]);
 
   const handleClosePremiumModal = useCallback(() => {
     setShowPremiumModal(false);
@@ -571,7 +590,8 @@ export default function HomeScreen() {
           personId: topic.id, 
           personName: topic.name || 'Topic',
           relationshipType: 'Topic',
-          initialSubject: topic.name
+          initialSubject: topic.name,
+          contextLabel: topic.context_label || ''
         },
       });
     } catch (error) {
@@ -879,7 +899,7 @@ export default function HomeScreen() {
               onPersonCreated={handlePersonCreated}
             />
 
-            {/* Add Topic Modal - UNCHANGED */}
+            {/* Add Topic Modal - WITH CONTEXT LABEL SUPPORT */}
             <Modal
               visible={isAddTopicOpen}
               transparent={true}
@@ -968,8 +988,7 @@ export default function HomeScreen() {
                               autoCorrect={false}
                               maxLength={100}
                               editable={!savingTopic}
-                              returnKeyType="done"
-                              onSubmitEditing={handleSaveAddTopic}
+                              returnKeyType="next"
                               autoFocus={false}
                             />
                           </View>
@@ -978,11 +997,44 @@ export default function HomeScreen() {
                           ) : null}
                         </View>
 
+                        {/* Context Label Input (NEW) */}
+                        <View style={styles.addTopicFieldContainer}>
+                          <Text style={styles.addTopicInputLabel}>
+                            Add context (optional):
+                          </Text>
+                          <Text style={styles.addTopicHelperTextSmall}>
+                            e.g., &quot;Work&quot;, &quot;Family&quot;, &quot;School&quot;
+                          </Text>
+                          <View style={[
+                            styles.addTopicInputRowContainer,
+                            contextLabelFocused && styles.addTopicInputRowFocused
+                          ]}>
+                            <TextInput
+                              style={styles.addTopicTextInput}
+                              placeholder="Work, Family, School..."
+                              placeholderTextColor="#999"
+                              value={contextLabel}
+                              onChangeText={handleContextLabelChange}
+                              autoCapitalize="words"
+                              autoCorrect={false}
+                              maxLength={50}
+                              editable={!savingTopic}
+                              returnKeyType="done"
+                              onSubmitEditing={handleSaveAddTopic}
+                              onFocus={() => setContextLabelFocused(true)}
+                              onBlur={() => setContextLabelFocused(false)}
+                            />
+                          </View>
+                        </View>
+
                         {/* Selected topic indicator */}
                         {selectedQuickTopic && (
                           <View style={styles.addTopicSelectedIndicator}>
                             <Text style={styles.addTopicSelectedText}>
                               Selected: <Text style={styles.addTopicSelectedValue}>{selectedQuickTopic}</Text>
+                              {contextLabel.trim() && (
+                                <Text style={styles.addTopicSelectedContext}> – {contextLabel.trim()}</Text>
+                              )}
                             </Text>
                           </View>
                         )}
@@ -1312,7 +1364,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Add Topic Modal Styles - UNCHANGED
+  // Add Topic Modal Styles - WITH CONTEXT LABEL SUPPORT
   addTopicModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
@@ -1372,6 +1424,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontWeight: '500',
   },
+  addTopicHelperTextSmall: {
+    fontSize: 13,
+    color: '#777',
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
   addTopicChipsWrapper: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1419,6 +1477,10 @@ const styles = StyleSheet.create({
   addTopicInputRowError: {
     borderColor: '#FF3B30',
   },
+  addTopicInputRowFocused: {
+    borderColor: '#007AFF',
+    backgroundColor: '#FFFFFF',
+  },
   addTopicTextInput: {
     flex: 1,
     fontSize: 16,
@@ -1448,6 +1510,10 @@ const styles = StyleSheet.create({
   addTopicSelectedValue: {
     fontWeight: 'bold',
     color: '#1B5E20',
+  },
+  addTopicSelectedContext: {
+    fontWeight: '600',
+    color: '#388E3C',
   },
   addTopicModalFooter: {
     flexDirection: 'row',

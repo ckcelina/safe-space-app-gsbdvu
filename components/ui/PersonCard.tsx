@@ -20,7 +20,17 @@ export function PersonCard({ person, onPress, isTopic = false }: PersonCardProps
   const initial = person.name && person.name.length > 0 ? person.name.charAt(0).toUpperCase() : '?';
 
   // Determine the label to show
-  const label = isTopic ? 'Topic' : person.relationship_type;
+  let label = isTopic ? 'Topic' : person.relationship_type;
+  
+  // If it's a topic with a context label, show "Topic – Context"
+  if (isTopic && person.context_label) {
+    label = `Topic – ${person.context_label}`;
+  }
+
+  // Build display name with context label if present
+  const displayName = person.context_label && isTopic
+    ? `${person.name} – ${person.context_label}`
+    : person.name || 'Unknown';
 
   return (
     <TouchableOpacity
@@ -37,11 +47,11 @@ export function PersonCard({ person, onPress, isTopic = false }: PersonCardProps
         </View>
 
         <View style={styles.info}>
-          <Text style={[styles.name, { color: theme.textPrimary }]}>
-            {person.name || 'Unknown'}
+          <Text style={[styles.name, { color: theme.textPrimary }]} numberOfLines={1}>
+            {displayName}
           </Text>
           {label && (
-            <Text style={[styles.relationship, { color: theme.textSecondary }]}>
+            <Text style={[styles.relationship, { color: theme.textSecondary }]} numberOfLines={1}>
               {label}
             </Text>
           )}
@@ -85,6 +95,7 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
+    minWidth: 0,
   },
   name: {
     fontSize: Math.min(SCREEN_WIDTH * 0.045, 18),

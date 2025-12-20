@@ -15,6 +15,7 @@ export interface Person {
   user_id: string;
   name: string;
   relationship_type?: string;
+  context_label?: string; // Optional context label (e.g., "Work", "Family")
   created_at: string;
 }
 
@@ -22,6 +23,7 @@ export interface Topic {
   id: string;
   user_id: string;
   name: string;
+  context_label?: string; // Optional context label (e.g., "Work", "Family")
   created_at: string;
 }
 
