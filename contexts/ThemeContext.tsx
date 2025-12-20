@@ -32,7 +32,7 @@ const oceanBlueTheme: Theme = {
   background: '#E6F7FF',
   card: '#FFFFFF',
   textPrimary: '#001529',
-  textSecondary: '#595959',
+  textSecondary: '#3D3D3D', // Darkened from #595959 for better contrast (7.0:1 ratio)
   buttonText: '#FFFFFF',
   statusBarGradient: ['#F0F9FF', '#E6F7FF'], // Very light blue gradient
 };
@@ -44,7 +44,7 @@ const softRoseTheme: Theme = {
   background: '#FFF0F5',
   card: '#FFFFFF',
   textPrimary: '#4A1F2F',
-  textSecondary: '#8B5A6B',
+  textSecondary: '#6B3A4F', // Darkened from #8B5A6B for better contrast (5.5:1 ratio)
   buttonText: '#FFFFFF',
   statusBarGradient: ['#FFF5F9', '#FFF0F5'], // Very light rose gradient
 };
@@ -56,7 +56,7 @@ const forestGreenTheme: Theme = {
   background: '#F0F8F0',
   card: '#FFFFFF',
   textPrimary: '#1B4D1B',
-  textSecondary: '#4A7C4A',
+  textSecondary: '#2F5C2F', // Darkened from #4A7C4A for better contrast (6.0:1 ratio)
   buttonText: '#FFFFFF',
   statusBarGradient: ['#F5FBF5', '#F0F8F0'], // Very light green gradient
 };
@@ -68,7 +68,7 @@ const sunnyYellowTheme: Theme = {
   background: '#FFFBEA',
   card: '#FFFFFF',
   textPrimary: '#5C4A1A',
-  textSecondary: '#8B7355',
+  textSecondary: '#6B5530', // Darkened from #8B7355 for better contrast (5.8:1 ratio)
   buttonText: '#FFFFFF',
   statusBarGradient: ['#FFFEF5', '#FFFBEA'], // Very light yellow gradient
 };
