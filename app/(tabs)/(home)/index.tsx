@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
+import { useScreenshotMode } from '@/contexts/ScreenshotModeContext';
 import { supabase } from '@/lib/supabase';
 import { Person } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -65,6 +66,7 @@ const DEFAULT_TOPICS = [
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
   const { theme } = useThemeContext();
+  const { screenshotMode } = useScreenshotMode();
   const insets = useSafeAreaInsets();
   
   // Single source of truth for people and topics
@@ -698,32 +700,34 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              <View style={styles.planPillContainer}>
-                <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                  <View style={styles.planPillContent}>
-                    <IconSymbol
-                      ios_icon_name={planInfo.icon}
-                      android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
-                      size={16}
-                      color={planInfo.iconColor}
-                      style={styles.planIcon}
-                    />
-                    <View style={styles.planTextWrapper}>
-                      <Text 
-                        style={[styles.planText, { color: theme.textPrimary }]}
-                        numberOfLines={2}
-                      >
-                        {planInfo.text}
-                      </Text>
+              {!screenshotMode && (
+                <View style={styles.planPillContainer}>
+                  <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                    <View style={styles.planPillContent}>
+                      <IconSymbol
+                        ios_icon_name={planInfo.icon}
+                        android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
+                        size={16}
+                        color={planInfo.iconColor}
+                        style={styles.planIcon}
+                      />
+                      <View style={styles.planTextWrapper}>
+                        <Text 
+                          style={[styles.planText, { color: theme.textPrimary }]}
+                          numberOfLines={2}
+                        >
+                          {planInfo.text}
+                        </Text>
+                      </View>
                     </View>
+                    {planInfo.subtext && (
+                      <Text style={[styles.planSubtext, { color: theme.textSecondary }]}>
+                        {planInfo.subtext}
+                      </Text>
+                    )}
                   </View>
-                  {planInfo.subtext && (
-                    <Text style={[styles.planSubtext, { color: theme.textSecondary }]}>
-                      {planInfo.subtext}
-                    </Text>
-                  )}
                 </View>
-              </View>
+              )}
 
               {hasAnyData && (
                 <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>

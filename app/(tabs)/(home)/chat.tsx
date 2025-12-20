@@ -15,6 +15,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
+import { useScreenshotMode } from '@/contexts/ScreenshotModeContext';
 import { supabase } from '@/lib/supabase';
 import { Message } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -144,6 +145,7 @@ export default function ChatScreen() {
 
   const { currentUser: authUser, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
+  const { screenshotMode } = useScreenshotMode();
 
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -627,7 +629,7 @@ export default function ChatScreen() {
                 <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
                   {personName}
                 </Text>
-                {isPremium && !isTopicChat && (
+                {isPremium && !isTopicChat && !screenshotMode && (
                   <View style={styles.premiumBadgeSmall}>
                     <Text style={styles.premiumBadgeSmallText}>⭐</Text>
                   </View>
@@ -668,7 +670,7 @@ export default function ChatScreen() {
             </ScrollView>
           </View>
 
-          {isFreeUser && (
+          {isFreeUser && !screenshotMode && (
             <View style={[styles.freeBanner, { backgroundColor: theme.card }]}>
               <IconSymbol
                 ios_icon_name="info.circle.fill"

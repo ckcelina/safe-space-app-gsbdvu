@@ -13,12 +13,14 @@ import {
   TextInput,
   Dimensions,
   KeyboardAvoidingView,
+  Switch,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
+import { useScreenshotMode } from '@/contexts/ScreenshotModeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
@@ -32,6 +34,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
+  const { screenshotMode, setScreenshotMode } = useScreenshotMode();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -59,6 +62,11 @@ export default function SettingsScreen() {
     setSelectedTheme(themeKey);
     await setTheme(themeKey);
     showSuccessToast('Theme updated!');
+  };
+
+  const handleScreenshotModeToggle = async (value: boolean) => {
+    await setScreenshotMode(value);
+    showSuccessToast(value ? 'Screenshot Mode enabled' : 'Screenshot Mode disabled');
   };
 
   const handleLogout = async () => {
@@ -447,6 +455,39 @@ export default function SettingsScreen() {
                       </Text>
                     </TouchableOpacity>
                   ))}
+                </View>
+              </View>
+
+              {/* Card: Screenshot Mode */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Marketing
+                </Text>
+
+                <View style={[styles.row, { borderBottomWidth: 0 }]}>
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="camera.fill"
+                      android_material_icon_name="photo_camera"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
+                        Screenshot Mode
+                      </Text>
+                      <Text style={[styles.helperTextInline, { color: theme.textSecondary }]}>
+                        Hide plan banners for App Store screenshots
+                      </Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={screenshotMode}
+                    onValueChange={handleScreenshotModeToggle}
+                    trackColor={{ false: '#E0E0E0', true: theme.primary }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor="#E0E0E0"
+                  />
                 </View>
               </View>
 
@@ -1028,6 +1069,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     textAlign: 'center',
+  },
+  helperTextInline: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 4,
   },
   modalOverlay: {
     flex: 1,
