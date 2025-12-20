@@ -457,7 +457,7 @@ export default function LibraryDetailScreen() {
                     <>
                       <Ionicons name="chatbubbles" size={24} color={theme.buttonText} style={styles.askAIIcon} />
                       <Text style={[styles.askAIButtonText, { color: theme.buttonText }]}>
-                        Ask AI questions about this topic
+                        Ask Safe Space about this topic
                       </Text>
                     </>
                   )}
