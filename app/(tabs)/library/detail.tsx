@@ -375,7 +375,7 @@ export default function LibraryDetailScreen() {
               style={styles.scrollView}
               contentContainerStyle={[
                 styles.scrollContent,
-                { paddingBottom: Math.max(insets.bottom, 20) + 100 }
+                { paddingBottom: insets.bottom + 120 }
               ]}
               showsVerticalScrollIndicator={false}
             >

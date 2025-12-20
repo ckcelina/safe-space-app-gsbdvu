@@ -335,7 +335,7 @@ export default function LibraryScreen() {
               ListEmptyComponent={renderEmptyComponent}
               contentContainerStyle={[
                 styles.flatListContent,
-                { paddingBottom: Math.max(insets.bottom, 20) + 100 }
+                { paddingBottom: insets.bottom + 120 }
               ]}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
