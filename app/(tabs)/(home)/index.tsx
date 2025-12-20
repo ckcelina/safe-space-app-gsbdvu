@@ -14,7 +14,6 @@ import { Person } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
-import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
@@ -668,7 +667,6 @@ export default function HomeScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
             <View style={styles.topHeader}>
@@ -1179,7 +1177,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: Platform.OS === 'android' ? 16 : 8,
+    paddingTop: 8,
     paddingBottom: 8,
   },
   headerSpacer: {
