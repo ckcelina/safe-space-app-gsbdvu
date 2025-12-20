@@ -84,12 +84,12 @@ export const libraryTopics: Topic[] = [
   // MOOD-RELATED
   {
     id: 'depression',
-    title: 'Persistent Sadness & Loss of Interest',
-    shortDescription: 'Ongoing feelings of sadness and loss of interest in activities once enjoyed.',
+    title: 'Low Mood & Emotional Numbness',
+    shortDescription: 'Ongoing feelings of sadness, emptiness, and loss of interest in activities once enjoyed.',
     imagePrompt: 'Soft pastel illustration of a figure under a small rain cloud parting into gentle light. Warm colors emerging, hopeful atmosphere. Educational, friendly, non-clinical style. Calm and supportive.',
     imageUrl: 'https://images.unsplash.com/photo-1428908728789-d2de25dbd4e2?w=800&h=600&fit=crop&q=80',
     content: {
-      overview: 'Persistent sadness and loss of interest (major depression) is a serious condition affecting how you feel, think, and handle daily activities.',
+      overview: 'Low mood and emotional numbness (depression) is a serious condition affecting how you feel, think, and handle daily activities, characterized by persistent sadness and loss of interest.',
       symptoms: ['Persistent sadness', 'Loss of interest', 'Changes in appetite', 'Sleep problems', 'Fatigue', 'Feelings of worthlessness'],
       effects: ['Impaired daily functioning', 'Relationship difficulties', 'Physical health decline', 'Reduced quality of life'],
       coping: ['Therapy and counseling', 'Medication when appropriate', 'Regular routine', 'Social support', 'Self-care practices'],
