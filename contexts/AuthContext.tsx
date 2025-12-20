@@ -158,22 +158,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const storedSession = await AsyncStorage.getItem(key);
       
       if (!storedSession) {
-        console.log('[AuthContext] No stored session found');
         return false;
       }
 
       const parsedSession = JSON.parse(storedSession);
       const refreshToken = parsedSession?.refresh_token;
       
-      if (!refreshToken) {
-        console.log('[AuthContext] No refresh token in stored session');
-        return false;
-      }
-
-      console.log('[AuthContext] Valid refresh token found');
-      return true;
+      return !!refreshToken;
     } catch (error) {
-      console.error('[AuthContext] Error checking refresh token:', error);
+      // Silent fail - no logging for normal logged-out state
       return false;
     }
   };
@@ -181,12 +174,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Safe session refresh that checks for token existence first
   const safeRefreshSession = async () => {
     try {
-      console.log('[AuthContext] Checking for refresh token before refresh...');
-      
       const hasToken = await hasValidRefreshToken();
       
       if (!hasToken) {
-        console.log('[AuthContext] No refresh token found, skipping refresh');
+        // No token = logged out state, this is normal
         return;
       }
 
@@ -225,12 +216,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const hasToken = await hasValidRefreshToken();
         
         if (!hasToken) {
-          console.log('[AuthContext] No refresh token on init, user is logged out');
+          // No token found - user is logged out
+          // This is a normal state, no error logging needed
+          console.log('[AuthContext] No session found, defaulting to logged-out state');
           setLoading(false);
           return;
         }
 
         // Only attempt to get session if we have a token
+        console.log('[AuthContext] Session token found, attempting to restore session...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -239,12 +233,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        console.log('[AuthContext] Initial session:', session?.user?.email || 'No session');
-        setSession(session);
-        setCurrentUser(session?.user ?? null);
-        
-        if (session?.user) {
+        if (session) {
+          console.log('[AuthContext] Session restored for:', session.user?.email);
+          setSession(session);
+          setCurrentUser(session.user);
           await fetchUserProfile(session.user.id);
+        } else {
+          console.log('[AuthContext] No active session found');
         }
       } catch (error) {
         console.error('[AuthContext] Error in initializeAuth:', error);
@@ -276,17 +271,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
-        console.log('[AuthContext] App became active, checking session...');
-        
         // Only attempt refresh if we have a refresh token
         const hasToken = await hasValidRefreshToken();
         
         if (hasToken) {
-          console.log('[AuthContext] Refresh token exists, attempting safe refresh');
+          console.log('[AuthContext] App resumed, refreshing session...');
           await safeRefreshSession();
-        } else {
-          console.log('[AuthContext] No refresh token, skipping refresh on app resume');
         }
+        // No logging if no token - this is normal logged-out state
       }
     };
 
