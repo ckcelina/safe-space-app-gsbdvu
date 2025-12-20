@@ -9,7 +9,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useScreenshotMode } from '@/contexts/ScreenshotModeContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
@@ -91,7 +90,6 @@ function ContentSection({
 export default function LibraryDetailScreen() {
   const { theme } = useThemeContext();
   const { userId } = useAuth();
-  const { screenshotMode } = useScreenshotMode();
   const router = useRouter();
   const params = useLocalSearchParams();
   const topicId = params.topicId as string;
