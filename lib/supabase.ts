@@ -30,6 +30,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // Add custom storage key for easier debugging
+    storageKey: 'sb-zjzvkxvahrbuuyzjzxol-auth-token',
+    // Disable automatic session recovery on errors
+    flowType: 'pkce',
   },
 });
 
@@ -39,4 +43,21 @@ console.log('[Supabase] Client initialized successfully');
 // Export a function to check if client is ready
 export const isSupabaseReady = () => {
   return !!(supabaseUrl && supabaseAnonKey && supabase);
+};
+
+// Helper function to safely check if a session exists
+export const hasActiveSession = async (): Promise<boolean> => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error('[Supabase] Error checking session:', error);
+      return false;
+    }
+    
+    return !!session;
+  } catch (error) {
+    console.error('[Supabase] Error in hasActiveSession:', error);
+    return false;
+  }
 };

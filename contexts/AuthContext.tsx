@@ -2,6 +2,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState, AppStateStatus } from 'react-native';
 
 interface UserProfile {
   id: string;
@@ -149,29 +151,109 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  useEffect(() => {
-    console.log('[AuthContext] Initializing...');
-    
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error('[AuthContext] Error getting initial session:', error);
-        setLoading(false);
+  // Check if a valid refresh token exists in storage
+  const hasValidRefreshToken = async (): Promise<boolean> => {
+    try {
+      const key = `sb-zjzvkxvahrbuuyzjzxol-auth-token`;
+      const storedSession = await AsyncStorage.getItem(key);
+      
+      if (!storedSession) {
+        console.log('[AuthContext] No stored session found');
+        return false;
+      }
+
+      const parsedSession = JSON.parse(storedSession);
+      const refreshToken = parsedSession?.refresh_token;
+      
+      if (!refreshToken) {
+        console.log('[AuthContext] No refresh token in stored session');
+        return false;
+      }
+
+      console.log('[AuthContext] Valid refresh token found');
+      return true;
+    } catch (error) {
+      console.error('[AuthContext] Error checking refresh token:', error);
+      return false;
+    }
+  };
+
+  // Safe session refresh that checks for token existence first
+  const safeRefreshSession = async () => {
+    try {
+      console.log('[AuthContext] Checking for refresh token before refresh...');
+      
+      const hasToken = await hasValidRefreshToken();
+      
+      if (!hasToken) {
+        console.log('[AuthContext] No refresh token found, skipping refresh');
         return;
       }
 
-      console.log('[AuthContext] Initial session:', session?.user?.email || 'No session');
-      setSession(session);
-      setCurrentUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserProfile(session.user.id).finally(() => setLoading(false));
-      } else {
+      console.log('[AuthContext] Attempting to refresh session...');
+      const { data, error } = await supabase.auth.refreshSession();
+      
+      if (error) {
+        console.error('[AuthContext] Session refresh error:', error);
+        // Clear session if refresh fails
+        setSession(null);
+        setCurrentUser(null);
+        setUser(null);
+        return;
+      }
+
+      if (data.session) {
+        console.log('[AuthContext] Session refreshed successfully');
+        setSession(data.session);
+        setCurrentUser(data.session.user);
+        if (data.session.user) {
+          await fetchUserProfile(data.session.user.id);
+        }
+      }
+    } catch (error) {
+      console.error('[AuthContext] Error in safeRefreshSession:', error);
+    }
+  };
+
+  useEffect(() => {
+    console.log('[AuthContext] Initializing...');
+    
+    // Get initial session with token check
+    const initializeAuth = async () => {
+      try {
+        // First check if we have a refresh token
+        const hasToken = await hasValidRefreshToken();
+        
+        if (!hasToken) {
+          console.log('[AuthContext] No refresh token on init, user is logged out');
+          setLoading(false);
+          return;
+        }
+
+        // Only attempt to get session if we have a token
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('[AuthContext] Error getting initial session:', error);
+          setLoading(false);
+          return;
+        }
+
+        console.log('[AuthContext] Initial session:', session?.user?.email || 'No session');
+        setSession(session);
+        setCurrentUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        }
+      } catch (error) {
+        console.error('[AuthContext] Error in initializeAuth:', error);
+      } finally {
         setLoading(false);
       }
-    }).catch((error) => {
-      console.error('[AuthContext] Error getting initial session:', error);
-      setLoading(false);
-    });
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -187,6 +269,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       subscription.unsubscribe();
+    };
+  }, []);
+
+  // Handle app state changes (foreground/background)
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        console.log('[AuthContext] App became active, checking session...');
+        
+        // Only attempt refresh if we have a refresh token
+        const hasToken = await hasValidRefreshToken();
+        
+        if (hasToken) {
+          console.log('[AuthContext] Refresh token exists, attempting safe refresh');
+          await safeRefreshSession();
+        } else {
+          console.log('[AuthContext] No refresh token, skipping refresh on app resume');
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
     };
   }, []);
 
