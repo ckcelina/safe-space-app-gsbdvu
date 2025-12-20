@@ -605,52 +605,53 @@ export default function ChatScreen() {
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoider>
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-          <LinearGradient
-            colors={theme.primaryGradient}
-            style={styles.headerGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-
-          <SafeAreaView style={styles.safeArea} edges={['top']}>
-            <View style={[styles.header, { height: HEADER_HEIGHT }]}>
-              <TouchableOpacity 
-                onPress={handleBackPress} 
-                style={[
-                  styles.backButton,
-                  isTopicChat && { backgroundColor: theme.background }
-                ]}
-                activeOpacity={0.7}
-              >
-                <IconSymbol
-                  ios_icon_name="chevron.left"
-                  android_material_icon_name="arrow_back"
-                  size={24}
-                  color={theme.textPrimary}
-                />
-              </TouchableOpacity>
-              <View style={styles.headerCenter}>
-                <View style={styles.headerTitleRow}>
-                  <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                    {personName}
-                  </Text>
-                  {isPremium && !isTopicChat && (
-                    <View style={styles.premiumBadgeSmall}>
-                      <Text style={styles.premiumBadgeSmallText}>⭐</Text>
-                    </View>
+          {/* Fixed Header Area - Does NOT scroll */}
+          <SafeAreaView style={styles.headerSafeArea} edges={['top']}>
+            <LinearGradient
+              colors={theme.primaryGradient}
+              style={styles.headerGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={[styles.header, { height: HEADER_HEIGHT }]}>
+                <TouchableOpacity 
+                  onPress={handleBackPress} 
+                  style={[
+                    styles.backButton,
+                    { backgroundColor: theme.card }
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <IconSymbol
+                    ios_icon_name="chevron.left"
+                    android_material_icon_name="arrow_back"
+                    size={24}
+                    color={theme.textPrimary}
+                  />
+                </TouchableOpacity>
+                <View style={styles.headerCenter}>
+                  <View style={styles.headerTitleRow}>
+                    <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                      {personName}
+                    </Text>
+                    {isPremium && !isTopicChat && (
+                      <View style={styles.premiumBadgeSmall}>
+                        <Text style={styles.premiumBadgeSmallText}>⭐</Text>
+                      </View>
+                    )}
+                  </View>
+                  {relationshipType && (
+                    <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                      {relationshipType}
+                    </Text>
                   )}
                 </View>
-                {relationshipType && (
-                  <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-                    {relationshipType}
-                  </Text>
-                )}
+                <View style={{ width: 40 }} />
               </View>
-              <View style={{ width: 40 }} />
-            </View>
+            </LinearGradient>
           </SafeAreaView>
 
-          {/* Subject Pills Row */}
+          {/* Subject Pills Row - Fixed, does NOT scroll */}
           <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
             <ScrollView
               horizontal
@@ -676,6 +677,7 @@ export default function ChatScreen() {
             </ScrollView>
           </View>
 
+          {/* Banners - Fixed, do NOT scroll */}
           {isFreeUser && (
             <View style={[styles.freeBanner, { backgroundColor: theme.card }]}>
               <IconSymbol
@@ -715,6 +717,7 @@ export default function ChatScreen() {
             </View>
           )}
 
+          {/* Scrollable Messages Area */}
           <ScrollView
             ref={scrollViewRef}
             style={styles.messagesContainer}
@@ -769,7 +772,7 @@ export default function ChatScreen() {
             {isTyping && <TypingIndicator />}
           </ScrollView>
 
-          {/* Input Container - NO EXTRA PADDING, sits directly on keyboard */}
+          {/* Input Container - Fixed at bottom */}
           <View style={[
             styles.inputContainer, 
             { 
@@ -967,16 +970,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  headerGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: HEADER_HEIGHT + 100,
-    zIndex: 0,
+  headerSafeArea: {
+    zIndex: 10,
   },
-  safeArea: {
-    zIndex: 1,
+  headerGradient: {
+    width: '100%',
   },
   header: {
     flexDirection: 'row',
@@ -985,9 +983,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: HEADER_PADDING_HORIZONTAL,
   },
   backButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   headerCenter: {
     flex: 1,
@@ -1024,6 +1026,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
+    zIndex: 9,
   },
   pillsScrollContent: {
     paddingHorizontal: 16,
@@ -1044,6 +1047,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    zIndex: 8,
   },
   bannerIcon: {
     marginRight: 8,
@@ -1059,6 +1063,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    zIndex: 8,
   },
   errorBannerText: {
     flex: 1,
@@ -1118,6 +1123,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0, 0, 0, 0.08)',
+    zIndex: 10,
   },
   inputRow: {
     flexDirection: 'row',

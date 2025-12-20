@@ -269,6 +269,7 @@ export default function LibraryDetailScreen() {
         >
           <SafeAreaView style={styles.safeArea} edges={['top']}>
             <View style={styles.container}>
+              {/* Fixed Header */}
               <View style={[styles.header, { height: HEADER_HEIGHT }]}>
                 <TouchableOpacity
                   onPress={() => router.back()}
@@ -277,7 +278,9 @@ export default function LibraryDetailScreen() {
                 >
                   <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
+                <View style={styles.headerSpacer} />
               </View>
+
               <View style={styles.errorContainer}>
                 <Ionicons name="alert-circle-outline" size={64} color={theme.buttonText} />
                 <Text style={[styles.errorTitle, { color: theme.buttonText }]}>
@@ -332,7 +335,7 @@ export default function LibraryDetailScreen() {
       >
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={styles.container}>
-            {/* Fixed Header with back button, heart, and settings */}
+            {/* Fixed Header with back button, heart, and settings - Does NOT scroll */}
             <View style={[styles.header, { height: HEADER_HEIGHT }]}>
               <TouchableOpacity
                 onPress={() => router.back()}
@@ -341,6 +344,8 @@ export default function LibraryDetailScreen() {
               >
                 <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
               </TouchableOpacity>
+              
+              <View style={styles.headerSpacer} />
               
               <View style={styles.headerRight}>
                 <TouchableOpacity
@@ -365,6 +370,7 @@ export default function LibraryDetailScreen() {
               </View>
             </View>
 
+            {/* Scrollable Content */}
             <ScrollView
               style={styles.scrollView}
               contentContainerStyle={[
@@ -516,6 +522,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: HEADER_PADDING_HORIZONTAL,
+    zIndex: 10,
+  },
+  headerSpacer: {
+    flex: 1,
   },
   headerRight: {
     flexDirection: 'row',
