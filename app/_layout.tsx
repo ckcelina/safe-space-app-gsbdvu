@@ -82,7 +82,7 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <StatusBar style="dark" animated translucent={false} />
+      <StatusBar style="light" animated translucent={false} />
       <ThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
       >
@@ -210,7 +210,7 @@ export default function RootLayout() {
                     }}
                   />
                 </Stack>
-                <SystemBars style={"auto"} />
+                <SystemBars style={"light"} />
               </GestureHandlerRootView>
             </WidgetProvider>
           </AuthProvider>

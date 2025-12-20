@@ -19,7 +19,7 @@ import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import AddPersonSheet from '@/components/ui/AddPersonSheet';
-import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE } from '@/constants/Layout';
+import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE, HEADER_BUTTON_STYLES } from '@/constants/Layout';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
@@ -687,7 +687,7 @@ export default function HomeScreen() {
                   ios_icon_name="gearshape.fill"
                   android_material_icon_name="settings"
                   size={26}
-                  color="#FFFFFF"
+                  color={theme.textPrimary}
                 />
               </TouchableOpacity>
             </View>
@@ -1193,9 +1193,7 @@ const styles = StyleSheet.create({
   settingsButton: {
     padding: 10,
     borderRadius: 24,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.25)',
-    elevation: 4,
+    ...HEADER_BUTTON_STYLES,
   },
   scrollView: {
     flex: 1,

@@ -133,27 +133,27 @@ export default function FloatingTabBar({
     };
   });
 
-  // Dynamic styles based on theme
+  // Dynamic styles based on theme - with better contrast
   const dynamicStyles = {
     blurContainer: {
       ...styles.blurContainer,
-      borderWidth: 1.2,
-      borderColor: theme.dark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 1)',
+      borderWidth: 1.5,
+      borderColor: theme.dark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
       ...Platform.select({
         ios: {
           backgroundColor: theme.dark
-            ? 'rgba(28, 28, 30, 0.8)'
-            : 'rgba(255, 255, 255, 0.6)',
+            ? 'rgba(28, 28, 30, 0.85)'
+            : 'rgba(255, 255, 255, 0.85)',
         },
         android: {
           backgroundColor: theme.dark
             ? 'rgba(28, 28, 30, 0.95)'
-            : 'rgba(255, 255, 255, 0.6)',
+            : 'rgba(255, 255, 255, 0.95)',
         },
         web: {
           backgroundColor: theme.dark
             ? 'rgba(28, 28, 30, 0.95)'
-            : 'rgba(255, 255, 255, 0.6)',
+            : 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(10px)',
         },
       }),
@@ -164,8 +164,8 @@ export default function FloatingTabBar({
     indicator: {
       ...styles.indicator,
       backgroundColor: theme.dark
-        ? 'rgba(255, 255, 255, 0.08)' // Subtle white overlay in dark mode
-        : 'rgba(0, 0, 0, 0.04)', // Subtle black overlay in light mode
+        ? 'rgba(255, 255, 255, 0.12)' // More visible in dark mode
+        : 'rgba(0, 0, 0, 0.06)', // More visible in light mode
       width: `${tabWidthPercent}%` as `${number}%`, // Dynamic width based on number of tabs
     },
   };
@@ -180,7 +180,7 @@ export default function FloatingTabBar({
         }
       ]} pointerEvents="box-none">
         <BlurView
-          intensity={80}
+          intensity={Platform.OS === 'ios' ? 80 : 100}
           style={[dynamicStyles.blurContainer, { borderRadius }]}
         >
           <View style={dynamicStyles.background} />
@@ -201,12 +201,12 @@ export default function FloatingTabBar({
                         ios_icon_name={tab.iosIcon || tab.icon}
                         android_material_icon_name={tab.icon}
                         size={24}
-                        color={isActive ? theme.colors.primary : (theme.dark ? '#98989D' : '#000000')}
+                        color={isActive ? theme.colors.primary : (theme.dark ? '#98989D' : '#3C3C43')}
                       />
                       <Text
                         style={[
                           styles.tabLabel,
-                          { color: theme.dark ? '#98989D' : '#8E8E93' },
+                          { color: theme.dark ? '#98989D' : '#3C3C43' },
                           isActive && { color: theme.colors.primary, fontWeight: '600' },
                         ]}
                       >
@@ -239,6 +239,11 @@ const styles = StyleSheet.create({
   },
   blurContainer: {
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   background: {
     ...StyleSheet.absoluteFillObject,

@@ -25,7 +25,7 @@ import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
-import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE } from '@/constants/Layout';
+import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE, HEADER_BUTTON_STYLES } from '@/constants/Layout';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -298,7 +298,7 @@ export default function SettingsScreen() {
                   ios_icon_name="chevron.left"
                   android_material_icon_name="arrow_back"
                   size={24}
-                  color={theme.buttonText}
+                  color={theme.textPrimary}
                 />
               </TouchableOpacity>
               
@@ -313,7 +313,7 @@ export default function SettingsScreen() {
                   ios_icon_name="info.circle"
                   android_material_icon_name="info"
                   size={24}
-                  color={theme.buttonText}
+                  color={theme.textPrimary}
                 />
               </TouchableOpacity>
             </View>
@@ -861,12 +861,12 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    ...HEADER_BUTTON_STYLES,
   },
   infoButton: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    ...HEADER_BUTTON_STYLES,
   },
   headerSpacer: {
     flex: 1,
