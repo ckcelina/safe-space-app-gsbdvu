@@ -447,9 +447,10 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * FIXED: Enhanced handleSaveAddTopic with defensive fallback for context_label
-   * - Safely handles context_label even if the column doesn't exist in the database
-   * - Provides clear error messages if schema mismatch occurs
+   * FIXED: Enhanced handleSaveAddTopic with duplicate checking
+   * - Checks for existing topics with the same name (case-insensitive)
+   * - Shows friendly error message if duplicate exists
+   * - Prevents error 23505 from occurring
    */
   const handleSaveAddTopic = useCallback(async () => {
     console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic, 'contextLabel:', contextLabel);
@@ -475,13 +476,42 @@ export default function HomeScreen() {
     setSavingTopic(true);
 
     try {
+      // STEP 1: Check if topic already exists (case-insensitive)
+      // Normalize the topic name: trim and collapse multiple spaces
+      const normalizedTopicName = topicName.trim().replace(/\s+/g, ' ');
+      
+      console.log('[Home] Checking for existing topic with name:', normalizedTopicName);
+      
+      const { data: existingTopic, error: checkError } = await supabase
+        .from('persons')
+        .select('id, name')
+        .eq('user_id', userId)
+        .eq('relationship_type', 'Topic')
+        .ilike('name', normalizedTopicName)
+        .limit(1);
+
+      if (checkError) {
+        console.error('[Home] Error checking for existing topic:', checkError);
+        // Continue with insert attempt - let the database handle it
+      } else if (existingTopic && existingTopic.length > 0) {
+        // Topic already exists - show friendly message
+        console.log('[Home] Topic already exists:', existingTopic[0]);
+        if (isMountedRef.current) {
+          showErrorToast('This topic already exists');
+          setTopicError('This topic already exists');
+          setSavingTopic(false);
+        }
+        return;
+      }
+
+      // STEP 2: Topic doesn't exist - proceed with insert
       // DEFENSIVE FALLBACK: Prepare topic data with safe context_label handling
       // If context_label is empty, set it to null to avoid issues
       const contextLabelValue = contextLabel.trim() || null;
       
       const topicData: any = {
         user_id: userId,
-        name: topicName,
+        name: normalizedTopicName,
         relationship_type: 'Topic',
       };
 
@@ -502,6 +532,17 @@ export default function HomeScreen() {
       if (error) {
         console.error('[Home] Error creating topic:', error);
         
+        // Check if this is a duplicate key error (23505)
+        if (error.code === '23505' || (error.message && error.message.includes('duplicate key'))) {
+          console.error('[Home] Duplicate topic detected by database');
+          if (isMountedRef.current) {
+            showErrorToast('This topic already exists');
+            setTopicError('This topic already exists');
+            setSavingTopic(false);
+          }
+          return;
+        }
+        
         // DEFENSIVE FALLBACK: Check if error is related to context_label column
         if (error.message && error.message.includes('context_label')) {
           console.error('[Home] SCHEMA MISMATCH: context_label column not found in database');
@@ -511,7 +552,7 @@ export default function HomeScreen() {
           console.log('[Home] Retrying without context_label...');
           const fallbackData = {
             user_id: userId,
-            name: topicName,
+            name: normalizedTopicName,
             relationship_type: 'Topic',
           };
           
@@ -523,6 +564,17 @@ export default function HomeScreen() {
 
           if (fallbackError) {
             console.error('[Home] Fallback insert also failed:', fallbackError);
+            
+            // Check for duplicate in fallback attempt
+            if (fallbackError.code === '23505' || (fallbackError.message && fallbackError.message.includes('duplicate key'))) {
+              if (isMountedRef.current) {
+                showErrorToast('This topic already exists');
+                setTopicError('This topic already exists');
+                setSavingTopic(false);
+              }
+              return;
+            }
+            
             if (isMountedRef.current) {
               showErrorToast('Failed to add topic. Please contact support.');
               setSavingTopic(false);
