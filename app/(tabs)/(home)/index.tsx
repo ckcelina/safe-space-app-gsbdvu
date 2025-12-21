@@ -670,476 +670,477 @@ export default function HomeScreen() {
           end={{ x: 1, y: 1 }}
         />
         
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <View style={styles.container}>
-            {/* Fixed Header */}
-            <View style={[styles.header, { height: HEADER_HEIGHT }]}>
-              <View style={styles.headerLeft}>
-                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
-              </View>
-              <TouchableOpacity 
-                onPress={handleSettingsPress} 
-                style={styles.settingsButton}
-                activeOpacity={0.7}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <IconSymbol
-                  ios_icon_name="gearshape.fill"
-                  android_material_icon_name="settings"
-                  size={26}
-                  color={theme.textPrimary}
-                />
-              </TouchableOpacity>
+        {/* Fixed Header - extends behind status bar */}
+        <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
+          <View style={[styles.header, { height: HEADER_HEIGHT }]}>
+            <View style={styles.headerLeft}>
+              <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
             </View>
-
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={[
-                styles.scrollContent,
-                { paddingBottom: Math.max(insets.bottom, 20) + 100 }
-              ]}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
+            <TouchableOpacity 
+              onPress={handleSettingsPress} 
+              style={[styles.settingsButton, { backgroundColor: theme.card }]}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-                Who would you like to talk about today?
-              </Text>
+              <IconSymbol
+                ios_icon_name="gearshape.fill"
+                android_material_icon_name="settings"
+                size={26}
+                color={theme.textPrimary}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
 
-              <View style={styles.planPillContainer}>
-                <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                  <View style={styles.planPillContent}>
-                    <IconSymbol
-                      ios_icon_name={planInfo.icon}
-                      android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
-                      size={16}
-                      color={planInfo.iconColor}
-                      style={styles.planIcon}
-                    />
-                    <View style={styles.planTextWrapper}>
-                      <Text 
-                        style={[styles.planText, { color: theme.textPrimary }]}
-                        numberOfLines={2}
-                      >
-                        {planInfo.text}
-                      </Text>
-                    </View>
-                  </View>
-                  {planInfo.subtext && (
-                    <Text style={[styles.planSubtext, { color: theme.textSecondary }]}>
-                      {planInfo.subtext}
-                    </Text>
-                  )}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { 
+              paddingTop: insets.top + HEADER_HEIGHT + 8,
+              paddingBottom: Math.max(insets.bottom, 20) + 100 
+            }
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+            Who would you like to talk about today?
+          </Text>
+
+          <View style={styles.planPillContainer}>
+            <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+              <View style={styles.planPillContent}>
+                <IconSymbol
+                  ios_icon_name={planInfo.icon}
+                  android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
+                  size={16}
+                  color={planInfo.iconColor}
+                  style={styles.planIcon}
+                />
+                <View style={styles.planTextWrapper}>
+                  <Text 
+                    style={[styles.planText, { color: theme.textPrimary }]}
+                    numberOfLines={2}
+                  >
+                    {planInfo.text}
+                  </Text>
                 </View>
               </View>
+              {planInfo.subtext && (
+                <Text style={[styles.planSubtext, { color: theme.textSecondary }]}>
+                  {planInfo.subtext}
+                </Text>
+              )}
+            </View>
+          </View>
 
-              {hasAnyData && (
-                <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+          {hasAnyData && (
+            <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+              <IconSymbol
+                ios_icon_name="magnifyingglass"
+                android_material_icon_name="search"
+                size={20}
+                color={theme.textSecondary}
+              />
+              <TextInput
+                style={[styles.searchInput, { color: theme.textPrimary }]}
+                placeholder="Search by name or relationship"
+                placeholderTextColor={theme.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
                   <IconSymbol
-                    ios_icon_name="magnifyingglass"
-                    android_material_icon_name="search"
+                    ios_icon_name="xmark.circle.fill"
+                    android_material_icon_name="cancel"
                     size={20}
                     color={theme.textSecondary}
                   />
-                  <TextInput
-                    style={[styles.searchInput, { color: theme.textPrimary }]}
-                    placeholder="Search by name or relationship"
-                    placeholderTextColor={theme.textSecondary}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-                      <IconSymbol
-                        ios_icon_name="xmark.circle.fill"
-                        android_material_icon_name="cancel"
-                        size={20}
-                        color={theme.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.addButtonContainer}>
-                <TouchableOpacity
-                  onPress={handleAddPersonPress}
-                  activeOpacity={0.8}
-                  style={styles.addButton}
-                >
-                  <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <Text style={[styles.addButtonText, { color: theme.primary }]}>
-                      Add Person
-                    </Text>
-                  </View>
                 </TouchableOpacity>
+              )}
+            </View>
+          )}
 
+          <View style={styles.addButtonContainer}>
+            <TouchableOpacity
+              onPress={handleAddPersonPress}
+              activeOpacity={0.8}
+              style={styles.addButton}
+            >
+              <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.addButtonText, { color: theme.primary }]}>
+                  Add Person
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleAddTopicPress}
+              activeOpacity={0.8}
+              style={styles.addButton}
+            >
+              <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.addButtonText, { color: theme.primary }]}>
+                  Add Topic
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <View style={[styles.errorCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <SafeSpaceLogo size={48} color={theme.primary} />
+                <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
                 <TouchableOpacity
-                  onPress={handleAddTopicPress}
+                  onPress={fetchData}
+                  style={[styles.retryButton, { backgroundColor: theme.primary }]}
                   activeOpacity={0.8}
-                  style={styles.addButton}
                 >
-                  <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <Text style={[styles.addButtonText, { color: theme.primary }]}>
-                      Add Topic
-                    </Text>
-                  </View>
+                  <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
+                    Try Again
+                  </Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          )}
 
-              {error && (
-                <View style={styles.errorContainer}>
-                  <View style={[styles.errorCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <SafeSpaceLogo size={48} color={theme.primary} />
-                    <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
-                    <TouchableOpacity
-                      onPress={fetchData}
-                      style={[styles.retryButton, { backgroundColor: theme.primary }]}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
-                        Try Again
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              {!error && !hasAnyData && !loading ? (
-                <View style={styles.emptyState}>
-                  <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <SafeSpaceLogo size={48} color={theme.primary} />
-                  </View>
-                  <Text style={[styles.emptyText, { color: theme.buttonText }]}>Nothing added yet</Text>
-                  <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-                    Tap &apos;Add Person&apos; or &apos;Add Topic&apos; to start
+          {!error && !hasAnyData && !loading ? (
+            <View style={styles.emptyState}>
+              <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <SafeSpaceLogo size={48} color={theme.primary} />
+              </View>
+              <Text style={[styles.emptyText, { color: theme.buttonText }]}>Nothing added yet</Text>
+              <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+                Tap &apos;Add Person&apos; or &apos;Add Topic&apos; to start
+              </Text>
+            </View>
+          ) : !error && !loading ? (
+            <>
+              {!hasFilteredResults && searchQuery.trim() ? (
+                <View style={styles.noResultsContainer}>
+                  <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
+                    No matches found
+                  </Text>
+                  <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+                    Try a different search term
                   </Text>
                 </View>
-              ) : !error && !loading ? (
+              ) : (
                 <>
-                  {!hasFilteredResults && searchQuery.trim() ? (
-                    <View style={styles.noResultsContainer}>
-                      <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
-                        No matches found
+                  {filteredPeople.length > 0 && (
+                    <View style={styles.section}>
+                      <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
+                        People
                       </Text>
-                      <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-                        Try a different search term
-                      </Text>
+
+                      <View style={styles.cards}>
+                        {filteredPeople.map((person) => {
+                          if (!person || !person.id) return null;
+
+                          return (
+                            <Swipeable
+                              key={person.id}
+                              renderRightActions={() => (
+                                <DeleteAction onPress={() => handleDeletePerson(person.id!, false)} />
+                              )}
+                              overshootRight={false}
+                            >
+                              <PersonCard
+                                person={person}
+                                onPress={() => handlePersonPress(person)}
+                                isTopic={false}
+                              />
+                            </Swipeable>
+                          );
+                        })}
+                      </View>
                     </View>
-                  ) : (
-                    <>
-                      {filteredPeople.length > 0 && (
-                        <View style={styles.section}>
-                          <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
-                            People
-                          </Text>
+                  )}
 
-                          <View style={styles.cards}>
-                            {filteredPeople.map((person) => {
-                              if (!person || !person.id) return null;
+                  {filteredTopics.length > 0 && (
+                    <View style={styles.section}>
+                      <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
+                        Topics
+                      </Text>
 
-                              return (
-                                <Swipeable
-                                  key={person.id}
-                                  renderRightActions={() => (
-                                    <DeleteAction onPress={() => handleDeletePerson(person.id!, false)} />
-                                  )}
-                                  overshootRight={false}
-                                >
-                                  <PersonCard
-                                    person={person}
-                                    onPress={() => handlePersonPress(person)}
-                                    isTopic={false}
-                                  />
-                                </Swipeable>
-                              );
-                            })}
-                          </View>
-                        </View>
-                      )}
+                      <View style={styles.cards}>
+                        {filteredTopics.map((topic) => {
+                          if (!topic || !topic.id) return null;
 
-                      {filteredTopics.length > 0 && (
-                        <View style={styles.section}>
-                          <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
-                            Topics
-                          </Text>
-
-                          <View style={styles.cards}>
-                            {filteredTopics.map((topic) => {
-                              if (!topic || !topic.id) return null;
-
-                              return (
-                                <Swipeable
-                                  key={topic.id}
-                                  renderRightActions={() => (
-                                    <DeleteAction onPress={() => handleDeletePerson(topic.id!, true)} />
-                                  )}
-                                  overshootRight={false}
-                                >
-                                  <PersonCard
-                                    person={topic}
-                                    onPress={() => handleTopicPress(topic)}
-                                    isTopic={true}
-                                  />
-                                </Swipeable>
-                              );
-                            })}
-                          </View>
-                        </View>
-                      )}
-                    </>
+                          return (
+                            <Swipeable
+                              key={topic.id}
+                              renderRightActions={() => (
+                                <DeleteAction onPress={() => handleDeletePerson(topic.id!, true)} />
+                              )}
+                              overshootRight={false}
+                            >
+                              <PersonCard
+                                person={topic}
+                                onPress={() => handleTopicPress(topic)}
+                                isTopic={true}
+                              />
+                            </Swipeable>
+                          );
+                        })}
+                      </View>
+                    </View>
                   )}
                 </>
-              ) : null}
-            </ScrollView>
+              )}
+            </>
+          ) : null}
+        </ScrollView>
 
-            {/* Add Person Sheet - WITH OPTIMISTIC UPDATE + DATA RE-SYNC */}
-            <AddPersonSheet
-              visible={isAddPersonOpen}
-              onClose={() => setIsAddPersonOpen(false)}
-              userId={userId}
-              theme={theme}
-              insets={insets}
-              onPersonCreated={handlePersonCreated}
-            />
+        {/* Add Person Sheet - WITH OPTIMISTIC UPDATE + DATA RE-SYNC */}
+        <AddPersonSheet
+          visible={isAddPersonOpen}
+          onClose={() => setIsAddPersonOpen(false)}
+          userId={userId}
+          theme={theme}
+          insets={insets}
+          onPersonCreated={handlePersonCreated}
+        />
 
-            {/* Add Topic Modal - WITH CONTEXT LABEL SUPPORT */}
-            <Modal
-              visible={isAddTopicOpen}
-              transparent={true}
-              animationType="slide"
-              onRequestClose={handleCloseAddTopicModal}
+        {/* Add Topic Modal - WITH CONTEXT LABEL SUPPORT */}
+        <Modal
+          visible={isAddTopicOpen}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleCloseAddTopicModal}
+        >
+          <Pressable 
+            style={styles.addTopicModalOverlay}
+            onPress={handleCloseAddTopicModal}
+          >
+            <Pressable 
+              style={styles.addTopicModalInner}
+              onPress={(e) => e.stopPropagation()}
             >
-              <Pressable 
-                style={styles.addTopicModalOverlay}
-                onPress={handleCloseAddTopicModal}
+              <KeyboardAvoidingView
+                style={styles.addTopicKeyboardAvoid}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={0}
               >
-                <Pressable 
-                  style={styles.addTopicModalInner}
-                  onPress={(e) => e.stopPropagation()}
-                >
-                  <KeyboardAvoidingView
-                    style={styles.addTopicKeyboardAvoid}
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    keyboardVerticalOffset={0}
+                <View style={styles.addTopicSheetCard}>
+                  {/* Header */}
+                  <View style={styles.addTopicModalHeader}>
+                    <Text style={styles.addTopicModalTitle}>
+                      Add Topic
+                    </Text>
+                    <TouchableOpacity 
+                      onPress={handleCloseAddTopicModal} 
+                      style={styles.addTopicCloseButton}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="close" size={28} color="#333" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* ScrollView with chips and input ONLY */}
+                  <ScrollView
+                    style={styles.addTopicScrollView}
+                    contentContainerStyle={styles.addTopicScrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="interactive"
+                    showsVerticalScrollIndicator={false}
                   >
-                    <View style={styles.addTopicSheetCard}>
-                      {/* Header */}
-                      <View style={styles.addTopicModalHeader}>
-                        <Text style={styles.addTopicModalTitle}>
-                          Add Topic
-                        </Text>
-                        <TouchableOpacity 
-                          onPress={handleCloseAddTopicModal} 
-                          style={styles.addTopicCloseButton}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Ionicons name="close" size={28} color="#333" />
-                        </TouchableOpacity>
-                      </View>
-
-                      {/* ScrollView with chips and input ONLY */}
-                      <ScrollView
-                        style={styles.addTopicScrollView}
-                        contentContainerStyle={styles.addTopicScrollContent}
-                        keyboardShouldPersistTaps="handled"
-                        keyboardDismissMode="interactive"
-                        showsVerticalScrollIndicator={false}
-                      >
-                        {/* Quick-select topic chips */}
-                        <View style={styles.addTopicChipsContainer}>
-                          <Text style={styles.addTopicHelperText}>
-                            Quick select:
-                          </Text>
-                          <View style={styles.addTopicChipsWrapper}>
-                            {DEFAULT_TOPICS.map((topic, index) => (
-                              <TouchableOpacity
-                                key={`topic-chip-${index}`}
-                                onPress={() => handleQuickTopicSelect(topic)}
-                                activeOpacity={0.7}
-                                style={[
-                                  styles.addTopicChip,
-                                  selectedQuickTopic === topic && styles.addTopicChipSelected
-                                ]}
-                              >
-                                <Text style={[
-                                  styles.addTopicChipText,
-                                  selectedQuickTopic === topic && styles.addTopicChipTextSelected
-                                ]}>
-                                  {topic}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        </View>
-
-                        {/* Custom Topic Input */}
-                        <View style={styles.addTopicFieldContainer}>
-                          <Text style={styles.addTopicInputLabel}>
-                            Or type a custom topic:
-                          </Text>
-                          <View style={[
-                            styles.addTopicInputRowContainer,
-                            topicError ? styles.addTopicInputRowError : null
-                          ]}>
-                            <TextInput
-                              style={styles.addTopicTextInput}
-                              placeholder="Enter your own topic..."
-                              placeholderTextColor="#999"
-                              value={customTopicName}
-                              onChangeText={handleCustomTopicChange}
-                              autoCapitalize="sentences"
-                              autoCorrect={false}
-                              maxLength={100}
-                              editable={!savingTopic}
-                              returnKeyType="next"
-                              autoFocus={false}
-                            />
-                          </View>
-                          {topicError ? (
-                            <Text style={styles.addTopicErrorText}>{topicError}</Text>
-                          ) : null}
-                        </View>
-
-                        {/* Context Label Input (NEW) */}
-                        <View style={styles.addTopicFieldContainer}>
-                          <Text style={styles.addTopicInputLabel}>
-                            Add context (optional):
-                          </Text>
-                          <Text style={styles.addTopicHelperTextSmall}>
-                            e.g., &quot;Work&quot;, &quot;Family&quot;, &quot;School&quot;
-                          </Text>
-                          <View style={[
-                            styles.addTopicInputRowContainer,
-                            contextLabelFocused && styles.addTopicInputRowFocused
-                          ]}>
-                            <TextInput
-                              style={styles.addTopicTextInput}
-                              placeholder="Work, Family, School..."
-                              placeholderTextColor="#999"
-                              value={contextLabel}
-                              onChangeText={handleContextLabelChange}
-                              autoCapitalize="words"
-                              autoCorrect={false}
-                              maxLength={50}
-                              editable={!savingTopic}
-                              returnKeyType="done"
-                              onSubmitEditing={handleSaveAddTopic}
-                              onFocus={() => setContextLabelFocused(true)}
-                              onBlur={() => setContextLabelFocused(false)}
-                            />
-                          </View>
-                        </View>
-
-                        {/* Selected topic indicator */}
-                        {selectedQuickTopic && (
-                          <View style={styles.addTopicSelectedIndicator}>
-                            <Text style={styles.addTopicSelectedText}>
-                              Selected: <Text style={styles.addTopicSelectedValue}>{selectedQuickTopic}</Text>
-                              {contextLabel.trim() && (
-                                <Text style={styles.addTopicSelectedContext}> – {contextLabel.trim()}</Text>
-                              )}
-                            </Text>
-                          </View>
-                        )}
-                      </ScrollView>
-
-                      {/* Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
-                      <View style={styles.addTopicModalFooter}>
-                        <TouchableOpacity
-                          onPress={handleCloseAddTopicModal}
-                          style={styles.addTopicCancelButton}
-                          disabled={savingTopic}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.addTopicCancelButtonText}>
-                            Cancel
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          onPress={handleSaveAddTopic}
-                          style={[
-                            styles.addTopicSaveButton,
-                            !isStartChatEnabled && styles.addTopicSaveButtonDisabled
-                          ]}
-                          disabled={savingTopic || !isStartChatEnabled}
-                          activeOpacity={0.8}
-                        >
-                          <LinearGradient
-                            colors={isStartChatEnabled ? theme.primaryGradient : ['#ccc', '#ccc']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.addTopicSaveButtonGradient}
+                    {/* Quick-select topic chips */}
+                    <View style={styles.addTopicChipsContainer}>
+                      <Text style={styles.addTopicHelperText}>
+                        Quick select:
+                      </Text>
+                      <View style={styles.addTopicChipsWrapper}>
+                        {DEFAULT_TOPICS.map((topic, index) => (
+                          <TouchableOpacity
+                            key={`topic-chip-${index}`}
+                            onPress={() => handleQuickTopicSelect(topic)}
+                            activeOpacity={0.7}
+                            style={[
+                              styles.addTopicChip,
+                              selectedQuickTopic === topic && styles.addTopicChipSelected
+                            ]}
                           >
-                            <Text style={styles.addTopicSaveButtonText}>
-                              {savingTopic ? 'Saving...' : 'Start Chat'}
+                            <Text style={[
+                              styles.addTopicChipText,
+                              selectedQuickTopic === topic && styles.addTopicChipTextSelected
+                            ]}>
+                              {topic}
                             </Text>
-                          </LinearGradient>
-                        </TouchableOpacity>
+                          </TouchableOpacity>
+                        ))}
                       </View>
                     </View>
-                  </KeyboardAvoidingView>
-                </Pressable>
-              </Pressable>
-            </Modal>
 
-            <SwipeableCenterModal
-              visible={showPremiumModal}
-              onClose={handleClosePremiumModal}
-              showHandle={true}
-            >
-              <View style={styles.premiumModalInner}>
-                <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
-                  <IconSymbol
-                    ios_icon_name="lock.fill"
-                    android_material_icon_name="lock"
-                    size={48}
-                    color={theme.primary}
-                  />
-                </View>
-                
-                <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
-                  Premium feature
-                </Text>
-                
-                <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
-                  Upgrade your plan to add more people.
-                </Text>
-
-                <View style={styles.premiumModalButtons}>
-                  <TouchableOpacity
-                    onPress={handleClosePremiumModal}
-                    style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
-                      Not now
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleClosePremiumModal}
-                    style={styles.premiumPrimaryButton}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={theme.primaryGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.premiumPrimaryButtonGradient}
-                    >
-                      <Text style={[styles.premiumPrimaryButtonText, { color: theme.buttonText }]}>
-                        Learn about Premium
+                    {/* Custom Topic Input */}
+                    <View style={styles.addTopicFieldContainer}>
+                      <Text style={styles.addTopicInputLabel}>
+                        Or type a custom topic:
                       </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                      <View style={[
+                        styles.addTopicInputRowContainer,
+                        topicError ? styles.addTopicInputRowError : null
+                      ]}>
+                        <TextInput
+                          style={styles.addTopicTextInput}
+                          placeholder="Enter your own topic..."
+                          placeholderTextColor="#999"
+                          value={customTopicName}
+                          onChangeText={handleCustomTopicChange}
+                          autoCapitalize="sentences"
+                          autoCorrect={false}
+                          maxLength={100}
+                          editable={!savingTopic}
+                          returnKeyType="next"
+                          autoFocus={false}
+                        />
+                      </View>
+                      {topicError ? (
+                        <Text style={styles.addTopicErrorText}>{topicError}</Text>
+                      ) : null}
+                    </View>
+
+                    {/* Context Label Input (NEW) */}
+                    <View style={styles.addTopicFieldContainer}>
+                      <Text style={styles.addTopicInputLabel}>
+                        Add context (optional):
+                      </Text>
+                      <Text style={styles.addTopicHelperTextSmall}>
+                        e.g., &quot;Work&quot;, &quot;Family&quot;, &quot;School&quot;
+                      </Text>
+                      <View style={[
+                        styles.addTopicInputRowContainer,
+                        contextLabelFocused && styles.addTopicInputRowFocused
+                      ]}>
+                        <TextInput
+                          style={styles.addTopicTextInput}
+                          placeholder="Work, Family, School..."
+                          placeholderTextColor="#999"
+                          value={contextLabel}
+                          onChangeText={handleContextLabelChange}
+                          autoCapitalize="words"
+                          autoCorrect={false}
+                          maxLength={50}
+                          editable={!savingTopic}
+                          returnKeyType="done"
+                          onSubmitEditing={handleSaveAddTopic}
+                          onFocus={() => setContextLabelFocused(true)}
+                          onBlur={() => setContextLabelFocused(false)}
+                        />
+                      </View>
+                    </View>
+
+                    {/* Selected topic indicator */}
+                    {selectedQuickTopic && (
+                      <View style={styles.addTopicSelectedIndicator}>
+                        <Text style={styles.addTopicSelectedText}>
+                          Selected: <Text style={styles.addTopicSelectedValue}>{selectedQuickTopic}</Text>
+                          {contextLabel.trim() && (
+                            <Text style={styles.addTopicSelectedContext}> – {contextLabel.trim()}</Text>
+                          )}
+                        </Text>
+                      </View>
+                    )}
+                  </ScrollView>
+
+                  {/* Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
+                  <View style={styles.addTopicModalFooter}>
+                    <TouchableOpacity
+                      onPress={handleCloseAddTopicModal}
+                      style={styles.addTopicCancelButton}
+                      disabled={savingTopic}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.addTopicCancelButtonText}>
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={handleSaveAddTopic}
+                      style={[
+                        styles.addTopicSaveButton,
+                        !isStartChatEnabled && styles.addTopicSaveButtonDisabled
+                      ]}
+                      disabled={savingTopic || !isStartChatEnabled}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={isStartChatEnabled ? theme.primaryGradient : ['#ccc', '#ccc']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.addTopicSaveButtonGradient}
+                      >
+                        <Text style={styles.addTopicSaveButtonText}>
+                          {savingTopic ? 'Saving...' : 'Start Chat'}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            </SwipeableCenterModal>
+              </KeyboardAvoidingView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        <SwipeableCenterModal
+          visible={showPremiumModal}
+          onClose={handleClosePremiumModal}
+          showHandle={true}
+        >
+          <View style={styles.premiumModalInner}>
+            <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
+              <IconSymbol
+                ios_icon_name="lock.fill"
+                android_material_icon_name="lock"
+                size={48}
+                color={theme.primary}
+              />
+            </View>
+            
+            <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
+              Premium feature
+            </Text>
+            
+            <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
+              Upgrade your plan to add more people.
+            </Text>
+
+            <View style={styles.premiumModalButtons}>
+              <TouchableOpacity
+                onPress={handleClosePremiumModal}
+                style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
+                  Not now
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleClosePremiumModal}
+                style={styles.premiumPrimaryButton}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={theme.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.premiumPrimaryButtonGradient}
+                >
+                  <Text style={[styles.premiumPrimaryButtonText, { color: theme.buttonText }]}>
+                    Learn about Premium
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
-        </SafeAreaView>
+        </SwipeableCenterModal>
       </View>
       
       <LoadingOverlay visible={loading && !error} />
@@ -1170,12 +1171,12 @@ const styles = StyleSheet.create({
   fullScreenContainer: {
     flex: 1,
   },
-  safeArea: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  container: {
-    flex: 1,
+  headerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
   },
   header: {
     flexDirection: 'row',
@@ -1200,7 +1201,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 8,
   },
   headerSubtitle: {
     fontSize: 16,
