@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/natively-dark.png",
       "resizeMode": "contain",
@@ -41,7 +40,8 @@
     ],
     "scheme": "natively",
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "newArchEnabled": false
     },
     "extra": {
       "router": {}
