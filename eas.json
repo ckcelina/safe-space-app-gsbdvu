@@ -1,16 +1,29 @@
+
 {
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "node": "18.0.0",
+      "npm": {
+        "install": "npm ci"
+      }
     },
     "preview": {
       "distribution": "internal",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "node": "18.0.0",
+      "npm": {
+        "install": "npm ci"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "node": "18.0.0",
+      "npm": {
+        "install": "npm ci"
+      }
     }
   }
 }
