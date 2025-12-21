@@ -46,6 +46,12 @@
     },
     "extra": {
       "router": {}
+    },
+    "packagerOpts": {
+      "tunnel": false
+    },
+    "developer": {
+      "tool": "expo-cli"
     }
   },
   "scheme": "Safe Space"
