@@ -46,10 +46,6 @@
     },
     "extra": {
       "router": {}
-    },
-    "hostType": "lan",
-    "developer": {
-      "tool": "expo-cli"
     }
   }
 }
