@@ -3,6 +3,7 @@
   "name": "Natively",
   "version": "1.0.0",
   "main": "index.ts",
+  "packageManager": "npm@10.8.2",
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=10.0.0"
