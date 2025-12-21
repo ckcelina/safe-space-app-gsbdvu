@@ -1,0 +1,12 @@
+
+# Ignore pnpm files
+pnpm-lock.yaml
+.pnpm-store/
+.pnpm-debug.log
+pnpm-workspace.yaml
+
+# Ignore yarn files
+yarn.lock
+.yarn/
+.yarnrc
+.yarnrc.yml
