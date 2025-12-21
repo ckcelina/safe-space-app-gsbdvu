@@ -7,7 +7,7 @@
       "autoIncrement": true,
       "node": "18.0.0",
       "npm": {
-        "install": "npm ci"
+        "install": "npm ci --legacy-peer-deps"
       },
       "env": {
         "COREPACK_ENABLE_STRICT": "0",
@@ -15,16 +15,20 @@
         "npm_config_user_agent": "npm",
         "DISABLE_COREPACK": "1",
         "npm_execpath": "/usr/local/bin/npm",
-        "npm_config_package_manager": "npm"
+        "npm_config_package_manager": "npm",
+        "FORCE_NPM": "1",
+        "NO_PNPM": "1",
+        "NO_YARN": "1",
+        "NO_BUN": "1"
       },
-      "prebuildCommand": "corepack disable || true"
+      "prebuildCommand": "node -e \"console.log('Disabling corepack...'); try { require('child_process').execSync('corepack disable', {stdio: 'inherit'}); } catch(e) { console.log('Corepack not found or already disabled'); }\""
     },
     "preview": {
       "distribution": "internal",
       "autoIncrement": true,
       "node": "18.0.0",
       "npm": {
-        "install": "npm ci"
+        "install": "npm ci --legacy-peer-deps"
       },
       "env": {
         "COREPACK_ENABLE_STRICT": "0",
@@ -32,15 +36,19 @@
         "npm_config_user_agent": "npm",
         "DISABLE_COREPACK": "1",
         "npm_execpath": "/usr/local/bin/npm",
-        "npm_config_package_manager": "npm"
+        "npm_config_package_manager": "npm",
+        "FORCE_NPM": "1",
+        "NO_PNPM": "1",
+        "NO_YARN": "1",
+        "NO_BUN": "1"
       },
-      "prebuildCommand": "corepack disable || true"
+      "prebuildCommand": "node -e \"console.log('Disabling corepack...'); try { require('child_process').execSync('corepack disable', {stdio: 'inherit'}); } catch(e) { console.log('Corepack not found or already disabled'); }\""
     },
     "production": {
       "autoIncrement": true,
       "node": "18.0.0",
       "npm": {
-        "install": "npm ci"
+        "install": "npm ci --legacy-peer-deps"
       },
       "env": {
         "COREPACK_ENABLE_STRICT": "0",
@@ -48,9 +56,13 @@
         "npm_config_user_agent": "npm",
         "DISABLE_COREPACK": "1",
         "npm_execpath": "/usr/local/bin/npm",
-        "npm_config_package_manager": "npm"
+        "npm_config_package_manager": "npm",
+        "FORCE_NPM": "1",
+        "NO_PNPM": "1",
+        "NO_YARN": "1",
+        "NO_BUN": "1"
       },
-      "prebuildCommand": "corepack disable || true"
+      "prebuildCommand": "node -e \"console.log('Disabling corepack...'); try { require('child_process').execSync('corepack disable', {stdio: 'inherit'}); } catch(e) { console.log('Corepack not found or already disabled'); }\""
     }
   }
 }

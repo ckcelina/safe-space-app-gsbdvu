@@ -1,0 +1,12 @@
+
+# Ensure pnpm/yarn/bun files are never included
+pnpm-lock.yaml
+.pnpm-store/
+.pnpm-debug.log
+pnpm-workspace.yaml
+yarn.lock
+.yarn/
+.yarnrc
+.yarnrc.yml
+bun.lockb
+.bun/
