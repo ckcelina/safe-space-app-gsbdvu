@@ -3,12 +3,12 @@
   "name": "Natively",
   "version": "1.0.0",
   "main": "index.ts",
+  "packageManager": "npm@10.8.2",
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "preinstall": "node -e \"const pm = process.env.npm_execpath || ''; if(pm.includes('pnpm') || pm.includes('yarn') || pm.includes('bun')) { console.error('\\n\\nERROR: This project only supports npm. Please use: npm install\\n\\n'); process.exit(1); }\"",
     "postinstall": "node -e \"console.log('✓ Dependencies installed successfully with npm')\"",
     "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
