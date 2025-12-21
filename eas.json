@@ -10,11 +10,6 @@
         "install": "npm ci"
       },
       "env": {
-        "COREPACK_ENABLE_STRICT": "0",
-        "COREPACK_ENABLE_AUTO_PIN": "0",
-        "DISABLE_COREPACK": "1",
-        "npm_config_user_agent": "npm",
-        "npm_config_package_manager": "npm",
         "NPM_CONFIG_FUND": "false",
         "NPM_CONFIG_AUDIT": "false",
         "EXPO_NO_TELEMETRY": "1",
@@ -29,11 +24,6 @@
         "install": "npm ci"
       },
       "env": {
-        "COREPACK_ENABLE_STRICT": "0",
-        "COREPACK_ENABLE_AUTO_PIN": "0",
-        "DISABLE_COREPACK": "1",
-        "npm_config_user_agent": "npm",
-        "npm_config_package_manager": "npm",
         "NPM_CONFIG_FUND": "false",
         "NPM_CONFIG_AUDIT": "false",
         "EXPO_NO_TELEMETRY": "1",
@@ -47,11 +37,6 @@
         "install": "npm ci"
       },
       "env": {
-        "COREPACK_ENABLE_STRICT": "0",
-        "COREPACK_ENABLE_AUTO_PIN": "0",
-        "DISABLE_COREPACK": "1",
-        "npm_config_user_agent": "npm",
-        "npm_config_package_manager": "npm",
         "NPM_CONFIG_FUND": "false",
         "NPM_CONFIG_AUDIT": "false",
         "EXPO_NO_TELEMETRY": "1",
