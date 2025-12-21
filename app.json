@@ -1,4 +1,3 @@
-
 {
   "expo": {
     "name": "Safe Space",
@@ -34,11 +33,7 @@
       "favicon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
       "bundler": "metro"
     },
-    "plugins": [
-      "expo-font",
-      "expo-router",
-      "expo-web-browser"
-    ],
+    "plugins": ["expo-font", "expo-router", "expo-web-browser"],
     "scheme": "natively",
     "experiments": {
       "typedRoutes": true,
@@ -46,6 +41,9 @@
     },
     "extra": {
       "router": {}
+    },
+    "packagerOpts": {
+      "tunnel": false
     }
   }
 }
