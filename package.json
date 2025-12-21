@@ -6,9 +6,13 @@
   "packageManager": "npm@10.8.2",
   "engines": {
     "node": ">=18.0.0",
-    "npm": ">=10.0.0"
+    "npm": ">=10.0.0",
+    "pnpm": "please-use-npm",
+    "yarn": "please-use-npm",
+    "bun": "please-use-npm"
   },
   "scripts": {
+    "preinstall": "npx only-allow npm",
     "postinstall": "node -e \"console.log('✓ Dependencies installed successfully with npm')\"",
     "dev": "expo start --tunnel",
     "android": "expo start --android",

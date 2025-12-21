@@ -17,7 +17,8 @@
         "npm_config_package_manager": "npm",
         "NPM_CONFIG_FUND": "false",
         "NPM_CONFIG_AUDIT": "false",
-        "EXPO_NO_TELEMETRY": "1"
+        "EXPO_NO_TELEMETRY": "1",
+        "EXPO_USE_FAST_RESOLVER": "1"
       }
     },
     "preview": {
@@ -35,7 +36,8 @@
         "npm_config_package_manager": "npm",
         "NPM_CONFIG_FUND": "false",
         "NPM_CONFIG_AUDIT": "false",
-        "EXPO_NO_TELEMETRY": "1"
+        "EXPO_NO_TELEMETRY": "1",
+        "EXPO_USE_FAST_RESOLVER": "1"
       }
     },
     "production": {
@@ -52,7 +54,8 @@
         "npm_config_package_manager": "npm",
         "NPM_CONFIG_FUND": "false",
         "NPM_CONFIG_AUDIT": "false",
-        "EXPO_NO_TELEMETRY": "1"
+        "EXPO_NO_TELEMETRY": "1",
+        "EXPO_USE_FAST_RESOLVER": "1"
       }
     }
   }
