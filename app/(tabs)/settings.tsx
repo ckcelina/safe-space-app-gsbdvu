@@ -287,11 +287,11 @@ export default function SettingsScreen() {
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
-            {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
-            <View style={[styles.topHeader, { height: HEADER_HEIGHT, paddingTop: insets.top }]}>
+            {/* Fixed Header with Back Button on LEFT and Info Icon on RIGHT */}
+            <View style={[styles.topHeader, { height: HEADER_HEIGHT }]}>
               <TouchableOpacity 
                 onPress={handleBack} 
-                style={styles.backButton}
+                style={[styles.backButton, { backgroundColor: theme.card }]}
                 activeOpacity={0.7}
               >
                 <IconSymbol
@@ -306,7 +306,7 @@ export default function SettingsScreen() {
               
               <TouchableOpacity 
                 onPress={handleInfoPress} 
-                style={styles.infoButton}
+                style={[styles.infoButton, { backgroundColor: theme.card }]}
                 activeOpacity={0.7}
               >
                 <IconSymbol
@@ -857,15 +857,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: HEADER_PADDING_HORIZONTAL,
+    zIndex: 10,
   },
   backButton: {
-    padding: 8,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
     ...HEADER_BUTTON_STYLES,
   },
   infoButton: {
-    padding: 8,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
     ...HEADER_BUTTON_STYLES,
   },
   headerSpacer: {
