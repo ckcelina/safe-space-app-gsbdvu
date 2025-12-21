@@ -38,3 +38,11 @@ netlify.toml
 
 # Ignore pnpm lock file - this project uses npm
 pnpm-lock.yaml
+.pnpm-store/
+.pnpm-debug.log
+
+# Ignore yarn lock file - this project uses npm
+yarn.lock
+
+# Keep npm lock file
+!package-lock.json
