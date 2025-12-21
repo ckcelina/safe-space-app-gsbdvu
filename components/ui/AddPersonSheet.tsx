@@ -57,11 +57,11 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
   }, [visible]);
 
   /**
-   * FIXED: Handle person creation WITHOUT duplicate checking
-   * - Duplicate names are now ALLOWED (after DB migration removes unique constraint)
-   * - Each person is uniquely identified by UUID (person.id)
-   * - Generic error handling only
-   * - Uses .select().single() to return the inserted row
+   * FIXED: Handle person creation with duplicate name error detection
+   * - Detects Supabase error code 23505 (unique constraint violation)
+   * - Shows user-friendly inline error message
+   * - Keeps the sheet open for editing
+   * - Minimizes error logging in production
    */
   const handleSave = async () => {
     console.log('[AddPersonSheet] Save called with name:', name, 'relationship:', relationshipType);
@@ -123,20 +123,35 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
 
       // Step 5: Handle errors
       if (insertError) {
-        // Log technical error details silently for debugging
-        console.error('[AddPersonSheet] ===== SUPABASE INSERT ERROR =====');
-        console.error('[AddPersonSheet] Error code:', insertError.code);
-        console.error('[AddPersonSheet] Error message:', insertError.message);
-        console.error('[AddPersonSheet] Error details:', insertError.details);
-        console.error('[AddPersonSheet] Error hint:', insertError.hint);
-        console.error('[AddPersonSheet] Payload:', payload);
-        console.error('[AddPersonSheet] ================================');
+        // Check for duplicate name error (error code 23505)
+        if (insertError.code === '23505') {
+          console.log('[AddPersonSheet] Duplicate name detected');
+          
+          // Show user-friendly inline error message
+          setError('You already have someone with this name. Try adding a nickname or different label.');
+          
+          // Re-enable Save button and keep modal open
+          setSaving(false);
+          return;
+        }
+
+        // Log technical error details for debugging (minimal in production)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[AddPersonSheet] ===== SUPABASE INSERT ERROR =====');
+          console.error('[AddPersonSheet] Error code:', insertError.code);
+          console.error('[AddPersonSheet] Error message:', insertError.message);
+          console.error('[AddPersonSheet] Error details:', insertError.details);
+          console.error('[AddPersonSheet] Error hint:', insertError.hint);
+          console.error('[AddPersonSheet] Payload:', payload);
+          console.error('[AddPersonSheet] ================================');
+        } else {
+          console.error('[AddPersonSheet] Insert error:', insertError.code);
+        }
 
         // Re-enable Save button and keep modal open
         setSaving(false);
 
-        // Show generic user-friendly error message
-        // Do NOT show "already exists" message - duplicates are allowed
+        // Show generic user-friendly error message for other errors
         showErrorToast('Couldn\'t save. Please try again.');
         return;
       }
@@ -165,12 +180,16 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       // Close the sheet
       onClose();
     } catch (error: any) {
-      // Log unexpected errors silently for debugging
-      console.error('[AddPersonSheet] ===== UNEXPECTED ERROR =====');
-      console.error('[AddPersonSheet] Error:', error);
-      console.error('[AddPersonSheet] Error message:', error?.message);
-      console.error('[AddPersonSheet] Error stack:', error?.stack);
-      console.error('[AddPersonSheet] ============================');
+      // Log unexpected errors (minimal in production)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[AddPersonSheet] ===== UNEXPECTED ERROR =====');
+        console.error('[AddPersonSheet] Error:', error);
+        console.error('[AddPersonSheet] Error message:', error?.message);
+        console.error('[AddPersonSheet] Error stack:', error?.stack);
+        console.error('[AddPersonSheet] ============================');
+      } else {
+        console.error('[AddPersonSheet] Unexpected error');
+      }
 
       // Re-enable Save button and keep modal open
       setSaving(false);
