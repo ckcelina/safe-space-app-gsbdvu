@@ -8,9 +8,11 @@
     "node": ">=18.0.0",
     "npm": ">=10.0.0",
     "pnpm": "please-use-npm",
-    "yarn": "please-use-npm"
+    "yarn": "please-use-npm",
+    "bun": "please-use-npm"
   },
   "scripts": {
+    "preinstall": "npx only-allow npm",
     "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
     "ios": "EXPO_NO_TELEMETRY=1 expo start --ios",

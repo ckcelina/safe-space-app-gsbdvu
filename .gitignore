@@ -46,6 +46,11 @@ pnpm-workspace.yaml
 yarn.lock
 .yarn/
 .yarnrc
+.yarnrc.yml
+
+# Ignore bun lock file - this project uses npm
+bun.lockb
+.bun/
 
 # Keep npm lock file
 !package-lock.json
