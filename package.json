@@ -12,7 +12,6 @@
     "bun": "please-use-npm"
   },
   "scripts": {
-    "preinstall": "npx only-allow npm",
     "postinstall": "node -e \"console.log('✓ Dependencies installed successfully with npm')\"",
     "dev": "expo start --tunnel",
     "android": "expo start --android",
