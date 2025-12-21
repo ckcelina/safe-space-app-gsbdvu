@@ -1,16 +1,15 @@
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, TextInput, LogBox, Modal, Pressable, KeyboardAvoidingView } from 'react-native';
-import { router, Redirect } from 'expo-router';
+import { router, Redirect, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import { Person } from '@/types/database.types';
+import { Person, Topic } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
@@ -26,6 +25,11 @@ LogBox.ignoreLogs([
 ]);
 
 interface PersonWithLastMessage extends Person {
+  lastMessage?: string;
+  lastMessageTime?: string;
+}
+
+interface TopicWithLastMessage extends Topic {
   lastMessage?: string;
   lastMessageTime?: string;
 }
@@ -68,19 +72,19 @@ export default function HomeScreen() {
   const { theme } = useThemeContext();
   const insets = useSafeAreaInsets();
   
-  // Single source of truth for people and topics
+  // Separate state for people and topics
   const [people, setPeople] = useState<PersonWithLastMessage[]>([]);
-  const [topics, setTopics] = useState<PersonWithLastMessage[]>([]);
+  const [topics, setTopics] = useState<TopicWithLastMessage[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Add Person modal state - single source of truth
+  // Add Person modal state
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
 
-  // Add Topic modal state - single source of truth
+  // Add Topic modal state
   const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
   const [selectedQuickTopic, setSelectedQuickTopic] = useState<string | null>(null);
   const [customTopicName, setCustomTopicName] = useState('');
@@ -100,10 +104,10 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * PART B FIX: Fetch data with correct filtering logic
-   * - People: relationship_type != 'Topic' (includes null)
-   * - Topics: relationship_type == 'Topic'
-   * - Sort by created_at DESC for stable ordering
+   * FIXED: Fetch people and topics from separate tables
+   * - People from persons table
+   * - Topics from topics table
+   * - No filtering by relationship_type needed
    */
   const fetchData = useCallback(async () => {
     if (!userId) {
@@ -116,12 +120,11 @@ export default function HomeScreen() {
       setError(null);
       console.log('[Home] Fetching people and topics for user:', userId);
       
-      // Fetch people: relationship_type IS NULL OR relationship_type != 'Topic'
+      // Fetch people from persons table
       const { data: peopleData, error: peopleError } = await supabase
         .from('persons')
         .select('*')
         .eq('user_id', userId)
-        .or('relationship_type.is.null,relationship_type.neq.Topic')
         .order('created_at', { ascending: false });
 
       if (peopleError) {
@@ -133,12 +136,11 @@ export default function HomeScreen() {
         return;
       }
 
-      // Fetch topics: relationship_type == 'Topic'
+      // Fetch topics from topics table
       const { data: topicsData, error: topicsError } = await supabase
-        .from('persons')
+        .from('topics')
         .select('*')
         .eq('user_id', userId)
-        .eq('relationship_type', 'Topic')
         .order('created_at', { ascending: false });
 
       if (topicsError) {
@@ -191,7 +193,7 @@ export default function HomeScreen() {
                   .from('messages')
                   .select('content, created_at, role')
                   .eq('user_id', userId)
-                  .eq('person_id', topic.id)
+                  .eq('topic_id', topic.id)
                   .order('created_at', { ascending: false })
                   .limit(1);
 
@@ -239,9 +241,7 @@ export default function HomeScreen() {
   }, [userId, fetchData]);
 
   /**
-   * PART B FIX: Focus-based refresh
-   * - Refresh data whenever the screen gains focus
-   * - This ensures the list updates after adding a person/topic
+   * Focus-based refresh
    */
   useFocusEffect(
     useCallback(() => {
@@ -252,20 +252,14 @@ export default function HomeScreen() {
     }, [userId, fetchData])
   );
 
-  const handleDeletePerson = useCallback(async (personId: string, isTopic: boolean = false) => {
-    if (!personId) {
-      console.error('[Home] Cannot delete - personId is missing');
+  const handleDeletePerson = useCallback(async (personId: string) => {
+    if (!personId || !userId) {
+      console.error('[Home] Cannot delete - missing personId or userId');
       showErrorToast('Invalid data');
       return;
     }
 
-    if (!userId) {
-      console.error('[Home] Cannot delete - userId is missing');
-      showErrorToast('You must be logged in');
-      return;
-    }
-
-    console.log('[Home] Deleting:', isTopic ? 'topic' : 'person', personId);
+    console.log('[Home] Deleting person:', personId);
 
     try {
       const { error: messagesError } = await supabase
@@ -287,24 +281,65 @@ export default function HomeScreen() {
         .eq('user_id', userId);
 
       if (deleteError) {
-        console.error('[Home] Error deleting:', deleteError);
-        showErrorToast(isTopic ? 'Failed to delete topic' : 'Failed to delete person');
+        console.error('[Home] Error deleting person:', deleteError);
+        showErrorToast('Failed to delete person');
         return;
       }
 
       if (isMountedRef.current) {
-        if (isTopic) {
-          setTopics(prev => prev.filter(t => t.id !== personId));
-          showSuccessToast('Topic deleted');
-        } else {
-          setPeople(prev => prev.filter(p => p.id !== personId));
-          showSuccessToast('Person deleted');
-        }
+        setPeople(prev => prev.filter(p => p.id !== personId));
+        showSuccessToast('Person deleted');
       }
 
-      console.log('[Home] Deleted successfully');
+      console.log('[Home] Person deleted successfully');
     } catch (error: any) {
-      console.error('[Home] Unexpected error deleting:', error);
+      console.error('[Home] Unexpected error deleting person:', error);
+      showErrorToast('An unexpected error occurred');
+    }
+  }, [userId]);
+
+  const handleDeleteTopic = useCallback(async (topicId: string) => {
+    if (!topicId || !userId) {
+      console.error('[Home] Cannot delete - missing topicId or userId');
+      showErrorToast('Invalid data');
+      return;
+    }
+
+    console.log('[Home] Deleting topic:', topicId);
+
+    try {
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('user_id', userId)
+        .eq('topic_id', topicId);
+
+      if (messagesError) {
+        console.error('[Home] Error deleting messages:', messagesError);
+        showErrorToast('Failed to delete messages');
+        return;
+      }
+
+      const { error: deleteError } = await supabase
+        .from('topics')
+        .delete()
+        .eq('id', topicId)
+        .eq('user_id', userId);
+
+      if (deleteError) {
+        console.error('[Home] Error deleting topic:', deleteError);
+        showErrorToast('Failed to delete topic');
+        return;
+      }
+
+      if (isMountedRef.current) {
+        setTopics(prev => prev.filter(t => t.id !== topicId));
+        showSuccessToast('Topic deleted');
+      }
+
+      console.log('[Home] Topic deleted successfully');
+    } catch (error: any) {
+      console.error('[Home] Unexpected error deleting topic:', error);
       showErrorToast('An unexpected error occurred');
     }
   }, [userId]);
@@ -339,12 +374,9 @@ export default function HomeScreen() {
     return filtered;
   }, [topics, searchQuery]);
 
-  // Add Person button handler - closes Add Topic modal if open, opens modal
   const handleAddPersonPress = useCallback(() => {
     console.log('[Home] Add Person pressed');
-    console.log('[Home] isAddPersonOpen -> true');
     
-    // Close Add Topic modal if open
     if (isAddTopicOpen) {
       setIsAddTopicOpen(false);
       setSelectedQuickTopic(null);
@@ -355,53 +387,37 @@ export default function HomeScreen() {
       setContextLabelFocused(false);
     }
     
-    // Open Add Person modal
     setIsAddPersonOpen(true);
-    console.log('[Home] Add Person modal should now be visible');
   }, [isAddTopicOpen]);
 
   /**
-   * PART B FIX: Handle successful person creation with optimistic update + data re-sync
-   * - Immediately update local state by prepending the new person
-   * - Call fetchData() once to guarantee server truth
+   * FIXED: Handle person creation with optimistic update
    */
   const handlePersonCreated = useCallback((newPerson: Person) => {
     console.log('[Home] handlePersonCreated called with:', newPerson);
     
-    // Ensure the new person has relationship_type !== 'Topic' so it appears under People
-    if (newPerson.relationship_type === 'Topic') {
-      console.warn('[Home] New person has relationship_type "Topic", skipping optimistic update');
-      return;
-    }
-    
-    // Create a person with last message placeholder
     const newPersonWithMessage: PersonWithLastMessage = {
       ...newPerson,
       lastMessage: 'No messages yet',
       lastMessageTime: undefined,
     };
     
-    // STEP 1: Optimistic update - prepend the new person to the list
     console.log('[Home] Performing optimistic update - adding person to top of list');
     setPeople(prev => [newPersonWithMessage, ...prev]);
     
-    // STEP 2: Data re-sync - call fetchData() to sync with Supabase
     console.log('[Home] Triggering data re-sync with Supabase');
     if (userId) {
       fetchData();
     }
   }, [userId, fetchData]);
 
-  // Add Topic button handler - closes Add Person modal if open, resets form, opens modal
   const handleAddTopicPress = useCallback(() => {
     console.log('[Home] Add Topic button pressed');
     
-    // Close Add Person modal if open
     if (isAddPersonOpen) {
       setIsAddPersonOpen(false);
     }
     
-    // Reset Add Topic form state (on open)
     setSelectedQuickTopic(null);
     setCustomTopicName('');
     setContextLabel('');
@@ -409,7 +425,6 @@ export default function HomeScreen() {
     setCustomTopicFocused(false);
     setContextLabelFocused(false);
     
-    // Open Add Topic modal
     setIsAddTopicOpen(true);
   }, [isAddPersonOpen]);
 
@@ -427,8 +442,8 @@ export default function HomeScreen() {
   const handleQuickTopicSelect = useCallback((topic: string) => {
     console.log('[Home] Quick topic selected:', topic);
     setSelectedQuickTopic(topic);
-    setCustomTopicName(''); // Clear custom input when chip is selected
-    setTopicError(''); // Clear any error
+    setCustomTopicName('');
+    setTopicError('');
   }, []);
 
   const handleCustomTopicChange = useCallback((text: string) => {
@@ -437,7 +452,6 @@ export default function HomeScreen() {
     if (topicError && text.trim()) {
       setTopicError('');
     }
-    // Clear selected quick topic when user types
     if (text.trim() && selectedQuickTopic) {
       setSelectedQuickTopic(null);
     }
@@ -449,19 +463,13 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * FIX: Enhanced handleSaveAddTopic with duplicate checking
-   * - Checks for existing topics BEFORE attempting insert
-   * - Handles error 23505 gracefully if it still occurs
-   * - Shows user-friendly error messages
-   * - Refreshes topic list after successful insert
+   * FIXED: Save topic to topics table (not persons table)
    */
   const handleSaveAddTopic = useCallback(async () => {
-    console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic, 'contextLabel:', contextLabel);
+    console.log('[Home] Save Add Topic called');
     
-    // Determine final topic name: selectedQuickTopic (from chip) OR customTopicName (typed)
     const topicName = selectedQuickTopic || customTopicName.trim();
     
-    // Validate topic name is not empty
     if (!topicName) {
       console.log('[Home] Topic validation failed - topic is empty');
       setTopicError('Please select a topic or type a custom one');
@@ -474,162 +482,37 @@ export default function HomeScreen() {
       return;
     }
 
-    console.log('[Home] Starting save process for topic:', topicName, 'userId:', userId);
+    console.log('[Home] Starting save process for topic:', topicName);
     setTopicError('');
     setSavingTopic(true);
 
     try {
-      // Normalize the topic name: trim and collapse multiple spaces
       const normalizedTopicName = topicName.trim().replace(/\s+/g, ' ');
-      
-      console.log('[Home] Normalized topic name:', normalizedTopicName);
-      
-      // STEP 1: Check if topic already exists (case-insensitive)
-      console.log('[Home] Checking for existing topic...');
-      const { data: existingTopics, error: checkError } = await supabase
-        .from('persons')
-        .select('id, name')
-        .eq('user_id', userId)
-        .eq('relationship_type', 'Topic')
-        .ilike('name', normalizedTopicName);
-
-      if (checkError) {
-        console.error('[Home] Error checking for existing topic:', checkError);
-        // Continue with insert attempt even if check fails
-      } else if (existingTopics && existingTopics.length > 0) {
-        console.log('[Home] Topic already exists:', existingTopics[0]);
-        if (isMountedRef.current) {
-          showErrorToast('This topic already exists');
-          setTopicError('This topic already exists');
-          setSavingTopic(false);
-        }
-        return;
-      }
-
-      console.log('[Home] No existing topic found, proceeding with insert');
-      
-      // STEP 2: Prepare topic data
       const contextLabelValue = contextLabel.trim() || null;
       
       const topicData: any = {
         user_id: userId,
         name: normalizedTopicName,
-        relationship_type: 'Topic',
       };
 
-      // Only include context_label if it has a value
       if (contextLabelValue !== null) {
         topicData.context_label = contextLabelValue;
       }
       
-      console.log('[Home] ===== TOPIC INSERT DEBUG =====');
-      console.log('[Home] Table name: persons');
-      console.log('[Home] Payload keys:', Object.keys(topicData));
-      console.log('[Home] Payload:', topicData);
-      console.log('[Home] ================================');
+      console.log('[Home] Inserting topic into topics table:', topicData);
       
-      // STEP 3: Insert topic into persons table
+      // Insert into topics table
       const { data, error } = await supabase
-        .from('persons')
+        .from('topics')
         .insert([topicData])
         .select()
         .single();
 
       if (error) {
         console.error('[Home] Error creating topic:', error);
-        console.log('[Home] Error code:', error.code);
-        console.log('[Home] Error message:', error.message);
         
-        // Handle duplicate key error (23505) - should be rare after pre-check
-        if (error.code === '23505' || (error.message && error.message.includes('duplicate key'))) {
-          console.error('[Home] Duplicate topic detected by database (race condition or constraint still exists)');
-          if (isMountedRef.current) {
-            showErrorToast('This topic already exists');
-            setTopicError('This topic already exists');
-            setSavingTopic(false);
-          }
-          return;
-        }
-        
-        // Handle context_label column not found error
-        if (error.message && error.message.includes('context_label')) {
-          console.error('[Home] SCHEMA MISMATCH: context_label column not found in database');
-          console.error('[Home] Please run the migration: MIGRATION_ADD_CONTEXT_LABEL_TO_PERSONS.sql');
-          
-          // Try again WITHOUT context_label as a fallback
-          console.log('[Home] Retrying without context_label...');
-          const fallbackData = {
-            user_id: userId,
-            name: normalizedTopicName,
-            relationship_type: 'Topic',
-          };
-          
-          const { data: fallbackResult, error: fallbackError } = await supabase
-            .from('persons')
-            .insert([fallbackData])
-            .select()
-            .single();
-
-          if (fallbackError) {
-            console.error('[Home] Fallback insert also failed:', fallbackError);
-            
-            // Check for duplicate in fallback attempt
-            if (fallbackError.code === '23505' || (fallbackError.message && fallbackError.message.includes('duplicate key'))) {
-              if (isMountedRef.current) {
-                showErrorToast('This topic already exists');
-                setTopicError('This topic already exists');
-                setSavingTopic(false);
-              }
-              return;
-            }
-            
-            if (isMountedRef.current) {
-              showErrorToast('Failed to add topic. Please contact support.');
-              setSavingTopic(false);
-            }
-            return;
-          }
-
-          // Fallback succeeded
-          console.log('[Home] Topic created successfully (without context_label):', fallbackResult);
-          if (isMountedRef.current) {
-            showSuccessToast('Topic added (context not saved - database needs update)');
-            
-            // Close modal and reset state
-            setIsAddTopicOpen(false);
-            setSelectedQuickTopic(null);
-            setCustomTopicName('');
-            setContextLabel('');
-            setTopicError('');
-            setCustomTopicFocused(false);
-            setContextLabelFocused(false);
-            
-            // Navigate to chat screen with the new topic
-            if (fallbackResult && fallbackResult.id) {
-              console.log('[Home] Navigating to chat for new topic:', fallbackResult.name, 'id:', fallbackResult.id);
-              router.push({
-                pathname: '/(tabs)/(home)/chat',
-                params: { 
-                  personId: fallbackResult.id, 
-                  personName: fallbackResult.name || 'Topic',
-                  relationshipType: 'Topic',
-                  initialSubject: fallbackResult.name,
-                  contextLabel: ''
-                },
-              });
-            }
-            
-            // Refresh Topics list
-            console.log('[Home] Refreshing data');
-            await fetchData();
-          }
-          return;
-        }
-        
-        // Other errors
         if (isMountedRef.current) {
-          const errorMessage = error.message || 'Failed to add topic. Please try again.';
-          showErrorToast(errorMessage);
+          showErrorToast('Failed to add topic. Please try again.');
           setSavingTopic(false);
         }
         return;
@@ -640,7 +523,6 @@ export default function HomeScreen() {
       if (isMountedRef.current) {
         showSuccessToast('Topic added successfully!');
         
-        // Close modal and reset state
         setIsAddTopicOpen(false);
         setSelectedQuickTopic(null);
         setCustomTopicName('');
@@ -649,22 +531,19 @@ export default function HomeScreen() {
         setCustomTopicFocused(false);
         setContextLabelFocused(false);
         
-        // Navigate to chat screen with the new topic
         if (data && data.id) {
           console.log('[Home] Navigating to chat for new topic:', data.name, 'id:', data.id);
           router.push({
             pathname: '/(tabs)/(home)/chat',
             params: { 
-              personId: data.id, 
-              personName: data.name || 'Topic',
-              relationshipType: 'Topic',
+              topicId: data.id,
+              topicName: data.name || 'Topic',
               initialSubject: data.name,
               contextLabel: data.context_label || ''
             },
           });
         }
         
-        // Refresh Topics list
         console.log('[Home] Refreshing data');
         await fetchData();
       }
@@ -677,7 +556,6 @@ export default function HomeScreen() {
     } finally {
       if (isMountedRef.current) {
         setSavingTopic(false);
-        console.log('[Home] Save process complete');
       }
     }
   }, [customTopicName, selectedQuickTopic, contextLabel, userId, fetchData]);
@@ -710,7 +588,7 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const handleTopicPress = useCallback((topic: Person) => {
+  const handleTopicPress = useCallback((topic: Topic) => {
     if (!topic.id) {
       console.error('[Home] Cannot navigate to chat - topic.id is missing');
       showErrorToast('Invalid topic data');
@@ -723,9 +601,8 @@ export default function HomeScreen() {
       router.push({
         pathname: '/(tabs)/(home)/chat',
         params: { 
-          personId: topic.id, 
-          personName: topic.name || 'Topic',
-          relationshipType: 'Topic',
+          topicId: topic.id,
+          topicName: topic.name || 'Topic',
           initialSubject: topic.name,
           contextLabel: topic.context_label || ''
         },
@@ -777,13 +654,7 @@ export default function HomeScreen() {
 
   const planInfo = getPlanInfo();
 
-  // Compute whether Start Chat button should be enabled
   const isStartChatEnabled = !!(selectedQuickTopic || customTopicName.trim());
-
-  // Debug: Log modal state changes
-  useEffect(() => {
-    console.log('[Home] isAddPersonOpen state changed to:', isAddPersonOpen);
-  }, [isAddPersonOpen]);
 
   if (authLoading) {
     return <LoadingOverlay visible={true} />;
@@ -806,7 +677,6 @@ export default function HomeScreen() {
           end={{ x: 1, y: 1 }}
         />
         
-        {/* Fixed Header - extends behind status bar */}
         <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
           <View style={[styles.header, { height: HEADER_HEIGHT }]}>
             <View style={styles.headerLeft}>
@@ -982,7 +852,7 @@ export default function HomeScreen() {
                             <Swipeable
                               key={person.id}
                               renderRightActions={() => (
-                                <DeleteAction onPress={() => handleDeletePerson(person.id!, false)} />
+                                <DeleteAction onPress={() => handleDeletePerson(person.id!)} />
                               )}
                               overshootRight={false}
                             >
@@ -1012,12 +882,12 @@ export default function HomeScreen() {
                             <Swipeable
                               key={topic.id}
                               renderRightActions={() => (
-                                <DeleteAction onPress={() => handleDeletePerson(topic.id!, true)} />
+                                <DeleteAction onPress={() => handleDeleteTopic(topic.id!)} />
                               )}
                               overshootRight={false}
                             >
                               <PersonCard
-                                person={topic}
+                                person={topic as any}
                                 onPress={() => handleTopicPress(topic)}
                                 isTopic={true}
                               />
@@ -1033,7 +903,6 @@ export default function HomeScreen() {
           ) : null}
         </ScrollView>
 
-        {/* Add Person Sheet - WITH OPTIMISTIC UPDATE + DATA RE-SYNC */}
         <AddPersonSheet
           visible={isAddPersonOpen}
           onClose={() => setIsAddPersonOpen(false)}
@@ -1043,7 +912,6 @@ export default function HomeScreen() {
           onPersonCreated={handlePersonCreated}
         />
 
-        {/* Add Topic Modal - WITH CONTEXT LABEL SUPPORT */}
         <Modal
           visible={isAddTopicOpen}
           transparent={true}
@@ -1064,7 +932,6 @@ export default function HomeScreen() {
                 keyboardVerticalOffset={0}
               >
                 <View style={styles.addTopicSheetCard}>
-                  {/* Header */}
                   <View style={styles.addTopicModalHeader}>
                     <Text style={styles.addTopicModalTitle}>
                       Add Topic
@@ -1078,7 +945,6 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  {/* ScrollView with chips and input ONLY */}
                   <ScrollView
                     style={styles.addTopicScrollView}
                     contentContainerStyle={styles.addTopicScrollContent}
@@ -1086,7 +952,6 @@ export default function HomeScreen() {
                     keyboardDismissMode="interactive"
                     showsVerticalScrollIndicator={false}
                   >
-                    {/* Quick-select topic chips */}
                     <View style={styles.addTopicChipsContainer}>
                       <Text style={styles.addTopicHelperText}>
                         Quick select:
@@ -1113,7 +978,6 @@ export default function HomeScreen() {
                       </View>
                     </View>
 
-                    {/* Custom Topic Input */}
                     <View style={styles.addTopicFieldContainer}>
                       <Text style={styles.addTopicInputLabel}>
                         Or type a custom topic:
@@ -1141,7 +1005,6 @@ export default function HomeScreen() {
                       ) : null}
                     </View>
 
-                    {/* Context Label Input (NEW) */}
                     <View style={styles.addTopicFieldContainer}>
                       <Text style={styles.addTopicInputLabel}>
                         Add context (optional):
@@ -1171,7 +1034,6 @@ export default function HomeScreen() {
                       </View>
                     </View>
 
-                    {/* Selected topic indicator */}
                     {selectedQuickTopic && (
                       <View style={styles.addTopicSelectedIndicator}>
                         <Text style={styles.addTopicSelectedText}>
@@ -1184,7 +1046,6 @@ export default function HomeScreen() {
                     )}
                   </ScrollView>
 
-                  {/* Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
                   <View style={styles.addTopicModalFooter}>
                     <TouchableOpacity
                       onPress={handleCloseAddTopicModal}
@@ -1497,8 +1358,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-
-  // Add Topic Modal Styles - WITH CONTEXT LABEL SUPPORT
   addTopicModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',

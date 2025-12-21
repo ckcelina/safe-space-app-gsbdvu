@@ -2,8 +2,8 @@
 export interface Message {
   id: string;
   user_id: string;
-  person_id?: string; // Optional for person-based chats
-  topic_id?: string; // Optional for topic-based chats
+  person_id?: string; // Optional - for person-based chats
+  topic_id?: string; // Optional - for topic-based chats
   role: 'user' | 'assistant';
   content: string;
   subject?: string; // Added subject field for topic-based conversations
@@ -14,17 +14,19 @@ export interface Person {
   id: string;
   user_id: string;
   name: string;
-  relationship_type?: string;
-  context_label?: string; // Optional context label (e.g., "Work", "Family")
+  relationship_type?: string | null;
+  context_label?: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Topic {
   id: string;
   user_id: string;
   name: string;
-  context_label?: string; // Optional context label (e.g., "Work", "Family")
+  context_label?: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface User {
