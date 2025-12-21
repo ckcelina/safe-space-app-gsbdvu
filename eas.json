@@ -11,8 +11,13 @@
       },
       "env": {
         "COREPACK_ENABLE_STRICT": "0",
-        "COREPACK_ENABLE_AUTO_PIN": "0"
-      }
+        "COREPACK_ENABLE_AUTO_PIN": "0",
+        "npm_config_user_agent": "npm",
+        "DISABLE_COREPACK": "1",
+        "npm_execpath": "/usr/local/bin/npm",
+        "npm_config_package_manager": "npm"
+      },
+      "prebuildCommand": "corepack disable || true"
     },
     "preview": {
       "distribution": "internal",
@@ -23,8 +28,13 @@
       },
       "env": {
         "COREPACK_ENABLE_STRICT": "0",
-        "COREPACK_ENABLE_AUTO_PIN": "0"
-      }
+        "COREPACK_ENABLE_AUTO_PIN": "0",
+        "npm_config_user_agent": "npm",
+        "DISABLE_COREPACK": "1",
+        "npm_execpath": "/usr/local/bin/npm",
+        "npm_config_package_manager": "npm"
+      },
+      "prebuildCommand": "corepack disable || true"
     },
     "production": {
       "autoIncrement": true,
@@ -34,8 +44,13 @@
       },
       "env": {
         "COREPACK_ENABLE_STRICT": "0",
-        "COREPACK_ENABLE_AUTO_PIN": "0"
-      }
+        "COREPACK_ENABLE_AUTO_PIN": "0",
+        "npm_config_user_agent": "npm",
+        "DISABLE_COREPACK": "1",
+        "npm_execpath": "/usr/local/bin/npm",
+        "npm_config_package_manager": "npm"
+      },
+      "prebuildCommand": "corepack disable || true"
     }
   }
 }
