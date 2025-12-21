@@ -6,65 +6,50 @@
       "autoIncrement": true,
       "node": "18.0.0",
       "npm": {
-        "install": "npm ci --legacy-peer-deps"
+        "install": "npm ci"
       },
       "env": {
         "COREPACK_ENABLE_STRICT": "0",
         "COREPACK_ENABLE_AUTO_PIN": "0",
-        "npm_config_user_agent": "npm",
         "DISABLE_COREPACK": "1",
-        "npm_execpath": "/usr/local/bin/npm",
+        "npm_config_user_agent": "npm",
         "npm_config_package_manager": "npm",
-        "FORCE_NPM": "1",
-        "NO_PNPM": "1",
-        "NO_YARN": "1",
-        "NO_BUN": "1",
-        "COREPACK_ROOT": "/dev/null"
-      },
-      "prebuildCommand": "node -e \"console.log('Ensuring npm is used...'); process.env.npm_config_user_agent = 'npm'; process.env.npm_execpath = '/usr/local/bin/npm';\""
+        "NPM_CONFIG_FUND": "false",
+        "NPM_CONFIG_AUDIT": "false"
+      }
     },
     "preview": {
       "distribution": "internal",
       "autoIncrement": true,
       "node": "18.0.0",
       "npm": {
-        "install": "npm ci --legacy-peer-deps"
+        "install": "npm ci"
       },
       "env": {
         "COREPACK_ENABLE_STRICT": "0",
         "COREPACK_ENABLE_AUTO_PIN": "0",
-        "npm_config_user_agent": "npm",
         "DISABLE_COREPACK": "1",
-        "npm_execpath": "/usr/local/bin/npm",
+        "npm_config_user_agent": "npm",
         "npm_config_package_manager": "npm",
-        "FORCE_NPM": "1",
-        "NO_PNPM": "1",
-        "NO_YARN": "1",
-        "NO_BUN": "1",
-        "COREPACK_ROOT": "/dev/null"
-      },
-      "prebuildCommand": "node -e \"console.log('Ensuring npm is used...'); process.env.npm_config_user_agent = 'npm'; process.env.npm_execpath = '/usr/local/bin/npm';\""
+        "NPM_CONFIG_FUND": "false",
+        "NPM_CONFIG_AUDIT": "false"
+      }
     },
     "production": {
       "autoIncrement": true,
       "node": "18.0.0",
       "npm": {
-        "install": "npm ci --legacy-peer-deps"
+        "install": "npm ci"
       },
       "env": {
         "COREPACK_ENABLE_STRICT": "0",
         "COREPACK_ENABLE_AUTO_PIN": "0",
-        "npm_config_user_agent": "npm",
         "DISABLE_COREPACK": "1",
-        "npm_execpath": "/usr/local/bin/npm",
+        "npm_config_user_agent": "npm",
         "npm_config_package_manager": "npm",
-        "FORCE_NPM": "1",
-        "NO_PNPM": "1",
-        "NO_YARN": "1",
-        "NO_BUN": "1",
-        "COREPACK_ROOT": "/dev/null"
-      },
-      "prebuildCommand": "node -e \"console.log('Ensuring npm is used...'); process.env.npm_config_user_agent = 'npm'; process.env.npm_execpath = '/usr/local/bin/npm';\""
+        "NPM_CONFIG_FUND": "false",
+        "NPM_CONFIG_AUDIT": "false"
+      }
     }
   }
 }

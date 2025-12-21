@@ -2,11 +2,13 @@
   "name": "Natively",
   "version": "1.0.0",
   "main": "index.ts",
+  "packageManager": "npm@10.8.2",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=10.0.0"
   },
   "scripts": {
-    "postinstall": "node -e \"console.log('✓ Dependencies installed successfully')\"",
+    "postinstall": "node -e \"console.log('✓ Dependencies installed successfully with npm')\"",
     "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
     "ios": "EXPO_NO_TELEMETRY=1 expo start --ios",
@@ -92,6 +94,5 @@
     "react-dom": "18.3.1",
     "react-native": "0.76.5"
   },
-  "packageManager": "npm@10.8.2",
   "private": true
 }
