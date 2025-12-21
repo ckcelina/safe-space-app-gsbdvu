@@ -36,4 +36,5 @@ ios/
 netlify.toml
 .netlify/
 
+# Ignore pnpm lock file - this project uses npm
 pnpm-lock.yaml
