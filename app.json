@@ -1,4 +1,3 @@
-
 {
   "expo": {
     "name": "Safe Space",
@@ -47,5 +46,6 @@
     "extra": {
       "router": {}
     }
-  }
+  },
+  "scheme": "Safe Space"
 }
