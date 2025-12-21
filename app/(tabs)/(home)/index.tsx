@@ -449,11 +449,11 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * PART C FIX: Enhanced handleSaveAddTopic
-   * - CORRECTLY inserts into 'persons' table with relationship_type = 'Topic'
-   * - Handles duplicate topic names gracefully (error code 23505)
+   * FIX: Enhanced handleSaveAddTopic with duplicate checking
+   * - Checks for existing topics BEFORE attempting insert
+   * - Handles error 23505 gracefully if it still occurs
    * - Shows user-friendly error messages
-   * - Logs table name and payload for debugging
+   * - Refreshes topic list after successful insert
    */
   const handleSaveAddTopic = useCallback(async () => {
     console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic, 'contextLabel:', contextLabel);
@@ -482,8 +482,33 @@ export default function HomeScreen() {
       // Normalize the topic name: trim and collapse multiple spaces
       const normalizedTopicName = topicName.trim().replace(/\s+/g, ' ');
       
-      // DEFENSIVE FALLBACK: Prepare topic data with safe context_label handling
-      // If context_label is empty, set it to null to avoid issues
+      console.log('[Home] Normalized topic name:', normalizedTopicName);
+      
+      // STEP 1: Check if topic already exists (case-insensitive)
+      console.log('[Home] Checking for existing topic...');
+      const { data: existingTopics, error: checkError } = await supabase
+        .from('persons')
+        .select('id, name')
+        .eq('user_id', userId)
+        .eq('relationship_type', 'Topic')
+        .ilike('name', normalizedTopicName);
+
+      if (checkError) {
+        console.error('[Home] Error checking for existing topic:', checkError);
+        // Continue with insert attempt even if check fails
+      } else if (existingTopics && existingTopics.length > 0) {
+        console.log('[Home] Topic already exists:', existingTopics[0]);
+        if (isMountedRef.current) {
+          showErrorToast('This topic already exists');
+          setTopicError('This topic already exists');
+          setSavingTopic(false);
+        }
+        return;
+      }
+
+      console.log('[Home] No existing topic found, proceeding with insert');
+      
+      // STEP 2: Prepare topic data
       const contextLabelValue = contextLabel.trim() || null;
       
       const topicData: any = {
@@ -493,7 +518,6 @@ export default function HomeScreen() {
       };
 
       // Only include context_label if it has a value
-      // This prevents sending undefined or empty strings
       if (contextLabelValue !== null) {
         topicData.context_label = contextLabelValue;
       }
@@ -504,6 +528,7 @@ export default function HomeScreen() {
       console.log('[Home] Payload:', topicData);
       console.log('[Home] ================================');
       
+      // STEP 3: Insert topic into persons table
       const { data, error } = await supabase
         .from('persons')
         .insert([topicData])
@@ -515,19 +540,18 @@ export default function HomeScreen() {
         console.log('[Home] Error code:', error.code);
         console.log('[Home] Error message:', error.message);
         
-        // PART A & C FIX: Check if this is a duplicate key error (23505)
-        // This should NOT happen after removing the unique constraint, but handle it gracefully
+        // Handle duplicate key error (23505) - should be rare after pre-check
         if (error.code === '23505' || (error.message && error.message.includes('duplicate key'))) {
-          console.error('[Home] Duplicate topic detected by database (constraint still exists?)');
+          console.error('[Home] Duplicate topic detected by database (race condition or constraint still exists)');
           if (isMountedRef.current) {
-            showErrorToast('A topic with this name already exists');
-            setTopicError('A topic with this name already exists');
+            showErrorToast('This topic already exists');
+            setTopicError('This topic already exists');
             setSavingTopic(false);
           }
           return;
         }
         
-        // DEFENSIVE FALLBACK: Check if error is related to context_label column
+        // Handle context_label column not found error
         if (error.message && error.message.includes('context_label')) {
           console.error('[Home] SCHEMA MISMATCH: context_label column not found in database');
           console.error('[Home] Please run the migration: MIGRATION_ADD_CONTEXT_LABEL_TO_PERSONS.sql');
@@ -552,8 +576,8 @@ export default function HomeScreen() {
             // Check for duplicate in fallback attempt
             if (fallbackError.code === '23505' || (fallbackError.message && fallbackError.message.includes('duplicate key'))) {
               if (isMountedRef.current) {
-                showErrorToast('A topic with this name already exists');
-                setTopicError('A topic with this name already exists');
+                showErrorToast('This topic already exists');
+                setTopicError('This topic already exists');
                 setSavingTopic(false);
               }
               return;
