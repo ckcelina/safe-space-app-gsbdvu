@@ -1,3 +1,4 @@
+
 {
   "build": {
     "development": {
@@ -15,7 +16,8 @@
         "npm_config_user_agent": "npm",
         "npm_config_package_manager": "npm",
         "NPM_CONFIG_FUND": "false",
-        "NPM_CONFIG_AUDIT": "false"
+        "NPM_CONFIG_AUDIT": "false",
+        "EXPO_NO_TELEMETRY": "1"
       }
     },
     "preview": {
@@ -32,7 +34,8 @@
         "npm_config_user_agent": "npm",
         "npm_config_package_manager": "npm",
         "NPM_CONFIG_FUND": "false",
-        "NPM_CONFIG_AUDIT": "false"
+        "NPM_CONFIG_AUDIT": "false",
+        "EXPO_NO_TELEMETRY": "1"
       }
     },
     "production": {
@@ -48,7 +51,8 @@
         "npm_config_user_agent": "npm",
         "npm_config_package_manager": "npm",
         "NPM_CONFIG_FUND": "false",
-        "NPM_CONFIG_AUDIT": "false"
+        "NPM_CONFIG_AUDIT": "false",
+        "EXPO_NO_TELEMETRY": "1"
       }
     }
   }
