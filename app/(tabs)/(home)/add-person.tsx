@@ -27,14 +27,6 @@ export default function AddPersonScreen() {
   const [nameFocused, setNameFocused] = useState(false);
   const [relationshipFocused, setRelationshipFocused] = useState(false);
 
-  /**
-   * FIXED: Handle person creation with duplicate name error detection
-   * - Detects Supabase error code 23505 (unique constraint violation)
-   * - Shows user-friendly inline error message
-   * - Keeps the screen open for editing
-   * - Minimizes error logging in production
-   * - Defaults relationship_type to "Other" if not provided
-   */
   const handleSave = async () => {
     console.log('[AddPerson] handleSave called with name:', name, 'relationshipType:', relationshipType);
     
@@ -58,7 +50,7 @@ export default function AddPersonScreen() {
       const personData = {
         user_id: userId,
         name: name.trim(),
-        relationship_type: relationshipType.trim() || 'Other',
+        relationship_type: relationshipType.trim() || null,
       };
       
       console.log('[AddPerson] Inserting person data:', personData);
@@ -70,25 +62,7 @@ export default function AddPersonScreen() {
         .single();
 
       if (error) {
-        // Check for duplicate name error (error code 23505)
-        if (error.code === '23505') {
-          console.log('[AddPerson] Duplicate name detected');
-          
-          // Show user-friendly inline error message
-          setNameError('You already have someone with this name. Try adding a nickname or different label.');
-          
-          // Re-enable Save button and keep screen open
-          setSaving(false);
-          return;
-        }
-
-        // Log technical error details for debugging (minimal in production)
-        if (process.env.NODE_ENV === 'development') {
-          console.error('[AddPerson] Error creating person:', error);
-        } else {
-          console.error('[AddPerson] Insert error:', error.code);
-        }
-
+        console.error('[AddPerson] Error creating person:', error);
         showErrorToast('Failed to add person. Please try again.');
         setSaving(false);
         return;
@@ -99,13 +73,7 @@ export default function AddPersonScreen() {
       
       router.back();
     } catch (error: any) {
-      // Log unexpected errors (minimal in production)
-      if (process.env.NODE_ENV === 'development') {
-        console.error('[AddPerson] Unexpected error creating person:', error);
-      } else {
-        console.error('[AddPerson] Unexpected error');
-      }
-
+      console.error('[AddPerson] Unexpected error creating person:', error);
       showErrorToast('An unexpected error occurred');
       setSaving(false);
     }

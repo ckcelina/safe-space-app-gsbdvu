@@ -13,7 +13,6 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/lib/supabase';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { Person } from '@/types/database.types';
@@ -58,11 +57,11 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
   }, [visible]);
 
   /**
-   * FIXED: Handle person creation with UUID generation and no duplicate checking
-   * - Generates a UUID for the new person client-side
-   * - Inserts with: id, user_id, name, relationship_type, created_at
-   * - Does NOT pre-check for duplicates by name
-   * - Allows multiple people with the same name
+   * FIXED: Handle person creation WITHOUT duplicate checking
+   * - Duplicate names are now ALLOWED (after DB migration removes unique constraint)
+   * - Each person is uniquely identified by UUID (person.id)
+   * - Generic error handling only
+   * - Uses .select().single() to return the inserted row
    */
   const handleSave = async () => {
     console.log('[AddPersonSheet] Save called with name:', name, 'relationship:', relationshipType);
@@ -102,55 +101,47 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         return;
       }
 
-      // Step 3: Generate UUID for the new person
-      const newPersonId = uuidv4();
-      console.log('[AddPersonSheet] Generated UUID for new person:', newPersonId);
-
-      // Step 4: Prepare payload
+      // Step 3: Prepare payload
+      // Trim name and relationship_type, set to null if empty
       const trimmedName = name.trim();
       const trimmedRelationship = relationshipType.trim();
       
       const payload = {
-        id: newPersonId,
         user_id: resolvedUserId,
         name: trimmedName,
         relationship_type: trimmedRelationship || null,
-        created_at: new Date().toISOString(),
       };
 
       console.log('[AddPersonSheet] Inserting person with payload:', payload);
 
-      // Step 5: Execute insert with .select().single() to return the inserted row
+      // Step 4: Execute insert with .select().single() to return the inserted row
       const { data, error: insertError } = await supabase
         .from('persons')
         .insert([payload])
         .select()
         .single();
 
-      // Step 6: Handle errors
+      // Step 5: Handle errors
       if (insertError) {
-        // Log technical error details for debugging
-        if (process.env.NODE_ENV === 'development') {
-          console.error('[AddPersonSheet] ===== SUPABASE INSERT ERROR =====');
-          console.error('[AddPersonSheet] Error code:', insertError.code);
-          console.error('[AddPersonSheet] Error message:', insertError.message);
-          console.error('[AddPersonSheet] Error details:', insertError.details);
-          console.error('[AddPersonSheet] Error hint:', insertError.hint);
-          console.error('[AddPersonSheet] Payload:', payload);
-          console.error('[AddPersonSheet] ================================');
-        } else {
-          console.error('[AddPersonSheet] Insert error:', insertError.code);
-        }
+        // Log technical error details silently for debugging
+        console.error('[AddPersonSheet] ===== SUPABASE INSERT ERROR =====');
+        console.error('[AddPersonSheet] Error code:', insertError.code);
+        console.error('[AddPersonSheet] Error message:', insertError.message);
+        console.error('[AddPersonSheet] Error details:', insertError.details);
+        console.error('[AddPersonSheet] Error hint:', insertError.hint);
+        console.error('[AddPersonSheet] Payload:', payload);
+        console.error('[AddPersonSheet] ================================');
 
         // Re-enable Save button and keep modal open
         setSaving(false);
 
         // Show generic user-friendly error message
+        // Do NOT show "already exists" message - duplicates are allowed
         showErrorToast('Couldn\'t save. Please try again.');
         return;
       }
 
-      // Step 7: Success
+      // Step 6: Success
       console.log('[AddPersonSheet] Person created successfully:', data);
       
       // Ensure the new person has the correct structure
@@ -174,16 +165,12 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       // Close the sheet
       onClose();
     } catch (error: any) {
-      // Log unexpected errors (minimal in production)
-      if (process.env.NODE_ENV === 'development') {
-        console.error('[AddPersonSheet] ===== UNEXPECTED ERROR =====');
-        console.error('[AddPersonSheet] Error:', error);
-        console.error('[AddPersonSheet] Error message:', error?.message);
-        console.error('[AddPersonSheet] Error stack:', error?.stack);
-        console.error('[AddPersonSheet] ============================');
-      } else {
-        console.error('[AddPersonSheet] Unexpected error');
-      }
+      // Log unexpected errors silently for debugging
+      console.error('[AddPersonSheet] ===== UNEXPECTED ERROR =====');
+      console.error('[AddPersonSheet] Error:', error);
+      console.error('[AddPersonSheet] Error message:', error?.message);
+      console.error('[AddPersonSheet] Error stack:', error?.stack);
+      console.error('[AddPersonSheet] ============================');
 
       // Re-enable Save button and keep modal open
       setSaving(false);

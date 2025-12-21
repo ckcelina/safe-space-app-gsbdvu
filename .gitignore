@@ -1,4 +1,3 @@
-
 node_modules/
 
 .git/
@@ -36,23 +35,5 @@ ios/
 netlify.toml
 .netlify/
 
-# Package manager files - ONLY npm is allowed
 pnpm-lock.yaml
-.pnpm-store/
-.pnpm-debug.log
-pnpm-workspace.yaml
-.pnpm/
-pnpm-workspace.yml
-
-yarn.lock
-.yarn/
-.yarnrc
-.yarnrc.yml
-yarn-error.log
-.yarnrc.yaml
-
-bun.lockb
-.bun/
-
-# Keep npm lock file ONLY
-!package-lock.json
+package-lock.json
