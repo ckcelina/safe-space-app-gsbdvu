@@ -49,6 +49,9 @@
     },
     "packagerOpts": {
       "hostType": "lan"
+    },
+    "developer": {
+      "tool": "expo-cli"
     }
   },
   "scheme": "Safe Space"
