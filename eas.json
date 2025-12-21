@@ -8,6 +8,9 @@
       "node": "18.0.0",
       "npm": {
         "install": "npm ci"
+      },
+      "env": {
+        "COREPACK_ENABLE_STRICT": "0"
       }
     },
     "preview": {
@@ -16,6 +19,9 @@
       "node": "18.0.0",
       "npm": {
         "install": "npm ci"
+      },
+      "env": {
+        "COREPACK_ENABLE_STRICT": "0"
       }
     },
     "production": {
@@ -23,6 +29,9 @@
       "node": "18.0.0",
       "npm": {
         "install": "npm ci"
+      },
+      "env": {
+        "COREPACK_ENABLE_STRICT": "0"
       }
     }
   }
