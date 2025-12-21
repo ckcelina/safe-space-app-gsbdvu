@@ -36,29 +36,21 @@ ios/
 netlify.toml
 .netlify/
 
-# ===================================
-# PACKAGE MANAGER ENFORCEMENT
-# This project ONLY uses npm
-# ===================================
-
-# Ignore pnpm - NOT SUPPORTED
+# Package manager files
 pnpm-lock.yaml
 .pnpm-store/
 .pnpm-debug.log
 pnpm-workspace.yaml
 .pnpm/
 
-# Ignore yarn - NOT SUPPORTED
 yarn.lock
 .yarn/
 .yarnrc
 .yarnrc.yml
 yarn-error.log
 
-# Ignore bun - NOT SUPPORTED
 bun.lockb
 .bun/
-bun.lockb
 
-# Keep npm lock file - REQUIRED
+# Keep npm lock file
 !package-lock.json
