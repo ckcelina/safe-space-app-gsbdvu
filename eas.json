@@ -19,9 +19,10 @@
         "FORCE_NPM": "1",
         "NO_PNPM": "1",
         "NO_YARN": "1",
-        "NO_BUN": "1"
+        "NO_BUN": "1",
+        "COREPACK_ROOT": "/dev/null"
       },
-      "prebuildCommand": "node -e \"console.log('Disabling corepack...'); try { require('child_process').execSync('corepack disable', {stdio: 'inherit'}); } catch(e) { console.log('Corepack not found or already disabled'); }\""
+      "prebuildCommand": "node -e \"console.log('Ensuring npm is used...'); process.env.npm_config_user_agent = 'npm'; process.env.npm_execpath = '/usr/local/bin/npm';\""
     },
     "preview": {
       "distribution": "internal",
@@ -40,9 +41,10 @@
         "FORCE_NPM": "1",
         "NO_PNPM": "1",
         "NO_YARN": "1",
-        "NO_BUN": "1"
+        "NO_BUN": "1",
+        "COREPACK_ROOT": "/dev/null"
       },
-      "prebuildCommand": "node -e \"console.log('Disabling corepack...'); try { require('child_process').execSync('corepack disable', {stdio: 'inherit'}); } catch(e) { console.log('Corepack not found or already disabled'); }\""
+      "prebuildCommand": "node -e \"console.log('Ensuring npm is used...'); process.env.npm_config_user_agent = 'npm'; process.env.npm_execpath = '/usr/local/bin/npm';\""
     },
     "production": {
       "autoIncrement": true,
@@ -60,9 +62,10 @@
         "FORCE_NPM": "1",
         "NO_PNPM": "1",
         "NO_YARN": "1",
-        "NO_BUN": "1"
+        "NO_BUN": "1",
+        "COREPACK_ROOT": "/dev/null"
       },
-      "prebuildCommand": "node -e \"console.log('Disabling corepack...'); try { require('child_process').execSync('corepack disable', {stdio: 'inherit'}); } catch(e) { console.log('Corepack not found or already disabled'); }\""
+      "prebuildCommand": "node -e \"console.log('Ensuring npm is used...'); process.env.npm_config_user_agent = 'npm'; process.env.npm_execpath = '/usr/local/bin/npm';\""
     }
   }
 }

@@ -1,5 +1,4 @@
 
 {
-  "enable": false,
-  "packageManager": "npm@10.8.2"
+  "enable": false
 }
