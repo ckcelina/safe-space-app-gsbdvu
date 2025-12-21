@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/lib/supabase';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { Person } from '@/types/database.types';
@@ -57,12 +58,11 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
   }, [visible]);
 
   /**
-   * PART A FIX: Handle person creation with graceful error handling
-   * - Detects Supabase error code 23505 (unique constraint violation)
-   * - Shows user-friendly inline error message
-   * - Keeps the sheet open for editing
-   * - Defaults relationship_type to "Other" if not provided
-   * - NOTE: After migration, 23505 errors should NOT occur for duplicate names
+   * FIXED: Handle person creation with UUID generation and no duplicate checking
+   * - Generates a UUID for the new person client-side
+   * - Inserts with: id, user_id, name, relationship_type, created_at
+   * - Does NOT pre-check for duplicates by name
+   * - Allows multiple people with the same name
    */
   const handleSave = async () => {
     console.log('[AddPersonSheet] Save called with name:', name, 'relationship:', relationshipType);
@@ -102,42 +102,34 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         return;
       }
 
-      // Step 3: Prepare payload
-      // Trim name and relationship_type, default to "Other" if empty
+      // Step 3: Generate UUID for the new person
+      const newPersonId = uuidv4();
+      console.log('[AddPersonSheet] Generated UUID for new person:', newPersonId);
+
+      // Step 4: Prepare payload
       const trimmedName = name.trim();
       const trimmedRelationship = relationshipType.trim();
       
       const payload = {
+        id: newPersonId,
         user_id: resolvedUserId,
         name: trimmedName,
-        relationship_type: trimmedRelationship || 'Other',
+        relationship_type: trimmedRelationship || null,
+        created_at: new Date().toISOString(),
       };
 
       console.log('[AddPersonSheet] Inserting person with payload:', payload);
 
-      // Step 4: Execute insert with .select().single() to return the inserted row
+      // Step 5: Execute insert with .select().single() to return the inserted row
       const { data, error: insertError } = await supabase
         .from('persons')
         .insert([payload])
         .select()
         .single();
 
-      // Step 5: Handle errors
+      // Step 6: Handle errors
       if (insertError) {
-        // PART A FIX: Check for duplicate name error (error code 23505)
-        // This should NOT happen after removing the unique constraint, but handle it gracefully
-        if (insertError.code === '23505') {
-          console.log('[AddPersonSheet] Duplicate name detected (constraint still exists?)');
-          
-          // Show user-friendly inline error message
-          setError('A person with this name already exists. You can still add them with a different label or nickname.');
-          
-          // Re-enable Save button and keep modal open
-          setSaving(false);
-          return;
-        }
-
-        // Log technical error details for debugging (minimal in production)
+        // Log technical error details for debugging
         if (process.env.NODE_ENV === 'development') {
           console.error('[AddPersonSheet] ===== SUPABASE INSERT ERROR =====');
           console.error('[AddPersonSheet] Error code:', insertError.code);
@@ -153,18 +145,18 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         // Re-enable Save button and keep modal open
         setSaving(false);
 
-        // Show generic user-friendly error message for other errors
+        // Show generic user-friendly error message
         showErrorToast('Couldn\'t save. Please try again.');
         return;
       }
 
-      // Step 6: Success
+      // Step 7: Success
       console.log('[AddPersonSheet] Person created successfully:', data);
       
       // Ensure the new person has the correct structure
       const newPerson: Person = {
         ...data,
-        relationship_type: data.relationship_type || 'Other',
+        relationship_type: data.relationship_type || null,
       };
       
       console.log('[AddPersonSheet] Calling onPersonCreated with new person:', newPerson);
