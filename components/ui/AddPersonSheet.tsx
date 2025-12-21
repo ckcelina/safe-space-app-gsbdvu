@@ -57,12 +57,12 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
   }, [visible]);
 
   /**
-   * FIXED: Handle person creation with duplicate name error detection
+   * PART A FIX: Handle person creation with graceful error handling
    * - Detects Supabase error code 23505 (unique constraint violation)
    * - Shows user-friendly inline error message
    * - Keeps the sheet open for editing
-   * - Minimizes error logging in production
    * - Defaults relationship_type to "Other" if not provided
+   * - NOTE: After migration, 23505 errors should NOT occur for duplicate names
    */
   const handleSave = async () => {
     console.log('[AddPersonSheet] Save called with name:', name, 'relationship:', relationshipType);
@@ -124,12 +124,13 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
 
       // Step 5: Handle errors
       if (insertError) {
-        // Check for duplicate name error (error code 23505)
+        // PART A FIX: Check for duplicate name error (error code 23505)
+        // This should NOT happen after removing the unique constraint, but handle it gracefully
         if (insertError.code === '23505') {
-          console.log('[AddPersonSheet] Duplicate name detected');
+          console.log('[AddPersonSheet] Duplicate name detected (constraint still exists?)');
           
           // Show user-friendly inline error message
-          setError('You already have someone with this name. Try adding a nickname or different label.');
+          setError('A person with this name already exists. You can still add them with a different label or nickname.');
           
           // Re-enable Save button and keep modal open
           setSaving(false);

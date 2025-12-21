@@ -100,9 +100,10 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * FIXED: Fetch data with correct filtering logic
+   * PART B FIX: Fetch data with correct filtering logic
    * - People: relationship_type != 'Topic' (includes null)
    * - Topics: relationship_type == 'Topic'
+   * - Sort by created_at DESC for stable ordering
    */
   const fetchData = useCallback(async () => {
     if (!userId) {
@@ -238,8 +239,9 @@ export default function HomeScreen() {
   }, [userId, fetchData]);
 
   /**
-   * FIXED: Focus-based refresh
+   * PART B FIX: Focus-based refresh
    * - Refresh data whenever the screen gains focus
+   * - This ensures the list updates after adding a person/topic
    */
   useFocusEffect(
     useCallback(() => {
@@ -359,7 +361,7 @@ export default function HomeScreen() {
   }, [isAddTopicOpen]);
 
   /**
-   * FIXED: Handle successful person creation with optimistic update + data re-sync
+   * PART B FIX: Handle successful person creation with optimistic update + data re-sync
    * - Immediately update local state by prepending the new person
    * - Call fetchData() once to guarantee server truth
    */
@@ -447,10 +449,11 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * FIXED: Enhanced handleSaveAddTopic with duplicate checking
-   * - Checks for existing topics with the same name (case-insensitive)
-   * - Shows friendly error message if duplicate exists
-   * - Prevents error 23505 from occurring
+   * PART C FIX: Enhanced handleSaveAddTopic
+   * - CORRECTLY inserts into 'persons' table with relationship_type = 'Topic'
+   * - Handles duplicate topic names gracefully (error code 23505)
+   * - Shows user-friendly error messages
+   * - Logs table name and payload for debugging
    */
   const handleSaveAddTopic = useCallback(async () => {
     console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic, 'contextLabel:', contextLabel);
@@ -476,35 +479,9 @@ export default function HomeScreen() {
     setSavingTopic(true);
 
     try {
-      // STEP 1: Check if topic already exists (case-insensitive)
       // Normalize the topic name: trim and collapse multiple spaces
       const normalizedTopicName = topicName.trim().replace(/\s+/g, ' ');
       
-      console.log('[Home] Checking for existing topic with name:', normalizedTopicName);
-      
-      const { data: existingTopic, error: checkError } = await supabase
-        .from('persons')
-        .select('id, name')
-        .eq('user_id', userId)
-        .eq('relationship_type', 'Topic')
-        .ilike('name', normalizedTopicName)
-        .limit(1);
-
-      if (checkError) {
-        console.error('[Home] Error checking for existing topic:', checkError);
-        // Continue with insert attempt - let the database handle it
-      } else if (existingTopic && existingTopic.length > 0) {
-        // Topic already exists - show friendly message
-        console.log('[Home] Topic already exists:', existingTopic[0]);
-        if (isMountedRef.current) {
-          showErrorToast('This topic already exists');
-          setTopicError('This topic already exists');
-          setSavingTopic(false);
-        }
-        return;
-      }
-
-      // STEP 2: Topic doesn't exist - proceed with insert
       // DEFENSIVE FALLBACK: Prepare topic data with safe context_label handling
       // If context_label is empty, set it to null to avoid issues
       const contextLabelValue = contextLabel.trim() || null;
@@ -521,7 +498,11 @@ export default function HomeScreen() {
         topicData.context_label = contextLabelValue;
       }
       
-      console.log('[Home] Inserting topic data:', topicData);
+      console.log('[Home] ===== TOPIC INSERT DEBUG =====');
+      console.log('[Home] Table name: persons');
+      console.log('[Home] Payload keys:', Object.keys(topicData));
+      console.log('[Home] Payload:', topicData);
+      console.log('[Home] ================================');
       
       const { data, error } = await supabase
         .from('persons')
@@ -531,13 +512,16 @@ export default function HomeScreen() {
 
       if (error) {
         console.error('[Home] Error creating topic:', error);
+        console.log('[Home] Error code:', error.code);
+        console.log('[Home] Error message:', error.message);
         
-        // Check if this is a duplicate key error (23505)
+        // PART A & C FIX: Check if this is a duplicate key error (23505)
+        // This should NOT happen after removing the unique constraint, but handle it gracefully
         if (error.code === '23505' || (error.message && error.message.includes('duplicate key'))) {
-          console.error('[Home] Duplicate topic detected by database');
+          console.error('[Home] Duplicate topic detected by database (constraint still exists?)');
           if (isMountedRef.current) {
-            showErrorToast('This topic already exists');
-            setTopicError('This topic already exists');
+            showErrorToast('A topic with this name already exists');
+            setTopicError('A topic with this name already exists');
             setSavingTopic(false);
           }
           return;
@@ -568,8 +552,8 @@ export default function HomeScreen() {
             // Check for duplicate in fallback attempt
             if (fallbackError.code === '23505' || (fallbackError.message && fallbackError.message.includes('duplicate key'))) {
               if (isMountedRef.current) {
-                showErrorToast('This topic already exists');
-                setTopicError('This topic already exists');
+                showErrorToast('A topic with this name already exists');
+                setTopicError('A topic with this name already exists');
                 setSavingTopic(false);
               }
               return;
