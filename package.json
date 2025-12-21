@@ -3,13 +3,10 @@
   "name": "Natively",
   "version": "1.0.0",
   "main": "index.ts",
-  "packageManager": "npm@10.8.0",
+  "packageManager": "npm@10.8.2",
   "engines": {
     "node": ">=18.0.0",
-    "npm": ">=10.0.0",
-    "pnpm": "please-use-npm",
-    "yarn": "please-use-npm",
-    "bun": "please-use-npm"
+    "npm": ">=10.0.0"
   },
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
@@ -19,7 +16,6 @@
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
     "build": "npm run build:web",
-    "install": "npm install",
     "lint": "eslint ."
   },
   "dependencies": {
