@@ -446,6 +446,11 @@ export default function HomeScreen() {
     setContextLabel(text);
   }, []);
 
+  /**
+   * FIXED: Enhanced handleSaveAddTopic with defensive fallback for context_label
+   * - Safely handles context_label even if the column doesn't exist in the database
+   * - Provides clear error messages if schema mismatch occurs
+   */
   const handleSaveAddTopic = useCallback(async () => {
     console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic, 'contextLabel:', contextLabel);
     
@@ -470,14 +475,21 @@ export default function HomeScreen() {
     setSavingTopic(true);
 
     try {
-      // Insert topic for current authenticated user
-      // Duplicates are now allowed - each topic has a unique ID
-      const topicData = {
+      // DEFENSIVE FALLBACK: Prepare topic data with safe context_label handling
+      // If context_label is empty, set it to null to avoid issues
+      const contextLabelValue = contextLabel.trim() || null;
+      
+      const topicData: any = {
         user_id: userId,
         name: topicName,
         relationship_type: 'Topic',
-        context_label: contextLabel.trim() || null,
       };
+
+      // Only include context_label if it has a value
+      // This prevents sending undefined or empty strings
+      if (contextLabelValue !== null) {
+        topicData.context_label = contextLabelValue;
+      }
       
       console.log('[Home] Inserting topic data:', topicData);
       
@@ -490,8 +502,72 @@ export default function HomeScreen() {
       if (error) {
         console.error('[Home] Error creating topic:', error);
         
+        // DEFENSIVE FALLBACK: Check if error is related to context_label column
+        if (error.message && error.message.includes('context_label')) {
+          console.error('[Home] SCHEMA MISMATCH: context_label column not found in database');
+          console.error('[Home] Please run the migration: MIGRATION_ADD_CONTEXT_LABEL_TO_PERSONS.sql');
+          
+          // Try again WITHOUT context_label as a fallback
+          console.log('[Home] Retrying without context_label...');
+          const fallbackData = {
+            user_id: userId,
+            name: topicName,
+            relationship_type: 'Topic',
+          };
+          
+          const { data: fallbackResult, error: fallbackError } = await supabase
+            .from('persons')
+            .insert([fallbackData])
+            .select()
+            .single();
+
+          if (fallbackError) {
+            console.error('[Home] Fallback insert also failed:', fallbackError);
+            if (isMountedRef.current) {
+              showErrorToast('Failed to add topic. Please contact support.');
+              setSavingTopic(false);
+            }
+            return;
+          }
+
+          // Fallback succeeded
+          console.log('[Home] Topic created successfully (without context_label):', fallbackResult);
+          if (isMountedRef.current) {
+            showSuccessToast('Topic added (context not saved - database needs update)');
+            
+            // Close modal and reset state
+            setIsAddTopicOpen(false);
+            setSelectedQuickTopic(null);
+            setCustomTopicName('');
+            setContextLabel('');
+            setTopicError('');
+            setCustomTopicFocused(false);
+            setContextLabelFocused(false);
+            
+            // Navigate to chat screen with the new topic
+            if (fallbackResult && fallbackResult.id) {
+              console.log('[Home] Navigating to chat for new topic:', fallbackResult.name, 'id:', fallbackResult.id);
+              router.push({
+                pathname: '/(tabs)/(home)/chat',
+                params: { 
+                  personId: fallbackResult.id, 
+                  personName: fallbackResult.name || 'Topic',
+                  relationshipType: 'Topic',
+                  initialSubject: fallbackResult.name,
+                  contextLabel: ''
+                },
+              });
+            }
+            
+            // Refresh Topics list
+            console.log('[Home] Refreshing data');
+            await fetchData();
+          }
+          return;
+        }
+        
+        // Other errors
         if (isMountedRef.current) {
-          // Show the Supabase error message
           const errorMessage = error.message || 'Failed to add topic. Please try again.';
           showErrorToast(errorMessage);
           setSavingTopic(false);
