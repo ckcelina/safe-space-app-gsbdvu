@@ -33,6 +33,7 @@ export default function AddPersonScreen() {
    * - Shows user-friendly inline error message
    * - Keeps the screen open for editing
    * - Minimizes error logging in production
+   * - Defaults relationship_type to "Other" if not provided
    */
   const handleSave = async () => {
     console.log('[AddPerson] handleSave called with name:', name, 'relationshipType:', relationshipType);
@@ -57,7 +58,7 @@ export default function AddPersonScreen() {
       const personData = {
         user_id: userId,
         name: name.trim(),
-        relationship_type: relationshipType.trim() || null,
+        relationship_type: relationshipType.trim() || 'Other',
       };
       
       console.log('[AddPerson] Inserting person data:', personData);

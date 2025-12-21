@@ -62,6 +62,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
    * - Shows user-friendly inline error message
    * - Keeps the sheet open for editing
    * - Minimizes error logging in production
+   * - Defaults relationship_type to "Other" if not provided
    */
   const handleSave = async () => {
     console.log('[AddPersonSheet] Save called with name:', name, 'relationship:', relationshipType);
@@ -102,14 +103,14 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       }
 
       // Step 3: Prepare payload
-      // Trim name and relationship_type, set to null if empty
+      // Trim name and relationship_type, default to "Other" if empty
       const trimmedName = name.trim();
       const trimmedRelationship = relationshipType.trim();
       
       const payload = {
         user_id: resolvedUserId,
         name: trimmedName,
-        relationship_type: trimmedRelationship || null,
+        relationship_type: trimmedRelationship || 'Other',
       };
 
       console.log('[AddPersonSheet] Inserting person with payload:', payload);
@@ -162,7 +163,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       // Ensure the new person has the correct structure
       const newPerson: Person = {
         ...data,
-        relationship_type: data.relationship_type || null,
+        relationship_type: data.relationship_type || 'Other',
       };
       
       console.log('[AddPersonSheet] Calling onPersonCreated with new person:', newPerson);
