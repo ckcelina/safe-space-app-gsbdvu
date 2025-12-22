@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   flatListContent: {
     paddingHorizontal: '5%',
     paddingTop: Platform.OS === 'android' ? 16 : 8,
-    paddingBottom: 120,
+    paddingBottom: 16,
   },
   columnWrapper: {
     justifyContent: 'space-between',

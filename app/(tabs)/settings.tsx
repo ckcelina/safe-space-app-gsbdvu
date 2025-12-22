@@ -875,7 +875,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: '5%',
-    paddingBottom: 40,
+    paddingBottom: 16,
   },
   header: {
     marginBottom: Math.min(SCREEN_HEIGHT * 0.04, 32),

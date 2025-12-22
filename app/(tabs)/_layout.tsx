@@ -3,8 +3,12 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Tab bar height: 60px (tabsContainer) + 20px (default bottomMargin) = 80px
-const TAB_BAR_HEIGHT = 80;
+// Tab bar height calculation:
+// - tabsContainer height: 60px
+// - bottomMargin (default): 20px
+// - Additional safe area buffer: 8px
+// Total: 88px
+const TAB_BAR_HEIGHT = 88;
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
