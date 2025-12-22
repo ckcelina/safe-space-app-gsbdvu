@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -21,7 +22,6 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { ChatBubble } from '@/components/ui/ChatBubble';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
-import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
@@ -604,43 +604,55 @@ export default function ChatScreen() {
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoider>
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-          <StatusBarGradient />
+          {/* Status Bar Gradient - matches theme gradient */}
+          <LinearGradient
+            colors={theme.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={[styles.statusBarGradient, { height: insets.top }]}
+            pointerEvents="none"
+          />
 
-          <View style={[styles.header, { backgroundColor: theme.card }]}>
-            <TouchableOpacity 
-              onPress={handleBackPress} 
-              style={[
-                styles.backButton,
-                isTopicChat && { backgroundColor: theme.background }
-              ]}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                ios_icon_name="chevron.left"
-                android_material_icon_name="arrow_back"
-                size={24}
-                color={theme.textPrimary}
-              />
-            </TouchableOpacity>
-            <View style={styles.headerCenter}>
-              <View style={styles.headerTitleRow}>
-                <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                  {personName}
-                </Text>
-                {isPremium && !isTopicChat && (
-                  <View style={styles.premiumBadgeSmall}>
-                    <Text style={styles.premiumBadgeSmallText}>⭐</Text>
-                  </View>
+          {/* Header with Gradient Background */}
+          <LinearGradient
+            colors={theme.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={[styles.headerGradient, { paddingTop: insets.top }]}
+          >
+            <View style={styles.header}>
+              <TouchableOpacity 
+                onPress={handleBackPress} 
+                style={styles.backButton}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="chevron.left"
+                  android_material_icon_name="arrow_back"
+                  size={24}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+              <View style={styles.headerCenter}>
+                <View style={styles.headerTitleRow}>
+                  <Text style={styles.headerTitle} numberOfLines={1}>
+                    {personName}
+                  </Text>
+                  {isPremium && !isTopicChat && (
+                    <View style={styles.premiumBadgeSmall}>
+                      <Text style={styles.premiumBadgeSmallText}>⭐</Text>
+                    </View>
+                  )}
+                </View>
+                {relationshipType && (
+                  <Text style={styles.headerSubtitle} numberOfLines={1}>
+                    {relationshipType}
+                  </Text>
                 )}
               </View>
-              {relationshipType && (
-                <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-                  {relationshipType}
-                </Text>
-              )}
+              <View style={{ width: 40 }} />
             </View>
-            <View style={{ width: 40 }} />
-          </View>
+          </LinearGradient>
 
           {/* Subject Pills Row */}
           <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
@@ -959,19 +971,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  statusBarGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
+  headerGradient: {
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: '5%',
     paddingVertical: 12,
-    paddingTop: Platform.OS === 'android' ? 48 : 60,
-    borderRadius: 20,
+    paddingBottom: 16,
   },
   backButton: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   headerCenter: {
     flex: 1,
@@ -986,11 +1008,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Math.min(SCREEN_WIDTH * 0.06, 24),
     fontWeight: 'bold',
+    color: '#FFFFFF',
     flexShrink: 1,
   },
   premiumBadgeSmall: {
     marginLeft: 6,
-    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
@@ -1001,6 +1024,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: Math.min(SCREEN_WIDTH * 0.035, 14),
     fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 2,
     textTransform: 'capitalize',
   },
