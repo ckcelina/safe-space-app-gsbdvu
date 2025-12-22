@@ -325,7 +325,7 @@ export default function LibraryScreen() {
 
   return (
     <>
-      <Screen headerBackgroundColor="#0B66C3">
+      <Screen topColor="#0B66C3">
         <LinearGradient
           colors={theme.primaryGradient}
           style={styles.gradientBackground}

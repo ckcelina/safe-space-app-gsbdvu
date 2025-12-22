@@ -604,7 +604,7 @@ export default function ChatScreen() {
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoider>
-        <Screen headerBackgroundColor="#0B66C3">
+        <Screen topColor="#0B66C3">
           <View style={[styles.container, { backgroundColor: theme.background }]}>
             <StatusBarGradient />
 

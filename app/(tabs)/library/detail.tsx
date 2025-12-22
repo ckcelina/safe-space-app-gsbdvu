@@ -263,7 +263,7 @@ export default function LibraryDetailScreen() {
   if (!topic) {
     return (
       <>
-        <Screen headerBackgroundColor="#0B66C3">
+        <Screen topColor="#0B66C3">
           <LinearGradient
             colors={theme.primaryGradient}
             style={styles.gradientBackground}
@@ -327,7 +327,7 @@ export default function LibraryDetailScreen() {
 
   return (
     <>
-      <Screen headerBackgroundColor="#0B66C3">
+      <Screen topColor="#0B66C3">
         <LinearGradient
           colors={theme.primaryGradient}
           style={styles.gradientBackground}
