@@ -84,14 +84,18 @@ function RootLayoutInner() {
   return (
     <>
       {/* Status bar with dynamic background color matching the top of the gradient */}
-      <StatusBar style="light" translucent={false} backgroundColor={statusBarBackgroundColor} />
+      <StatusBar 
+        style="light" 
+        backgroundColor={statusBarBackgroundColor}
+        translucent={false}
+      />
 
       <ThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
       >
         {/* Root view with gradient's top color - ensures seamless status bar */}
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: statusBarBackgroundColor }}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: statusBarBackgroundColor }}>
             <Stack
               screenOptions={{
                 gestureEnabled: true,
@@ -100,6 +104,7 @@ function RootLayoutInner() {
                 animation: "slide_from_right",
                 animationDuration: 300,
                 customAnimationOnGesture: true,
+                contentStyle: { backgroundColor: statusBarBackgroundColor },
               }}
             >
               <Stack.Screen
