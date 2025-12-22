@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, TextInput, LogBox, Modal, Pressable, KeyboardAvoidingView } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,6 +20,7 @@ import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import AddPersonSheet from '@/components/ui/AddPersonSheet';
+import { Screen } from '@/components/Screen';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
@@ -62,6 +63,8 @@ const DEFAULT_TOPICS = [
   'Anger',
   'Motivation',
 ];
+
+const TAB_BAR_HEIGHT = 76;
 
 export default function HomeScreen() {
   const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
@@ -642,14 +645,14 @@ export default function HomeScreen() {
 
   return (
     <>
-      <LinearGradient
-        colors={theme.primaryGradient}
-        style={styles.gradientBackground}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <StatusBarGradient />
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <Screen headerBackgroundColor="#0B66C3">
+        <LinearGradient
+          colors={theme.primaryGradient}
+          style={styles.gradientBackground}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <StatusBarGradient />
           <View style={styles.container}>
             <View style={styles.topHeader}>
               <View style={styles.headerSpacer} />
@@ -669,7 +672,7 @@ export default function HomeScreen() {
 
             <ScrollView
               style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 12 }]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
@@ -1082,8 +1085,8 @@ export default function HomeScreen() {
               </View>
             </SwipeableCenterModal>
           </View>
-        </SafeAreaView>
-      </LinearGradient>
+        </LinearGradient>
+      </Screen>
       
       <LoadingOverlay visible={loading && !error} />
       
@@ -1115,10 +1118,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  safeArea: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
   container: {
     flex: 1,
   },
@@ -1143,7 +1142,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 120,
   },
   header: {
     marginBottom: 16,

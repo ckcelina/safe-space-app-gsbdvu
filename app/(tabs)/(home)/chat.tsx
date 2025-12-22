@@ -26,6 +26,7 @@ import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast } from '@/utils/toast';
+import { Screen } from '@/components/Screen';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -603,8 +604,9 @@ export default function ChatScreen() {
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoider>
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
-          <StatusBarGradient />
+        <Screen headerBackgroundColor="#0B66C3">
+          <View style={[styles.container, { backgroundColor: theme.background }]}>
+            <StatusBarGradient />
 
           <View style={[styles.header, { backgroundColor: theme.card }]}>
             <TouchableOpacity 
@@ -819,7 +821,7 @@ export default function ChatScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Screen>
       </KeyboardAvoider>
 
       <LoadingOverlay visible={loading && !error} />
