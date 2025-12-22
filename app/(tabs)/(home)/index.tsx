@@ -652,7 +652,12 @@ export default function HomeScreen() {
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
             <View style={styles.topHeader}>
-              <View style={styles.headerSpacer} />
+              <View style={styles.headerTitleContainer}>
+                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
+                <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+                  Who would you like to talk about today?
+                </Text>
+              </View>
               <TouchableOpacity 
                 onPress={handleSettingsPress} 
                 style={styles.settingsButton}
@@ -676,13 +681,6 @@ export default function HomeScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.header}>
-                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
-                <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-                  Who would you like to talk about today?
-                </Text>
-              </View>
-
               <View style={styles.planPillContainer}>
                 <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                   <View style={styles.planPillContent}>
@@ -1128,28 +1126,14 @@ const styles = StyleSheet.create({
   topHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 24,
     paddingTop: Platform.OS === 'android' ? 8 : 0,
-    paddingBottom: 0,
+    paddingBottom: 16,
   },
-  headerSpacer: {
-    width: 40,
-  },
-  settingsButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  scrollView: {
+  headerTitleContainer: {
     flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-  },
-  header: {
-    marginBottom: 12,
-    marginTop: 0,
+    marginRight: 12,
   },
   headerTitle: {
     fontSize: 32,
@@ -1159,6 +1143,18 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 16,
     lineHeight: 22,
+  },
+  settingsButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginTop: 4,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
   },
   planPillContainer: {
     marginBottom: 16,
