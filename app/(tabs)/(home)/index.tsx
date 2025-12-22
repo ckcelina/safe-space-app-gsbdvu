@@ -14,12 +14,12 @@ import { Person } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
 import { PersonCard } from '@/components/ui/PersonCard';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import AddPersonSheet from '@/components/ui/AddPersonSheet';
-import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE, HEADER_BUTTON_STYLES } from '@/constants/Layout';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
@@ -84,11 +84,9 @@ export default function HomeScreen() {
   const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
   const [selectedQuickTopic, setSelectedQuickTopic] = useState<string | null>(null);
   const [customTopicName, setCustomTopicName] = useState('');
-  const [contextLabel, setContextLabel] = useState('');
   const [topicError, setTopicError] = useState('');
   const [savingTopic, setSavingTopic] = useState(false);
   const [customTopicFocused, setCustomTopicFocused] = useState(false);
-  const [contextLabelFocused, setContextLabelFocused] = useState(false);
 
   const isMountedRef = useRef(true);
 
@@ -328,9 +326,8 @@ export default function HomeScreen() {
       
       const query = searchQuery.toLowerCase();
       const nameMatch = topic.name?.toLowerCase().includes(query) || false;
-      const contextMatch = topic.context_label?.toLowerCase().includes(query) || false;
       
-      return nameMatch || contextMatch;
+      return nameMatch;
     });
 
     console.log('[Home] Filtered topics count:', filtered.length);
@@ -347,10 +344,8 @@ export default function HomeScreen() {
       setIsAddTopicOpen(false);
       setSelectedQuickTopic(null);
       setCustomTopicName('');
-      setContextLabel('');
       setTopicError('');
       setCustomTopicFocused(false);
-      setContextLabelFocused(false);
     }
     
     // Open Add Person modal
@@ -402,10 +397,8 @@ export default function HomeScreen() {
     // Reset Add Topic form state (on open)
     setSelectedQuickTopic(null);
     setCustomTopicName('');
-    setContextLabel('');
     setTopicError('');
     setCustomTopicFocused(false);
-    setContextLabelFocused(false);
     
     // Open Add Topic modal
     setIsAddTopicOpen(true);
@@ -415,11 +408,9 @@ export default function HomeScreen() {
     console.log('[Home] Closing Add Topic modal');
     setIsAddTopicOpen(false);
     setCustomTopicName('');
-    setContextLabel('');
     setSelectedQuickTopic(null);
     setTopicError('');
     setCustomTopicFocused(false);
-    setContextLabelFocused(false);
   }, []);
 
   const handleQuickTopicSelect = useCallback((topic: string) => {
@@ -441,13 +432,8 @@ export default function HomeScreen() {
     }
   }, [topicError, selectedQuickTopic]);
 
-  const handleContextLabelChange = useCallback((text: string) => {
-    console.log('[Home] Context label changed to:', text);
-    setContextLabel(text);
-  }, []);
-
   const handleSaveAddTopic = useCallback(async () => {
-    console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic, 'contextLabel:', contextLabel);
+    console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic);
     
     // Determine final topic name: selectedQuickTopic (from chip) OR customTopicName (typed)
     const topicName = selectedQuickTopic || customTopicName.trim();
@@ -470,13 +456,11 @@ export default function HomeScreen() {
     setSavingTopic(true);
 
     try {
-      // Insert topic for current authenticated user
-      // Duplicates are now allowed - each topic has a unique ID
+      // Insert topic for current authenticated user (NO duplicate checking - duplicates are now allowed!)
       const topicData = {
         user_id: userId,
         name: topicName,
         relationship_type: 'Topic',
-        context_label: contextLabel.trim() || null,
       };
       
       console.log('[Home] Inserting topic data:', topicData);
@@ -508,10 +492,8 @@ export default function HomeScreen() {
         setIsAddTopicOpen(false);
         setSelectedQuickTopic(null);
         setCustomTopicName('');
-        setContextLabel('');
         setTopicError('');
         setCustomTopicFocused(false);
-        setContextLabelFocused(false);
         
         // Navigate to chat screen with the new topic
         if (data && data.id) {
@@ -522,8 +504,7 @@ export default function HomeScreen() {
               personId: data.id, 
               personName: data.name || 'Topic',
               relationshipType: 'Topic',
-              initialSubject: data.name,
-              contextLabel: data.context_label || ''
+              initialSubject: data.name
             },
           });
         }
@@ -544,7 +525,7 @@ export default function HomeScreen() {
         console.log('[Home] Save process complete');
       }
     }
-  }, [customTopicName, selectedQuickTopic, contextLabel, userId, fetchData]);
+  }, [customTopicName, selectedQuickTopic, userId, fetchData]);
 
   const handleClosePremiumModal = useCallback(() => {
     setShowPremiumModal(false);
@@ -590,8 +571,7 @@ export default function HomeScreen() {
           personId: topic.id, 
           personName: topic.name || 'Topic',
           relationshipType: 'Topic',
-          initialSubject: topic.name,
-          contextLabel: topic.context_label || ''
+          initialSubject: topic.name
         },
       });
     } catch (error) {
@@ -662,486 +642,448 @@ export default function HomeScreen() {
 
   return (
     <>
-      <View style={styles.fullScreenContainer}>
-        <LinearGradient
-          colors={theme.primaryGradient}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        
-        {/* Fixed Header - extends behind status bar */}
-        <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
-          <View style={[styles.header, { height: HEADER_HEIGHT }]}>
-            <View style={styles.headerLeft}>
-              <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
-            </View>
-            <TouchableOpacity 
-              onPress={handleSettingsPress} 
-              style={[styles.settingsButton, { backgroundColor: theme.card }]}
-              activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <IconSymbol
-                ios_icon_name="gearshape.fill"
-                android_material_icon_name="settings"
-                size={26}
-                color={theme.textPrimary}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { 
-              paddingTop: insets.top + HEADER_HEIGHT + 8,
-              paddingBottom: Math.max(insets.bottom, 20) + 100 
-            }
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-            Who would you like to talk about today?
-          </Text>
-
-          <View style={styles.planPillContainer}>
-            <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <View style={styles.planPillContent}>
+      <LinearGradient
+        colors={theme.primaryGradient}
+        style={styles.gradientBackground}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <StatusBarGradient />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <View style={styles.container}>
+            <View style={styles.topHeader}>
+              <View style={styles.headerSpacer} />
+              <TouchableOpacity 
+                onPress={handleSettingsPress} 
+                style={styles.settingsButton}
+                activeOpacity={0.7}
+              >
                 <IconSymbol
-                  ios_icon_name={planInfo.icon}
-                  android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
-                  size={16}
-                  color={planInfo.iconColor}
-                  style={styles.planIcon}
+                  ios_icon_name="gearshape.fill"
+                  android_material_icon_name="settings"
+                  size={24}
+                  color={theme.buttonText}
                 />
-                <View style={styles.planTextWrapper}>
-                  <Text 
-                    style={[styles.planText, { color: theme.textPrimary }]}
-                    numberOfLines={2}
-                  >
-                    {planInfo.text}
-                  </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.header}>
+                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
+                <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+                  Who would you like to talk about today?
+                </Text>
+              </View>
+
+              <View style={styles.planPillContainer}>
+                <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                  <View style={styles.planPillContent}>
+                    <IconSymbol
+                      ios_icon_name={planInfo.icon}
+                      android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
+                      size={16}
+                      color={planInfo.iconColor}
+                      style={styles.planIcon}
+                    />
+                    <View style={styles.planTextWrapper}>
+                      <Text 
+                        style={[styles.planText, { color: theme.textPrimary }]}
+                        numberOfLines={2}
+                      >
+                        {planInfo.text}
+                      </Text>
+                    </View>
+                  </View>
+                  {planInfo.subtext && (
+                    <Text style={[styles.planSubtext, { color: theme.textSecondary }]}>
+                      {planInfo.subtext}
+                    </Text>
+                  )}
                 </View>
               </View>
-              {planInfo.subtext && (
-                <Text style={[styles.planSubtext, { color: theme.textSecondary }]}>
-                  {planInfo.subtext}
-                </Text>
-              )}
-            </View>
-          </View>
 
-          {hasAnyData && (
-            <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <IconSymbol
-                ios_icon_name="magnifyingglass"
-                android_material_icon_name="search"
-                size={20}
-                color={theme.textSecondary}
-              />
-              <TextInput
-                style={[styles.searchInput, { color: theme.textPrimary }]}
-                placeholder="Search by name or relationship"
-                placeholderTextColor={theme.textSecondary}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+              {hasAnyData && (
+                <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                   <IconSymbol
-                    ios_icon_name="xmark.circle.fill"
-                    android_material_icon_name="cancel"
+                    ios_icon_name="magnifyingglass"
+                    android_material_icon_name="search"
                     size={20}
                     color={theme.textSecondary}
                   />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-
-          <View style={styles.addButtonContainer}>
-            <TouchableOpacity
-              onPress={handleAddPersonPress}
-              activeOpacity={0.8}
-              style={styles.addButton}
-            >
-              <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                <Text style={[styles.addButtonText, { color: theme.primary }]}>
-                  Add Person
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleAddTopicPress}
-              activeOpacity={0.8}
-              style={styles.addButton}
-            >
-              <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                <Text style={[styles.addButtonText, { color: theme.primary }]}>
-                  Add Topic
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {error && (
-            <View style={styles.errorContainer}>
-              <View style={[styles.errorCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                <SafeSpaceLogo size={48} color={theme.primary} />
-                <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
-                <TouchableOpacity
-                  onPress={fetchData}
-                  style={[styles.retryButton, { backgroundColor: theme.primary }]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
-                    Try Again
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {!error && !hasAnyData && !loading ? (
-            <View style={styles.emptyState}>
-              <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                <SafeSpaceLogo size={48} color={theme.primary} />
-              </View>
-              <Text style={[styles.emptyText, { color: theme.buttonText }]}>Nothing added yet</Text>
-              <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-                Tap &apos;Add Person&apos; or &apos;Add Topic&apos; to start
-              </Text>
-            </View>
-          ) : !error && !loading ? (
-            <>
-              {!hasFilteredResults && searchQuery.trim() ? (
-                <View style={styles.noResultsContainer}>
-                  <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
-                    No matches found
-                  </Text>
-                  <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-                    Try a different search term
-                  </Text>
+                  <TextInput
+                    style={[styles.searchInput, { color: theme.textPrimary }]}
+                    placeholder="Search by name or relationship"
+                    placeholderTextColor={theme.textSecondary}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+                      <IconSymbol
+                        ios_icon_name="xmark.circle.fill"
+                        android_material_icon_name="cancel"
+                        size={20}
+                        color={theme.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
-              ) : (
-                <>
-                  {filteredPeople.length > 0 && (
-                    <View style={styles.section}>
-                      <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
-                        People
-                      </Text>
-
-                      <View style={styles.cards}>
-                        {filteredPeople.map((person) => {
-                          if (!person || !person.id) return null;
-
-                          return (
-                            <Swipeable
-                              key={person.id}
-                              renderRightActions={() => (
-                                <DeleteAction onPress={() => handleDeletePerson(person.id!, false)} />
-                              )}
-                              overshootRight={false}
-                            >
-                              <PersonCard
-                                person={person}
-                                onPress={() => handlePersonPress(person)}
-                                isTopic={false}
-                              />
-                            </Swipeable>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  )}
-
-                  {filteredTopics.length > 0 && (
-                    <View style={styles.section}>
-                      <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
-                        Topics
-                      </Text>
-
-                      <View style={styles.cards}>
-                        {filteredTopics.map((topic) => {
-                          if (!topic || !topic.id) return null;
-
-                          return (
-                            <Swipeable
-                              key={topic.id}
-                              renderRightActions={() => (
-                                <DeleteAction onPress={() => handleDeletePerson(topic.id!, true)} />
-                              )}
-                              overshootRight={false}
-                            >
-                              <PersonCard
-                                person={topic}
-                                onPress={() => handleTopicPress(topic)}
-                                isTopic={true}
-                              />
-                            </Swipeable>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  )}
-                </>
               )}
-            </>
-          ) : null}
-        </ScrollView>
 
-        {/* Add Person Sheet - WITH OPTIMISTIC UPDATE + DATA RE-SYNC */}
-        <AddPersonSheet
-          visible={isAddPersonOpen}
-          onClose={() => setIsAddPersonOpen(false)}
-          userId={userId}
-          theme={theme}
-          insets={insets}
-          onPersonCreated={handlePersonCreated}
-        />
+              <View style={styles.addButtonContainer}>
+                <TouchableOpacity
+                  onPress={handleAddPersonPress}
+                  activeOpacity={0.8}
+                  style={styles.addButton}
+                >
+                  <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                    <Text style={[styles.addButtonText, { color: theme.primary }]}>
+                      Add Person
+                    </Text>
+                  </View>
+                </TouchableOpacity>
 
-        {/* Add Topic Modal - WITH CONTEXT LABEL SUPPORT */}
-        <Modal
-          visible={isAddTopicOpen}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={handleCloseAddTopicModal}
-        >
-          <Pressable 
-            style={styles.addTopicModalOverlay}
-            onPress={handleCloseAddTopicModal}
-          >
-            <Pressable 
-              style={styles.addTopicModalInner}
-              onPress={(e) => e.stopPropagation()}
-            >
-              <KeyboardAvoidingView
-                style={styles.addTopicKeyboardAvoid}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={0}
-              >
-                <View style={styles.addTopicSheetCard}>
-                  {/* Header */}
-                  <View style={styles.addTopicModalHeader}>
-                    <Text style={styles.addTopicModalTitle}>
+                <TouchableOpacity
+                  onPress={handleAddTopicPress}
+                  activeOpacity={0.8}
+                  style={styles.addButton}
+                >
+                  <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                    <Text style={[styles.addButtonText, { color: theme.primary }]}>
                       Add Topic
                     </Text>
-                    <TouchableOpacity 
-                      onPress={handleCloseAddTopicModal} 
-                      style={styles.addTopicCloseButton}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Ionicons name="close" size={28} color="#333" />
-                    </TouchableOpacity>
                   </View>
+                </TouchableOpacity>
+              </View>
 
-                  {/* ScrollView with chips and input ONLY */}
-                  <ScrollView
-                    style={styles.addTopicScrollView}
-                    contentContainerStyle={styles.addTopicScrollContent}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode="interactive"
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {/* Quick-select topic chips */}
-                    <View style={styles.addTopicChipsContainer}>
-                      <Text style={styles.addTopicHelperText}>
-                        Quick select:
-                      </Text>
-                      <View style={styles.addTopicChipsWrapper}>
-                        {DEFAULT_TOPICS.map((topic, index) => (
-                          <TouchableOpacity
-                            key={`topic-chip-${index}`}
-                            onPress={() => handleQuickTopicSelect(topic)}
-                            activeOpacity={0.7}
-                            style={[
-                              styles.addTopicChip,
-                              selectedQuickTopic === topic && styles.addTopicChipSelected
-                            ]}
-                          >
-                            <Text style={[
-                              styles.addTopicChipText,
-                              selectedQuickTopic === topic && styles.addTopicChipTextSelected
-                            ]}>
-                              {topic}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-
-                    {/* Custom Topic Input */}
-                    <View style={styles.addTopicFieldContainer}>
-                      <Text style={styles.addTopicInputLabel}>
-                        Or type a custom topic:
-                      </Text>
-                      <View style={[
-                        styles.addTopicInputRowContainer,
-                        topicError ? styles.addTopicInputRowError : null
-                      ]}>
-                        <TextInput
-                          style={styles.addTopicTextInput}
-                          placeholder="Enter your own topic..."
-                          placeholderTextColor="#999"
-                          value={customTopicName}
-                          onChangeText={handleCustomTopicChange}
-                          autoCapitalize="sentences"
-                          autoCorrect={false}
-                          maxLength={100}
-                          editable={!savingTopic}
-                          returnKeyType="next"
-                          autoFocus={false}
-                        />
-                      </View>
-                      {topicError ? (
-                        <Text style={styles.addTopicErrorText}>{topicError}</Text>
-                      ) : null}
-                    </View>
-
-                    {/* Context Label Input (NEW) */}
-                    <View style={styles.addTopicFieldContainer}>
-                      <Text style={styles.addTopicInputLabel}>
-                        Add context (optional):
-                      </Text>
-                      <Text style={styles.addTopicHelperTextSmall}>
-                        e.g., &quot;Work&quot;, &quot;Family&quot;, &quot;School&quot;
-                      </Text>
-                      <View style={[
-                        styles.addTopicInputRowContainer,
-                        contextLabelFocused && styles.addTopicInputRowFocused
-                      ]}>
-                        <TextInput
-                          style={styles.addTopicTextInput}
-                          placeholder="Work, Family, School..."
-                          placeholderTextColor="#999"
-                          value={contextLabel}
-                          onChangeText={handleContextLabelChange}
-                          autoCapitalize="words"
-                          autoCorrect={false}
-                          maxLength={50}
-                          editable={!savingTopic}
-                          returnKeyType="done"
-                          onSubmitEditing={handleSaveAddTopic}
-                          onFocus={() => setContextLabelFocused(true)}
-                          onBlur={() => setContextLabelFocused(false)}
-                        />
-                      </View>
-                    </View>
-
-                    {/* Selected topic indicator */}
-                    {selectedQuickTopic && (
-                      <View style={styles.addTopicSelectedIndicator}>
-                        <Text style={styles.addTopicSelectedText}>
-                          Selected: <Text style={styles.addTopicSelectedValue}>{selectedQuickTopic}</Text>
-                          {contextLabel.trim() && (
-                            <Text style={styles.addTopicSelectedContext}> – {contextLabel.trim()}</Text>
-                          )}
-                        </Text>
-                      </View>
-                    )}
-                  </ScrollView>
-
-                  {/* Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
-                  <View style={styles.addTopicModalFooter}>
+              {error && (
+                <View style={styles.errorContainer}>
+                  <View style={[styles.errorCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                    <SafeSpaceLogo size={48} color={theme.primary} />
+                    <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
                     <TouchableOpacity
-                      onPress={handleCloseAddTopicModal}
-                      style={styles.addTopicCancelButton}
-                      disabled={savingTopic}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.addTopicCancelButtonText}>
-                        Cancel
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleSaveAddTopic}
-                      style={[
-                        styles.addTopicSaveButton,
-                        !isStartChatEnabled && styles.addTopicSaveButtonDisabled
-                      ]}
-                      disabled={savingTopic || !isStartChatEnabled}
+                      onPress={fetchData}
+                      style={[styles.retryButton, { backgroundColor: theme.primary }]}
                       activeOpacity={0.8}
                     >
-                      <LinearGradient
-                        colors={isStartChatEnabled ? theme.primaryGradient : ['#ccc', '#ccc']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.addTopicSaveButtonGradient}
-                      >
-                        <Text style={styles.addTopicSaveButtonText}>
-                          {savingTopic ? 'Saving...' : 'Start Chat'}
-                        </Text>
-                      </LinearGradient>
+                      <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
+                        Try Again
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
-              </KeyboardAvoidingView>
-            </Pressable>
-          </Pressable>
-        </Modal>
+              )}
 
-        <SwipeableCenterModal
-          visible={showPremiumModal}
-          onClose={handleClosePremiumModal}
-          showHandle={true}
-        >
-          <View style={styles.premiumModalInner}>
-            <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
-              <IconSymbol
-                ios_icon_name="lock.fill"
-                android_material_icon_name="lock"
-                size={48}
-                color={theme.primary}
-              />
-            </View>
-            
-            <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
-              Premium feature
-            </Text>
-            
-            <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
-              Upgrade your plan to add more people.
-            </Text>
-
-            <View style={styles.premiumModalButtons}>
-              <TouchableOpacity
-                onPress={handleClosePremiumModal}
-                style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
-                  Not now
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleClosePremiumModal}
-                style={styles.premiumPrimaryButton}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={theme.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.premiumPrimaryButtonGradient}
-                >
-                  <Text style={[styles.premiumPrimaryButtonText, { color: theme.buttonText }]}>
-                    Learn about Premium
+              {!error && !hasAnyData && !loading ? (
+                <View style={styles.emptyState}>
+                  <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                    <SafeSpaceLogo size={48} color={theme.primary} />
+                  </View>
+                  <Text style={[styles.emptyText, { color: theme.buttonText }]}>Nothing added yet</Text>
+                  <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+                    Tap &apos;Add Person&apos; or &apos;Add Topic&apos; to start
                   </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+                </View>
+              ) : !error && !loading ? (
+                <>
+                  {!hasFilteredResults && searchQuery.trim() ? (
+                    <View style={styles.noResultsContainer}>
+                      <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
+                        No matches found
+                      </Text>
+                      <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
+                        Try a different search term
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      {filteredPeople.length > 0 && (
+                        <View style={styles.section}>
+                          <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
+                            People
+                          </Text>
+
+                          <View style={styles.cards}>
+                            {filteredPeople.map((person) => {
+                              if (!person || !person.id) return null;
+
+                              return (
+                                <Swipeable
+                                  key={person.id}
+                                  renderRightActions={() => (
+                                    <DeleteAction onPress={() => handleDeletePerson(person.id!, false)} />
+                                  )}
+                                  overshootRight={false}
+                                >
+                                  <PersonCard
+                                    person={person}
+                                    onPress={() => handlePersonPress(person)}
+                                    isTopic={false}
+                                  />
+                                </Swipeable>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      )}
+
+                      {filteredTopics.length > 0 && (
+                        <View style={styles.section}>
+                          <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
+                            Topics
+                          </Text>
+
+                          <View style={styles.cards}>
+                            {filteredTopics.map((topic) => {
+                              if (!topic || !topic.id) return null;
+
+                              return (
+                                <Swipeable
+                                  key={topic.id}
+                                  renderRightActions={() => (
+                                    <DeleteAction onPress={() => handleDeletePerson(topic.id!, true)} />
+                                  )}
+                                  overshootRight={false}
+                                >
+                                  <PersonCard
+                                    person={topic}
+                                    onPress={() => handleTopicPress(topic)}
+                                    isTopic={true}
+                                  />
+                                </Swipeable>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </>
+              ) : null}
+            </ScrollView>
+
+            {/* Add Person Sheet - WITH OPTIMISTIC UPDATE + DATA RE-SYNC */}
+            <AddPersonSheet
+              visible={isAddPersonOpen}
+              onClose={() => setIsAddPersonOpen(false)}
+              userId={userId}
+              theme={theme}
+              insets={insets}
+              onPersonCreated={handlePersonCreated}
+            />
+
+            {/* Add Topic Modal - UNCHANGED */}
+            <Modal
+              visible={isAddTopicOpen}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={handleCloseAddTopicModal}
+            >
+              <Pressable 
+                style={styles.addTopicModalOverlay}
+                onPress={handleCloseAddTopicModal}
+              >
+                <Pressable 
+                  style={styles.addTopicModalInner}
+                  onPress={(e) => e.stopPropagation()}
+                >
+                  <KeyboardAvoidingView
+                    style={styles.addTopicKeyboardAvoid}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    keyboardVerticalOffset={0}
+                  >
+                    <View style={styles.addTopicSheetCard}>
+                      {/* Header */}
+                      <View style={styles.addTopicModalHeader}>
+                        <Text style={styles.addTopicModalTitle}>
+                          Add Topic
+                        </Text>
+                        <TouchableOpacity 
+                          onPress={handleCloseAddTopicModal} 
+                          style={styles.addTopicCloseButton}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons name="close" size={28} color="#333" />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* ScrollView with chips and input ONLY */}
+                      <ScrollView
+                        style={styles.addTopicScrollView}
+                        contentContainerStyle={styles.addTopicScrollContent}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="interactive"
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {/* Quick-select topic chips */}
+                        <View style={styles.addTopicChipsContainer}>
+                          <Text style={styles.addTopicHelperText}>
+                            Quick select:
+                          </Text>
+                          <View style={styles.addTopicChipsWrapper}>
+                            {DEFAULT_TOPICS.map((topic, index) => (
+                              <TouchableOpacity
+                                key={`topic-chip-${index}`}
+                                onPress={() => handleQuickTopicSelect(topic)}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.addTopicChip,
+                                  selectedQuickTopic === topic && styles.addTopicChipSelected
+                                ]}
+                              >
+                                <Text style={[
+                                  styles.addTopicChipText,
+                                  selectedQuickTopic === topic && styles.addTopicChipTextSelected
+                                ]}>
+                                  {topic}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+
+                        {/* Custom Topic Input */}
+                        <View style={styles.addTopicFieldContainer}>
+                          <Text style={styles.addTopicInputLabel}>
+                            Or type a custom topic:
+                          </Text>
+                          <View style={[
+                            styles.addTopicInputRowContainer,
+                            topicError ? styles.addTopicInputRowError : null
+                          ]}>
+                            <TextInput
+                              style={styles.addTopicTextInput}
+                              placeholder="Enter your own topic..."
+                              placeholderTextColor="#999"
+                              value={customTopicName}
+                              onChangeText={handleCustomTopicChange}
+                              autoCapitalize="sentences"
+                              autoCorrect={false}
+                              maxLength={100}
+                              editable={!savingTopic}
+                              returnKeyType="done"
+                              onSubmitEditing={handleSaveAddTopic}
+                              autoFocus={false}
+                            />
+                          </View>
+                          {topicError ? (
+                            <Text style={styles.addTopicErrorText}>{topicError}</Text>
+                          ) : null}
+                        </View>
+
+                        {/* Selected topic indicator */}
+                        {selectedQuickTopic && (
+                          <View style={styles.addTopicSelectedIndicator}>
+                            <Text style={styles.addTopicSelectedText}>
+                              Selected: <Text style={styles.addTopicSelectedValue}>{selectedQuickTopic}</Text>
+                            </Text>
+                          </View>
+                        )}
+                      </ScrollView>
+
+                      {/* Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
+                      <View style={styles.addTopicModalFooter}>
+                        <TouchableOpacity
+                          onPress={handleCloseAddTopicModal}
+                          style={styles.addTopicCancelButton}
+                          disabled={savingTopic}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.addTopicCancelButtonText}>
+                            Cancel
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={handleSaveAddTopic}
+                          style={[
+                            styles.addTopicSaveButton,
+                            !isStartChatEnabled && styles.addTopicSaveButtonDisabled
+                          ]}
+                          disabled={savingTopic || !isStartChatEnabled}
+                          activeOpacity={0.8}
+                        >
+                          <LinearGradient
+                            colors={isStartChatEnabled ? theme.primaryGradient : ['#ccc', '#ccc']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.addTopicSaveButtonGradient}
+                          >
+                            <Text style={styles.addTopicSaveButtonText}>
+                              {savingTopic ? 'Saving...' : 'Start Chat'}
+                            </Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </KeyboardAvoidingView>
+                </Pressable>
+              </Pressable>
+            </Modal>
+
+            <SwipeableCenterModal
+              visible={showPremiumModal}
+              onClose={handleClosePremiumModal}
+              showHandle={true}
+            >
+              <View style={styles.premiumModalInner}>
+                <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
+                  <IconSymbol
+                    ios_icon_name="lock.fill"
+                    android_material_icon_name="lock"
+                    size={48}
+                    color={theme.primary}
+                  />
+                </View>
+                
+                <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
+                  Premium feature
+                </Text>
+                
+                <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
+                  Upgrade your plan to add more people.
+                </Text>
+
+                <View style={styles.premiumModalButtons}>
+                  <TouchableOpacity
+                    onPress={handleClosePremiumModal}
+                    style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
+                      Not now
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleClosePremiumModal}
+                    style={styles.premiumPrimaryButton}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={theme.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.premiumPrimaryButtonGradient}
+                    >
+                      <Text style={[styles.premiumPrimaryButtonText, { color: theme.buttonText }]}>
+                        Learn about Premium
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </SwipeableCenterModal>
           </View>
-        </SwipeableCenterModal>
-      </View>
+        </SafeAreaView>
+      </LinearGradient>
       
       <LoadingOverlay visible={loading && !error} />
       
@@ -1168,44 +1110,52 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  fullScreenContainer: {
+  gradientBackground: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  container: {
     flex: 1,
   },
-  headerContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  header: {
+  topHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: HEADER_PADDING_HORIZONTAL,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'android' ? 16 : 8,
+    paddingBottom: 8,
   },
-  headerLeft: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: HEADER_TITLE_SIZE,
-    fontWeight: 'bold',
+  headerSpacer: {
+    width: 40,
   },
   settingsButton: {
-    padding: 10,
-    borderRadius: 24,
-    ...HEADER_BUTTON_STYLES,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
+    paddingBottom: 120,
+  },
+  header: {
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
   headerSubtitle: {
     fontSize: 16,
     lineHeight: 22,
-    marginBottom: 16,
   },
   planPillContainer: {
     marginBottom: 16,
@@ -1362,7 +1312,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Add Topic Modal Styles - WITH CONTEXT LABEL SUPPORT
+  // Add Topic Modal Styles - UNCHANGED
   addTopicModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
@@ -1422,12 +1372,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontWeight: '500',
   },
-  addTopicHelperTextSmall: {
-    fontSize: 13,
-    color: '#777',
-    marginBottom: 8,
-    fontStyle: 'italic',
-  },
   addTopicChipsWrapper: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1475,10 +1419,6 @@ const styles = StyleSheet.create({
   addTopicInputRowError: {
     borderColor: '#FF3B30',
   },
-  addTopicInputRowFocused: {
-    borderColor: '#007AFF',
-    backgroundColor: '#FFFFFF',
-  },
   addTopicTextInput: {
     flex: 1,
     fontSize: 16,
@@ -1508,10 +1448,6 @@ const styles = StyleSheet.create({
   addTopicSelectedValue: {
     fontWeight: 'bold',
     color: '#1B5E20',
-  },
-  addTopicSelectedContext: {
-    fontWeight: '600',
-    color: '#388E3C',
   },
   addTopicModalFooter: {
     flexDirection: 'row',

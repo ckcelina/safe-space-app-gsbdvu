@@ -16,23 +16,22 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
 import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
-import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE, HEADER_BUTTON_STYLES } from '@/constants/Layout';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
-  const insets = useSafeAreaInsets();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -285,20 +284,21 @@ export default function SettingsScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       >
+        <StatusBarGradient />
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
-            {/* Fixed Header with Back Button on LEFT and Info Icon on RIGHT */}
-            <View style={[styles.topHeader, { height: HEADER_HEIGHT }]}>
+            {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
+            <View style={styles.topHeader}>
               <TouchableOpacity 
                 onPress={handleBack} 
-                style={[styles.backButton, { backgroundColor: theme.card }]}
+                style={styles.backButton}
                 activeOpacity={0.7}
               >
                 <IconSymbol
                   ios_icon_name="chevron.left"
                   android_material_icon_name="arrow_back"
                   size={24}
-                  color={theme.textPrimary}
+                  color={theme.buttonText}
                 />
               </TouchableOpacity>
               
@@ -306,14 +306,14 @@ export default function SettingsScreen() {
               
               <TouchableOpacity 
                 onPress={handleInfoPress} 
-                style={[styles.infoButton, { backgroundColor: theme.card }]}
+                style={styles.infoButton}
                 activeOpacity={0.7}
               >
                 <IconSymbol
                   ios_icon_name="info.circle"
                   android_material_icon_name="info"
                   size={24}
-                  color={theme.textPrimary}
+                  color={theme.buttonText}
                 />
               </TouchableOpacity>
             </View>
@@ -324,7 +324,7 @@ export default function SettingsScreen() {
             >
               {/* Header */}
               <View style={styles.header}>
-                <Text style={[styles.title, { color: theme.buttonText, fontSize: HEADER_TITLE_SIZE }]}>
+                <Text style={[styles.title, { color: theme.buttonText }]}>
                   Settings
                 </Text>
                 <Text style={[styles.subtitle, { color: theme.buttonText, opacity: 0.9 }]}>
@@ -856,24 +856,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: HEADER_PADDING_HORIZONTAL,
-    zIndex: 10,
+    paddingHorizontal: '5%',
+    paddingTop: Platform.OS === 'android' ? 16 : 8,
+    paddingBottom: 8,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...HEADER_BUTTON_STYLES,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   infoButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...HEADER_BUTTON_STYLES,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   headerSpacer: {
     flex: 1,
@@ -886,6 +881,7 @@ const styles = StyleSheet.create({
     marginBottom: Math.min(SCREEN_HEIGHT * 0.04, 32),
   },
   title: {
+    fontSize: Math.min(SCREEN_WIDTH * 0.08, 32),
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',

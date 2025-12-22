@@ -8,6 +8,7 @@ import { SafeSpaceTitle } from '@/components/ui/SafeSpaceText';
 import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { supabase } from '@/lib/supabase';
 import { useThemeContext } from '@/contexts/ThemeContext';
@@ -176,6 +177,7 @@ export default function LoginScreen() {
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
     >
+      <StatusBarGradient />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <KeyboardAvoider>
           <ScrollView

@@ -13,7 +13,6 @@ import { useAuth } from '@/contexts/AuthContext';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
-  console.log('[OnboardingScreen] Component rendering...');
   const { theme } = useThemeContext();
   const { session, signIn, loading } = useAuth();
   const [tapCount, setTapCount] = useState(0);
@@ -22,7 +21,6 @@ export default function OnboardingScreen() {
 
   // Skip onboarding if user is already authenticated
   useEffect(() => {
-    console.log('[OnboardingScreen] Auth check - loading:', loading, 'session:', !!session);
     if (!loading && session) {
       console.log('User already authenticated, skipping onboarding');
       router.replace('/(tabs)/(home)');
@@ -30,12 +28,10 @@ export default function OnboardingScreen() {
   }, [session, loading]);
 
   const handleCreateSpace = () => {
-    console.log('[OnboardingScreen] Create Space button pressed');
     router.push('/theme-selection');
   };
 
   const handleLogin = () => {
-    console.log('[OnboardingScreen] Login button pressed');
     router.push('/login');
   };
 
@@ -77,16 +73,12 @@ export default function OnboardingScreen() {
 
   // Don't render onboarding if user is authenticated
   if (loading) {
-    console.log('[OnboardingScreen] Still loading auth, showing nothing');
     return null;
   }
 
   if (session) {
-    console.log('[OnboardingScreen] Session exists, showing nothing (will redirect)');
     return null;
   }
-
-  console.log('[OnboardingScreen] Rendering onboarding UI');
 
   return (
     <SafeSpaceScreen scrollable={true} keyboardAware={false} useGradient={true}>

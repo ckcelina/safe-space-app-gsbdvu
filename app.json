@@ -1,52 +1,51 @@
-
 {
   "expo": {
     "name": "Safe Space",
     "slug": "Safe Space",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/final_quest_240x240.png",
-    "scheme": "safespace",
+    "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/final_quest_240x240.png",
+      "image": "./assets/images/natively-dark.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.safespace.app"
+      "bundleIdentifier": "com.anonymous.Natively",
+      "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/final_quest_240x240.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
+        "backgroundColor": "#4A90E2"
       },
-      "package": "com.safespace.app"
+      "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
+      "edgeToEdgeEnabled": true,
+      "package": "com.anonymous.Natively",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
-      "bundler": "metro",
-      "output": "single",
-      "favicon": "./assets/images/final_quest_240x240.png"
+      "favicon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
+      "bundler": "metro"
     },
     "plugins": [
+      "expo-font",
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "backgroundColor": "#ffffff",
-          "image": "./assets/images/final_quest_240x240.png",
-          "imageWidth": 200
-        }
-      ]
+      "expo-web-browser"
     ],
+    "scheme": "natively",
     "experiments": {
-      "typedRoutes": true,
-      "newArchEnabled": false
+      "typedRoutes": true
     },
     "extra": {
-      "offline": true
+      "router": {}
     }
-  }
+  },
+  "scheme": "Safe Space"
 }

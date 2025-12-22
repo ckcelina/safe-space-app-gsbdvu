@@ -2,15 +2,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useThemeContext } from '@/contexts/ThemeContext';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE, HEADER_BUTTON_STYLES } from '@/constants/Layout';
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
 
@@ -110,7 +110,7 @@ function TopicBubble({
               resizeMode="cover"
             />
             <LinearGradient
-              colors={['transparent', 'rgba(255, 255, 255, 0.95)']}
+              colors={['transparent', 'rgba(255, 255, 255, 0.9)']}
               style={styles.imageGradient}
             />
             {/* Heart icon */}
@@ -144,7 +144,6 @@ export default function LibraryScreen() {
   const { theme } = useThemeContext();
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
-  const insets = useSafeAreaInsets();
 
   // State for search and saved topics
   const [searchQuery, setSearchQuery] = useState('');
@@ -240,6 +239,15 @@ export default function LibraryScreen() {
 
   const renderListHeader = () => (
     <>
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
+          Library
+        </Text>
+        <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+          Learn about different mental health topics in a safe, friendly way.
+        </Text>
+      </View>
+
       {/* Search bar */}
       <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
         <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
@@ -309,23 +317,15 @@ export default function LibraryScreen() {
 
   return (
     <>
-      <View style={styles.fullScreenContainer}>
-        <LinearGradient
-          colors={theme.primaryGradient}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <LinearGradient
+        colors={theme.primaryGradient}
+        style={styles.gradientBackground}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <StatusBarGradient />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container} {...panResponder.panHandlers}>
-            {/* Fixed Header */}
-            <View style={[styles.header, { height: HEADER_HEIGHT }]}>
-              <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
-                Library
-              </Text>
-            </View>
-
             <FlatList
               data={filteredTopics}
               renderItem={renderTopicItem}
@@ -333,17 +333,14 @@ export default function LibraryScreen() {
               numColumns={NUM_COLUMNS}
               ListHeaderComponent={renderListHeader}
               ListEmptyComponent={renderEmptyComponent}
-              contentContainerStyle={[
-                styles.flatListContent,
-                { paddingBottom: insets.bottom + 120 }
-              ]}
+              contentContainerStyle={styles.flatListContent}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             />
           </View>
         </SafeAreaView>
-      </View>
+      </LinearGradient>
 
       <FloatingTabBar
         tabs={[
@@ -368,8 +365,10 @@ export default function LibraryScreen() {
 }
 
 const styles = StyleSheet.create({
-  fullScreenContainer: {
+  gradientBackground: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   safeArea: {
     flex: 1,
@@ -378,23 +377,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: HEADER_PADDING_HORIZONTAL,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: HEADER_TITLE_SIZE,
-    fontWeight: 'bold',
-  },
   flatListContent: {
     paddingHorizontal: '5%',
-    paddingTop: 16,
+    paddingTop: Platform.OS === 'android' ? 16 : 8,
+    paddingBottom: 120,
   },
   columnWrapper: {
     justifyContent: 'space-between',
     marginBottom: 16,
+  },
+  header: {
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  headerTitle: {
+    fontSize: Math.min(SCREEN_WIDTH * 0.08, 32),
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  headerSubtitle: {
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
+    lineHeight: 22,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -453,20 +456,19 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    aspectRatio: 1.4,
+    aspectRatio: 1.2,
     position: 'relative',
   },
   bubbleImage: {
     width: '100%',
     height: '100%',
-    opacity: 0.65,
   },
   imageGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 70,
+    height: 60,
   },
   heartButton: {
     position: 'absolute',

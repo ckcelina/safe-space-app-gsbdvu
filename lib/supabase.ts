@@ -1,7 +1,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Alert, Platform } from 'react-native';
+import { createClient } from '@supabase/supabase-js';
+import { Alert } from 'react-native';
 
 // Environment variables with validation
 const supabaseUrl = 'https://zjzvkxvahrbuuyzjzxol.supabase.co';
@@ -12,73 +12,31 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('[Supabase] Missing environment variables!');
   console.error('[Supabase] URL:', supabaseUrl ? 'Present' : 'MISSING');
   console.error('[Supabase] Key:', supabaseAnonKey ? 'Present' : 'MISSING');
-}
-
-// Lazy initialization - client is created on first access
-let supabaseInstance: SupabaseClient | null = null;
-
-// Create a getter that initializes the client only when accessed
-function getSupabaseClient(): SupabaseClient {
-  if (!supabaseInstance) {
-    console.log('[Supabase] Initializing client...');
-    
-    // Only initialize if we're in a runtime environment (not during build)
-    if (typeof window === 'undefined' && Platform.OS === 'web') {
-      throw new Error('[Supabase] Cannot initialize during SSR/build phase');
-    }
-    
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        storage: AsyncStorage,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false,
-        // Add custom storage key for easier debugging
-        storageKey: 'sb-zjzvkxvahrbuuyzjzxol-auth-token',
-        // Disable automatic session recovery on errors
-        flowType: 'pkce',
-      },
-    });
-    
-    console.log('[Supabase] Client initialized successfully');
-  }
   
-  return supabaseInstance;
+  // Show user-friendly error instead of crashing
+  setTimeout(() => {
+    Alert.alert(
+      'Configuration Error',
+      'The app is missing required configuration. Please contact support.',
+      [{ text: 'OK' }]
+    );
+  }, 1000);
 }
 
-// Export a proxy object that lazily initializes the client
-export const supabase = new Proxy({} as SupabaseClient, {
-  get(target, prop) {
-    const client = getSupabaseClient();
-    const value = (client as any)[prop];
-    
-    // If it's a function, bind it to the client
-    if (typeof value === 'function') {
-      return value.bind(client);
-    }
-    
-    return value;
-  }
+// Create and export a single Supabase client instance
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
 });
+
+// Log successful initialization
+console.log('[Supabase] Client initialized successfully');
 
 // Export a function to check if client is ready
 export const isSupabaseReady = () => {
-  return !!(supabaseUrl && supabaseAnonKey);
-};
-
-// Helper function to safely check if a session exists
-export const hasActiveSession = async (): Promise<boolean> => {
-  try {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    if (error) {
-      console.error('[Supabase] Error checking session:', error);
-      return false;
-    }
-    
-    return !!session;
-  } catch (error) {
-    console.error('[Supabase] Error in hasActiveSession:', error);
-    return false;
-  }
+  return !!(supabaseUrl && supabaseAnonKey && supabase);
 };

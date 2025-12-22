@@ -2,18 +2,18 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, ActivityIndicator, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { supabase } from '@/lib/supabase';
 import { showErrorToast } from '@/utils/toast';
-import { HEADER_HEIGHT, HEADER_PADDING_HORIZONTAL, HEADER_TITLE_SIZE, HEADER_BUTTON_STYLES } from '@/constants/Layout';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -93,7 +93,6 @@ export default function LibraryDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const topicId = params.topicId as string;
-  const insets = useSafeAreaInsets();
 
   // Animation refs
   const imageOpacity = useRef(new Animated.Value(0)).current;
@@ -267,10 +266,10 @@ export default function LibraryDetailScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <StatusBarGradient />
+          <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
             <View style={styles.container}>
-              {/* Fixed Header */}
-              <View style={[styles.header, { height: HEADER_HEIGHT }]}>
+              <View style={styles.header}>
                 <TouchableOpacity
                   onPress={() => router.back()}
                   style={[styles.backButton, { backgroundColor: theme.card }]}
@@ -278,9 +277,7 @@ export default function LibraryDetailScreen() {
                 >
                   <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
-                <View style={styles.headerSpacer} />
               </View>
-
               <View style={styles.errorContainer}>
                 <Ionicons name="alert-circle-outline" size={64} color={theme.buttonText} />
                 <Text style={[styles.errorTitle, { color: theme.buttonText }]}>
@@ -333,52 +330,47 @@ export default function LibraryDetailScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <StatusBarGradient />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
-            {/* Fixed Header with back button, heart, and settings - Does NOT scroll */}
-            <View style={[styles.header, { height: HEADER_HEIGHT }]}>
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={[styles.backButton, { backgroundColor: theme.card }]}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
-              </TouchableOpacity>
-              
-              <View style={styles.headerSpacer} />
-              
-              <View style={styles.headerRight}>
-                <TouchableOpacity
-                  onPress={toggleSaveTopic}
-                  style={[styles.heartButton, { backgroundColor: theme.card }]}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={isSaved ? 'heart' : 'heart-outline'}
-                    size={24}
-                    color={isSaved ? '#FF6B6B' : theme.textPrimary}
-                  />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={handleSettingsPress}
-                  style={[styles.settingsButton, { backgroundColor: theme.card }]}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="settings-outline" size={24} color={theme.textPrimary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Scrollable Content */}
             <ScrollView
               style={styles.scrollView}
-              contentContainerStyle={[
-                styles.scrollContent,
-                { paddingBottom: insets.bottom + 120 }
-              ]}
+              contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
+              {/* Header with back button, settings, and heart - ALL THEME-AWARE */}
+              <View style={styles.header}>
+                <TouchableOpacity
+                  onPress={() => router.back()}
+                  style={[styles.backButton, { backgroundColor: theme.card }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+                </TouchableOpacity>
+                
+                <View style={styles.headerRight}>
+                  <TouchableOpacity
+                    onPress={toggleSaveTopic}
+                    style={[styles.heartButton, { backgroundColor: theme.card }]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={isSaved ? 'heart' : 'heart-outline'}
+                      size={24}
+                      color={isSaved ? '#FF6B6B' : theme.textPrimary}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSettingsPress}
+                    style={[styles.settingsButton, { backgroundColor: theme.card }]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="settings-outline" size={24} color={theme.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               {/* Topic image with fade-in animation */}
               <Animated.View
                 style={[
@@ -465,7 +457,7 @@ export default function LibraryDetailScreen() {
                     <>
                       <Ionicons name="chatbubbles" size={24} color={theme.buttonText} style={styles.askAIIcon} />
                       <Text style={[styles.askAIButtonText, { color: theme.buttonText }]}>
-                        Ask Safe Space about this topic
+                        Ask AI questions about this topic
                       </Text>
                     </>
                   )}
@@ -516,16 +508,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: '5%',
+    paddingTop: Platform.OS === 'android' ? 16 : 8,
+    paddingBottom: 120,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: HEADER_PADDING_HORIZONTAL,
-    zIndex: 10,
-  },
-  headerSpacer: {
-    flex: 1,
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
   headerRight: {
     flexDirection: 'row',
@@ -538,7 +529,8 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    ...HEADER_BUTTON_STYLES,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   heartButton: {
     width: 44,
@@ -546,7 +538,8 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    ...HEADER_BUTTON_STYLES,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   settingsButton: {
     width: 44,
@@ -554,7 +547,8 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    ...HEADER_BUTTON_STYLES,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   imageWrapper: {
     marginBottom: 20,

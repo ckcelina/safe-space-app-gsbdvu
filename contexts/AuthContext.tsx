@@ -1,9 +1,7 @@
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState, AppStateStatus } from 'react-native';
 
 interface UserProfile {
   id: string;
@@ -31,7 +29,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  console.log('[AuthProvider] Component rendering...');
   const [session, setSession] = useState<Session | null>(null);
   const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -152,104 +149,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Check if a valid refresh token exists in storage
-  const hasValidRefreshToken = async (): Promise<boolean> => {
-    try {
-      const key = `sb-zjzvkxvahrbuuyzjzxol-auth-token`;
-      const storedSession = await AsyncStorage.getItem(key);
-      
-      if (!storedSession) {
-        return false;
-      }
-
-      const parsedSession = JSON.parse(storedSession);
-      const refreshToken = parsedSession?.refresh_token;
-      
-      return !!refreshToken;
-    } catch (error) {
-      // Silent fail - no logging for normal logged-out state
-      return false;
-    }
-  };
-
-  // Safe session refresh that checks for token existence first
-  const safeRefreshSession = useCallback(async () => {
-    try {
-      const hasToken = await hasValidRefreshToken();
-      
-      if (!hasToken) {
-        // No token = logged out state, this is normal
-        return;
-      }
-
-      console.log('[AuthContext] Attempting to refresh session...');
-      const { data, error } = await supabase.auth.refreshSession();
-      
-      if (error) {
-        console.error('[AuthContext] Session refresh error:', error);
-        // Clear session if refresh fails
-        setSession(null);
-        setCurrentUser(null);
-        setUser(null);
-        return;
-      }
-
-      if (data.session) {
-        console.log('[AuthContext] Session refreshed successfully');
-        setSession(data.session);
-        setCurrentUser(data.session.user);
-        if (data.session.user) {
-          await fetchUserProfile(data.session.user.id);
-        }
-      }
-    } catch (error) {
-      console.error('[AuthContext] Error in safeRefreshSession:', error);
-    }
-  }, []);
-
   useEffect(() => {
     console.log('[AuthContext] Initializing...');
     
-    // Get initial session with token check
-    const initializeAuth = async () => {
-      try {
-        // First check if we have a refresh token
-        const hasToken = await hasValidRefreshToken();
-        
-        if (!hasToken) {
-          // No token found - user is logged out
-          // This is a normal state, no error logging needed
-          console.log('[AuthContext] No session found, defaulting to logged-out state');
-          setLoading(false);
-          return;
-        }
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('[AuthContext] Error getting initial session:', error);
+        setLoading(false);
+        return;
+      }
 
-        // Only attempt to get session if we have a token
-        console.log('[AuthContext] Session token found, attempting to restore session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('[AuthContext] Error getting initial session:', error);
-          setLoading(false);
-          return;
-        }
-
-        if (session) {
-          console.log('[AuthContext] Session restored for:', session.user?.email);
-          setSession(session);
-          setCurrentUser(session.user);
-          await fetchUserProfile(session.user.id);
-        } else {
-          console.log('[AuthContext] No active session found');
-        }
-      } catch (error) {
-        console.error('[AuthContext] Error in initializeAuth:', error);
-      } finally {
+      console.log('[AuthContext] Initial session:', session?.user?.email || 'No session');
+      setSession(session);
+      setCurrentUser(session?.user ?? null);
+      if (session?.user) {
+        fetchUserProfile(session.user.id).finally(() => setLoading(false));
+      } else {
         setLoading(false);
       }
-    };
-
-    initializeAuth();
+    }).catch((error) => {
+      console.error('[AuthContext] Error getting initial session:', error);
+      setLoading(false);
+    });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -267,28 +189,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
-
-  // Handle app state changes (foreground/background)
-  useEffect(() => {
-    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active') {
-        // Only attempt refresh if we have a refresh token
-        const hasToken = await hasValidRefreshToken();
-        
-        if (hasToken) {
-          console.log('[AuthContext] App resumed, refreshing session...');
-          await safeRefreshSession();
-        }
-        // No logging if no token - this is normal logged-out state
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    return () => {
-      subscription.remove();
-    };
-  }, [safeRefreshSession]);
 
   const signUp = async (email: string, password: string) => {
     try {
@@ -368,8 +268,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Compute isPremium based on role
   const userRole = user?.role ?? 'free';
   const isPremium = userRole === 'premium' || userRole === 'admin';
-
-  console.log('[AuthProvider] Rendering with loading:', loading, 'session:', !!session);
 
   return (
     <AuthContext.Provider
