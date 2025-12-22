@@ -15,7 +15,7 @@ module.exports = {
     sourceType: 'module',
     ecmaFeatures: {
       jsx: true
-    }
+    } 
   },
   ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*'],
   env: {
