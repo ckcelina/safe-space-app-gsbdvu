@@ -1,14 +1,15 @@
 
 import React from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeContext } from '@/contexts/ThemeContext';
+import { StatusBar } from 'expo-status-bar';
 
 /**
  * StatusBarGradient component
  * Renders a gradient background behind the status bar (time, battery, Wi-Fi icons)
- * that matches the selected theme.
+ * that matches the selected theme's primary gradient.
  */
 export function StatusBarGradient() {
   const { theme } = useThemeContext();
@@ -20,14 +21,17 @@ export function StatusBarGradient() {
   }
 
   return (
-    <View style={[styles.container, { height: insets.top }]} pointerEvents="none">
-      <LinearGradient
-        colors={theme.statusBarGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-    </View>
+    <>
+      <StatusBar style="light" translucent />
+      <View style={[styles.container, { height: insets.top }]} pointerEvents="none">
+        <LinearGradient
+          colors={theme.primaryGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
+    </>
   );
 }
 
