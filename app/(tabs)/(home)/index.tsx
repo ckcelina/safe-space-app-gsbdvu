@@ -1130,7 +1130,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingTop: Platform.OS === 'android' ? 8 : 0,
-    paddingBottom: 4,
+    paddingBottom: 0,
   },
   headerSpacer: {
     width: 40,
@@ -1149,7 +1149,7 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 12,
-    marginTop: 4,
+    marginTop: 0,
   },
   headerTitle: {
     fontSize: 32,
