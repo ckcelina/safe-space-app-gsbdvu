@@ -1,7 +1,8 @@
 
 import React from "react";
-import { View, StyleProp, ViewStyle, StatusBar } from "react-native";
+import { View, StyleProp, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 
 type Props = {
   children: React.ReactNode;
@@ -16,10 +17,10 @@ export function Screen({
 }: Props) {
   return (
     <View style={{ flex: 1, backgroundColor: topColor }}>
-      <StatusBar barStyle="light-content" backgroundColor={topColor} />
+      <StatusBar style="light" translucent={false} />
       <SafeAreaView 
         edges={['top', 'left', 'right']} 
-        style={{ flex: 1, backgroundColor: topColor }}
+        style={{ flex: 1, backgroundColor: 'transparent' }}
       >
         <View style={[{ flex: 1 }, style]}>
           {children}
