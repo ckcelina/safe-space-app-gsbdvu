@@ -588,39 +588,6 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const getPlanInfo = useCallback(() => {
-    if (role === 'premium') {
-      return {
-        text: 'Plan: Premium',
-        subtext: 'Full access',
-        icon: 'star.fill' as const,
-        iconColor: '#FFD700',
-        badgeColor: '#FFD700',
-        showBadge: true,
-      };
-    } else if (role === 'admin') {
-      return {
-        text: 'Plan: Admin',
-        subtext: 'Full access',
-        icon: 'shield.fill' as const,
-        iconColor: '#FF6B6B',
-        badgeColor: '#FF6B6B',
-        showBadge: true,
-      };
-    } else {
-      return {
-        text: 'Plan: Free – Some features are locked',
-        subtext: null,
-        icon: 'lock.fill' as const,
-        iconColor: theme.textSecondary,
-        badgeColor: theme.textSecondary,
-        showBadge: false,
-      };
-    }
-  }, [role, theme.textSecondary]);
-
-  const planInfo = getPlanInfo();
-
   // Compute whether Start Chat button should be enabled
   const isStartChatEnabled = !!(selectedQuickTopic || customTopicName.trim());
 
@@ -681,32 +648,7 @@ export default function HomeScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.planPillContainer}>
-                <View style={[styles.planPill, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                  <View style={styles.planPillContent}>
-                    <IconSymbol
-                      ios_icon_name={planInfo.icon}
-                      android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
-                      size={16}
-                      color={planInfo.iconColor}
-                      style={styles.planIcon}
-                    />
-                    <View style={styles.planTextWrapper}>
-                      <Text 
-                        style={[styles.planText, { color: theme.textPrimary }]}
-                        numberOfLines={2}
-                      >
-                        {planInfo.text}
-                      </Text>
-                    </View>
-                  </View>
-                  {planInfo.subtext && (
-                    <Text style={[styles.planSubtext, { color: theme.textSecondary }]}>
-                      {planInfo.subtext}
-                    </Text>
-                  )}
-                </View>
-              </View>
+              {/* Plan Pill - HIDDEN */}
 
               {hasAnyData && (
                 <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
@@ -1155,43 +1097,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-  },
-  planPillContainer: {
-    marginBottom: 16,
-    alignItems: 'flex-start',
-  },
-  planPill: {
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
-    elevation: 2,
-    minWidth: 220,
-    maxWidth: '100%',
-  },
-  planPillContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  planIcon: {
-    marginRight: 8,
-  },
-  planTextWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    minWidth: 0,
-  },
-  planText: {
-    fontSize: 13,
-    fontWeight: '600',
-    flexShrink: 1,
-  },
-  planSubtext: {
-    fontSize: 12,
-    marginTop: 4,
   },
   searchContainer: {
     flexDirection: 'row',

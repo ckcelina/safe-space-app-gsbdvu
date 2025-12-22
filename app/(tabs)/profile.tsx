@@ -104,34 +104,6 @@ export default function ProfileScreen() {
     setShowThemeModal(false);
   };
 
-  // Get plan display info
-  const getPlanInfo = () => {
-    if (role === 'premium') {
-      return {
-        text: 'PREMIUM',
-        subtext: 'You have full access',
-        icon: 'star.fill' as const,
-        iconColor: '#FFD700',
-      };
-    } else if (role === 'admin') {
-      return {
-        text: 'ADMIN',
-        subtext: 'Full access',
-        icon: 'shield.fill' as const,
-        iconColor: '#FF6B6B',
-      };
-    } else {
-      return {
-        text: 'Free',
-        subtext: 'Some features are locked',
-        icon: 'lock.fill' as const,
-        iconColor: colors.textSecondary,
-      };
-    }
-  };
-
-  const planInfo = getPlanInfo();
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -145,35 +117,7 @@ export default function ProfileScreen() {
           <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
         </View>
 
-        {/* Plan Card - Prominent at top */}
-        <View style={[styles.planCard, { backgroundColor: colors.card }]}>
-          <View style={styles.planHeader}>
-            <IconSymbol
-              ios_icon_name={planInfo.icon}
-              android_material_icon_name={role === 'premium' ? 'star' : role === 'admin' ? 'shield' : 'lock'}
-              size={32}
-              color={planInfo.iconColor}
-            />
-            <View style={styles.planInfo}>
-              <Text style={[styles.planTitle, { color: colors.text }]}>
-                Plan: {planInfo.text}
-              </Text>
-              <Text style={[styles.planSubtext, { color: colors.textSecondary }]}>
-                {planInfo.subtext}
-              </Text>
-            </View>
-          </View>
-          {role === 'premium' && (
-            <View style={styles.premiumBadge}>
-              <Text style={styles.premiumBadgeText}>⭐ Premium</Text>
-            </View>
-          )}
-          {role === 'admin' && (
-            <View style={styles.adminBadge}>
-              <Text style={styles.adminBadgeText}>🛡️ Admin</Text>
-            </View>
-          )}
-        </View>
+        {/* Plan Card - HIDDEN */}
 
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <View style={styles.infoRow}>
@@ -194,22 +138,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {role === 'free' && (
-          <View style={[styles.upgradeCard, { backgroundColor: colors.primary }]}>
-            <Text style={styles.upgradeTitle}>Upgrade to Premium</Text>
-            <Text style={styles.upgradeText}>
-              Get unlimited conversations and advanced features
-            </Text>
-            <TouchableOpacity
-              style={[styles.upgradeButton, { backgroundColor: '#FFFFFF' }]}
-              onPress={() => Alert.alert('Coming Soon', 'Premium features will be available soon!')}
-            >
-              <Text style={[styles.upgradeButtonText, { color: colors.primary }]}>
-                Learn More
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Upgrade Card - HIDDEN */}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -386,56 +315,6 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
   },
-  planCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.12)',
-    elevation: 4,
-  },
-  planHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  planInfo: {
-    marginLeft: 16,
-    flex: 1,
-  },
-  planTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  planSubtext: {
-    fontSize: 14,
-  },
-  premiumBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 215, 0, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  premiumBadgeText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FFD700',
-  },
-  adminBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 107, 107, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  adminBadgeText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FF6B6B',
-  },
   card: {
     borderRadius: 12,
     padding: 16,
@@ -456,32 +335,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   infoValue: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  upgradeCard: {
-    borderRadius: 12,
-    padding: 20,
-    marginVertical: 16,
-  },
-  upgradeTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  upgradeText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    marginBottom: 16,
-    opacity: 0.9,
-  },
-  upgradeButton: {
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  upgradeButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },

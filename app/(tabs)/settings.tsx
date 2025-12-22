@@ -245,38 +245,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const getPlanDisplay = () => {
-    if (role === 'admin') {
-      return { 
-        text: 'Admin', 
-        fullText: 'Full access + management',
-        icon: 'shield.fill', 
-        androidIcon: 'shield',
-        color: '#FF6B6B',
-        showBadge: true,
-      };
-    } else if (role === 'premium') {
-      return { 
-        text: 'Premium', 
-        fullText: 'Full access',
-        icon: 'star.fill', 
-        androidIcon: 'star',
-        color: '#FFD700',
-        showBadge: true,
-      };
-    }
-    return { 
-      text: 'Free', 
-      fullText: 'Limited features',
-      icon: 'lock.fill', 
-      androidIcon: 'lock',
-      color: theme.textSecondary,
-      showBadge: false,
-    };
-  };
-
-  const planInfo = getPlanDisplay();
-
   return (
     <>
       <LinearGradient
@@ -342,7 +310,7 @@ export default function SettingsScreen() {
                 </Text>
 
                 {/* Email Row */}
-                <View style={styles.row}>
+                <View style={[styles.row, { borderBottomWidth: 0 }]}>
                   <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
                     Email
                   </Text>
@@ -351,30 +319,7 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
 
-                {/* Plan Row with Premium Badge */}
-                <View style={[styles.row, { borderBottomWidth: 0 }]}>
-                  <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
-                    Current Plan
-                  </Text>
-                  <View style={styles.planBadgeContainer}>
-                    <View style={styles.planBadge}>
-                      <IconSymbol
-                        ios_icon_name={planInfo.icon}
-                        android_material_icon_name={planInfo.androidIcon}
-                        size={16}
-                        color={planInfo.color}
-                      />
-                      <Text style={[styles.planBadgeText, { color: planInfo.color }]}>
-                        {planInfo.text}
-                      </Text>
-                    </View>
-                    {planInfo.showBadge && (
-                      <View style={[styles.premiumPillBadge, { backgroundColor: planInfo.color }]}>
-                        <Text style={styles.premiumPillBadgeText}>PREMIUM</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
+                {/* Plan Row - HIDDEN */}
               </View>
 
               {/* Card 2: Account information */}
@@ -633,7 +578,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-              Here you can update your theme, view your plan, and manage your account.
+              Here you can update your theme and manage your account.
             </Text>
 
             <TouchableOpacity
@@ -928,35 +873,6 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
     marginLeft: 16,
-  },
-  planBadgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  planBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
-  },
-  planBadgeText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  premiumPillBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  premiumPillBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
   },
   label: {
     fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
