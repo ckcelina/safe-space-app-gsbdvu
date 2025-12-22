@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -147,9 +147,6 @@ export default function LibraryScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
-  
-  // TextInput ref for focus management
-  const searchInputRef = useRef<TextInput>(null);
 
   // State for search and saved topics
   const [searchQuery, setSearchQuery] = useState('');
@@ -193,21 +190,19 @@ export default function LibraryScreen() {
     }
   };
 
-  // Memoize filtered topics to prevent unnecessary re-renders
-  const filteredTopics = useMemo(() => {
-    if (!searchQuery.trim()) return libraryTopics;
+  // Filter topics based on search query
+  const filteredTopics = libraryTopics.filter(topic => {
+    if (!searchQuery.trim()) return true;
     
     const query = searchQuery.toLowerCase();
-    return libraryTopics.filter(topic => 
+    return (
       topic.title.toLowerCase().includes(query) ||
       topic.shortDescription.toLowerCase().includes(query)
     );
-  }, [searchQuery]);
+  });
 
-  // Memoize saved topics
-  const savedTopics = useMemo(() => {
-    return libraryTopics.filter(topic => savedTopicIds.includes(topic.id));
-  }, [savedTopicIds]);
+  // Get saved topics
+  const savedTopics = libraryTopics.filter(topic => savedTopicIds.includes(topic.id));
 
   // Create PanResponder for swipe gesture
   const panResponder = useRef(
@@ -247,6 +242,34 @@ export default function LibraryScreen() {
 
   const renderListHeader = () => (
     <>
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
+          Library
+        </Text>
+        <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+          Learn about different mental health topics in a safe, friendly way.
+        </Text>
+      </View>
+
+      {/* Search bar */}
+      <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
+        <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
+        <TextInput
+          style={[styles.searchInput, { color: theme.textPrimary }]}
+          placeholder="Search topics..."
+          placeholderTextColor={theme.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+            <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Saved topics section */}
       {!isLoading && savedTopics.length > 0 && !searchQuery && (
         <View style={styles.savedSection}>
@@ -257,7 +280,6 @@ export default function LibraryScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.savedScrollContent}
-            keyboardShouldPersistTaps="always"
           >
             {savedTopics.map((topic, index) => (
               <View key={topic.id} style={styles.savedTopicWrapper}>
@@ -298,7 +320,7 @@ export default function LibraryScreen() {
 
   return (
     <>
-      <Screen topColor="#0B66C3">
+      <Screen headerBackgroundColor="#0B66C3">
         <LinearGradient
           colors={theme.primaryGradient}
           style={styles.gradientBackground}
@@ -307,41 +329,6 @@ export default function LibraryScreen() {
         >
           <StatusBarGradient />
           <View style={styles.container} {...panResponder.panHandlers}>
-            {/* Header and Search - OUTSIDE FlatList */}
-            <View style={styles.headerContainer}>
-              <View style={styles.header}>
-                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
-                  Library
-                </Text>
-                <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-                  Learn about different mental health topics in a safe, friendly way.
-                </Text>
-              </View>
-
-              {/* Search bar - STABLE, NOT re-rendered by FlatList */}
-              <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
-                <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
-                <TextInput
-                  ref={searchInputRef}
-                  style={[styles.searchInput, { color: theme.textPrimary }]}
-                  placeholder="Search topics..."
-                  placeholderTextColor={theme.textSecondary}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  blurOnSubmit={false}
-                  returnKeyType="search"
-                />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-                    <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-
-            {/* FlatList with topics */}
             <FlatList
               data={filteredTopics}
               renderItem={renderTopicItem}
@@ -353,7 +340,6 @@ export default function LibraryScreen() {
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="none"
             />
           </View>
         </LinearGradient>
@@ -390,12 +376,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  headerContainer: {
-    paddingHorizontal: '5%',
-    paddingTop: Platform.OS === 'android' ? 16 : 8,
-  },
   flatListContent: {
     paddingHorizontal: '5%',
+    paddingTop: Platform.OS === 'android' ? 16 : 8,
   },
   columnWrapper: {
     justifyContent: 'space-between',
