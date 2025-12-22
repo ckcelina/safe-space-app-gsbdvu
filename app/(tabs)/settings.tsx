@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -26,15 +26,12 @@ import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
-import { Screen } from '@/components/Screen';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const TAB_BAR_HEIGHT = 76;
 
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
-  const insets = useSafeAreaInsets();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -281,14 +278,14 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Screen headerBackgroundColor="#0B66C3">
-        <LinearGradient
-          colors={theme.primaryGradient}
-          style={styles.gradientBackground}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-        >
-          <StatusBarGradient />
+      <LinearGradient
+        colors={theme.primaryGradient}
+        style={styles.gradientBackground}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
+        <StatusBarGradient />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
             {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
             <View style={styles.topHeader}>
@@ -322,7 +319,7 @@ export default function SettingsScreen() {
             </View>
 
             <ScrollView
-              contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 12 }]}
+              contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
               {/* Header */}
@@ -607,8 +604,8 @@ export default function SettingsScreen() {
               </View>
             </ScrollView>
           </View>
-        </LinearGradient>
-      </Screen>
+        </SafeAreaView>
+      </LinearGradient>
 
       {/* Info Modal */}
       <Modal
@@ -848,6 +845,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   container: {
     flex: 1,
   },
@@ -874,6 +875,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: '5%',
+    paddingBottom: 40,
   },
   header: {
     marginBottom: Math.min(SCREEN_HEIGHT * 0.04, 32),

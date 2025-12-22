@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, ActivityIndicator, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,12 +14,10 @@ import { libraryTopics, Topic } from './libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { supabase } from '@/lib/supabase';
 import { showErrorToast } from '@/utils/toast';
-import { Screen } from '@/components/Screen';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
-const TAB_BAR_HEIGHT = 76;
 
 // Content section component with animations
 function ContentSection({ 
@@ -95,7 +93,6 @@ export default function LibraryDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const topicId = params.topicId as string;
-  const insets = useSafeAreaInsets();
 
   // Animation refs
   const imageOpacity = useRef(new Animated.Value(0)).current;
@@ -263,14 +260,14 @@ export default function LibraryDetailScreen() {
   if (!topic) {
     return (
       <>
-        <Screen headerBackgroundColor="#0B66C3">
-          <LinearGradient
-            colors={theme.primaryGradient}
-            style={styles.gradientBackground}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <StatusBarGradient />
+        <LinearGradient
+          colors={theme.primaryGradient}
+          style={styles.gradientBackground}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <StatusBarGradient />
+          <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
             <View style={styles.container}>
               <View style={styles.header}>
                 <TouchableOpacity
@@ -300,8 +297,8 @@ export default function LibraryDetailScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </LinearGradient>
-        </Screen>
+          </SafeAreaView>
+        </LinearGradient>
 
         <FloatingTabBar
           tabs={[
@@ -327,18 +324,18 @@ export default function LibraryDetailScreen() {
 
   return (
     <>
-      <Screen headerBackgroundColor="#0B66C3">
-        <LinearGradient
-          colors={theme.primaryGradient}
-          style={styles.gradientBackground}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <StatusBarGradient />
+      <LinearGradient
+        colors={theme.primaryGradient}
+        style={styles.gradientBackground}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <StatusBarGradient />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
             <ScrollView
               style={styles.scrollView}
-              contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 12 }]}
+              contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
               {/* Header with back button, settings, and heart - ALL THEME-AWARE */}
@@ -468,8 +465,8 @@ export default function LibraryDetailScreen() {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </LinearGradient>
-      </Screen>
+        </SafeAreaView>
+      </LinearGradient>
 
       <FloatingTabBar
         tabs={[
@@ -499,6 +496,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   container: {
     flex: 1,
   },
@@ -508,6 +509,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: '5%',
     paddingTop: Platform.OS === 'android' ? 16 : 8,
+    paddingBottom: 120,
   },
   header: {
     flexDirection: 'row',

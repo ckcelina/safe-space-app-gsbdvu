@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
@@ -11,10 +11,8 @@ import FloatingTabBar from '@/components/FloatingTabBar';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { Screen } from '@/components/Screen';
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
-const TAB_BAR_HEIGHT = 76;
 
 // Calculate responsive card width
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -146,7 +144,6 @@ export default function LibraryScreen() {
   const { theme } = useThemeContext();
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
-  const insets = useSafeAreaInsets();
 
   // State for search and saved topics
   const [searchQuery, setSearchQuery] = useState('');
@@ -320,14 +317,14 @@ export default function LibraryScreen() {
 
   return (
     <>
-      <Screen headerBackgroundColor="#0B66C3">
-        <LinearGradient
-          colors={theme.primaryGradient}
-          style={styles.gradientBackground}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <StatusBarGradient />
+      <LinearGradient
+        colors={theme.primaryGradient}
+        style={styles.gradientBackground}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <StatusBarGradient />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container} {...panResponder.panHandlers}>
             <FlatList
               data={filteredTopics}
@@ -336,14 +333,14 @@ export default function LibraryScreen() {
               numColumns={NUM_COLUMNS}
               ListHeaderComponent={renderListHeader}
               ListEmptyComponent={renderEmptyComponent}
-              contentContainerStyle={[styles.flatListContent, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 12 }]}
+              contentContainerStyle={styles.flatListContent}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             />
           </View>
-        </LinearGradient>
-      </Screen>
+        </SafeAreaView>
+      </LinearGradient>
 
       <FloatingTabBar
         tabs={[
@@ -373,12 +370,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   container: {
     flex: 1,
   },
   flatListContent: {
     paddingHorizontal: '5%',
     paddingTop: Platform.OS === 'android' ? 16 : 8,
+    paddingBottom: 120,
   },
   columnWrapper: {
     justifyContent: 'space-between',

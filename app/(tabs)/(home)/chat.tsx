@@ -26,7 +26,6 @@ import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast } from '@/utils/toast';
-import { Screen } from '@/components/Screen';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -604,225 +603,223 @@ export default function ChatScreen() {
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoider>
-        <Screen headerBackgroundColor="#0B66C3">
-          <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <StatusBarGradient />
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
+          <StatusBarGradient />
 
-            <View style={[styles.header, { backgroundColor: theme.card }]}>
-              <TouchableOpacity 
-                onPress={handleBackPress} 
+          <View style={[styles.header, { backgroundColor: theme.card }]}>
+            <TouchableOpacity 
+              onPress={handleBackPress} 
+              style={[
+                styles.backButton,
+                isTopicChat && { backgroundColor: theme.background }
+              ]}
+              activeOpacity={0.7}
+            >
+              <IconSymbol
+                ios_icon_name="chevron.left"
+                android_material_icon_name="arrow_back"
+                size={24}
+                color={theme.textPrimary}
+              />
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <View style={styles.headerTitleRow}>
+                <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                  {personName}
+                </Text>
+                {isPremium && !isTopicChat && (
+                  <View style={styles.premiumBadgeSmall}>
+                    <Text style={styles.premiumBadgeSmallText}>⭐</Text>
+                  </View>
+                )}
+              </View>
+              {relationshipType && (
+                <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                  {relationshipType}
+                </Text>
+              )}
+            </View>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Subject Pills Row */}
+          <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.pillsScrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {availableSubjects.map((subject, index) => (
+                <SubjectPill
+                  key={`subject-${index}-${subject}`}
+                  subject={subject}
+                  isSelected={currentSubject === subject}
+                  onPress={handleSubjectPress}
+                />
+              ))}
+              <SubjectPill
+                key="add-subject-button"
+                subject="+ Add subject"
+                isSelected={false}
+                onPress={openAddSubjectModal}
+                isAddButton={true}
+              />
+            </ScrollView>
+          </View>
+
+          {isFreeUser && (
+            <View style={[styles.freeBanner, { backgroundColor: theme.card }]}>
+              <IconSymbol
+                ios_icon_name="info.circle.fill"
+                android_material_icon_name="info"
+                size={16}
+                color={theme.textSecondary}
+                style={styles.bannerIcon}
+              />
+              <Text style={[styles.bannerText, { color: theme.textSecondary }]}>
+                You&apos;re on the free plan. In the future, free plans may have limits on
+                daily messages.
+              </Text>
+            </View>
+          )}
+
+          {error && (
+            <View style={[styles.errorBanner, { backgroundColor: '#FF3B30' }]}>
+              <IconSymbol
+                ios_icon_name="exclamationmark.triangle.fill"
+                android_material_icon_name="error"
+                size={16}
+                color="#FFFFFF"
+                style={styles.bannerIcon}
+              />
+              <Text style={[styles.errorBannerText, { color: '#FFFFFF' }]}>
+                {error}
+              </Text>
+              <TouchableOpacity onPress={() => setError(null)} style={styles.dismissButton} activeOpacity={0.7}>
+                <IconSymbol
+                  ios_icon_name="xmark"
+                  android_material_icon_name="close"
+                  size={16}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            onContentSizeChange={scrollToBottom}
+            keyboardShouldPersistTaps="handled"
+          >
+            {displayedMessages.length === 0 && !loading ? (
+              <View style={styles.emptyChat}>
+                <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
+                  <IconSymbol
+                    ios_icon_name="bubble.left.and.bubble.right.fill"
+                    android_material_icon_name="chat"
+                    size={40}
+                    color={theme.primary}
+                  />
+                </View>
+                <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
+                  Start the conversation
+                </Text>
+                <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
+                  Share your thoughts and feelings about {personName}
+                </Text>
+                {currentSubject !== 'General' && allMessages.length > 0 && (
+                  <Text style={[styles.emptyHint, { color: theme.textSecondary }]}>
+                    No messages for &quot;{currentSubject}&quot; yet. Switch to &quot;General&quot; to see other messages.
+                  </Text>
+                )}
+                {error && (
+                  <TouchableOpacity style={{ marginTop: 12 }} onPress={handleRetry} activeOpacity={0.7}>
+                    <Text style={{ color: theme.primary, fontWeight: '600' }}>
+                      Try loading messages again
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <React.Fragment>
+                {displayedMessages.map((message) => (
+                  <ChatBubble
+                    key={message.id}
+                    message={message.content}
+                    isUser={message.role === 'user'}
+                    timestamp={message.created_at}
+                    animate={false}
+                  />
+                ))}
+              </React.Fragment>
+            )}
+
+            {isTyping && <TypingIndicator />}
+          </ScrollView>
+
+          {/* Input Container - NO EXTRA PADDING, sits directly on keyboard */}
+          <View style={[
+            styles.inputContainer, 
+            { 
+              backgroundColor: theme.card,
+              paddingBottom: insets.bottom || 8,
+            }
+          ]}>
+            <View style={styles.inputRow}>
+              <View style={styles.inputColumn}>
+                <View style={[
+                  styles.inputWrapper, 
+                  { 
+                    backgroundColor: theme.background,
+                    borderWidth: inputFocused ? 2 : 1,
+                    borderColor: inputFocused ? theme.primary : theme.textSecondary + '40',
+                  }
+                ]}>
+                  <TextInput
+                    style={[styles.input, { color: theme.textPrimary }]}
+                    placeholder="Tell me what's going on…"
+                    placeholderTextColor={theme.textSecondary}
+                    value={inputText}
+                    onChangeText={setInputText}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
+                    multiline
+                    editable={!isSending && !loading}
+                    onSubmitEditing={() => {
+                      if (!isSendDisabled) {
+                        sendMessage();
+                      }
+                    }}
+                    cursorColor={theme.primary}
+                    selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
                 style={[
-                  styles.backButton,
-                  isTopicChat && { backgroundColor: theme.background }
+                  styles.sendButton,
+                  { backgroundColor: theme.primary },
+                  isSendDisabled && styles.sendButtonDisabled,
                 ]}
+                onPress={sendMessage}
+                disabled={isSendDisabled}
                 activeOpacity={0.7}
               >
                 <IconSymbol
-                  ios_icon_name="chevron.left"
-                  android_material_icon_name="arrow_back"
-                  size={24}
-                  color={theme.textPrimary}
+                  ios_icon_name="paperplane.fill"
+                  android_material_icon_name="send"
+                  size={20}
+                  color="#FFFFFF"
                 />
               </TouchableOpacity>
-              <View style={styles.headerCenter}>
-                <View style={styles.headerTitleRow}>
-                  <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                    {personName}
-                  </Text>
-                  {isPremium && !isTopicChat && (
-                    <View style={styles.premiumBadgeSmall}>
-                      <Text style={styles.premiumBadgeSmallText}>⭐</Text>
-                    </View>
-                  )}
-                </View>
-                {relationshipType && (
-                  <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-                    {relationshipType}
-                  </Text>
-                )}
-              </View>
-              <View style={{ width: 40 }} />
-            </View>
-
-            {/* Subject Pills Row */}
-            <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.pillsScrollContent}
-                keyboardShouldPersistTaps="handled"
-              >
-                {availableSubjects.map((subject, index) => (
-                  <SubjectPill
-                    key={`subject-${index}-${subject}`}
-                    subject={subject}
-                    isSelected={currentSubject === subject}
-                    onPress={handleSubjectPress}
-                  />
-                ))}
-                <SubjectPill
-                  key="add-subject-button"
-                  subject="+ Add subject"
-                  isSelected={false}
-                  onPress={openAddSubjectModal}
-                  isAddButton={true}
-                />
-              </ScrollView>
-            </View>
-
-            {isFreeUser && (
-              <View style={[styles.freeBanner, { backgroundColor: theme.card }]}>
-                <IconSymbol
-                  ios_icon_name="info.circle.fill"
-                  android_material_icon_name="info"
-                  size={16}
-                  color={theme.textSecondary}
-                  style={styles.bannerIcon}
-                />
-                <Text style={[styles.bannerText, { color: theme.textSecondary }]}>
-                  You&apos;re on the free plan. In the future, free plans may have limits on
-                  daily messages.
-                </Text>
-              </View>
-            )}
-
-            {error && (
-              <View style={[styles.errorBanner, { backgroundColor: '#FF3B30' }]}>
-                <IconSymbol
-                  ios_icon_name="exclamationmark.triangle.fill"
-                  android_material_icon_name="error"
-                  size={16}
-                  color="#FFFFFF"
-                  style={styles.bannerIcon}
-                />
-                <Text style={[styles.errorBannerText, { color: '#FFFFFF' }]}>
-                  {error}
-                </Text>
-                <TouchableOpacity onPress={() => setError(null)} style={styles.dismissButton} activeOpacity={0.7}>
-                  <IconSymbol
-                    ios_icon_name="xmark"
-                    android_material_icon_name="close"
-                    size={16}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <ScrollView
-              ref={scrollViewRef}
-              style={styles.messagesContainer}
-              contentContainerStyle={styles.messagesContent}
-              showsVerticalScrollIndicator={false}
-              onContentSizeChange={scrollToBottom}
-              keyboardShouldPersistTaps="handled"
-            >
-              {displayedMessages.length === 0 && !loading ? (
-                <View style={styles.emptyChat}>
-                  <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-                    <IconSymbol
-                      ios_icon_name="bubble.left.and.bubble.right.fill"
-                      android_material_icon_name="chat"
-                      size={40}
-                      color={theme.primary}
-                    />
-                  </View>
-                  <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
-                    Start the conversation
-                  </Text>
-                  <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-                    Share your thoughts and feelings about {personName}
-                  </Text>
-                  {currentSubject !== 'General' && allMessages.length > 0 && (
-                    <Text style={[styles.emptyHint, { color: theme.textSecondary }]}>
-                      No messages for &quot;{currentSubject}&quot; yet. Switch to &quot;General&quot; to see other messages.
-                    </Text>
-                  )}
-                  {error && (
-                    <TouchableOpacity style={{ marginTop: 12 }} onPress={handleRetry} activeOpacity={0.7}>
-                      <Text style={{ color: theme.primary, fontWeight: '600' }}>
-                        Try loading messages again
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ) : (
-                <React.Fragment>
-                  {displayedMessages.map((message) => (
-                    <ChatBubble
-                      key={message.id}
-                      message={message.content}
-                      isUser={message.role === 'user'}
-                      timestamp={message.created_at}
-                      animate={false}
-                    />
-                  ))}
-                </React.Fragment>
-              )}
-
-              {isTyping && <TypingIndicator />}
-            </ScrollView>
-
-            {/* Input Container - NO EXTRA PADDING, sits directly on keyboard */}
-            <View style={[
-              styles.inputContainer, 
-              { 
-                backgroundColor: theme.card,
-                paddingBottom: insets.bottom || 8,
-              }
-            ]}>
-              <View style={styles.inputRow}>
-                <View style={styles.inputColumn}>
-                  <View style={[
-                    styles.inputWrapper, 
-                    { 
-                      backgroundColor: theme.background,
-                      borderWidth: inputFocused ? 2 : 1,
-                      borderColor: inputFocused ? theme.primary : theme.textSecondary + '40',
-                    }
-                  ]}>
-                    <TextInput
-                      style={[styles.input, { color: theme.textPrimary }]}
-                      placeholder="Tell me what's going on…"
-                      placeholderTextColor={theme.textSecondary}
-                      value={inputText}
-                      onChangeText={setInputText}
-                      onFocus={() => setInputFocused(true)}
-                      onBlur={() => setInputFocused(false)}
-                      multiline
-                      editable={!isSending && !loading}
-                      onSubmitEditing={() => {
-                        if (!isSendDisabled) {
-                          sendMessage();
-                        }
-                      }}
-                      cursorColor={theme.primary}
-                      selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-                    />
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.sendButton,
-                    { backgroundColor: theme.primary },
-                    isSendDisabled && styles.sendButtonDisabled,
-                  ]}
-                  onPress={sendMessage}
-                  disabled={isSendDisabled}
-                  activeOpacity={0.7}
-                >
-                  <IconSymbol
-                    ios_icon_name="paperplane.fill"
-                    android_material_icon_name="send"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
-              </View>
             </View>
           </View>
-        </Screen>
+        </View>
       </KeyboardAvoider>
 
       <LoadingOverlay visible={loading && !error} />
