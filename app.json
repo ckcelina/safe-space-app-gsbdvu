@@ -44,9 +44,9 @@
     "experiments": {
       "typedRoutes": true,
       "newArchEnabled": false
+    },
+    "extra": {
+      "offline": true
     }
-  },
-  "packagerOpts": {
-    "tunnel": false
   }
 }
