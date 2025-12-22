@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions, Keyboard } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -147,8 +147,11 @@ export default function LibraryScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
 
-  // State for search and saved topics
-  const [searchQuery, setSearchQuery] = useState('');
+  // FIXED: Two-state approach for search
+  // draftQuery updates on every keystroke (TextInput value)
+  // appliedQuery updates only on submit (used for filtering)
+  const [draftQuery, setDraftQuery] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
   const [savedTopicIds, setSavedTopicIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -189,11 +192,26 @@ export default function LibraryScreen() {
     }
   };
 
-  // Filter topics based on search query
+  // FIXED: Handle search submit (when user presses Search/Enter key)
+  const handleSearchSubmit = () => {
+    const trimmedQuery = draftQuery.trim();
+    console.log('[Library] Search submitted:', trimmedQuery);
+    setAppliedQuery(trimmedQuery);
+    Keyboard.dismiss();
+  };
+
+  // FIXED: Handle clear button (also applies the empty search)
+  const handleClearSearch = () => {
+    setDraftQuery('');
+    setAppliedQuery('');
+    console.log('[Library] Search cleared');
+  };
+
+  // FIXED: Filter topics based on appliedQuery (not draftQuery)
   const filteredTopics = libraryTopics.filter(topic => {
-    if (!searchQuery.trim()) return true;
+    if (!appliedQuery.trim()) return true;
     
-    const query = searchQuery.toLowerCase();
+    const query = appliedQuery.toLowerCase();
     return (
       topic.title.toLowerCase().includes(query) ||
       topic.shortDescription.toLowerCase().includes(query)
@@ -250,31 +268,30 @@ export default function LibraryScreen() {
         </Text>
       </View>
 
-      {/* Search bar - FIXED: Added returnKeyType and onSubmitEditing */}
+      {/* FIXED: Search bar with stable TextInput */}
       <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
         <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
         <TextInput
           style={[styles.searchInput, { color: theme.textPrimary }]}
           placeholder="Search topics..."
           placeholderTextColor={theme.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+          value={draftQuery}
+          onChangeText={setDraftQuery}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
-          onSubmitEditing={() => {
-            console.log('[Library] Search submitted:', searchQuery);
-          }}
+          blurOnSubmit={false}
+          onSubmitEditing={handleSearchSubmit}
         />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+        {draftQuery.length > 0 && (
+          <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
             <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Saved topics section */}
-      {!isLoading && savedTopics.length > 0 && !searchQuery && (
+      {!isLoading && savedTopics.length > 0 && !appliedQuery && (
         <View style={styles.savedSection}>
           <Text style={[styles.savedSectionTitle, { color: theme.buttonText }]}>
             Saved topics
@@ -283,6 +300,7 @@ export default function LibraryScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.savedScrollContent}
+            keyboardShouldPersistTaps="handled"
           >
             {savedTopics.map((topic, index) => (
               <View key={topic.id} style={styles.savedTopicWrapper}>
@@ -301,7 +319,7 @@ export default function LibraryScreen() {
       )}
 
       {/* All topics section */}
-      {!searchQuery && savedTopics.length > 0 && (
+      {!appliedQuery && savedTopics.length > 0 && (
         <Text style={[styles.allTopicsTitle, { color: theme.buttonText }]}>
           All topics
         </Text>
