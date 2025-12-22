@@ -244,36 +244,6 @@ export default function LibraryScreen() {
 
   const renderListHeader = () => (
     <>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
-          Library
-        </Text>
-        <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-          Learn about different mental health topics in a safe, friendly way.
-        </Text>
-      </View>
-
-      {/* Search bar */}
-      <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
-        <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
-        <TextInput
-          style={[styles.searchInput, { color: theme.textPrimary }]}
-          placeholder="Search topics..."
-          placeholderTextColor={theme.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-          blurOnSubmit={false}
-          returnKeyType="search"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-            <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
-          </TouchableOpacity>
-        )}
-      </View>
-
       {/* Saved topics section */}
       {!isLoading && savedTopics.length > 0 && !searchQuery && (
         <View style={styles.savedSection}>
@@ -334,6 +304,40 @@ export default function LibraryScreen() {
         >
           <StatusBarGradient />
           <View style={styles.container} {...panResponder.panHandlers}>
+            {/* Header and Search - OUTSIDE FlatList */}
+            <View style={styles.headerContainer}>
+              <View style={styles.header}>
+                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
+                  Library
+                </Text>
+                <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+                  Learn about different mental health topics in a safe, friendly way.
+                </Text>
+              </View>
+
+              {/* Search bar - STABLE, NOT re-rendered by FlatList */}
+              <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
+                <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
+                <TextInput
+                  style={[styles.searchInput, { color: theme.textPrimary }]}
+                  placeholder="Search topics..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  blurOnSubmit={false}
+                  returnKeyType="search"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+                    <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* FlatList with topics */}
             <FlatList
               data={filteredTopics}
               renderItem={renderTopicItem}
@@ -345,6 +349,7 @@ export default function LibraryScreen() {
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="always"
+              keyboardDismissMode="none"
             />
           </View>
         </LinearGradient>
@@ -381,9 +386,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  flatListContent: {
+  headerContainer: {
     paddingHorizontal: '5%',
     paddingTop: Platform.OS === 'android' ? 16 : 8,
+  },
+  flatListContent: {
+    paddingHorizontal: '5%',
   },
   columnWrapper: {
     justifyContent: 'space-between',
