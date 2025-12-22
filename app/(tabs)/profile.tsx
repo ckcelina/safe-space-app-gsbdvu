@@ -11,6 +11,7 @@ import {
   Modal,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -20,6 +21,7 @@ import { colors as oceanBlueColors, softRoseColors, forestGreenColors, sunnyYell
 export default function ProfileScreen() {
   const { currentUser, email, role, signOut } = useAuth();
   const { colors, theme, setTheme } = useThemeContext();
+  const insets = useSafeAreaInsets();
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [previewTheme, setPreviewTheme] = useState<ThemeType>(theme);
   const [previewColors, setPreviewColors] = useState(colors);
@@ -133,7 +135,10 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 60 + insets.bottom + 16 } // TAB_BAR_HEIGHT = 60
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
@@ -373,7 +378,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: Platform.OS === 'android' ? 48 : 60,
     paddingHorizontal: 24,
-    paddingBottom: 120,
   },
   header: {
     marginBottom: 24,

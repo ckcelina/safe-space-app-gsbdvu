@@ -26,13 +26,14 @@ import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
-import { TAB_BAR_SPACER } from '@/constants/tabBar';
+
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
+  const insets = useSafeAreaInsets();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -320,7 +321,10 @@ export default function SettingsScreen() {
             </View>
 
             <ScrollView
-              contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_SPACER }]}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingBottom: 60 + insets.bottom + 16 } // TAB_BAR_HEIGHT = 60
+              ]}
               showsVerticalScrollIndicator={false}
             >
               {/* Header */}
@@ -876,7 +880,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: '5%',
-    paddingBottom: 16,
   },
   header: {
     marginBottom: Math.min(SCREEN_HEIGHT * 0.04, 32),

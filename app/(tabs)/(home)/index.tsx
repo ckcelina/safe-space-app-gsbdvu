@@ -21,7 +21,6 @@ import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import AddPersonSheet from '@/components/ui/AddPersonSheet';
-import { TAB_BAR_SPACER } from '@/constants/tabBar';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
@@ -672,7 +671,10 @@ export default function HomeScreen() {
 
             <ScrollView
               style={styles.scrollView}
-              contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_SPACER }]}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingBottom: 60 + insets.bottom + 16 } // TAB_BAR_HEIGHT = 60
+              ]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
@@ -1146,7 +1148,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 16,
   },
   header: {
     marginBottom: 12,

@@ -11,7 +11,7 @@ import FloatingTabBar from '@/components/FloatingTabBar';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { TAB_BAR_SPACER } from '@/constants/tabBar';
+
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
 
@@ -145,6 +145,7 @@ export default function LibraryScreen() {
   const { theme } = useThemeContext();
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
 
   // State for search and saved topics
   const [searchQuery, setSearchQuery] = useState('');
@@ -334,7 +335,10 @@ export default function LibraryScreen() {
               numColumns={NUM_COLUMNS}
               ListHeaderComponent={renderListHeader}
               ListEmptyComponent={renderEmptyComponent}
-              contentContainerStyle={[styles.flatListContent, { paddingBottom: TAB_BAR_SPACER }]}
+              contentContainerStyle={[
+                styles.flatListContent,
+                { paddingBottom: 60 + insets.bottom + 16 } // TAB_BAR_HEIGHT = 60
+              ]}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
@@ -381,7 +385,6 @@ const styles = StyleSheet.create({
   flatListContent: {
     paddingHorizontal: '5%',
     paddingTop: Platform.OS === 'android' ? 16 : 8,
-    paddingBottom: 16,
   },
   columnWrapper: {
     justifyContent: 'space-between',
