@@ -1,8 +1,7 @@
-
 {
   "expo": {
     "name": "Safe Space",
-    "slug": "safe-space",
+    "slug": "Safe Space",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/final_quest_240x240.png",
@@ -48,5 +47,6 @@
     "packagerOpts": {
       "tunnel": false
     }
-  }
+  },
+  "scheme": "Safe Space"
 }
