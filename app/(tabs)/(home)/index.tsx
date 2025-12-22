@@ -19,6 +19,7 @@ import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import AddPersonSheet from '@/components/ui/AddPersonSheet';
+import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
