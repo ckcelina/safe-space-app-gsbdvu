@@ -147,6 +147,9 @@ export default function LibraryScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
+  
+  // TextInput ref for focus management
+  const searchInputRef = useRef<TextInput>(null);
 
   // State for search and saved topics
   const [searchQuery, setSearchQuery] = useState('');
@@ -319,6 +322,7 @@ export default function LibraryScreen() {
               <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
                 <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
                 <TextInput
+                  ref={searchInputRef}
                   style={[styles.searchInput, { color: theme.textPrimary }]}
                   placeholder="Search topics..."
                   placeholderTextColor={theme.textSecondary}
@@ -348,7 +352,7 @@ export default function LibraryScreen() {
               contentContainerStyle={[styles.flatListContent, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 12 }]}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="always"
+              keyboardShouldPersistTaps="handled"
               keyboardDismissMode="none"
             />
           </View>
