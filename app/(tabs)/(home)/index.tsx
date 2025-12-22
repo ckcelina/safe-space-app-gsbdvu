@@ -655,7 +655,7 @@ export default function HomeScreen() {
               <View style={styles.headerTitleContainer}>
                 <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
                 <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-                  Who would you like to talk about today?
+                  What do you want to talk about?
                 </Text>
               </View>
               <TouchableOpacity 
