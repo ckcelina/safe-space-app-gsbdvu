@@ -21,6 +21,7 @@ import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import AddPersonSheet from '@/components/ui/AddPersonSheet';
+import { TAB_BAR_SPACER } from '@/constants/tabBar';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
@@ -671,7 +672,7 @@ export default function HomeScreen() {
 
             <ScrollView
               style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_SPACER }]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >

@@ -11,6 +11,7 @@ import FloatingTabBar from '@/components/FloatingTabBar';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
+import { TAB_BAR_SPACER } from '@/constants/tabBar';
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
 
@@ -333,7 +334,7 @@ export default function LibraryScreen() {
               numColumns={NUM_COLUMNS}
               ListHeaderComponent={renderListHeader}
               ListEmptyComponent={renderEmptyComponent}
-              contentContainerStyle={styles.flatListContent}
+              contentContainerStyle={[styles.flatListContent, { paddingBottom: TAB_BAR_SPACER }]}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"

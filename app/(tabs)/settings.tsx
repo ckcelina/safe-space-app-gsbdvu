@@ -26,6 +26,7 @@ import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
+import { TAB_BAR_SPACER } from '@/constants/tabBar';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -319,7 +320,7 @@ export default function SettingsScreen() {
             </View>
 
             <ScrollView
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_SPACER }]}
               showsVerticalScrollIndicator={false}
             >
               {/* Header */}
