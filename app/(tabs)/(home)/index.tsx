@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -642,6 +643,7 @@ export default function HomeScreen() {
 
   return (
     <>
+      <StatusBar style="light" translucent />
       <LinearGradient
         colors={theme.primaryGradient}
         style={styles.gradientBackground}
@@ -1127,8 +1129,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: Platform.OS === 'android' ? 16 : 8,
-    paddingBottom: 8,
+    paddingTop: Platform.OS === 'android' ? 8 : 0,
+    paddingBottom: 4,
   },
   headerSpacer: {
     width: 40,
@@ -1146,12 +1148,13 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   header: {
-    marginBottom: 16,
+    marginBottom: 12,
+    marginTop: 4,
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   headerSubtitle: {
     fontSize: 16,
