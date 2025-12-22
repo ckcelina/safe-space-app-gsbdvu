@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Safe Space",
@@ -26,7 +27,7 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/final_quest_240x240.png"
     },
     "plugins": [
@@ -47,6 +48,5 @@
     "packagerOpts": {
       "tunnel": false
     }
-  },
-  "scheme": "Safe Space"
+  }
 }

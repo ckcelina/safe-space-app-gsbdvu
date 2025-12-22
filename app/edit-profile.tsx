@@ -12,10 +12,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 
-// Force dynamic rendering for this route (prevents static generation)
-export const dynamic = 'force-dynamic';
-export const dynamicParams = true;
-
 export default function EditProfileScreen() {
   const { email, role } = useAuth();
   const { theme } = useThemeContext();
