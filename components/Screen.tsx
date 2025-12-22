@@ -20,7 +20,7 @@ export function Screen({
       <StatusBar style="light" translucent={false} />
       <SafeAreaView 
         edges={['top', 'left', 'right']} 
-        style={{ flex: 1, backgroundColor: 'transparent' }}
+        style={{ backgroundColor: 'transparent' }}
       >
         <View style={[{ flex: 1 }, style]}>
           {children}
