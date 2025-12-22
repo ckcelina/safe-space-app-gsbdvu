@@ -87,7 +87,7 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <StatusBar style="light" translucent={false} />
+        <StatusBar style="light" translucent={false} backgroundColor={OCEAN_BLUE} />
         <View style={{ flex: 1, backgroundColor: OCEAN_BLUE }}>
           <ThemeProvider
             value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}

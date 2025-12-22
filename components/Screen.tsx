@@ -17,7 +17,7 @@ export function Screen({
 }: Props) {
   return (
     <View style={{ flex: 1, backgroundColor: topColor }}>
-      <StatusBar style="light" translucent={false} />
+      <StatusBar style="light" translucent={false} backgroundColor={topColor} />
       <SafeAreaView 
         edges={['top', 'left', 'right']} 
         style={{ backgroundColor: 'transparent' }}
