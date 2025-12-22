@@ -145,6 +145,7 @@ export default function LibraryScreen() {
   const { theme } = useThemeContext();
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const searchInputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
 
   // FIXED: Two-state approach for search
@@ -154,6 +155,7 @@ export default function LibraryScreen() {
   const [appliedQuery, setAppliedQuery] = useState('');
   const [savedTopicIds, setSavedTopicIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   // Load saved topics on mount
   useEffect(() => {
@@ -198,13 +200,32 @@ export default function LibraryScreen() {
     console.log('[Library] Search submitted:', trimmedQuery);
     setAppliedQuery(trimmedQuery);
     Keyboard.dismiss();
+    searchInputRef.current?.blur();
   };
 
-  // FIXED: Handle clear button (also applies the empty search)
+  // FIXED: Handle clear button (also applies the empty search and dismisses keyboard)
   const handleClearSearch = () => {
     setDraftQuery('');
     setAppliedQuery('');
+    Keyboard.dismiss();
+    searchInputRef.current?.blur();
     console.log('[Library] Search cleared');
+  };
+
+  // Handle search focus
+  const handleSearchFocus = () => {
+    console.log('[Library] Search input focused');
+    setIsSearchFocused(true);
+  };
+
+  // Handle search blur
+  const handleSearchBlur = () => {
+    console.log('[Library] Search input blurred');
+    setIsSearchFocused(false);
+    // Apply the search when user leaves the input without submitting
+    if (draftQuery.trim() !== appliedQuery) {
+      setAppliedQuery(draftQuery.trim());
+    }
   };
 
   // FIXED: Filter topics based on appliedQuery (not draftQuery)
@@ -240,6 +261,9 @@ export default function LibraryScreen() {
 
   const handleTopicPress = (topicId: string) => {
     console.log('Navigating to topic:', topicId);
+    // Dismiss keyboard before navigation
+    Keyboard.dismiss();
+    searchInputRef.current?.blur();
     router.push({
       pathname: '/(tabs)/library/detail',
       params: { topicId },
@@ -268,15 +292,18 @@ export default function LibraryScreen() {
         </Text>
       </View>
 
-      {/* FIXED: Search bar with stable TextInput */}
+      {/* FIXED: Search bar with stable TextInput and improved keyboard behavior */}
       <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
         <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
         <TextInput
+          ref={searchInputRef}
           style={[styles.searchInput, { color: theme.textPrimary }]}
           placeholder="Search topics..."
           placeholderTextColor={theme.textSecondary}
           value={draftQuery}
           onChangeText={setDraftQuery}
+          onFocus={handleSearchFocus}
+          onBlur={handleSearchBlur}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
@@ -364,6 +391,7 @@ export default function LibraryScreen() {
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
             />
           </View>
         </SafeAreaView>
