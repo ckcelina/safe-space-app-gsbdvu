@@ -9,7 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@react-navigation/native';
@@ -49,6 +49,9 @@ export default function FloatingTabBar({
   const pathname = usePathname();
   const theme = useTheme();
   const animatedValue = useSharedValue(0);
+  
+  // ✅ Use dynamic safe area insets for proper bottom spacing
+  const insets = useSafeAreaInsets();
 
   // Improved active tab detection with better path matching
   const activeTabIndex = React.useMemo(() => {
@@ -170,13 +173,17 @@ export default function FloatingTabBar({
     },
   };
 
+  // ✅ Calculate dynamic margin: safe area bottom + small spacing
+  const calculatedMargin = bottomMargin ?? (insets.bottom + 12);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']} pointerEvents="box-none">
       <View style={[
         styles.container,
         {
           width: containerWidth,
-          marginBottom: bottomMargin ?? 20
+          // ✅ Use dynamic margin based on device safe area
+          marginBottom: calculatedMargin
         }
       ]} pointerEvents="box-none">
         <BlurView
@@ -226,12 +233,13 @@ export default function FloatingTabBar({
 
 const styles = StyleSheet.create({
   safeArea: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     zIndex: 1000,
-    alignItems: 'center',
+    alignItems: "center",
+    // ✅ No extra paddingBottom - handled by marginBottom in container
   },
   container: {
     marginHorizontal: 20,

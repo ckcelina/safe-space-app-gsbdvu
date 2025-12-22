@@ -1,3 +1,4 @@
+
 import "react-native-reanimated";
 import React, { useEffect } from "react";
 import { useFonts } from "expo-font";
@@ -14,6 +15,8 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider as AppThemeProvider } from "@/contexts/ThemeContext";
@@ -25,7 +28,7 @@ export const unstable_settings = {
   initialRouteName: "onboarding",
 };
 
-// Match your header Ocean Blue so the very top is seamless
+// ✅ Single source of truth for the app blue used behind the status bar / safe area
 const OCEAN_BLUE = "#0B66C3";
 
 export default function RootLayout() {
@@ -40,10 +43,7 @@ export default function RootLayout() {
   }, [loaded]);
 
   React.useEffect(() => {
-    if (
-      !networkState.isConnected &&
-      networkState.isInternetReachable === false
-    ) {
+    if (!networkState.isConnected && networkState.isInternetReachable === false) {
       Alert.alert(
         "🔌 You are offline",
         "You can keep using the app! Your changes will be saved locally and synced when you are back online."
@@ -80,147 +80,149 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      {/* White status icons/text */}
-      <StatusBar style="light" animated translucent />
-      <SystemBars style="light" />
+      <SafeAreaProvider>
+        {/* ✅ White status bar icons on ocean blue background */}
+        <StatusBar style="light" translucent={false} backgroundColor={OCEAN_BLUE} />
 
-      <ThemeProvider
-        value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
-      >
-        <AppThemeProvider>
-          <AuthProvider>
-            <WidgetProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                {/* Ensures the top safe-area background is blue (no pale/white strip) */}
-                <View style={{ flex: 1, backgroundColor: OCEAN_BLUE }}>
-                  <Stack
-                    screenOptions={{
-                      headerShown: false,
-                      gestureEnabled: true,
-                      fullScreenGestureEnabled: true,
-                      gestureDirection: "horizontal",
-                      animation: "slide_from_right",
-                      animationDuration: 300,
-                      customAnimationOnGesture: true,
-                    }}
-                  >
-                    <Stack.Screen
-                      name="onboarding"
-                      options={{
-                        headerShown: false,
-                        gestureEnabled: false,
-                        animation: "fade",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="theme-selection"
-                      options={{
-                        headerShown: false,
+        <ThemeProvider
+          value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
+        >
+          <AppThemeProvider>
+            <AuthProvider>
+              <WidgetProvider>
+                {/* ✅ Root view with ocean blue background - ensures seamless status bar */}
+                <GestureHandlerRootView style={{ flex: 1, backgroundColor: OCEAN_BLUE }}>
+                  <View style={{ flex: 1 }}>
+                    <Stack
+                      screenOptions={{
                         gestureEnabled: true,
                         fullScreenGestureEnabled: true,
+                        gestureDirection: "horizontal",
                         animation: "slide_from_right",
+                        animationDuration: 300,
+                        customAnimationOnGesture: true,
                       }}
-                    />
-                    <Stack.Screen
-                      name="signup"
-                      options={{
-                        headerShown: false,
-                        gestureEnabled: true,
-                        fullScreenGestureEnabled: true,
-                        animation: "slide_from_right",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="login"
-                      options={{
-                        headerShown: false,
-                        gestureEnabled: true,
-                        fullScreenGestureEnabled: true,
-                        animation: "slide_from_right",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="(tabs)"
-                      options={{
-                        headerShown: false,
-                        gestureEnabled: false,
-                        animation: "fade",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="modal"
-                      options={{
-                        presentation: "modal",
-                        title: "Standard Modal",
-                        gestureEnabled: true,
-                        animation: "slide_from_bottom",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="formsheet"
-                      options={{
-                        presentation: "formSheet",
-                        title: "Form Sheet Modal",
-                        sheetGrabberVisible: true,
-                        sheetAllowedDetents: [0.5, 0.8, 1.0],
-                        sheetCornerRadius: 20,
-                        gestureEnabled: true,
-                        animation: "slide_from_bottom",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="transparent-modal"
-                      options={{
-                        presentation: "transparentModal",
-                        headerShown: false,
-                        gestureEnabled: true,
-                        animation: "fade",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="edit-profile"
-                      options={{
-                        headerShown: false,
-                        gestureEnabled: true,
-                        fullScreenGestureEnabled: true,
-                        animation: "slide_from_right",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="legal/privacy-policy"
-                      options={{
-                        headerShown: false,
-                        gestureEnabled: true,
-                        fullScreenGestureEnabled: true,
-                        animation: "slide_from_right",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="legal/terms-of-service"
-                      options={{
-                        headerShown: false,
-                        gestureEnabled: true,
-                        fullScreenGestureEnabled: true,
-                        animation: "slide_from_right",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="legal/terms-summary"
-                      options={{
-                        headerShown: false,
-                        gestureEnabled: true,
-                        fullScreenGestureEnabled: true,
-                        animation: "slide_from_right",
-                      }}
-                    />
-                  </Stack>
-                </View>
-              </GestureHandlerRootView>
-            </WidgetProvider>
-          </AuthProvider>
-        </AppThemeProvider>
-      </ThemeProvider>
+                    >
+                      <Stack.Screen
+                        name="onboarding"
+                        options={{
+                          headerShown: false,
+                          gestureEnabled: false,
+                          animation: "fade",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="theme-selection"
+                        options={{
+                          headerShown: false,
+                          gestureEnabled: true,
+                          fullScreenGestureEnabled: true,
+                          animation: "slide_from_right",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="signup"
+                        options={{
+                          headerShown: false,
+                          gestureEnabled: true,
+                          fullScreenGestureEnabled: true,
+                          animation: "slide_from_right",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="login"
+                        options={{
+                          headerShown: false,
+                          gestureEnabled: true,
+                          fullScreenGestureEnabled: true,
+                          animation: "slide_from_right",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="(tabs)"
+                        options={{
+                          headerShown: false,
+                          gestureEnabled: false,
+                          animation: "fade",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="modal"
+                        options={{
+                          presentation: "modal",
+                          title: "Standard Modal",
+                          gestureEnabled: true,
+                          animation: "slide_from_bottom",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="formsheet"
+                        options={{
+                          presentation: "formSheet",
+                          title: "Form Sheet Modal",
+                          sheetGrabberVisible: true,
+                          sheetAllowedDetents: [0.5, 0.8, 1.0],
+                          sheetCornerRadius: 20,
+                          gestureEnabled: true,
+                          animation: "slide_from_bottom",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="transparent-modal"
+                        options={{
+                          presentation: "transparentModal",
+                          headerShown: false,
+                          gestureEnabled: true,
+                          animation: "fade",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="edit-profile"
+                        options={{
+                          headerShown: false,
+                          gestureEnabled: true,
+                          fullScreenGestureEnabled: true,
+                          animation: "slide_from_right",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="legal/privacy-policy"
+                        options={{
+                          headerShown: false,
+                          gestureEnabled: true,
+                          fullScreenGestureEnabled: true,
+                          animation: "slide_from_right",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="legal/terms-of-service"
+                        options={{
+                          headerShown: false,
+                          gestureEnabled: true,
+                          fullScreenGestureEnabled: true,
+                          animation: "slide_from_right",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="legal/terms-summary"
+                        options={{
+                          headerShown: false,
+                          gestureEnabled: true,
+                          fullScreenGestureEnabled: true,
+                          animation: "slide_from_right",
+                        }}
+                      />
+                    </Stack>
+                  </View>
+
+                  {/* ✅ Keep SystemBars with light style for consistency */}
+                  <SystemBars style="light" />
+                </GestureHandlerRootView>
+              </WidgetProvider>
+            </AuthProvider>
+          </AppThemeProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }
-
