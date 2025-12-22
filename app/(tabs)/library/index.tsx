@@ -250,7 +250,7 @@ export default function LibraryScreen() {
         </Text>
       </View>
 
-      {/* Search bar */}
+      {/* Search bar - FIXED: Added returnKeyType and blurOnSubmit */}
       <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
         <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
         <TextInput
@@ -261,6 +261,8 @@ export default function LibraryScreen() {
           onChangeText={setSearchQuery}
           autoCapitalize="none"
           autoCorrect={false}
+          returnKeyType="search"
+          blurOnSubmit={false}
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
