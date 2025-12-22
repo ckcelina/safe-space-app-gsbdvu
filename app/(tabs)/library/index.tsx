@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions, Keyboard } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -281,7 +281,7 @@ export default function LibraryScreen() {
     />
   );
 
-  const renderListHeader = () => (
+  const renderListHeader = useMemo(() => (
     <>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
@@ -352,7 +352,7 @@ export default function LibraryScreen() {
         </Text>
       )}
     </>
-  );
+  ), [theme, draftQuery, isLoading, savedTopics, appliedQuery]);
 
   const renderEmptyComponent = () => (
     <View style={styles.noResultsContainer}>
