@@ -31,6 +31,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  console.log('[AuthProvider] Component rendering...');
   const [session, setSession] = useState<Session | null>(null);
   const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -367,6 +368,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Compute isPremium based on role
   const userRole = user?.role ?? 'free';
   const isPremium = userRole === 'premium' || userRole === 'admin';
+
+  console.log('[AuthProvider] Rendering with loading:', loading, 'session:', !!session);
 
   return (
     <AuthContext.Provider

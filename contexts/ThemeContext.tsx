@@ -81,19 +81,25 @@ const themes: Record<ThemeKey, Theme> = {
 };
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  console.log('[ThemeProvider] Component rendering...');
   const [themeKey, setThemeKey] = useState<ThemeKey>('OceanBlue');
   const [theme, setThemeState] = useState<Theme>(oceanBlueTheme);
 
   const loadTheme = useCallback(async () => {
     try {
+      console.log('[ThemeProvider] Loading theme from storage...');
       const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+      console.log('[ThemeProvider] Saved theme:', savedTheme);
       if (savedTheme && savedTheme in themes) {
         const key = savedTheme as ThemeKey;
         setThemeKey(key);
         setThemeState(themes[key]);
+        console.log('[ThemeProvider] Theme loaded:', key);
+      } else {
+        console.log('[ThemeProvider] Using default theme: OceanBlue');
       }
     } catch (error) {
-      console.error('Error loading theme:', error);
+      console.error('[ThemeProvider] Error loading theme:', error);
     }
   }, []);
 
@@ -103,11 +109,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = async (newThemeKey: ThemeKey) => {
     try {
+      console.log('[ThemeProvider] Setting theme:', newThemeKey);
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeKey);
       setThemeKey(newThemeKey);
       setThemeState(themes[newThemeKey]);
     } catch (error) {
-      console.error('Error saving theme:', error);
+      console.error('[ThemeProvider] Error saving theme:', error);
     }
   };
 

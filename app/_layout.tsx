@@ -1,3 +1,4 @@
+
 import "react-native-reanimated";
 import React, { useEffect, useMemo, useState } from "react";
 import { useFonts } from "expo-font";
@@ -5,7 +6,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert } from "react-native";
+import { useColorScheme, Alert, View, Text, ActivityIndicator } from "react-native";
 import * as Network from "expo-network";
 import {
   DarkTheme,
@@ -26,9 +27,10 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  console.log('[RootLayout] Component rendering...');
   const colorScheme = useColorScheme();
 
-  const [loaded] = useFonts({
+  const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
@@ -36,6 +38,7 @@ export default function RootLayout() {
   const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
+    console.log('[RootLayout] useEffect for network check running...');
     let cancelled = false;
 
     const check = async () => {
@@ -44,8 +47,9 @@ export default function RootLayout() {
         const offlineNow =
           state.isConnected === false || state.isInternetReachable === false;
         if (!cancelled) setIsOffline(offlineNow);
-      } catch {
+      } catch (err) {
         // If Network fails on a platform, do nothing (do not crash previews)
+        console.log('[RootLayout] Network check failed (this is OK):', err);
       }
     };
 
@@ -59,10 +63,14 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+    console.log('[RootLayout] Fonts loaded:', loaded, 'error:', error);
+    // Hide splash screen after a short delay, even if fonts fail
+    if (loaded || error) {
+      setTimeout(() => {
+        SplashScreen.hideAsync();
+      }, 100);
     }
-  }, [loaded]);
+  }, [loaded, error]);
 
   useEffect(() => {
     if (isOffline) {
@@ -104,7 +112,25 @@ export default function RootLayout() {
     []
   );
 
-  if (!loaded) return null;
+  console.log('[RootLayout] About to render, loaded:', loaded, 'error:', error);
+
+  // Show a simple loading screen while fonts load
+  if (!loaded && !error) {
+    console.log('[RootLayout] Fonts not loaded yet, showing loading screen');
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E6F7FF' }}>
+        <ActivityIndicator size="large" color="#1890FF" />
+        <Text style={{ marginTop: 16, fontSize: 16, color: '#001529' }}>Loading Safe Space...</Text>
+      </View>
+    );
+  }
+
+  // If fonts failed to load, log it but continue anyway
+  if (error) {
+    console.error('[RootLayout] Font loading error:', error);
+  }
+
+  console.log('[RootLayout] Rendering full app tree');
 
   return (
     <ErrorBoundary>
