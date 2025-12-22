@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -190,19 +190,21 @@ export default function LibraryScreen() {
     }
   };
 
-  // Filter topics based on search query
-  const filteredTopics = libraryTopics.filter(topic => {
-    if (!searchQuery.trim()) return true;
+  // Memoize filtered topics to prevent unnecessary re-renders
+  const filteredTopics = useMemo(() => {
+    if (!searchQuery.trim()) return libraryTopics;
     
     const query = searchQuery.toLowerCase();
-    return (
+    return libraryTopics.filter(topic => 
       topic.title.toLowerCase().includes(query) ||
       topic.shortDescription.toLowerCase().includes(query)
     );
-  });
+  }, [searchQuery]);
 
-  // Get saved topics
-  const savedTopics = libraryTopics.filter(topic => savedTopicIds.includes(topic.id));
+  // Memoize saved topics
+  const savedTopics = useMemo(() => {
+    return libraryTopics.filter(topic => savedTopicIds.includes(topic.id));
+  }, [savedTopicIds]);
 
   // Create PanResponder for swipe gesture
   const panResponder = useRef(
@@ -262,6 +264,8 @@ export default function LibraryScreen() {
           onChangeText={setSearchQuery}
           autoCapitalize="none"
           autoCorrect={false}
+          blurOnSubmit={false}
+          returnKeyType="search"
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
@@ -280,6 +284,7 @@ export default function LibraryScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.savedScrollContent}
+            keyboardShouldPersistTaps="always"
           >
             {savedTopics.map((topic, index) => (
               <View key={topic.id} style={styles.savedTopicWrapper}>
@@ -339,7 +344,7 @@ export default function LibraryScreen() {
               contentContainerStyle={[styles.flatListContent, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 12 }]}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
+              keyboardShouldPersistTaps="always"
             />
           </View>
         </LinearGradient>
