@@ -3,7 +3,7 @@
 // This function extracts stable facts from user messages using OpenAI
 // and returns them in a structured format for storage in person_memories table.
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { serve } from 'jsr:@std/http@0.224.5/server';
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
@@ -11,11 +11,11 @@ interface RequestBody {
   personName: string;
   recentUserMessages: string[];
   lastAssistantMessage?: string;
-  existingMemories: Array<{
+  existingMemories: {
     key: string;
     value: string;
     category: string;
-  }>;
+  }[];
 }
 
 // Memory extraction system prompt

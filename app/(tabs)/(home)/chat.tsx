@@ -569,7 +569,7 @@ export default function ChatScreen() {
         isGeneratingRef.current = false;
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, scrollToBottom, areSimilar]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, scrollToBottom, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 

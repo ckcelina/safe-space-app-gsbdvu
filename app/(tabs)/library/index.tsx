@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions, Keyboard } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -179,7 +179,7 @@ export default function LibraryScreen() {
     }
   };
 
-  const toggleSaveTopic = async (topicId: string) => {
+  const toggleSaveTopic = useCallback(async (topicId: string) => {
     try {
       const isSaved = savedTopicIds.includes(topicId);
       const newSavedTopicIds = isSaved
@@ -192,41 +192,41 @@ export default function LibraryScreen() {
     } catch (error) {
       console.error('[Library] Error saving topic:', error);
     }
-  };
+  }, [savedTopicIds]);
 
   // FIXED: Handle search submit (when user presses Search/Enter key)
-  const handleSearchSubmit = () => {
+  const handleSearchSubmit = useCallback(() => {
     const trimmedQuery = draftQuery.trim();
     console.log('[Library] Search submitted:', trimmedQuery);
     setAppliedQuery(trimmedQuery);
     Keyboard.dismiss();
     searchInputRef.current?.blur();
-  };
+  }, [draftQuery]);
 
   // FIXED: Handle clear button (also applies the empty search and dismisses keyboard)
-  const handleClearSearch = () => {
+  const handleClearSearch = useCallback(() => {
     setDraftQuery('');
     setAppliedQuery('');
     Keyboard.dismiss();
     searchInputRef.current?.blur();
     console.log('[Library] Search cleared');
-  };
+  }, []);
 
   // Handle search focus
-  const handleSearchFocus = () => {
+  const handleSearchFocus = useCallback(() => {
     console.log('[Library] Search input focused');
     setIsSearchFocused(true);
-  };
+  }, []);
 
   // Handle search blur
-  const handleSearchBlur = () => {
+  const handleSearchBlur = useCallback(() => {
     console.log('[Library] Search input blurred');
     setIsSearchFocused(false);
     // Apply the search when user leaves the input without submitting
     if (draftQuery.trim() !== appliedQuery) {
       setAppliedQuery(draftQuery.trim());
     }
-  };
+  }, [draftQuery, appliedQuery]);
 
   // FIXED: Filter topics based on appliedQuery (not draftQuery)
   const filteredTopics = libraryTopics.filter(topic => {
@@ -259,7 +259,7 @@ export default function LibraryScreen() {
     })
   ).current;
 
-  const handleTopicPress = (topicId: string) => {
+  const handleTopicPress = useCallback((topicId: string) => {
     console.log('Navigating to topic:', topicId);
     // Dismiss keyboard before navigation
     Keyboard.dismiss();
@@ -268,7 +268,7 @@ export default function LibraryScreen() {
       pathname: '/(tabs)/library/detail',
       params: { topicId },
     });
-  };
+  }, [router]);
 
   const renderTopicItem = ({ item, index }: { item: Topic; index: number }) => (
     <TopicBubble
@@ -352,7 +352,7 @@ export default function LibraryScreen() {
         </Text>
       )}
     </>
-  ), [theme, draftQuery, isLoading, savedTopics, appliedQuery]);
+  ), [theme, draftQuery, isLoading, savedTopics, appliedQuery, handleSearchFocus, handleSearchBlur, handleSearchSubmit, handleClearSearch, handleTopicPress, toggleSaveTopic]);
 
   const renderEmptyComponent = () => (
     <View style={styles.noResultsContainer}>
