@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Safe Space",
@@ -37,15 +38,15 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
-    "scheme": "natively",
+    "scheme": "safespace",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {}
     }
-  },
-  "scheme": "Safe Space"
+  }
 }
