@@ -455,6 +455,7 @@ export default function ChatScreen() {
         'generate-ai-response',
         {
           body: {
+            userId,
             personId,
             personName,
             personRelationshipType: relationshipType || 'Unknown',
