@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   },
   bubble: {
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 18,
   },
   userBubble: {
@@ -245,10 +245,14 @@ const styles = StyleSheet.create({
   userText: {
     fontSize: 16,
     lineHeight: 22,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   aiText: {
     fontSize: 16,
     lineHeight: 22,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   timestamp: {
     fontSize: 11,
