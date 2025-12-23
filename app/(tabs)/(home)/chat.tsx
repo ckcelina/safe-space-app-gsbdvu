@@ -27,6 +27,8 @@ import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast } from '@/utils/toast';
+import { extractMemoriesAsync } from '@/lib/memory/extractMemories';
+import { getPersonMemories } from '@/lib/memory/personMemory';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -527,6 +529,36 @@ export default function ChatScreen() {
         isGeneratingRef.current = false;
       }
       console.log('[Chat] sendMessage: Complete');
+
+      // MEMORY EXTRACTION: Extract memories in the background after reply is complete
+      // This is fire-and-forget and will not block or delay the chat flow
+      try {
+        console.log('[Chat] Triggering memory extraction...');
+        
+        // Get existing memories for context
+        const existingMemories = await getPersonMemories(userId, personId, 50);
+        
+        // Extract last 5 user messages for context
+        const userMessages = subjectMessages
+          .filter(m => m.role === 'user')
+          .slice(-5)
+          .map(m => m.content);
+
+        // Fire and forget - this will not block the UI
+        extractMemoriesAsync({
+          personName,
+          recentUserMessages: userMessages,
+          lastAssistantMessage: replyText,
+          existingMemories,
+          userId,
+          personId,
+        });
+        
+        console.log('[Chat] Memory extraction triggered (background)');
+      } catch (memoryError) {
+        // Silently fail - memory extraction should never break chat
+        console.error('[Chat] Memory extraction trigger failed:', memoryError);
+      }
     } catch (err: any) {
       console.error('[Chat] sendMessage unexpected error:', err);
       if (isMountedRef.current) {
