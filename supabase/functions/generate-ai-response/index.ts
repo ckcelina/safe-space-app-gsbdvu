@@ -167,6 +167,7 @@ async function getPersonContinuity(
   userId: string,
   personId: string
 ): Promise<{ 
+  continuity_enabled: boolean;
   summary: string; 
   open_loops: string[]; 
   current_goal: string;
@@ -176,27 +177,157 @@ async function getPersonContinuity(
   try {
     const { data, error } = await supabase
       .from('person_chat_summaries')
-      .select('summary, open_loops, current_goal, last_advice, next_question')
+      .select('continuity_enabled, summary, open_loops, current_goal, last_advice, next_question')
       .eq('user_id', userId)
       .eq('person_id', personId)
       .single();
 
     if (error) {
       console.log('[Edge] Error fetching person continuity:', error.message);
-      return { summary: '', open_loops: [], current_goal: '', last_advice: '', next_question: '' };
+      return { 
+        continuity_enabled: true,
+        summary: '', 
+        open_loops: [], 
+        current_goal: '', 
+        last_advice: '', 
+        next_question: '' 
+      };
     }
 
     // Safely parse and validate the data
+    const continuity_enabled = data?.continuity_enabled ?? true;
     const summary = data?.summary || '';
     const open_loops = Array.isArray(data?.open_loops) ? data.open_loops : [];
     const current_goal = data?.current_goal || '';
     const last_advice = data?.last_advice || '';
     const next_question = data?.next_question || '';
 
-    return { summary, open_loops, current_goal, last_advice, next_question };
+    return { continuity_enabled, summary, open_loops, current_goal, last_advice, next_question };
   } catch (err) {
     console.log('[Edge] Exception in getPersonContinuity:', err);
-    return { summary: '', open_loops: [], current_goal: '', last_advice: '', next_question: '' };
+    return { 
+      continuity_enabled: true,
+      summary: '', 
+      open_loops: [], 
+      current_goal: '', 
+      last_advice: '', 
+      next_question: '' 
+    };
+  }
+}
+
+// Update person continuity data in Supabase
+async function upsertPersonContinuity(
+  supabase: any,
+  userId: string,
+  personId: string,
+  patch: {
+    current_goal?: string;
+    open_loops?: string;
+    last_user_need?: string;
+    last_action_plan?: string;
+    next_best_question?: string;
+  }
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('person_chat_summaries')
+      .upsert({
+        user_id: userId,
+        person_id: personId,
+        ...patch,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,person_id' });
+
+    if (error) {
+      console.log('[Edge] Error upserting continuity:', error.message);
+    }
+  } catch (err) {
+    console.log('[Edge] Exception in upsertPersonContinuity:', err);
+  }
+}
+
+// Extract continuity fields from conversation using OpenAI
+async function extractContinuityFields(
+  conversationText: string,
+  assistantReply: string
+): Promise<{
+  current_goal: string;
+  open_loops: string;
+  last_user_need: string;
+  last_action_plan: string;
+  next_best_question: string;
+} | null> {
+  try {
+    const extractionPrompt = `You are analyzing a conversation to extract continuity information. Based on the conversation below, extract the following fields as JSON:
+
+{
+  "current_goal": "",
+  "open_loops": "",
+  "last_user_need": "",
+  "last_action_plan": "",
+  "next_best_question": ""
+}
+
+RULES:
+- Only update with stable, neutral phrases based on EXPLICIT conversation content
+- Keep each field short (max 250 chars)
+- If you cannot confidently extract a field, return empty string for that field
+- Do NOT invent or assume details
+- Be conservative - only extract what is clearly stated
+
+CONVERSATION:
+${conversationText}
+
+ASSISTANT REPLY:
+${assistantReply}
+
+Return ONLY the JSON object, no other text.`;
+
+    const extractionRes = await fetch(OPENAI_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: extractionPrompt }
+        ],
+        temperature: 0.3, // Low temperature for consistent extraction
+        max_tokens: 500,
+      }),
+    });
+
+    if (!extractionRes.ok) {
+      console.log('[Edge] OpenAI extraction failed:', extractionRes.status);
+      return null;
+    }
+
+    const extractionData = await extractionRes.json();
+    const extractedText = extractionData?.choices?.[0]?.message?.content || '';
+    
+    // Parse JSON from response
+    const jsonMatch = extractedText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.log('[Edge] No JSON found in extraction response');
+      return null;
+    }
+
+    const extracted = JSON.parse(jsonMatch[0]);
+    
+    // Validate and truncate fields
+    return {
+      current_goal: (extracted.current_goal || '').substring(0, 250),
+      open_loops: (extracted.open_loops || '').substring(0, 250),
+      last_user_need: (extracted.last_user_need || '').substring(0, 250),
+      last_action_plan: (extracted.last_action_plan || '').substring(0, 250),
+      next_best_question: (extracted.next_best_question || '').substring(0, 250),
+    };
+  } catch (err) {
+    console.log('[Edge] Exception in extractContinuityFields:', err);
+    return null;
   }
 }
 
@@ -473,35 +604,40 @@ async function buildSystemPrompt(
   // ORDER 4: CONVERSATION CONTINUITY - Fetch and inject continuity data
   const continuity = await getPersonContinuity(supabase, userId, personId);
   
-  if (continuity.summary && continuity.summary.trim()) {
+  if (continuity.continuity_enabled && (
+    continuity.current_goal || 
+    continuity.open_loops.length > 0 || 
+    continuity.last_user_need || 
+    continuity.last_action_plan || 
+    continuity.next_question
+  )) {
     basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 CONVERSATION CONTINUITY (do not invent - use only what's here):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Recent conversation summary:
-${continuity.summary}`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
     if (continuity.current_goal && continuity.current_goal.trim()) {
-      basePrompt += `\n\n🎯 Current goal: ${continuity.current_goal}`;
+      basePrompt += `\n- Current goal: ${continuity.current_goal}`;
     }
 
-    if (continuity.open_loops.length > 0) {
-      basePrompt += `\n\n🔄 Open loops (unresolved topics):`;
-      continuity.open_loops.forEach((loop, index) => {
-        basePrompt += `\n  ${index + 1}. ${loop}`;
-      });
+    if (continuity.open_loops && continuity.open_loops.trim()) {
+      basePrompt += `\n- Open loops: ${continuity.open_loops}`;
     }
 
-    if (continuity.last_advice && continuity.last_advice.trim()) {
-      basePrompt += `\n\n💡 Last advice given:\n${continuity.last_advice}`;
+    if (continuity.last_user_need && continuity.last_user_need.trim()) {
+      basePrompt += `\n- Last user need: ${continuity.last_user_need}`;
+    }
+
+    if (continuity.last_action_plan && continuity.last_action_plan.trim()) {
+      basePrompt += `\n- Last action plan: ${continuity.last_action_plan}`;
     }
 
     if (continuity.next_question && continuity.next_question.trim()) {
-      basePrompt += `\n\n❓ Suggested follow-up: ${continuity.next_question}`;
+      basePrompt += `\n- Best next question: ${continuity.next_question}`;
     }
 
     basePrompt += `\n\n⚠️ CONTINUITY INSTRUCTION:
-Start by continuing from open loops or the suggested follow-up question UNLESS the user clearly changes the topic. This helps maintain natural conversation flow.
+Continue from open loops or next_best_question unless the user clearly changes topic.
+Do not assume details; ask if unclear.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
   }
 
@@ -782,6 +918,32 @@ serve(async (req) => {
     if (IS_DEV && aiToneId && !reply.includes(`(tone: ${aiToneId})`)) {
       reply += `\n\n(tone: ${aiToneId})`;
     }
+
+    // ========== GOAL B: UPDATE CONTINUITY STATE (AFTER ASSISTANT REPLY) ==========
+    // Run extraction in background - do not block the response
+    (async () => {
+      try {
+        // Build conversation text from recent messages
+        const conversationText = messages
+          .slice(-6) // Last 6 messages for context
+          .map((msg: any) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+          .join('\n\n');
+
+        // Extract continuity fields
+        const extracted = await extractContinuityFields(conversationText, reply);
+        
+        if (extracted) {
+          // Update continuity state
+          await upsertPersonContinuity(supabase, userId, personId, extracted);
+          console.log('[Edge] Continuity state updated successfully');
+        } else {
+          console.log('[Edge] Continuity extraction returned null, skipping update');
+        }
+      } catch (err) {
+        // Fail silently - never block the chat response
+        console.log('[Edge] Background continuity update failed (non-blocking):', err);
+      }
+    })();
 
     return new Response(
       JSON.stringify({ reply }),
