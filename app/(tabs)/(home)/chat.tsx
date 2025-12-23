@@ -687,7 +687,21 @@ export default function ChatScreen() {
                   </Text>
                 )}
               </View>
-              <View style={{ width: 40 }} />
+              <TouchableOpacity 
+                onPress={() => router.push({
+                  pathname: '/(tabs)/(home)/memories',
+                  params: { personId, personName }
+                })} 
+                style={styles.memoriesButton}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="brain"
+                  android_material_icon_name="psychology"
+                  size={24}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
             </View>
           </LinearGradient>
 
@@ -1028,6 +1042,11 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   backButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  memoriesButton: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
