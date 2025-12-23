@@ -12,6 +12,7 @@ import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { supabase } from '@/lib/supabase';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { signInWithGoogle } from '@/lib/auth/oauth';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -21,6 +22,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetEmail, setResetEmail] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
@@ -105,6 +107,21 @@ export default function LoginScreen() {
       console.error('Unexpected login error:', err);
       setError('An unexpected error occurred. Please try again.');
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    setError(null);
+    
+    try {
+      await signInWithGoogle();
+      // The AuthProvider will handle navigation via onAuthStateChange
+    } catch (error: any) {
+      console.debug('Google sign-in error:', error.message);
+      // Error is already handled in signInWithGoogle with user-friendly alerts
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -201,7 +218,7 @@ export default function LoginScreen() {
                   }}
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  editable={!isLoading}
+                  editable={!isLoading && !isGoogleLoading}
                 />
 
                 <View style={styles.passwordContainer}>
@@ -213,7 +230,7 @@ export default function LoginScreen() {
                       if (error) setError(null);
                     }}
                     secureTextEntry={!showPassword}
-                    editable={!isLoading}
+                    editable={!isLoading && !isGoogleLoading}
                     containerStyle={styles.passwordInputContainer}
                   />
                   <TouchableOpacity
@@ -231,7 +248,7 @@ export default function LoginScreen() {
 
                 <TouchableOpacity 
                   onPress={handleForgotPassword}
-                  disabled={isLoading || isResettingPassword}
+                  disabled={isLoading || isResettingPassword || isGoogleLoading}
                   style={styles.forgotPasswordContainer}
                 >
                   <Text style={[styles.forgotPasswordText, { color: theme.buttonText }]}>
@@ -250,16 +267,40 @@ export default function LoginScreen() {
                 <SafeSpaceButton 
                   onPress={handleLogin} 
                   loading={isLoading} 
-                  disabled={isLoading}
+                  disabled={isLoading || isGoogleLoading}
                 >
                   {isLoading ? 'Logging in…' : 'Log In'}
                 </SafeSpaceButton>
+
+                <View style={styles.dividerContainer}>
+                  <View style={[styles.dividerLine, { backgroundColor: theme.buttonText }]} />
+                  <Text style={[styles.dividerText, { color: theme.buttonText }]}>or</Text>
+                  <View style={[styles.dividerLine, { backgroundColor: theme.buttonText }]} />
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleGoogleSignIn}
+                  disabled={isLoading || isGoogleLoading}
+                  style={[
+                    styles.googleButton,
+                    { 
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      opacity: (isLoading || isGoogleLoading) ? 0.6 : 1,
+                    }
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="logo-google" size={20} color="#DB4437" />
+                  <Text style={styles.googleButtonText}>
+                    {isGoogleLoading ? 'Signing in…' : 'Continue with Google'}
+                  </Text>
+                </TouchableOpacity>
 
                 <View style={styles.linkSpacing} />
 
                 <SafeSpaceLinkButton 
                   onPress={() => router.replace('/signup')} 
-                  disabled={isLoading}
+                  disabled={isLoading || isGoogleLoading}
                   style={{ color: theme.buttonText }}
                 >
                   Don&apos;t have an account? Sign Up
@@ -337,6 +378,37 @@ const styles = StyleSheet.create({
   },
   buttonSpacing: {
     height: 8,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    opacity: 0.3,
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 14,
+    fontWeight: '500',
+    opacity: 0.7,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 10,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
   },
   linkSpacing: {
     height: 8,
