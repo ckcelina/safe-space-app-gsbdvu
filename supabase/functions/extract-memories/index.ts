@@ -140,10 +140,33 @@ Output:
 }
 (No new facts, but "occupation" was mentioned)`;
 
+// Helper function to create a safe JSON response with status 200
+function createSafeResponse(
+  memories: any[] = [],
+  mentioned_keys: any[] = [],
+  error: string | null = null
+) {
+  return new Response(
+    JSON.stringify({
+      memories,
+      mentioned_keys,
+      error,
+    }),
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    }
+  );
+}
+
 serve(async (req) => {
-  // Handle CORS
+  // Handle CORS - always return 200
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
+      status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST',
@@ -153,24 +176,50 @@ serve(async (req) => {
     });
   }
 
+  // Wrap entire handler in try-catch to ensure we NEVER throw
   try {
+    // Parse request body with defensive error handling
+    let requestBody: RequestBody;
+    try {
+      requestBody = await req.json();
+    } catch (jsonError) {
+      console.error('❌ Failed to parse request JSON:', jsonError);
+      return createSafeResponse([], [], 'invalid_json_request');
+    }
+
     const {
       personName,
       recentUserMessages,
       lastAssistantMessage,
       existingMemories,
-    }: RequestBody = await req.json();
+    } = requestBody;
 
     console.log('=== Memory Extraction Request ===');
     console.log('Person:', personName);
-    console.log('User messages:', recentUserMessages.length);
-    console.log('Existing memories:', existingMemories.length);
+    console.log('User messages:', recentUserMessages?.length || 0);
+    console.log('Existing memories:', existingMemories?.length || 0);
     console.log('================================');
+
+    // Validate required inputs defensively
+    if (!personName || typeof personName !== 'string') {
+      console.error('❌ Invalid or missing personName');
+      return createSafeResponse([], [], 'invalid_input_person_name');
+    }
+
+    if (!Array.isArray(recentUserMessages) || recentUserMessages.length === 0) {
+      console.error('❌ Invalid or empty recentUserMessages');
+      return createSafeResponse([], [], 'invalid_input_messages');
+    }
+
+    if (!Array.isArray(existingMemories)) {
+      console.error('❌ Invalid existingMemories (not an array)');
+      return createSafeResponse([], [], 'invalid_input_existing_memories');
+    }
 
     // Validate OpenAI API key
     if (!OPENAI_API_KEY) {
       console.error('❌ OPENAI_API_KEY is not set in environment variables');
-      throw new Error('OpenAI API key is not configured');
+      return createSafeResponse([], [], 'missing_openai_key');
     }
 
     // Build the extraction prompt
@@ -190,81 +239,87 @@ Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
 
     console.log('Calling OpenAI for memory extraction...');
 
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: EXTRACTION_SYSTEM_PROMPT,
-          },
-          {
-            role: 'user',
-            content: userPrompt,
-          },
-        ],
-        temperature: 0.1,
-        response_format: { type: 'json_object' },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`OpenAI API error: ${response.statusText}`);
+    // Call OpenAI API with error handling
+    let response;
+    try {
+      response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: EXTRACTION_SYSTEM_PROMPT,
+            },
+            {
+              role: 'user',
+              content: userPrompt,
+            },
+          ],
+          temperature: 0.1,
+          response_format: { type: 'json_object' },
+        }),
+      });
+    } catch (fetchError) {
+      console.error('❌ OpenAI fetch failed:', fetchError);
+      return createSafeResponse([], [], 'openai_fetch_failed');
     }
 
-    const data = await response.json();
-    const jsonString = data.choices[0]?.message?.content;
+    // Handle non-OK OpenAI response
+    if (!response.ok) {
+      let errorData = 'unknown';
+      try {
+        errorData = await response.text();
+      } catch (e) {
+        console.error('Could not read error response:', e);
+      }
+      console.error('❌ OpenAI API error:', errorData);
+      return createSafeResponse([], [], `openai_api_error_${response.status}`);
+    }
+
+    // Parse OpenAI response
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error('❌ Failed to parse OpenAI response JSON:', parseError);
+      return createSafeResponse([], [], 'openai_response_parse_failed');
+    }
+
+    const jsonString = data.choices?.[0]?.message?.content;
 
     if (!jsonString) {
-      console.log('No content in OpenAI response');
-      return new Response(
-        JSON.stringify({ memories: [], mentioned_keys: [] }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      );
+      console.log('⚠️ No content in OpenAI response');
+      return createSafeResponse([], [], null);
     }
 
-    // Parse and validate the result
+    // Parse and validate the extraction result
     let result;
     try {
       result = JSON.parse(jsonString);
     } catch (parseError) {
-      console.error('JSON parsing failed:', parseError);
-      return new Response(
-        JSON.stringify({ memories: [], mentioned_keys: [] }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      );
+      console.error('❌ JSON parsing failed for extraction result:', parseError);
+      return createSafeResponse([], [], 'json_parse_failed');
     }
 
     // Validate structure
-    if (!result || !Array.isArray(result.memories) || !Array.isArray(result.mentioned_keys)) {
-      console.error('Invalid result structure');
-      return new Response(
-        JSON.stringify({ memories: [], mentioned_keys: [] }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      );
+    if (!result || typeof result !== 'object') {
+      console.error('❌ Invalid result: not an object');
+      return createSafeResponse([], [], 'invalid_result_structure');
+    }
+
+    if (!Array.isArray(result.memories)) {
+      console.error('❌ Invalid result: memories is not an array');
+      return createSafeResponse([], [], 'invalid_memories_array');
+    }
+
+    if (!Array.isArray(result.mentioned_keys)) {
+      console.error('❌ Invalid result: mentioned_keys is not an array');
+      return createSafeResponse([], [], 'invalid_mentioned_keys_array');
     }
 
     console.log('✅ Memory extraction complete:', {
@@ -272,28 +327,21 @@ Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
       mentionedKeysCount: result.mentioned_keys.length,
     });
 
-    return new Response(JSON.stringify(result), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
-  } catch (error) {
-    console.error('❌ Error in extract-memories:', error);
+    // Success - return the extracted memories
+    return createSafeResponse(result.memories, result.mentioned_keys, null);
 
-    return new Response(
-      JSON.stringify({
-        memories: [],
-        mentioned_keys: [],
-        error: error.message,
-      }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
+  } catch (error) {
+    // Catch-all error handler - NEVER let this function crash
+    console.error('❌ Unexpected error in extract-memories:', error);
+    
+    // Convert error to string safely
+    let errorMessage = 'unknown_error';
+    try {
+      errorMessage = String(error?.message || error);
+    } catch (e) {
+      console.error('Could not stringify error:', e);
+    }
+
+    return createSafeResponse([], [], errorMessage);
   }
 });
