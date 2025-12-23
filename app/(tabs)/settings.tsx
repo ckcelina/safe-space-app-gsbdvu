@@ -28,9 +28,17 @@ import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
 import { AI_TONES, getToneById, getTonesByCategory } from '@/constants/AITones';
+import { linkGoogleIdentity, linkAppleIdentity, getUserIdentities, unlinkIdentity } from '@/lib/auth/linking';
 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+interface Identity {
+  id: string;
+  provider: string;
+  email?: string;
+  created_at: string;
+}
 
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
@@ -55,6 +63,11 @@ export default function SettingsScreen() {
   const [scienceMode, setScienceMode] = useState(preferences.ai_science_mode);
   const [isUpdatingAIPrefs, setIsUpdatingAIPrefs] = useState(false);
 
+  // Connected Accounts State
+  const [identities, setIdentities] = useState<Identity[]>([]);
+  const [isLoadingIdentities, setIsLoadingIdentities] = useState(false);
+  const [isLinkingAccount, setIsLinkingAccount] = useState(false);
+
   useEffect(() => {
     setSelectedTheme(themeKey);
   }, [themeKey]);
@@ -64,6 +77,24 @@ export default function SettingsScreen() {
     setSelectedToneId(preferences.ai_tone_id);
     setScienceMode(preferences.ai_science_mode);
   }, [preferences]);
+
+  // Load identities on mount
+  useEffect(() => {
+    loadIdentities();
+  }, []);
+
+  const loadIdentities = async () => {
+    setIsLoadingIdentities(true);
+    const { identities: fetchedIdentities, error } = await getUserIdentities();
+    
+    if (error) {
+      console.debug('[Settings] Error loading identities:', error);
+    } else {
+      setIdentities(fetchedIdentities);
+    }
+    
+    setIsLoadingIdentities(false);
+  };
 
   const themes: { key: ThemeKey; name: string }[] = [
     { key: 'OceanBlue', name: 'Ocean Blue' },
@@ -291,6 +322,90 @@ export default function SettingsScreen() {
     }
   };
 
+  // Connected Accounts Handlers
+  const handleLinkGoogle = async () => {
+    setIsLinkingAccount(true);
+    const result = await linkGoogleIdentity();
+    setIsLinkingAccount(false);
+
+    if (result.success) {
+      showSuccessToast('Google account linked successfully');
+      await loadIdentities();
+    } else {
+      if (result.error && result.error !== 'Linking cancelled') {
+        showErrorToast(result.error);
+      }
+    }
+  };
+
+  const handleLinkApple = async () => {
+    setIsLinkingAccount(true);
+    const result = await linkAppleIdentity();
+    setIsLinkingAccount(false);
+
+    if (result.success) {
+      showSuccessToast('Apple account linked successfully');
+      await loadIdentities();
+    } else {
+      if (result.error && result.error !== 'Linking cancelled') {
+        showErrorToast(result.error);
+      }
+    }
+  };
+
+  const handleUnlinkIdentity = (identity: Identity) => {
+    Alert.alert(
+      'Unlink Account',
+      `Are you sure you want to unlink your ${getProviderDisplayName(identity.provider)} account?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unlink',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await unlinkIdentity(identity.id);
+            if (result.success) {
+              showSuccessToast('Account unlinked successfully');
+              await loadIdentities();
+            } else {
+              showErrorToast(result.error || 'Failed to unlink account');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getProviderDisplayName = (provider: string): string => {
+    switch (provider) {
+      case 'google':
+        return 'Google';
+      case 'apple':
+        return 'Apple';
+      case 'email':
+        return 'Email';
+      default:
+        return provider.charAt(0).toUpperCase() + provider.slice(1);
+    }
+  };
+
+  const getProviderIcon = (provider: string): { ios: string; android: string } => {
+    switch (provider) {
+      case 'google':
+        return { ios: 'g.circle.fill', android: 'account_circle' };
+      case 'apple':
+        return { ios: 'apple.logo', android: 'apple' };
+      case 'email':
+        return { ios: 'envelope.fill', android: 'email' };
+      default:
+        return { ios: 'person.circle.fill', android: 'account_circle' };
+    }
+  };
+
+  const isProviderLinked = (provider: string): boolean => {
+    return identities.some(identity => identity.provider === provider);
+  };
+
   return (
     <>
       <LinearGradient
@@ -366,6 +481,126 @@ export default function SettingsScreen() {
                 </View>
 
                 {/* Plan Row - HIDDEN */}
+              </View>
+
+              {/* Card 1.5: Connected Accounts */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Connected accounts
+                </Text>
+
+                {isLoadingIdentities ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator color={theme.primary} />
+                    <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+                      Loading connected accounts...
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    {/* Display connected providers */}
+                    {identities.map((identity, index) => {
+                      const icon = getProviderIcon(identity.provider);
+                      return (
+                        <View
+                          key={identity.id}
+                          style={[
+                            styles.row,
+                            {
+                              borderBottomWidth: index === identities.length - 1 ? 0 : 1,
+                              borderBottomColor: 'rgba(0, 0, 0, 0.05)',
+                            },
+                          ]}
+                        >
+                          <View style={styles.rowLeft}>
+                            <IconSymbol
+                              ios_icon_name={icon.ios}
+                              android_material_icon_name={icon.android}
+                              size={20}
+                              color={theme.primary}
+                            />
+                            <View style={{ marginLeft: 12, flex: 1 }}>
+                              <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
+                                {getProviderDisplayName(identity.provider)}
+                              </Text>
+                              {identity.email && (
+                                <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
+                                  {identity.email}
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                          {identities.length > 1 && (
+                            <TouchableOpacity
+                              onPress={() => handleUnlinkIdentity(identity)}
+                              style={styles.unlinkButton}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={[styles.unlinkButtonText, { color: '#FF3B30' }]}>
+                                Unlink
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      );
+                    })}
+
+                    {/* Link Google Button */}
+                    {!isProviderLinked('google') && (
+                      <TouchableOpacity
+                        style={[
+                          styles.linkButton,
+                          { borderColor: theme.primary, marginTop: identities.length > 0 ? 12 : 0 },
+                        ]}
+                        onPress={handleLinkGoogle}
+                        disabled={isLinkingAccount}
+                        activeOpacity={0.7}
+                      >
+                        <IconSymbol
+                          ios_icon_name="g.circle.fill"
+                          android_material_icon_name="account_circle"
+                          size={20}
+                          color={theme.primary}
+                        />
+                        <Text style={[styles.linkButtonText, { color: theme.primary }]}>
+                          Link Google
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Link Apple Button (iOS only) */}
+                    {Platform.OS === 'ios' && !isProviderLinked('apple') && (
+                      <TouchableOpacity
+                        style={[
+                          styles.linkButton,
+                          { borderColor: theme.primary, marginTop: 8 },
+                        ]}
+                        onPress={handleLinkApple}
+                        disabled={isLinkingAccount}
+                        activeOpacity={0.7}
+                      >
+                        <IconSymbol
+                          ios_icon_name="apple.logo"
+                          android_material_icon_name="apple"
+                          size={20}
+                          color={theme.primary}
+                        />
+                        <Text style={[styles.linkButtonText, { color: theme.primary }]}>
+                          Link Apple
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {isLinkingAccount && (
+                      <View style={styles.linkingIndicator}>
+                        <ActivityIndicator color={theme.primary} size="small" />
+                        <Text style={[styles.linkingText, { color: theme.textSecondary }]}>
+                          Linking account...
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
               </View>
 
               {/* Card 2: Account information */}
@@ -1218,6 +1453,10 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginLeft: 16,
   },
+  rowSubtext: {
+    fontSize: 13,
+    marginTop: 2,
+  },
   label: {
     fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '500',
@@ -1237,6 +1476,47 @@ const styles = StyleSheet.create({
   pillText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  loadingText: {
+    fontSize: 14,
+    marginLeft: 12,
+  },
+  linkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    gap: 8,
+  },
+  linkButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  unlinkButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  unlinkButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  linkingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  linkingText: {
+    fontSize: 14,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -1378,10 +1658,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     borderWidth: 1,
-  },
-  rowSubtext: {
-    fontSize: 13,
-    marginTop: 2,
   },
   aiPrefsScrollView: {
     maxHeight: SCREEN_HEIGHT * 0.5,
