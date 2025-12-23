@@ -18,6 +18,12 @@ interface RequestBody {
   }[];
 }
 
+interface ContinuityData {
+  summary_update: string;
+  open_loops: string[];
+  next_question: string;
+}
+
 // Memory extraction system prompt
 const EXTRACTION_SYSTEM_PROMPT = `You are a memory extraction system. Your job is to extract ONLY stable, factual information explicitly stated by the user.
 
@@ -62,11 +68,17 @@ Return ONLY valid JSON in this exact format:
       "confidence": 4
     }
   ],
-  "mentioned_keys": ["occupation", "favorite_hobby"]
+  "mentioned_keys": ["occupation", "favorite_hobby"],
+  "continuity": {
+    "summary_update": "Brief summary of what was discussed",
+    "open_loops": ["unresolved topic 1", "unresolved topic 2"],
+    "next_question": "A relevant follow-up question"
+  }
 }
 
 - memories: Array of NEW facts to store (can be empty)
 - mentioned_keys: Array of existing memory keys that were mentioned in this conversation (for updating last_mentioned_at)
+- continuity: Conversation continuity data (summary, open loops, next question)
 - importance: 1-5 (how important this fact is)
 - confidence: 1-5 (how confident you are this is accurate)
 
@@ -84,7 +96,12 @@ Output:
       "confidence": 5
     }
   ],
-  "mentioned_keys": []
+  "mentioned_keys": [],
+  "continuity": {
+    "summary_update": "User shared that their mom loves gardening and has been doing it for 20 years",
+    "open_loops": [],
+    "next_question": "What does your mom like to grow in her garden?"
+  }
 }
 
 User: "He works at Google as a product manager"
@@ -99,7 +116,12 @@ Output:
       "confidence": 5
     }
   ],
-  "mentioned_keys": []
+  "mentioned_keys": [],
+  "continuity": {
+    "summary_update": "User mentioned he works at Google as a product manager",
+    "open_loops": [],
+    "next_question": "How long has he been working at Google?"
+  }
 }
 
 User: "She passed away last year"
@@ -121,14 +143,24 @@ Output:
       "confidence": 5
     }
   ],
-  "mentioned_keys": []
+  "mentioned_keys": [],
+  "continuity": {
+    "summary_update": "User shared that she passed away last year",
+    "open_loops": ["grief processing", "memories of her"],
+    "next_question": "Would you like to share a favorite memory of her?"
+  }
 }
 
 User: "I'm so angry at him right now"
 Output:
 {
   "memories": [],
-  "mentioned_keys": []
+  "mentioned_keys": [],
+  "continuity": {
+    "summary_update": "User expressed current anger",
+    "open_loops": ["source of anger"],
+    "next_question": "What happened that made you feel this way?"
+  }
 }
 (Emotions are NOT stored)
 
@@ -136,7 +168,12 @@ User: "We talked about his job today"
 Output:
 {
   "memories": [],
-  "mentioned_keys": ["occupation"]
+  "mentioned_keys": ["occupation"],
+  "continuity": {
+    "summary_update": "User mentioned discussing his job",
+    "open_loops": [],
+    "next_question": "How is his job going?"
+  }
 }
 (No new facts, but "occupation" was mentioned)`;
 
@@ -144,12 +181,14 @@ Output:
 function createSafeResponse(
   memories: any[] = [],
   mentioned_keys: any[] = [],
+  continuity: ContinuityData = { summary_update: '', open_loops: [], next_question: '' },
   error: string | null = null
 ) {
   return new Response(
     JSON.stringify({
       memories,
       mentioned_keys,
+      continuity,
       error,
     }),
     {
@@ -184,7 +223,7 @@ serve(async (req) => {
       requestBody = await req.json();
     } catch (jsonError) {
       console.error('❌ Failed to parse request JSON:', jsonError);
-      return createSafeResponse([], [], 'invalid_json_request');
+      return createSafeResponse([], [], undefined, 'invalid_json_request');
     }
 
     const {
@@ -203,23 +242,23 @@ serve(async (req) => {
     // Validate required inputs defensively
     if (!personName || typeof personName !== 'string') {
       console.error('❌ Invalid or missing personName');
-      return createSafeResponse([], [], 'invalid_input_person_name');
+      return createSafeResponse([], [], undefined, 'bad_input');
     }
 
     if (!Array.isArray(recentUserMessages) || recentUserMessages.length === 0) {
       console.error('❌ Invalid or empty recentUserMessages');
-      return createSafeResponse([], [], 'invalid_input_messages');
+      return createSafeResponse([], [], undefined, 'bad_input');
     }
 
     if (!Array.isArray(existingMemories)) {
       console.error('❌ Invalid existingMemories (not an array)');
-      return createSafeResponse([], [], 'invalid_input_existing_memories');
+      return createSafeResponse([], [], undefined, 'bad_input');
     }
 
     // Validate OpenAI API key
     if (!OPENAI_API_KEY) {
       console.error('❌ OPENAI_API_KEY is not set in environment variables');
-      return createSafeResponse([], [], 'missing_openai_key');
+      return createSafeResponse([], [], undefined, 'missing_openai_key');
     }
 
     // Build the extraction prompt
@@ -266,7 +305,7 @@ Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
       });
     } catch (fetchError) {
       console.error('❌ OpenAI fetch failed:', fetchError);
-      return createSafeResponse([], [], 'openai_fetch_failed');
+      return createSafeResponse([], [], undefined, 'openai_error');
     }
 
     // Handle non-OK OpenAI response
@@ -278,7 +317,7 @@ Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
         console.error('Could not read error response:', e);
       }
       console.error('❌ OpenAI API error:', errorData);
-      return createSafeResponse([], [], `openai_api_error_${response.status}`);
+      return createSafeResponse([], [], undefined, 'openai_error');
     }
 
     // Parse OpenAI response
@@ -287,14 +326,14 @@ Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
       data = await response.json();
     } catch (parseError) {
       console.error('❌ Failed to parse OpenAI response JSON:', parseError);
-      return createSafeResponse([], [], 'openai_response_parse_failed');
+      return createSafeResponse([], [], undefined, 'openai_error');
     }
 
     const jsonString = data.choices?.[0]?.message?.content;
 
     if (!jsonString) {
       console.log('⚠️ No content in OpenAI response');
-      return createSafeResponse([], [], null);
+      return createSafeResponse([], [], undefined, null);
     }
 
     // Parse and validate the extraction result
@@ -303,32 +342,36 @@ Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
       result = JSON.parse(jsonString);
     } catch (parseError) {
       console.error('❌ JSON parsing failed for extraction result:', parseError);
-      return createSafeResponse([], [], 'json_parse_failed');
+      return createSafeResponse([], [], undefined, 'openai_error');
     }
 
-    // Validate structure
+    // Validate structure and provide defaults
     if (!result || typeof result !== 'object') {
       console.error('❌ Invalid result: not an object');
-      return createSafeResponse([], [], 'invalid_result_structure');
+      return createSafeResponse([], [], undefined, 'openai_error');
     }
 
-    if (!Array.isArray(result.memories)) {
-      console.error('❌ Invalid result: memories is not an array');
-      return createSafeResponse([], [], 'invalid_memories_array');
-    }
-
-    if (!Array.isArray(result.mentioned_keys)) {
-      console.error('❌ Invalid result: mentioned_keys is not an array');
-      return createSafeResponse([], [], 'invalid_mentioned_keys_array');
-    }
+    // Ensure memories is an array
+    const memories = Array.isArray(result.memories) ? result.memories : [];
+    
+    // Ensure mentioned_keys is an array
+    const mentioned_keys = Array.isArray(result.mentioned_keys) ? result.mentioned_keys : [];
+    
+    // Ensure continuity has the correct shape
+    const continuity: ContinuityData = {
+      summary_update: result.continuity?.summary_update || '',
+      open_loops: Array.isArray(result.continuity?.open_loops) ? result.continuity.open_loops : [],
+      next_question: result.continuity?.next_question || '',
+    };
 
     console.log('✅ Memory extraction complete:', {
-      memoriesCount: result.memories.length,
-      mentionedKeysCount: result.mentioned_keys.length,
+      memoriesCount: memories.length,
+      mentionedKeysCount: mentioned_keys.length,
+      hasContinuity: !!continuity.summary_update,
     });
 
     // Success - return the extracted memories
-    return createSafeResponse(result.memories, result.mentioned_keys, null);
+    return createSafeResponse(memories, mentioned_keys, continuity, null);
 
   } catch (error) {
     // Catch-all error handler - NEVER let this function crash
@@ -342,6 +385,6 @@ Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
       console.error('Could not stringify error:', e);
     }
 
-    return createSafeResponse([], [], errorMessage);
+    return createSafeResponse([], [], undefined, errorMessage);
   }
 });
