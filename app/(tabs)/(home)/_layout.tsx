@@ -43,6 +43,16 @@ export default function HomeLayout() {
           animation: 'slide_from_right',
         }}
       />
+      <Stack.Screen
+        name="memories"
+        options={{
+          headerShown: false,
+          title: 'Memories',
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+          animation: 'slide_from_right',
+        }}
+      />
     </Stack>
   );
 }
