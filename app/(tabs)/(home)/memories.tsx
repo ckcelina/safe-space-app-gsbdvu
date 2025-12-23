@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +23,7 @@ import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
+import { getPersonContinuity, setContinuityEnabled } from '@/lib/memory/personContinuity';
 
 interface PersonMemory {
   id: string;
@@ -205,6 +207,10 @@ export default function MemoriesScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Conversation Continuity toggle state
+  const [continuityEnabled, setContinuityEnabledState] = useState(true);
+  const [continuityLoading, setContinuityLoading] = useState(false);
+
   // Edit modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingMemory, setEditingMemory] = useState<PersonMemory | null>(null);
@@ -219,6 +225,61 @@ export default function MemoriesScreen() {
       isMountedRef.current = false;
     };
   }, []);
+
+  // Fetch continuity setting
+  const fetchContinuitySetting = useCallback(async () => {
+    if (!personId || !currentUser?.id) {
+      return;
+    }
+
+    try {
+      console.log('[Memories] Fetching continuity setting for person:', personId);
+      const continuityData = await getPersonContinuity(currentUser.id, personId);
+      
+      if (isMountedRef.current) {
+        setContinuityEnabledState(continuityData.continuity_enabled);
+        console.log('[Memories] Continuity enabled:', continuityData.continuity_enabled);
+      }
+    } catch (err) {
+      console.error('[Memories] Error fetching continuity setting:', err);
+      // Fail silently - default to enabled
+    }
+  }, [personId, currentUser?.id]);
+
+  // Handle continuity toggle change
+  const handleContinuityToggle = useCallback(async (value: boolean) => {
+    if (!personId || !currentUser?.id) {
+      return;
+    }
+
+    console.log('[Memories] Toggling continuity to:', value);
+    setContinuityLoading(true);
+
+    try {
+      // Optimistically update UI
+      setContinuityEnabledState(value);
+
+      // Update in database
+      await setContinuityEnabled(currentUser.id, personId, value);
+      
+      console.log('[Memories] Continuity setting updated successfully');
+      showSuccessToast(
+        value 
+          ? 'Conversation continuity enabled' 
+          : 'Conversation continuity disabled'
+      );
+    } catch (err) {
+      console.error('[Memories] Error updating continuity setting:', err);
+      
+      // Revert on error
+      setContinuityEnabledState(!value);
+      showErrorToast('Failed to update setting');
+    } finally {
+      if (isMountedRef.current) {
+        setContinuityLoading(false);
+      }
+    }
+  }, [personId, currentUser?.id]);
 
   // Fetch memories
   const fetchMemories = useCallback(async () => {
@@ -271,7 +332,8 @@ export default function MemoriesScreen() {
 
   useEffect(() => {
     fetchMemories();
-  }, [fetchMemories]);
+    fetchContinuitySetting();
+  }, [fetchMemories, fetchContinuitySetting]);
 
   // Handle back press
   const handleBackPress = useCallback(() => {
@@ -501,6 +563,57 @@ export default function MemoriesScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
+          {/* Conversation Continuity Toggle Section */}
+          <View style={[
+            styles.continuitySection,
+            {
+              backgroundColor: theme.card,
+              ...Platform.select({
+                ios: {
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                },
+                android: {
+                  elevation: 3,
+                },
+                web: {
+                  boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+                },
+              }),
+            }
+          ]}>
+            <View style={styles.continuityHeader}>
+              <View style={styles.continuityTitleRow}>
+                <IconSymbol
+                  ios_icon_name="arrow.triangle.2.circlepath"
+                  android_material_icon_name="sync"
+                  size={24}
+                  color={theme.primary}
+                  style={styles.continuityIcon}
+                />
+                <Text style={[styles.continuityTitle, { color: theme.textPrimary }]}>
+                  Continue conversations automatically
+                </Text>
+              </View>
+              <Switch
+                value={continuityEnabled}
+                onValueChange={handleContinuityToggle}
+                disabled={continuityLoading}
+                trackColor={{ 
+                  false: theme.textSecondary + '40', 
+                  true: theme.primary + '80' 
+                }}
+                thumbColor={continuityEnabled ? theme.primary : '#f4f3f4'}
+                ios_backgroundColor={theme.textSecondary + '40'}
+              />
+            </View>
+            <Text style={[styles.continuityHelper, { color: theme.textSecondary }]}>
+              Stores where you left off with this person/topic (goal, open loops, next question).
+            </Text>
+          </View>
+
           {memories.length === 0 && !loading ? (
             <View style={styles.emptyState}>
               <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
@@ -777,6 +890,37 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: '5%',
     paddingTop: 24,
+  },
+  continuitySection: {
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 24,
+  },
+  continuityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  continuityTitleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  continuityIcon: {
+    marginRight: 10,
+  },
+  continuityTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    flex: 1,
+  },
+  continuityHelper: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '400',
   },
   emptyState: {
     flex: 1,
