@@ -161,7 +161,38 @@ function getRandomPsychologyFact(): string {
   return PSYCHOLOGY_FACTS[Math.floor(Math.random() * PSYCHOLOGY_FACTS.length)];
 }
 
-// Fetch person chat summary from Supabase
+// Fetch person continuity data (summary, open loops, next question) from Supabase
+async function getPersonContinuity(
+  supabase: any,
+  userId: string,
+  personId: string
+): Promise<{ summary: string; open_loops: string[]; next_question: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('person_chat_summaries')
+      .select('summary, open_loops, next_question')
+      .eq('user_id', userId)
+      .eq('person_id', personId)
+      .single();
+
+    if (error) {
+      console.log('[Edge] Error fetching person continuity:', error.message);
+      return { summary: '', open_loops: [], next_question: '' };
+    }
+
+    // Safely parse and validate the data
+    const summary = data?.summary || '';
+    const open_loops = Array.isArray(data?.open_loops) ? data.open_loops : [];
+    const next_question = data?.next_question || '';
+
+    return { summary, open_loops, next_question };
+  } catch (err) {
+    console.log('[Edge] Exception in getPersonContinuity:', err);
+    return { summary: '', open_loops: [], next_question: '' };
+  }
+}
+
+// Fetch person chat summary from Supabase (deprecated - use getPersonContinuity)
 async function getPersonSummary(
   supabase: any,
   userId: string,
@@ -431,11 +462,29 @@ async function buildSystemPrompt(
   // ORDER 3: "You are chatting about: {personName}"
   basePrompt += `\n\nYou're talking about ${personName} (${relationshipType}).`;
 
-  // ORDER 4: "Conversation summary so far: {summary}" (if exists)
-  // FETCH SUMMARY HERE
-  const summary = await getPersonSummary(supabase, userId, personId);
-  if (summary && summary.trim()) {
-    basePrompt += `\n\nConversation summary so far:\n${summary}`;
+  // ORDER 4: CONVERSATION CONTINUITY - Fetch and inject continuity data
+  const continuity = await getPersonContinuity(supabase, userId, personId);
+  
+  if (continuity.summary && continuity.summary.trim()) {
+    basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONVERSATION CONTINUITY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Summary of recent conversations:
+${continuity.summary}`;
+
+    if (continuity.open_loops.length > 0) {
+      basePrompt += `\n\nOpen loops (unresolved topics/questions):`;
+      continuity.open_loops.forEach((loop, index) => {
+        basePrompt += `\n${index + 1}. ${loop}`;
+      });
+    }
+
+    if (continuity.next_question && continuity.next_question.trim()) {
+      basePrompt += `\n\nSuggested follow-up: ${continuity.next_question}`;
+    }
+
+    basePrompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
   }
 
   // Inject subject into AI prompt
@@ -451,6 +500,12 @@ async function buildSystemPrompt(
     memories.forEach((memory: any) => {
       basePrompt += `\n- ${memory.key}: ${memory.value}`;
     });
+    
+    // Check if person is deceased for grief-aware continuity
+    const isDeceased = memories.some((m: any) => m.key === 'is_deceased' && m.value === 'true');
+    if (isDeceased) {
+      basePrompt += `\n\n⚠️ GRIEF-AWARE MODE: This person is deceased. Be especially gentle, compassionate, and trauma-informed. Focus on supporting the user's grief process and honoring their memories.`;
+    }
   }
 
   // Core response rules (always apply)
@@ -500,7 +555,7 @@ Example: "That's a great question! Did you know that expressing gratitude regula
 - Be trauma-informed and non-judgmental
 - If someone mentions self-harm or crisis, prioritize safety and provide crisis resources
 - Keep all responses warm, human, and conversational
-- ONLY use information from the conversation summary and known memories above - do not invent or assume facts`;
+- ONLY use information from the conversation continuity, summary, and known memories above - do not invent or assume facts`;
 
   // DEV-ONLY: Add tone signature request to system prompt
   if (IS_DEV && aiToneId) {
@@ -616,7 +671,7 @@ serve(async (req) => {
     .filter((msg: any) => msg.role === "user")
     .pop()?.content || "";
 
-  // Build dynamic system prompt based on context (including summary and memories)
+  // Build dynamic system prompt based on context (including continuity, summary, and memories)
   const systemPrompt = await buildSystemPrompt(
     supabase,
     userId,
