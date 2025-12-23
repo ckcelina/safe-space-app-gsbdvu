@@ -30,5 +30,7 @@ export interface User {
   email?: string;
   username?: string;
   role: 'free' | 'premium' | 'admin';
+  ai_tone_id?: string;
+  ai_science_mode?: boolean;
   created_at: string;
 }

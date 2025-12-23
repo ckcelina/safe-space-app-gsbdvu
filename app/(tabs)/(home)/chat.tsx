@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
+import { useUserPreferences } from '@/contexts/UserPreferencesContext';
 import { supabase } from '@/lib/supabase';
 import { Message } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -144,6 +145,7 @@ export default function ChatScreen() {
 
   const { currentUser: authUser, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
+  const { preferences } = useUserPreferences();
 
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -456,6 +458,8 @@ export default function ChatScreen() {
             personRelationshipType: relationshipType || 'Unknown',
             messages: recentMessages,
             currentSubject: currentSubject,
+            aiToneId: preferences.ai_tone_id,
+            aiScienceMode: preferences.ai_science_mode,
           },
         }
       );

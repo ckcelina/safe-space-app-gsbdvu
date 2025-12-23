@@ -20,6 +20,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider as AppThemeProvider, useThemeContext } from "@/contexts/ThemeContext";
+import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 SplashScreen.preventAutoHideAsync();
@@ -134,6 +135,14 @@ function RootLayoutInner() {
                 }}
               />
               <Stack.Screen
+                name="ai-preferences-onboarding"
+                options={{
+                  headerShown: false,
+                  gestureEnabled: false,
+                  animation: "slide_from_right",
+                }}
+              />
+              <Stack.Screen
                 name="login"
                 options={{
                   headerShown: false,
@@ -233,9 +242,11 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AppThemeProvider>
           <AuthProvider>
-            <WidgetProvider>
-              <RootLayoutInner />
-            </WidgetProvider>
+            <UserPreferencesProvider>
+              <WidgetProvider>
+                <RootLayoutInner />
+              </WidgetProvider>
+            </UserPreferencesProvider>
           </AuthProvider>
         </AppThemeProvider>
       </SafeAreaProvider>

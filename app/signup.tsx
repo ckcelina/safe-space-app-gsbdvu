@@ -100,7 +100,7 @@ export default function SignupScreen() {
         // Don't block the user
       }
 
-      // Step 3: Show success message
+      // Step 3: Show success message and navigate to AI preferences
       Alert.alert(
         'Account Created!',
         'Please check your email to verify your account. You can still use the app while waiting for verification.',
@@ -108,8 +108,8 @@ export default function SignupScreen() {
           {
             text: 'OK',
             onPress: () => {
-              console.log('Navigating to home screen');
-              router.replace('/(tabs)/(home)');
+              console.log('Navigating to AI preferences onboarding');
+              router.replace('/ai-preferences-onboarding');
             },
           },
         ]
