@@ -2,7 +2,7 @@
   "expo": {
     "name": "Safe Space",
     "slug": "Safe Space",
-    "version": "1.0.0",
+    "version": "1.0.11",
     "orientation": "portrait",
     "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
     "userInterfaceStyle": "automatic",
