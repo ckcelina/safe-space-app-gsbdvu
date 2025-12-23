@@ -1,496 +1,394 @@
 
-# Conversation Continuity - Troubleshooting Guide
+# Conversation Continuity Memory - Troubleshooting Guide
 
-## Common Issues & Solutions
+## Common Issues
 
-### 1. AI Doesn't Remember Previous Conversations
+### 1. AI Doesn't Remember Previous Conversation
 
-**Symptoms:**
-- AI acts like it's the first conversation
-- No context from previous chats
-- Doesn't follow up on unresolved topics
+**Symptoms**:
+- AI greets you as if it's the first time
+- No reference to previous topics
+- Doesn't ask follow-up questions
 
-**Diagnosis:**
-```sql
--- Check if continuity exists
-SELECT * FROM person_chat_summaries 
-WHERE user_id = 'your-user-id' 
-AND person_id = 'your-person-id';
-```
+**Diagnosis Steps**:
 
-**Possible Causes:**
-
-#### A. Continuity Not Being Written
-**Check:** Look for logs in chat.tsx
-```
-[Chat] Updating conversation continuity...
-[Chat] Continuity updated successfully
-```
-
-**Solution:** Verify memory extraction is running:
-```typescript
-// In chat.tsx, after AI reply
-const extractionResult = await extractMemories({...});
-if (extractionResult.continuity) {
-  await upsertPersonContinuity(userId, personId, extractionResult.continuity);
-}
-```
-
-#### B. Edge Function Not Fetching Continuity
-**Check:** Look for logs in Edge Function
-```
-[Edge] Error fetching person continuity: ...
-```
-
-**Solution:** Verify database connection and RLS policies:
-```sql
--- Check RLS policies
-SELECT * FROM pg_policies 
-WHERE tablename = 'person_chat_summaries';
-```
-
-#### C. Empty Continuity Data
-**Check:** Database has empty values
-```sql
-SELECT summary, open_loops, next_question 
-FROM person_chat_summaries 
-WHERE user_id = 'your-user-id';
-```
-
-**Solution:** Have a longer conversation to build up continuity
-
----
-
-### 2. Memory Extraction Failing Silently
-
-**Symptoms:**
-- No continuity updates
-- No new memories being stored
-- No errors visible to user
-
-**Diagnosis:**
-```typescript
-// Check browser console for debug logs
-// Look for: [Memory Extraction] ...
-```
-
-**Possible Causes:**
-
-#### A. OpenAI API Key Missing
-**Check:** Edge Function environment variables
-```bash
-# In Supabase dashboard, check Edge Function secrets
-OPENAI_API_KEY=sk-...
-```
-
-**Solution:** Add/update OPENAI_API_KEY in Supabase dashboard
-
-#### B. Edge Function Returning Error
-**Check:** Edge Function logs
-```
-[Memory Extraction] Edge Function returned error (silent): ...
-```
-
-**Solution:** Check `extract-memories` function logs in Supabase dashboard
-
-#### C. Invalid Response Format
-**Check:** Console logs for validation errors
-```
-[Memory Extraction] Invalid response type (silent)
-```
-
-**Solution:** Verify Edge Function is returning correct format:
-```typescript
-{
-  memories: [],
-  mentioned_keys: [],
-  continuity: {
-    summary_update: "",
-    open_loops: [],
-    next_question: ""
-  },
-  error: null
-}
-```
-
----
-
-### 3. Open Loops Keep Growing
-
-**Symptoms:**
-- Open loops array has more than 8 items
-- Old loops never get removed
-- Database shows large open_loops array
-
-**Diagnosis:**
+1. **Check if continuity data exists**:
 ```sql
 SELECT 
-  person_id,
-  jsonb_array_length(open_loops) as loop_count,
-  open_loops
-FROM person_chat_summaries
-WHERE user_id = 'your-user-id';
-```
-
-**Solution:**
-The merge logic should automatically limit to 8:
-```typescript
-// In personSummary.ts
-const mergedLoops = Array.from(
-  new Set([...existing.open_loops, ...continuityUpdate.open_loops])
-).slice(0, 8);
-```
-
-**Manual Fix:**
-```sql
--- Manually trim to 8 loops
-UPDATE person_chat_summaries
-SET open_loops = (
-  SELECT jsonb_agg(value)
-  FROM (
-    SELECT value 
-    FROM jsonb_array_elements(open_loops)
-    LIMIT 8
-  ) sub
-)
-WHERE user_id = 'your-user-id';
-```
-
----
-
-### 4. Summary Too Long or Too Short
-
-**Symptoms:**
-- Summary is multiple paragraphs (too long)
-- Summary is empty or one word (too short)
-
-**Diagnosis:**
-```sql
-SELECT 
-  person_id,
-  length(summary) as summary_length,
-  summary
-FROM person_chat_summaries
-WHERE user_id = 'your-user-id';
-```
-
-**Solution:**
-The extraction prompt instructs OpenAI to keep summaries compact (5-8 bullets).
-If this isn't working:
-
-1. Check extraction prompt in `extract-memories/index.ts`
-2. Verify OpenAI is using correct model (gpt-3.5-turbo)
-3. Consider adjusting temperature (currently 0.1)
-
-**Manual Fix:**
-```sql
--- Clear overly long summary
-UPDATE person_chat_summaries
-SET summary = ''
-WHERE user_id = 'your-user-id'
-AND length(summary) > 1000;
-```
-
----
-
-### 5. Grief-Aware Mode Not Activating
-
-**Symptoms:**
-- Person is deceased but AI tone is normal
-- No grief-aware prompt injection
-- Missing compassionate language
-
-**Diagnosis:**
-```sql
--- Check if is_deceased memory exists
-SELECT * FROM person_memories
-WHERE user_id = 'your-user-id'
-AND person_id = 'your-person-id'
-AND key = 'is_deceased';
-```
-
-**Solution:**
-Ensure the memory exists:
-```sql
--- Manually add is_deceased memory if needed
-INSERT INTO person_memories (
-  user_id, person_id, category, key, value, importance, confidence
-) VALUES (
-  'your-user-id', 
-  'your-person-id', 
-  'loss_grief', 
-  'is_deceased', 
-  'true', 
-  5, 
-  5
-);
-```
-
-**Verify in Edge Function:**
-```typescript
-// In generate-ai-response/index.ts
-const isDeceased = memories.some((m: any) => 
-  m.key === 'is_deceased' && m.value === 'true'
-);
-if (isDeceased) {
-  basePrompt += `\n\n⚠️ GRIEF-AWARE MODE: ...`;
-}
-```
-
----
-
-### 6. Continuity Not Updating After Conversations
-
-**Symptoms:**
-- `updated_at` timestamp is old
-- Summary doesn't reflect recent conversations
-- Open loops are stale
-
-**Diagnosis:**
-```sql
-SELECT 
-  person_id,
   summary,
-  updated_at,
-  NOW() - updated_at as age
+  open_loops,
+  current_goal,
+  last_advice,
+  next_question,
+  updated_at
 FROM person_chat_summaries
-WHERE user_id = 'your-user-id'
-ORDER BY updated_at DESC;
+WHERE user_id = 'YOUR_USER_ID'
+  AND person_id = 'YOUR_PERSON_ID';
 ```
 
-**Possible Causes:**
-
-#### A. Memory Extraction Not Running
-**Check:** Console logs after sending message
-```
-[Chat] Triggering memory extraction and continuity update...
-[Chat] Memory extraction complete
-[Chat] Updating conversation continuity...
+2. **Check extraction logs**:
+```javascript
+// In app, look for console logs:
+[Memory Extraction] Starting extraction...
+[Memory Extraction] Continuity extracted
 ```
 
-**Solution:** Verify extraction is called in chat.tsx after AI reply
+3. **Check Edge Function logs**:
+- Go to Supabase Dashboard → Edge Functions → extract-memories
+- Look for recent invocations
+- Check for errors
 
-#### B. Upsert Failing Silently
-**Check:** Console debug logs
-```
-[PersonSummary] Error upserting continuity: ...
-```
+**Solutions**:
 
-**Solution:** Check database permissions and RLS policies
+- **No data in database**: Extraction may be failing. Check OpenAI API key.
+- **Data exists but AI doesn't use it**: Check `generate-ai-response` function is fetching continuity.
+- **Extraction logs show errors**: Check OpenAI API key and quota.
 
-#### C. Trigger Not Firing
-**Check:** Database trigger exists
-```sql
-SELECT * FROM pg_trigger 
-WHERE tgname = 'update_person_chat_summaries_updated_at';
-```
+### 2. Extraction Failing Silently
 
-**Solution:** Recreate trigger if missing:
-```sql
-CREATE OR REPLACE FUNCTION public.update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+**Symptoms**:
+- No continuity data in database
+- Console shows `[Memory Extraction] Invoke failed silently`
+- Chat works but no memory
 
-CREATE TRIGGER update_person_chat_summaries_updated_at
-    BEFORE UPDATE ON public.person_chat_summaries
-    FOR EACH ROW
-    EXECUTE FUNCTION public.update_updated_at_column();
-```
+**Diagnosis Steps**:
 
----
-
-### 7. Database Performance Issues
-
-**Symptoms:**
-- Slow continuity fetches
-- Timeouts on upserts
-- High database load
-
-**Diagnosis:**
-```sql
--- Check table size
-SELECT 
-  pg_size_pretty(pg_total_relation_size('person_chat_summaries')) as total_size,
-  COUNT(*) as row_count
-FROM person_chat_summaries;
-
--- Check for missing indexes
-SELECT * FROM pg_indexes 
-WHERE tablename = 'person_chat_summaries';
-```
-
-**Solution:**
-Add indexes if missing:
-```sql
-CREATE INDEX IF NOT EXISTS person_chat_summaries_user_id_person_id_idx 
-ON person_chat_summaries (user_id, person_id);
-
-CREATE INDEX IF NOT EXISTS person_chat_summaries_updated_at_idx 
-ON person_chat_summaries (updated_at);
-```
-
-**Cleanup old data:**
-```sql
--- Delete continuity older than 90 days
-DELETE FROM person_chat_summaries 
-WHERE updated_at < NOW() - INTERVAL '90 days';
-```
-
----
-
-### 8. RLS Policy Issues
-
-**Symptoms:**
-- "permission denied" errors
-- Can't read/write continuity
-- Works in Supabase dashboard but not in app
-
-**Diagnosis:**
-```sql
--- Check RLS policies
-SELECT * FROM pg_policies 
-WHERE tablename = 'person_chat_summaries';
-
--- Test policy
-SET ROLE authenticated;
-SET request.jwt.claims.sub = 'your-user-id';
-SELECT * FROM person_chat_summaries;
-```
-
-**Solution:**
-Recreate RLS policies:
-```sql
--- Drop existing policies
-DROP POLICY IF EXISTS "Enable read access for users based on user_id" 
-ON person_chat_summaries;
-DROP POLICY IF EXISTS "Enable insert access for users based on user_id" 
-ON person_chat_summaries;
-DROP POLICY IF EXISTS "Enable update access for users based on user_id" 
-ON person_chat_summaries;
-DROP POLICY IF EXISTS "Enable delete access for users based on user_id" 
-ON person_chat_summaries;
-
--- Recreate policies
-CREATE POLICY "Enable read access for users based on user_id" 
-ON person_chat_summaries FOR SELECT 
-USING (user_id = auth.uid());
-
-CREATE POLICY "Enable insert access for users based on user_id" 
-ON person_chat_summaries FOR INSERT 
-WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "Enable update access for users based on user_id" 
-ON person_chat_summaries FOR UPDATE 
-USING (user_id = auth.uid()) 
-WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "Enable delete access for users based on user_id" 
-ON person_chat_summaries FOR DELETE 
-USING (user_id = auth.uid());
-```
-
----
-
-## Debugging Tools
-
-### 1. Check Continuity Status
-```sql
-SELECT 
-  p.name as person_name,
-  pcs.summary,
-  jsonb_array_length(pcs.open_loops) as loop_count,
-  pcs.next_question,
-  pcs.updated_at,
-  NOW() - pcs.updated_at as age
-FROM person_chat_summaries pcs
-JOIN persons p ON p.id = pcs.person_id
-WHERE pcs.user_id = 'your-user-id'
-ORDER BY pcs.updated_at DESC;
-```
-
-### 2. View Recent Memory Extractions
-```typescript
-// In browser console after sending message
-// Look for these logs:
-[Chat] Triggering memory extraction and continuity update...
-[Memory Extraction] Starting extraction for person: ...
-[Memory Extraction] Parsed result: { memoriesCount: X, ... }
-[Chat] Updating conversation continuity...
-[PersonSummary] Continuity updated successfully
-```
-
-### 3. Test Edge Function Directly
+1. **Check OpenAI API key**:
 ```bash
-# Using curl
-curl -X POST https://your-project.supabase.co/functions/v1/extract-memories \
+# In Supabase Dashboard → Project Settings → Edge Functions
+# Verify OPENAI_API_KEY is set
+```
+
+2. **Test Edge Function directly**:
+```bash
+curl -X POST https://YOUR_PROJECT.supabase.co/functions/v1/extract-memories \
   -H "Authorization: Bearer YOUR_ANON_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "personName": "Test Person",
-    "recentUserMessages": ["I talked to him about work today"],
-    "lastAssistantMessage": "How did that conversation go?",
+    "personName": "Test",
+    "recentUserMessages": ["Hello", "How are you?"],
     "existingMemories": []
   }'
 ```
 
-### 4. Monitor Edge Function Logs
-```bash
-# In Supabase dashboard:
-# Edge Functions → generate-ai-response → Logs
-# Look for:
-[Edge] Error fetching person continuity: ...
-[Edge] Exception in getPersonContinuity: ...
+3. **Check response**:
+```json
+{
+  "error": "missing_openai_key",  // ← Problem!
+  "debug": {
+    "missing_env": true,
+    "reason": "OPENAI_API_KEY not set"
+  }
+}
 ```
 
----
+**Solutions**:
 
-## Emergency Fixes
+- **Missing API key**: Set in Supabase Dashboard → Edge Functions → Secrets
+- **Invalid API key**: Verify key is correct and has quota
+- **Network issues**: Check Supabase status page
 
-### Reset All Continuity for a User
+### 3. Open Loops Growing Too Large
+
+**Symptoms**:
+- `open_loops` array has many items
+- AI prompt getting too long
+- Extraction taking longer
+
+**Diagnosis**:
+
 ```sql
-DELETE FROM person_chat_summaries 
-WHERE user_id = 'your-user-id';
+SELECT 
+  jsonb_array_length(open_loops) as loop_count,
+  open_loops
+FROM person_chat_summaries
+WHERE user_id = 'YOUR_USER_ID'
+ORDER BY loop_count DESC
+LIMIT 10;
 ```
 
-### Reset Continuity for One Person
-```sql
-DELETE FROM person_chat_summaries 
-WHERE user_id = 'your-user-id' 
-AND person_id = 'your-person-id';
+**Solutions**:
+
+1. **Reduce max loops** (currently 8):
+```typescript
+// In lib/memory/personSummary.ts
+const mergedLoops = Array.from(
+  new Set([...existing.open_loops, ...continuityUpdate.open_loops])
+).slice(0, 6); // Reduce from 8 to 6
 ```
 
-### Clear Only Open Loops
+2. **Clear old loops manually**:
 ```sql
 UPDATE person_chat_summaries
 SET open_loops = '[]'::jsonb
-WHERE user_id = 'your-user-id';
+WHERE user_id = 'YOUR_USER_ID'
+  AND person_id = 'YOUR_PERSON_ID';
 ```
 
-### Clear Only Summary
+### 4. AI Ignoring Continuity Instructions
+
+**Symptoms**:
+- Continuity data exists
+- AI doesn't reference it
+- Starts fresh each time
+
+**Diagnosis**:
+
+1. **Check prompt injection**:
+```typescript
+// In generate-ai-response/index.ts
+// Verify continuity section is being added to system prompt
+console.log('Continuity:', continuity);
+```
+
+2. **Check continuity data quality**:
 ```sql
-UPDATE person_chat_summaries
-SET summary = ''
-WHERE user_id = 'your-user-id';
+SELECT 
+  summary,
+  next_question
+FROM person_chat_summaries
+WHERE user_id = 'YOUR_USER_ID'
+  AND person_id = 'YOUR_PERSON_ID';
 ```
 
----
+**Solutions**:
+
+- **Empty fields**: Extraction may not be working. Check logs.
+- **Prompt too long**: OpenAI may be truncating. Reduce max_tokens or shorten other sections.
+- **Tone overriding continuity**: Adjust prompt order in `buildSystemPrompt()`.
+
+### 5. Continuity Data Not Updating
+
+**Symptoms**:
+- Old continuity data persists
+- New conversations don't update summary
+- `updated_at` timestamp is old
+
+**Diagnosis**:
+
+1. **Check upsert calls**:
+```typescript
+// In chat.tsx, look for:
+[PersonSummary] Continuity updated successfully
+```
+
+2. **Check database permissions**:
+```sql
+-- Verify RLS policies allow updates
+SELECT * FROM pg_policies 
+WHERE tablename = 'person_chat_summaries';
+```
+
+**Solutions**:
+
+- **No update logs**: `upsertPersonContinuity()` may be failing silently. Check console.debug logs.
+- **RLS blocking**: Verify user has update permission on their own rows.
+- **Extraction not running**: Check if `extractMemories()` is being called in chat.tsx.
+
+### 6. Performance Issues
+
+**Symptoms**:
+- Chat feels slow after sending message
+- Long delay before AI response
+- High OpenAI costs
+
+**Diagnosis**:
+
+1. **Check extraction timing**:
+```typescript
+// Add timing logs in extractMemories.ts
+const start = Date.now();
+// ... extraction code ...
+console.log(`Extraction took ${Date.now() - start}ms`);
+```
+
+2. **Check OpenAI usage**:
+- Go to OpenAI Dashboard → Usage
+- Look for high token counts
+
+**Solutions**:
+
+- **Extraction blocking chat**: Ensure it's fire-and-forget (already implemented).
+- **Too many messages sent to OpenAI**: Reduce `recentUserMessages` slice in chat.tsx.
+- **High costs**: Consider extracting less frequently (e.g., every 3 messages instead of every message).
+
+### 7. Continuity Data Corrupted
+
+**Symptoms**:
+- `open_loops` is not an array
+- Fields have wrong types
+- Database errors
+
+**Diagnosis**:
+
+```sql
+-- Check data types
+SELECT 
+  pg_typeof(open_loops) as loops_type,
+  pg_typeof(summary) as summary_type,
+  open_loops,
+  summary
+FROM person_chat_summaries
+WHERE user_id = 'YOUR_USER_ID'
+LIMIT 5;
+```
+
+**Solutions**:
+
+1. **Fix corrupted data**:
+```sql
+-- Reset to safe defaults
+UPDATE person_chat_summaries
+SET 
+  open_loops = '[]'::jsonb,
+  summary = '',
+  current_goal = '',
+  last_advice = '',
+  next_question = ''
+WHERE user_id = 'YOUR_USER_ID'
+  AND person_id = 'YOUR_PERSON_ID';
+```
+
+2. **Prevent future corruption**:
+- Ensure validation in `upsertPersonContinuity()`
+- Check Edge Function response validation
+
+## Debug Checklist
+
+When troubleshooting, check these in order:
+
+- [ ] OpenAI API key is set in Supabase
+- [ ] Edge Function `extract-memories` is deployed
+- [ ] Edge Function `generate-ai-response` is deployed
+- [ ] Database table `person_chat_summaries` exists
+- [ ] RLS policies allow user to read/write their own rows
+- [ ] Console logs show extraction starting
+- [ ] Console logs show extraction completing
+- [ ] Database has continuity data for the person
+- [ ] AI prompt includes continuity section
+- [ ] OpenAI has sufficient quota
+
+## Logging Guide
+
+### Enable Detailed Logging
+
+1. **Client-side** (temporary):
+```typescript
+// In lib/memory/extractMemories.ts
+// Change console.debug to console.log
+console.log('[Memory Extraction] Starting extraction...');
+```
+
+2. **Edge Function**:
+```typescript
+// In extract-memories/index.ts
+// Logs are already verbose, check Supabase dashboard
+```
+
+### Log Locations
+
+- **Client logs**: React Native debugger or browser console
+- **Edge Function logs**: Supabase Dashboard → Edge Functions → Logs
+- **Database logs**: Supabase Dashboard → Database → Logs
+
+## Emergency Fixes
+
+### Reset All Continuity Data
+
+```sql
+-- Clear all continuity data for a user
+UPDATE person_chat_summaries
+SET 
+  summary = '',
+  open_loops = '[]'::jsonb,
+  current_goal = '',
+  last_advice = '',
+  next_question = '',
+  updated_at = now()
+WHERE user_id = 'YOUR_USER_ID';
+```
+
+### Disable Continuity Temporarily
+
+```typescript
+// In chat.tsx, comment out the continuity update:
+/*
+if (extractionResult.continuity) {
+  await upsertPersonContinuity(userId, personId, extractionResult.continuity);
+}
+*/
+```
+
+### Force Re-extraction
+
+```typescript
+// In chat.tsx, force extraction even with few messages:
+if (recentUserMessages.length >= 1) { // Changed from 2
+  // Extract continuity
+}
+```
 
 ## Getting Help
 
 If issues persist:
 
-1. **Check logs:** Browser console + Edge Function logs
-2. **Verify database:** Run diagnostic queries above
-3. **Test manually:** Use SQL queries to test continuity
-4. **Review code:** Check recent changes to continuity files
-5. **Check dependencies:** Verify Supabase client version
+1. **Collect logs**:
+   - Client console logs
+   - Edge Function logs
+   - Database query results
 
-**Key Files to Review:**
-- `lib/memory/personSummary.ts`
-- `supabase/functions/generate-ai-response/index.ts`
-- `supabase/functions/extract-memories/index.ts`
-- `app/(tabs)/(home)/chat.tsx`
+2. **Check documentation**:
+   - `CONTINUITY_MEMORY_IMPLEMENTATION.md`
+   - `CONTINUITY_QUICK_REFERENCE.md`
+
+3. **Test in isolation**:
+   - Test Edge Function with curl
+   - Test database queries directly
+   - Test with a fresh person/topic
+
+4. **Verify environment**:
+   - OpenAI API key is valid
+   - Supabase project is active
+   - No rate limits hit
+
+## Prevention
+
+### Best Practices
+
+1. **Monitor OpenAI usage**: Set up alerts for high token usage
+2. **Regular database checks**: Verify continuity data quality
+3. **Test after deployments**: Ensure Edge Functions are working
+4. **Keep logs clean**: Use console.debug for non-critical logs
+5. **Validate inputs**: Always check data types before saving
+
+### Health Check Query
+
+Run this weekly to check system health:
+
+```sql
+-- Check continuity data health
+SELECT 
+  COUNT(*) as total_records,
+  COUNT(CASE WHEN summary != '' THEN 1 END) as with_summary,
+  COUNT(CASE WHEN jsonb_array_length(open_loops) > 0 THEN 1 END) as with_loops,
+  COUNT(CASE WHEN next_question != '' THEN 1 END) as with_next_question,
+  AVG(jsonb_array_length(open_loops)) as avg_loop_count,
+  MAX(updated_at) as last_update
+FROM person_chat_summaries
+WHERE user_id = 'YOUR_USER_ID';
+```
+
+Expected results:
+- `with_summary` should be high (>80%)
+- `avg_loop_count` should be 2-5
+- `last_update` should be recent
+
+## Summary
+
+Most issues are caused by:
+1. Missing or invalid OpenAI API key
+2. Edge Function not deployed
+3. RLS policies blocking access
+4. Extraction failing silently
+
+Always check logs first, then database, then Edge Functions.

@@ -5,6 +5,8 @@
  * This module extracts stable facts from user messages and stores them
  * in the person_memories table to build a per-person "brain" over time.
  * 
+ * ALSO extracts conversation continuity data to enable natural conversation flow.
+ * 
  * FAIL-SAFE: All errors are caught silently to avoid disrupting chat flow.
  * NO ERRORS ARE LOGGED TO CONSOLE.ERROR - extraction failures are completely silent.
  */
@@ -21,14 +23,18 @@ export interface ExtractMemoriesParams {
   personId: string;
 }
 
+export interface ContinuityData {
+  summary_update: string;
+  open_loops: string[];
+  current_goal: string;
+  last_advice: string;
+  next_question: string;
+}
+
 export interface ExtractMemoriesResult {
   memories: any[];
   mentioned_keys: string[];
-  continuity?: {
-    summary_update: string;
-    open_loops: string[];
-    next_question: string;
-  };
+  continuity?: ContinuityData;
 }
 
 /**
@@ -40,18 +46,21 @@ const SAFE_DEFAULT_RESULT: ExtractMemoriesResult = {
   continuity: {
     summary_update: "",
     open_loops: [],
+    current_goal: "",
+    last_advice: "",
     next_question: ""
   }
 };
 
 /**
- * Extract memories from recent conversation using Supabase Edge Function
+ * Extract memories and conversation continuity from recent conversation using Supabase Edge Function
  * 
  * This function:
  * 1. Calls a Supabase Edge Function that uses OpenAI to extract stable facts
- * 2. Parses the JSON response
- * 3. Upserts new memories to the database
- * 4. Updates last_mentioned_at for mentioned keys
+ * 2. Also extracts conversation continuity data (summary, open loops, current goal, last advice, next question)
+ * 3. Parses the JSON response
+ * 4. Upserts new memories to the database
+ * 5. Updates last_mentioned_at for mentioned keys
  * 
  * FAIL-SAFE: If extraction fails at any point, returns empty result
  * and continues normal chat flow without disruption.
@@ -72,7 +81,7 @@ export async function extractMemories({
     console.log('[Memory Extraction] User messages:', recentUserMessages.length);
     console.log('[Memory Extraction] Existing memories:', existingMemories.length);
 
-    // Call the Supabase Edge Function for memory extraction
+    // Call the Supabase Edge Function for memory extraction + continuity
     // Wrapped in try/catch to handle any network or invocation errors
     let data: any;
     let error: any;
@@ -127,6 +136,8 @@ export async function extractMemories({
       continuity = {
         summary_update: typeof data.continuity.summary_update === 'string' ? data.continuity.summary_update : "",
         open_loops: Array.isArray(data.continuity.open_loops) ? data.continuity.open_loops : [],
+        current_goal: typeof data.continuity.current_goal === 'string' ? data.continuity.current_goal : "",
+        last_advice: typeof data.continuity.last_advice === 'string' ? data.continuity.last_advice : "",
         next_question: typeof data.continuity.next_question === 'string' ? data.continuity.next_question : ""
       };
     }
@@ -141,6 +152,13 @@ export async function extractMemories({
       memoriesCount: result.memories.length,
       mentionedKeysCount: result.mentioned_keys.length,
       hasContinuity: !!result.continuity,
+      continuityFields: result.continuity ? {
+        hasSummary: !!result.continuity.summary_update,
+        openLoopsCount: result.continuity.open_loops.length,
+        hasGoal: !!result.continuity.current_goal,
+        hasAdvice: !!result.continuity.last_advice,
+        hasNextQuestion: !!result.continuity.next_question,
+      } : null,
     });
 
     // Special case: Check if user explicitly mentioned the person is deceased

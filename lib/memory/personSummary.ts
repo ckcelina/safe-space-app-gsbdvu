@@ -7,6 +7,8 @@ import { supabase } from '../supabase';
 export interface ContinuityData {
   summary: string;
   open_loops: string[];
+  current_goal: string;
+  last_advice: string;
   next_question: string;
 }
 
@@ -21,25 +23,27 @@ export async function getPersonContinuity(
   try {
     const { data, error } = await supabase
       .from('person_chat_summaries')
-      .select('summary, open_loops, next_question')
+      .select('summary, open_loops, current_goal, last_advice, next_question')
       .eq('user_id', userId)
       .eq('person_id', personId)
       .single();
 
     if (error) {
       console.debug('[PersonSummary] Error fetching continuity:', error.message);
-      return { summary: '', open_loops: [], next_question: '' };
+      return { summary: '', open_loops: [], current_goal: '', last_advice: '', next_question: '' };
     }
 
     // Safely parse and validate the data
     const summary = data?.summary || '';
     const open_loops = Array.isArray(data?.open_loops) ? data.open_loops : [];
+    const current_goal = data?.current_goal || '';
+    const last_advice = data?.last_advice || '';
     const next_question = data?.next_question || '';
 
-    return { summary, open_loops, next_question };
+    return { summary, open_loops, current_goal, last_advice, next_question };
   } catch (err) {
     console.debug('[PersonSummary] Exception in getPersonContinuity:', err);
-    return { summary: '', open_loops: [], next_question: '' };
+    return { summary: '', open_loops: [], current_goal: '', last_advice: '', next_question: '' };
   }
 }
 
@@ -73,7 +77,7 @@ export async function getPersonSummary(userId: string, personId: string): Promis
 /**
  * Upsert conversation continuity data for a specific user and person.
  * Merges open_loops (deduplicates and keeps max 8).
- * Replaces summary and next_question with latest values.
+ * Replaces summary, current_goal, last_advice, and next_question with latest values.
  * Fails silently on error (no crash).
  */
 export async function upsertPersonContinuity(
@@ -82,6 +86,8 @@ export async function upsertPersonContinuity(
   continuityUpdate: {
     summary_update: string;
     open_loops: string[];
+    current_goal: string;
+    last_advice: string;
     next_question: string;
   }
 ): Promise<void> {
@@ -100,6 +106,8 @@ export async function upsertPersonContinuity(
       person_id: personId,
       summary: continuityUpdate.summary_update || existing.summary,
       open_loops: mergedLoops,
+      current_goal: continuityUpdate.current_goal || existing.current_goal,
+      last_advice: continuityUpdate.last_advice || existing.last_advice,
       next_question: continuityUpdate.next_question || existing.next_question,
       updated_at: new Date().toISOString(),
     };

@@ -2,6 +2,7 @@
 // Supabase Edge Function: extract-memories
 // This function extracts stable facts from user messages using OpenAI
 // and returns them in a structured format for storage in person_memories table.
+// ALSO extracts conversation continuity data for natural conversation flow.
 //
 // CRITICAL: This function ALWAYS returns HTTP 200 with JSON response
 // Errors are communicated via the "error" field in the response body
@@ -23,9 +24,18 @@ interface RequestBody {
   personId?: string;
 }
 
+interface ContinuityData {
+  summary_update: string;
+  open_loops: string[];
+  current_goal: string;
+  last_advice: string;
+  next_question: string;
+}
+
 interface MemoryExtractionResult {
   memories: any[];
   mentioned_keys: any[];
+  continuity?: ContinuityData;
   error: string | null;
   debug: { missing_env: boolean; reason: string } | null;
 }
@@ -152,6 +162,82 @@ Output:
 }
 (No new facts, but "occupation" was mentioned)`;
 
+// Conversation continuity extraction prompt
+const CONTINUITY_SYSTEM_PROMPT = `You are a conversation continuity analyzer. Your job is to extract conversation state to help the AI continue naturally.
+
+EXTRACTION RULES:
+1. Extract ONLY from what was explicitly discussed
+2. NEVER invent or assume information
+3. Keep everything concise and factual
+4. Use neutral, non-judgmental language
+
+OUTPUT FORMAT:
+Return ONLY valid JSON in this exact format:
+{
+  "summary_update": "Brief 2-3 sentence summary of recent conversation",
+  "open_loops": ["Unresolved topic 1", "Unresolved topic 2"],
+  "current_goal": "What the user wants right now (if stated)",
+  "last_advice": "Last 1-2 pieces of advice given (brief bullets)",
+  "next_question": "Best follow-up question to continue naturally"
+}
+
+FIELD GUIDELINES:
+
+summary_update:
+- 2-3 sentences max
+- Focus on key themes and emotional tone
+- Example: "User is struggling with their partner's lack of communication. They feel unheard and are considering having a difficult conversation."
+
+open_loops (max 8 items):
+- Unresolved questions or topics the user is still processing
+- Things they mentioned but didn't fully explore
+- Example: ["How to start the conversation", "Whether timing is right", "What to say if partner gets defensive"]
+
+current_goal:
+- What the user wants to achieve RIGHT NOW (if stated)
+- Leave empty if unclear
+- Example: "Wants to have a calm conversation with partner about communication"
+
+last_advice:
+- Last 1-2 pieces of advice the AI gave (brief bullets)
+- Keep it short and actionable
+- Example: "• Try using 'I feel' statements\n• Pick a calm moment to talk"
+
+next_question:
+- The most natural follow-up question to continue the conversation
+- Should address open loops or deepen understanding
+- Example: "Have you thought about when might be a good time to have this conversation?"
+
+EXAMPLES:
+
+Conversation:
+User: "My partner never listens to me. I try to talk but they just zone out."
+AI: "That sounds really frustrating. Have you tried expressing how this makes you feel?"
+User: "Not really, I don't know how to bring it up without starting a fight."
+
+Output:
+{
+  "summary_update": "User feels unheard by their partner who zones out during conversations. They want to address this but are worried about causing conflict.",
+  "open_loops": ["How to bring up the issue without fighting", "What to say to partner", "When to have the conversation"],
+  "current_goal": "Find a way to talk to partner about feeling unheard",
+  "last_advice": "• Consider expressing how their behavior makes you feel\n• Choose a calm moment for the conversation",
+  "next_question": "What usually happens when you try to bring up something that's bothering you?"
+}
+
+Conversation:
+User: "I'm thinking about quitting my job."
+AI: "That's a big decision. What's making you consider leaving?"
+User: "My boss is micromanaging everything I do. It's exhausting."
+
+Output:
+{
+  "summary_update": "User is considering quitting their job due to an exhausting micromanaging boss. They're in the early stages of thinking through this decision.",
+  "open_loops": ["Whether to quit or try to improve the situation", "Financial implications of quitting", "What they would do next"],
+  "current_goal": "",
+  "last_advice": "",
+  "next_question": "Have you thought about whether there's anything that could make the situation better, or does it feel like quitting is the only option?"
+}`;
+
 /**
  * Helper function to create a safe JSON response with status 200
  * This ensures we NEVER return non-2xx status codes
@@ -159,12 +245,14 @@ Output:
 function createSafeResponse(
   memories: any[] = [],
   mentioned_keys: any[] = [],
+  continuity?: ContinuityData,
   error: string | null = null,
   debug: { missing_env: boolean; reason: string } | null = null
 ): Response {
   const responseBody: MemoryExtractionResult = {
     memories,
     mentioned_keys,
+    continuity,
     error,
     debug,
   };
@@ -183,6 +271,149 @@ function createSafeResponse(
   );
 }
 
+/**
+ * Call OpenAI to extract memories
+ */
+async function extractMemoriesFromOpenAI(
+  personName: string,
+  recentUserMessages: string[],
+  lastAssistantMessage: string | undefined,
+  existingMemories: any[]
+): Promise<{ memories: any[]; mentioned_keys: any[] }> {
+  const existingMemoriesText = existingMemories.length > 0
+    ? `\n\nEXISTING MEMORIES:\n${existingMemories.map(m => `- ${m.key}: ${m.value}`).join('\n')}`
+    : '';
+
+  const userPrompt = `Person Name: ${personName}
+
+Recent User Messages:
+${recentUserMessages.map((msg, i) => `${i + 1}. ${msg}`).join('\n')}
+
+${lastAssistantMessage ? `Last Assistant Message:\n${lastAssistantMessage}` : ''}
+${existingMemoriesText}
+
+Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: EXTRACTION_SYSTEM_PROMPT,
+        },
+        {
+          role: 'user',
+          content: userPrompt,
+        },
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const jsonString = data.choices?.[0]?.message?.content;
+
+  if (!jsonString) {
+    return { memories: [], mentioned_keys: [] };
+  }
+
+  const result = JSON.parse(jsonString);
+  
+  return {
+    memories: Array.isArray(result.memories) ? result.memories : [],
+    mentioned_keys: Array.isArray(result.mentioned_keys) ? result.mentioned_keys : [],
+  };
+}
+
+/**
+ * Call OpenAI to extract conversation continuity
+ */
+async function extractContinuityFromOpenAI(
+  personName: string,
+  recentUserMessages: string[],
+  lastAssistantMessage: string | undefined
+): Promise<ContinuityData> {
+  // Build conversation history for context
+  const conversationHistory: string[] = [];
+  
+  // Interleave user messages with assistant message
+  for (let i = 0; i < recentUserMessages.length; i++) {
+    conversationHistory.push(`User: ${recentUserMessages[i]}`);
+  }
+  
+  if (lastAssistantMessage) {
+    conversationHistory.push(`AI: ${lastAssistantMessage}`);
+  }
+
+  const userPrompt = `Person Name: ${personName}
+
+Recent Conversation:
+${conversationHistory.join('\n\n')}
+
+Extract conversation continuity data to help continue this conversation naturally. Return valid JSON only.`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: CONTINUITY_SYSTEM_PROMPT,
+        },
+        {
+          role: 'user',
+          content: userPrompt,
+        },
+      ],
+      temperature: 0.2, // Slightly higher for more natural continuity
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const jsonString = data.choices?.[0]?.message?.content;
+
+  if (!jsonString) {
+    return {
+      summary_update: '',
+      open_loops: [],
+      current_goal: '',
+      last_advice: '',
+      next_question: '',
+    };
+  }
+
+  const result = JSON.parse(jsonString);
+  
+  return {
+    summary_update: result.summary_update || '',
+    open_loops: Array.isArray(result.open_loops) ? result.open_loops.slice(0, 8) : [],
+    current_goal: result.current_goal || '',
+    last_advice: result.last_advice || '',
+    next_question: result.next_question || '',
+  };
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight - always return 200
   if (req.method === 'OPTIONS') {
@@ -198,7 +429,7 @@ serve(async (req: Request) => {
 
   // Wrap entire handler in try-catch to ensure we NEVER throw uncaught errors
   try {
-    console.log('=== Memory Extraction Request Started ===');
+    console.log('=== Memory Extraction + Continuity Request Started ===');
 
     // Check for OpenAI API key FIRST
     if (!OPENAI_API_KEY || OPENAI_API_KEY.trim() === '') {
@@ -206,6 +437,7 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
+        undefined,
         'missing_openai_key',
         {
           missing_env: true,
@@ -223,6 +455,7 @@ serve(async (req: Request) => {
         return createSafeResponse(
           [],
           [],
+          undefined,
           'invalid_input',
           {
             missing_env: false,
@@ -236,6 +469,7 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
+        undefined,
         'invalid_input',
         {
           missing_env: false,
@@ -265,6 +499,7 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
+        undefined,
         'invalid_input',
         {
           missing_env: false,
@@ -278,6 +513,7 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
+        undefined,
         'invalid_input',
         {
           missing_env: false,
@@ -291,6 +527,7 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
+        undefined,
         'invalid_input',
         {
           missing_env: false,
@@ -304,6 +541,7 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
+        undefined,
         'invalid_input',
         {
           missing_env: false,
@@ -312,167 +550,70 @@ serve(async (req: Request) => {
       );
     }
 
-    // Build the extraction prompt
-    const existingMemoriesText = existingMemories.length > 0
-      ? `\n\nEXISTING MEMORIES:\n${existingMemories.map(m => `- ${m.key}: ${m.value}`).join('\n')}`
-      : '';
-
-    const userPrompt = `Person Name: ${personName}
-
-Recent User Messages:
-${recentUserMessages.map((msg, i) => `${i + 1}. ${msg}`).join('\n')}
-
-${lastAssistantMessage ? `Last Assistant Message:\n${lastAssistantMessage}` : ''}
-${existingMemoriesText}
-
-Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
-
-    console.log('Calling OpenAI for memory extraction...');
-
-    // Call OpenAI API with comprehensive error handling
-    let response: Response;
-    try {
-      response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: EXTRACTION_SYSTEM_PROMPT,
-            },
-            {
-              role: 'user',
-              content: userPrompt,
-            },
-          ],
-          temperature: 0.1,
-          response_format: { type: 'json_object' },
-        }),
-      });
-    } catch (fetchError) {
-      console.error('❌ OpenAI fetch failed:', fetchError);
-      return createSafeResponse(
-        [],
-        [],
-        'openai_failed',
-        {
-          missing_env: false,
-          reason: `Network error calling OpenAI API: ${fetchError instanceof Error ? fetchError.message : 'unknown error'}`,
-        }
-      );
-    }
-
-    // Handle non-OK OpenAI response
-    if (!response.ok) {
-      let errorData = 'unknown';
-      try {
-        const errorText = await response.text();
-        errorData = errorText || `HTTP ${response.status}`;
-      } catch (e) {
-        console.error('Could not read error response:', e);
-        errorData = `HTTP ${response.status}`;
-      }
-      console.error('❌ OpenAI API error:', errorData);
-      
-      // Check if it's an authentication error
-      if (response.status === 401) {
-        return createSafeResponse(
-          [],
-          [],
-          'missing_openai_key',
-          {
-            missing_env: true,
-            reason: 'OPENAI_API_KEY is invalid or unauthorized',
-          }
-        );
-      }
-      
-      return createSafeResponse(
-        [],
-        [],
-        'openai_failed',
-        {
-          missing_env: false,
-          reason: `OpenAI API returned error: ${errorData}`,
-        }
-      );
-    }
-
-    // Parse OpenAI response
-    let data: any;
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      console.error('❌ Failed to parse OpenAI response JSON:', parseError);
-      return createSafeResponse(
-        [],
-        [],
-        'openai_failed',
-        {
-          missing_env: false,
-          reason: `Failed to parse OpenAI response: ${parseError instanceof Error ? parseError.message : 'unknown error'}`,
-        }
-      );
-    }
-
-    const jsonString = data.choices?.[0]?.message?.content;
-
-    if (!jsonString) {
-      console.log('⚠️ No content in OpenAI response, returning empty result');
-      return createSafeResponse([], [], null, null);
-    }
-
-    // Parse and validate the extraction result
-    let result: any;
-    try {
-      result = JSON.parse(jsonString);
-    } catch (parseError) {
-      console.error('❌ JSON parsing failed for extraction result:', parseError);
-      console.error('Raw content:', jsonString);
-      return createSafeResponse(
-        [],
-        [],
-        'openai_failed',
-        {
-          missing_env: false,
-          reason: `OpenAI returned invalid JSON: ${parseError instanceof Error ? parseError.message : 'unknown error'}`,
-        }
-      );
-    }
-
-    // Validate structure and provide defaults
-    if (!result || typeof result !== 'object') {
-      console.error('❌ Invalid result: not an object');
-      return createSafeResponse(
-        [],
-        [],
-        'openai_failed',
-        {
-          missing_env: false,
-          reason: 'OpenAI returned invalid result structure',
-        }
-      );
-    }
-
-    // Ensure memories is an array
-    const memories = Array.isArray(result.memories) ? result.memories : [];
+    // STEP 1: Extract memories
+    console.log('Step 1: Extracting memories...');
+    let memories: any[] = [];
+    let mentioned_keys: any[] = [];
     
-    // Ensure mentioned_keys is an array
-    const mentioned_keys = Array.isArray(result.mentioned_keys) ? result.mentioned_keys : [];
+    try {
+      const memoryResult = await extractMemoriesFromOpenAI(
+        personName,
+        recentUserMessages,
+        lastAssistantMessage,
+        existingMemories
+      );
+      memories = memoryResult.memories;
+      mentioned_keys = memoryResult.mentioned_keys;
+      console.log('✅ Memories extracted:', memories.length);
+    } catch (memoryError) {
+      console.error('⚠️ Memory extraction failed (continuing):', memoryError);
+      // Continue even if memory extraction fails
+    }
 
-    console.log('✅ Memory extraction complete:', {
-      memoriesCount: memories.length,
-      mentionedKeysCount: mentioned_keys.length,
-    });
-    console.log('=== Memory Extraction Request Completed Successfully ===');
+    // STEP 2: Extract conversation continuity (only if we have enough messages)
+    console.log('Step 2: Extracting conversation continuity...');
+    let continuity: ContinuityData | undefined;
+    
+    // Only extract continuity if we have at least 2 user messages (meaningful conversation)
+    if (recentUserMessages.length >= 2) {
+      try {
+        continuity = await extractContinuityFromOpenAI(
+          personName,
+          recentUserMessages,
+          lastAssistantMessage
+        );
+        console.log('✅ Continuity extracted');
+        console.log('  - Summary:', continuity.summary_update ? 'yes' : 'no');
+        console.log('  - Open loops:', continuity.open_loops.length);
+        console.log('  - Current goal:', continuity.current_goal ? 'yes' : 'no');
+        console.log('  - Last advice:', continuity.last_advice ? 'yes' : 'no');
+        console.log('  - Next question:', continuity.next_question ? 'yes' : 'no');
+      } catch (continuityError) {
+        console.error('⚠️ Continuity extraction failed (continuing):', continuityError);
+        // Continue even if continuity extraction fails
+        continuity = {
+          summary_update: '',
+          open_loops: [],
+          current_goal: '',
+          last_advice: '',
+          next_question: '',
+        };
+      }
+    } else {
+      console.log('⚠️ Not enough messages for continuity extraction (need at least 2)');
+      continuity = {
+        summary_update: '',
+        open_loops: [],
+        current_goal: '',
+        last_advice: '',
+        next_question: '',
+      };
+    }
 
-    // Success - return the extracted memories
-    return createSafeResponse(memories, mentioned_keys, null, null);
+    console.log('=== Memory Extraction + Continuity Request Completed Successfully ===');
+
+    // Success - return the extracted memories and continuity
+    return createSafeResponse(memories, mentioned_keys, continuity, null, null);
 
   } catch (error) {
     // Catch-all error handler - NEVER let this function crash
@@ -499,6 +640,13 @@ Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
     return createSafeResponse(
       [],
       [],
+      {
+        summary_update: '',
+        open_loops: [],
+        current_goal: '',
+        last_advice: '',
+        next_question: '',
+      },
       'openai_failed',
       {
         missing_env: false,

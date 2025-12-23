@@ -1,238 +1,211 @@
 
-# Conversation Continuity - Quick Reference
+# Conversation Continuity Memory - Quick Reference
 
 ## What It Does
-Allows Safe Space AI to remember and continue conversations naturally per person/topic.
 
-## Data Structure
+Enables the AI to continue conversations naturally by remembering:
+- **Summary**: What you've been talking about
+- **Open Loops**: Unresolved questions/topics
+- **Current Goal**: What you want to achieve
+- **Last Advice**: What the AI suggested
+- **Next Question**: Natural follow-up to continue
 
-### Database Table: `person_chat_summaries`
+## How It Works
+
+### Automatic Extraction
+
+After each conversation turn:
+1. AI responds to your message
+2. System extracts continuity data in background
+3. Saves to database (silent if fails)
+4. Next time you chat, AI uses this data
+
+### AI Behavior
+
+**With Continuity**:
+- "Welcome back! Last time we were talking about [topic]. [Next question]"
+- Naturally continues from where you left off
+- References open loops and goals
+
+**Without Continuity** (first chat or extraction failed):
+- Normal greeting
+- Waits for you to start the conversation
+
+### Topic Changes
+
+If you change the topic, AI adapts:
+- User: "I need to talk about something else"
+- AI: Recognizes change and follows your lead
+
+## Database Schema
+
 ```sql
-CREATE TABLE person_chat_summaries (
+person_chat_summaries (
   user_id uuid,
   person_id uuid,
-  summary text DEFAULT '',
-  open_loops jsonb DEFAULT '[]',
-  next_question text DEFAULT '',
-  updated_at timestamptz DEFAULT now(),
-  PRIMARY KEY (user_id, person_id)
-);
+  summary text,              -- Rolling summary
+  open_loops jsonb,          -- Array of unresolved topics (max 8)
+  current_goal text,         -- What user wants now
+  last_advice text,          -- Last advice given
+  next_question text,        -- Suggested follow-up
+  updated_at timestamp
+)
 ```
 
-### Continuity Object
-```typescript
-{
-  summary: string,           // Rolling summary (5-8 bullets)
-  open_loops: string[],      // Unresolved topics (max 8)
-  next_question: string      // Suggested follow-up
-}
-```
+## Key Files
 
-## Key Functions
+### Client-Side
+- `lib/memory/personSummary.ts` - Fetch/save continuity
+- `lib/memory/extractMemories.ts` - Extract from conversation
+- `app/(tabs)/(home)/chat.tsx` - Integration point
 
-### Fetch Continuity
-```typescript
-import { getPersonContinuity } from '@/lib/memory/personSummary';
-
-const continuity = await getPersonContinuity(userId, personId);
-// Returns: { summary: string, open_loops: string[], next_question: string }
-```
-
-### Update Continuity
-```typescript
-import { upsertPersonContinuity } from '@/lib/memory/personSummary';
-
-await upsertPersonContinuity(userId, personId, {
-  summary_update: "User discussed work stress and relationship issues",
-  open_loops: ["work deadline concerns", "partner communication"],
-  next_question: "How did the conversation with your partner go?"
-});
-```
-
-## Flow
-
-### 1. Before AI Reply (Read)
-```
-User Message → Edge Function → Fetch Continuity → Inject into Prompt → OpenAI → Reply
-```
-
-### 2. After AI Reply (Write)
-```
-Reply Sent → Extract Memories → Extract Continuity → Update Database
-```
-
-## System Prompt Injection
-
-Continuity is injected into the OpenAI system prompt as:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CONVERSATION CONTINUITY:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Summary of recent conversations:
-{summary}
-
-Open loops (unresolved topics/questions):
-1. {loop1}
-2. {loop2}
-
-Suggested follow-up: {next_question}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-## Memory Extraction Response
-
-The `extract-memories` Edge Function returns:
-
-```typescript
-{
-  memories: [
-    { category, key, value, importance, confidence }
-  ],
-  mentioned_keys: ["key1", "key2"],
-  continuity: {
-    summary_update: "Brief summary of what was discussed",
-    open_loops: ["unresolved topic 1", "unresolved topic 2"],
-    next_question: "A relevant follow-up question"
-  },
-  error: null | string
-}
-```
-
-## Merging Logic
-
-### Summary
-- **Strategy:** Replace
-- **Rule:** Latest summary replaces old one
-- **Max:** 5-8 bullets
-
-### Open Loops
-- **Strategy:** Merge + Deduplicate
-- **Rule:** Combine existing + new, remove duplicates
-- **Max:** 8 loops
-
-### Next Question
-- **Strategy:** Replace
-- **Rule:** Latest question replaces old one
-
-## Special Cases
-
-### Grief-Aware Mode
-If `is_deceased` memory exists:
-- AI tone becomes more compassionate
-- Focus on grief support
-- Honor memories of deceased
-
-### Empty Continuity
-If no continuity exists:
-- Returns empty defaults
-- AI starts fresh conversation
-- No errors thrown
-
-## Error Handling
-
-All operations are fail-safe:
-- Fetch fails → Returns empty defaults
-- Update fails → Logs silently, doesn't crash
-- Extraction fails → Returns empty continuity
+### Server-Side
+- `supabase/functions/extract-memories/index.ts` - Extraction logic
+- `supabase/functions/generate-ai-response/index.ts` - Prompt injection
 
 ## Testing
 
-### Manual Test
-1. Have a conversation about a person
-2. Mention an unresolved issue
-3. End conversation
-4. Start new conversation
-5. AI should remember and follow up
+### Quick Test
+
+1. Start a conversation with a person
+2. Have 2-3 meaningful exchanges
+3. Close app
+4. Reopen and return to same person
+5. AI should reference previous conversation
 
 ### Database Check
+
 ```sql
 SELECT * FROM person_chat_summaries 
-WHERE user_id = 'your-user-id';
+WHERE user_id = 'YOUR_USER_ID' 
+  AND person_id = 'YOUR_PERSON_ID';
 ```
 
-### Expected Output
-```json
-{
-  "user_id": "uuid",
-  "person_id": "uuid",
-  "summary": "User discussed work stress...",
-  "open_loops": ["work deadline", "partner communication"],
-  "next_question": "How did the meeting go?",
-  "updated_at": "2024-01-15T10:30:00Z"
+## Troubleshooting
+
+### AI doesn't remember previous conversation
+
+**Check**:
+1. Database has data: `SELECT * FROM person_chat_summaries WHERE person_id = 'XXX'`
+2. Edge Function logs for errors
+3. OpenAI API key is set
+
+### Open loops growing too large
+
+**Solution**: System limits to 8 automatically. Adjust in `lib/memory/personSummary.ts`:
+
+```typescript
+.slice(0, 8) // Change this number
+```
+
+### Extraction failing silently
+
+**Check**:
+- Console logs (search for "[Memory Extraction]")
+- Edge Function logs in Supabase dashboard
+- OpenAI API key validity
+
+## Configuration
+
+### Extraction Frequency
+
+Currently extracts after EVERY AI response. To change:
+
+```typescript
+// In chat.tsx, modify the condition:
+if (recentUserMessages.length >= 2) {
+  // Extract continuity
 }
 ```
 
-## Common Issues
+### Continuity Prompt Position
 
-### Issue: AI doesn't remember context
-**Solution:** Check if continuity is being written to database
+Continuity is injected in `generate-ai-response/index.ts` after tone contract and before memories. To adjust prominence, move the section in `buildSystemPrompt()`.
 
-### Issue: Open loops keep growing
-**Solution:** Max 8 enforced automatically, oldest removed
+## API Response Format
 
-### Issue: Summary too long
-**Solution:** OpenAI instructed to keep 5-8 bullets max
+### extract-memories Response
 
-### Issue: Continuity not updating
-**Solution:** Check memory extraction is running after replies
+```json
+{
+  "memories": [...],
+  "mentioned_keys": [...],
+  "continuity": {
+    "summary_update": "Brief summary",
+    "open_loops": ["Loop 1", "Loop 2"],
+    "current_goal": "User's goal",
+    "last_advice": "• Advice 1\n• Advice 2",
+    "next_question": "Follow-up question"
+  },
+  "error": null,
+  "debug": null
+}
+```
+
+### Error Response (still 200 OK)
+
+```json
+{
+  "memories": [],
+  "mentioned_keys": [],
+  "continuity": {
+    "summary_update": "",
+    "open_loops": [],
+    "current_goal": "",
+    "last_advice": "",
+    "next_question": ""
+  },
+  "error": "openai_failed",
+  "debug": {
+    "missing_env": false,
+    "reason": "Error details"
+  }
+}
+```
 
 ## Performance
 
-- **Fetch:** ~10-20ms (single DB query)
-- **Update:** ~20-30ms (single upsert)
-- **Impact:** None on chat latency (updates after reply)
+### OpenAI Costs
 
-## Privacy
+- Memory extraction: ~500 tokens
+- Continuity extraction: ~300 tokens
+- **Total per turn**: ~800 tokens
+- **Model**: gpt-3.5-turbo (cost-effective)
 
-- Only stores explicitly stated information
-- No assumptions or inferences
-- User can delete person to clear continuity
-- RLS enforces user_id = auth.uid()
+### Database Impact
 
-## Maintenance
+- One upsert per conversation turn
+- Minimal storage (~1-2 KB per person)
+- Fast lookups (indexed on user_id, person_id)
 
-### Clear Old Continuity
+## Future Enhancements
+
+### Potential Additions
+
+1. **Emotional State Tracking**: Add `emotional_state_trend` field
+2. **Conversation Milestones**: Track breakthroughs
+3. **Long-term Goals**: Separate from current_goal
+4. **User Control**: View/edit continuity data in UI
+
+### Migration Template
+
 ```sql
-DELETE FROM person_chat_summaries 
-WHERE updated_at < NOW() - INTERVAL '90 days';
+ALTER TABLE public.person_chat_summaries
+ADD COLUMN IF NOT EXISTS emotional_state_trend text DEFAULT '';
 ```
 
-### View All Continuity
-```sql
-SELECT 
-  p.name,
-  pcs.summary,
-  pcs.open_loops,
-  pcs.next_question,
-  pcs.updated_at
-FROM person_chat_summaries pcs
-JOIN persons p ON p.id = pcs.person_id
-WHERE pcs.user_id = 'your-user-id'
-ORDER BY pcs.updated_at DESC;
-```
+## Support
 
-## Integration Points
+For issues or questions:
+1. Check logs: `[Memory Extraction]` and `[Edge]` prefixes
+2. Verify database schema matches expected structure
+3. Test Edge Function directly with curl
+4. Check Supabase dashboard for Edge Function logs
 
-### Files That Use Continuity
-1. `supabase/functions/generate-ai-response/index.ts` - Reads continuity
-2. `app/(tabs)/(home)/chat.tsx` - Writes continuity
-3. `lib/memory/personSummary.ts` - Manages continuity
-4. `supabase/functions/extract-memories/index.ts` - Extracts continuity
+## Summary
 
-### Dependencies
-- Supabase client
-- OpenAI API (for extraction)
-- person_memories table (for grief-aware mode)
-- messages table (for conversation history)
-
-## Best Practices
-
-1. **Keep summaries concise** - 5-8 bullets max
-2. **Limit open loops** - Max 8, prioritize important ones
-3. **Update regularly** - After each conversation
-4. **Handle errors gracefully** - Never crash chat flow
-5. **Respect privacy** - Only store what's explicitly shared
-6. **Be grief-aware** - Check for deceased status
-7. **Test thoroughly** - Verify continuity updates correctly
+✅ Automatic extraction after each conversation
+✅ Silent failures (never blocks chat)
+✅ Natural conversation continuity
+✅ Respects topic changes
+✅ Low cost and fast performance

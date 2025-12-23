@@ -161,34 +161,42 @@ function getRandomPsychologyFact(): string {
   return PSYCHOLOGY_FACTS[Math.floor(Math.random() * PSYCHOLOGY_FACTS.length)];
 }
 
-// Fetch person continuity data (summary, open loops, next question) from Supabase
+// Fetch person continuity data (summary, open loops, current goal, last advice, next question) from Supabase
 async function getPersonContinuity(
   supabase: any,
   userId: string,
   personId: string
-): Promise<{ summary: string; open_loops: string[]; next_question: string }> {
+): Promise<{ 
+  summary: string; 
+  open_loops: string[]; 
+  current_goal: string;
+  last_advice: string;
+  next_question: string;
+}> {
   try {
     const { data, error } = await supabase
       .from('person_chat_summaries')
-      .select('summary, open_loops, next_question')
+      .select('summary, open_loops, current_goal, last_advice, next_question')
       .eq('user_id', userId)
       .eq('person_id', personId)
       .single();
 
     if (error) {
       console.log('[Edge] Error fetching person continuity:', error.message);
-      return { summary: '', open_loops: [], next_question: '' };
+      return { summary: '', open_loops: [], current_goal: '', last_advice: '', next_question: '' };
     }
 
     // Safely parse and validate the data
     const summary = data?.summary || '';
     const open_loops = Array.isArray(data?.open_loops) ? data.open_loops : [];
+    const current_goal = data?.current_goal || '';
+    const last_advice = data?.last_advice || '';
     const next_question = data?.next_question || '';
 
-    return { summary, open_loops, next_question };
+    return { summary, open_loops, current_goal, last_advice, next_question };
   } catch (err) {
     console.log('[Edge] Exception in getPersonContinuity:', err);
-    return { summary: '', open_loops: [], next_question: '' };
+    return { summary: '', open_loops: [], current_goal: '', last_advice: '', next_question: '' };
   }
 }
 
@@ -467,24 +475,34 @@ async function buildSystemPrompt(
   
   if (continuity.summary && continuity.summary.trim()) {
     basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CONVERSATION CONTINUITY:
+📋 CONVERSATION CONTINUITY (do not invent - use only what's here):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Summary of recent conversations:
+Recent conversation summary:
 ${continuity.summary}`;
 
+    if (continuity.current_goal && continuity.current_goal.trim()) {
+      basePrompt += `\n\n🎯 Current goal: ${continuity.current_goal}`;
+    }
+
     if (continuity.open_loops.length > 0) {
-      basePrompt += `\n\nOpen loops (unresolved topics/questions):`;
+      basePrompt += `\n\n🔄 Open loops (unresolved topics):`;
       continuity.open_loops.forEach((loop, index) => {
-        basePrompt += `\n${index + 1}. ${loop}`;
+        basePrompt += `\n  ${index + 1}. ${loop}`;
       });
     }
 
-    if (continuity.next_question && continuity.next_question.trim()) {
-      basePrompt += `\n\nSuggested follow-up: ${continuity.next_question}`;
+    if (continuity.last_advice && continuity.last_advice.trim()) {
+      basePrompt += `\n\n💡 Last advice given:\n${continuity.last_advice}`;
     }
 
-    basePrompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    if (continuity.next_question && continuity.next_question.trim()) {
+      basePrompt += `\n\n❓ Suggested follow-up: ${continuity.next_question}`;
+    }
+
+    basePrompt += `\n\n⚠️ CONTINUITY INSTRUCTION:
+Start by continuing from open loops or the suggested follow-up question UNLESS the user clearly changes the topic. This helps maintain natural conversation flow.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
   }
 
   // Inject subject into AI prompt
