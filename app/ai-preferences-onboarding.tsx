@@ -88,15 +88,15 @@ export default function AIPreferencesOnboardingScreen() {
             </Text>
             {gentleTones.map((tone) => (
               <TouchableOpacity
-                key={tone.id}
+                key={tone.toneId}
                 style={[
                   styles.toneCard,
                   {
-                    backgroundColor: selectedToneId === tone.id ? theme.primary + '15' : theme.background,
-                    borderColor: selectedToneId === tone.id ? theme.primary : theme.textSecondary + '30',
+                    backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
+                    borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
                   },
                 ]}
-                onPress={() => setSelectedToneId(tone.id)}
+                onPress={() => setSelectedToneId(tone.toneId)}
                 activeOpacity={0.7}
               >
                 <View style={styles.toneCardHeader}>
@@ -104,14 +104,14 @@ export default function AIPreferencesOnboardingScreen() {
                     style={[
                       styles.toneName,
                       {
-                        color: selectedToneId === tone.id ? theme.primary : theme.textPrimary,
-                        fontWeight: selectedToneId === tone.id ? '700' : '600',
+                        color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
+                        fontWeight: selectedToneId === tone.toneId ? '700' : '600',
                       },
                     ]}
                   >
-                    {tone.name}
+                    {tone.displayName}
                   </Text>
-                  {selectedToneId === tone.id && (
+                  {selectedToneId === tone.toneId && (
                     <IconSymbol
                       ios_icon_name="checkmark.circle.fill"
                       android_material_icon_name="check_circle"
@@ -121,7 +121,7 @@ export default function AIPreferencesOnboardingScreen() {
                   )}
                 </View>
                 <Text style={[styles.toneDescription, { color: theme.textSecondary }]}>
-                  {tone.description}
+                  {tone.shortDescription}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -132,15 +132,15 @@ export default function AIPreferencesOnboardingScreen() {
             </Text>
             {balancedTones.map((tone) => (
               <TouchableOpacity
-                key={tone.id}
+                key={tone.toneId}
                 style={[
                   styles.toneCard,
                   {
-                    backgroundColor: selectedToneId === tone.id ? theme.primary + '15' : theme.background,
-                    borderColor: selectedToneId === tone.id ? theme.primary : theme.textSecondary + '30',
+                    backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
+                    borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
                   },
                 ]}
-                onPress={() => setSelectedToneId(tone.id)}
+                onPress={() => setSelectedToneId(tone.toneId)}
                 activeOpacity={0.7}
               >
                 <View style={styles.toneCardHeader}>
@@ -148,14 +148,14 @@ export default function AIPreferencesOnboardingScreen() {
                     style={[
                       styles.toneName,
                       {
-                        color: selectedToneId === tone.id ? theme.primary : theme.textPrimary,
-                        fontWeight: selectedToneId === tone.id ? '700' : '600',
+                        color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
+                        fontWeight: selectedToneId === tone.toneId ? '700' : '600',
                       },
                     ]}
                   >
-                    {tone.name}
+                    {tone.displayName}
                   </Text>
-                  {selectedToneId === tone.id && (
+                  {selectedToneId === tone.toneId && (
                     <IconSymbol
                       ios_icon_name="checkmark.circle.fill"
                       android_material_icon_name="check_circle"
@@ -165,7 +165,7 @@ export default function AIPreferencesOnboardingScreen() {
                   )}
                 </View>
                 <Text style={[styles.toneDescription, { color: theme.textSecondary }]}>
-                  {tone.description}
+                  {tone.shortDescription}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -176,15 +176,15 @@ export default function AIPreferencesOnboardingScreen() {
             </Text>
             {directTones.map((tone) => (
               <TouchableOpacity
-                key={tone.id}
+                key={tone.toneId}
                 style={[
                   styles.toneCard,
                   {
-                    backgroundColor: selectedToneId === tone.id ? theme.primary + '15' : theme.background,
-                    borderColor: selectedToneId === tone.id ? theme.primary : theme.textSecondary + '30',
+                    backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
+                    borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
                   },
                 ]}
-                onPress={() => setSelectedToneId(tone.id)}
+                onPress={() => setSelectedToneId(tone.toneId)}
                 activeOpacity={0.7}
               >
                 <View style={styles.toneCardHeader}>
@@ -192,14 +192,14 @@ export default function AIPreferencesOnboardingScreen() {
                     style={[
                       styles.toneName,
                       {
-                        color: selectedToneId === tone.id ? theme.primary : theme.textPrimary,
-                        fontWeight: selectedToneId === tone.id ? '700' : '600',
+                        color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
+                        fontWeight: selectedToneId === tone.toneId ? '700' : '600',
                       },
                     ]}
                   >
-                    {tone.name}
+                    {tone.displayName}
                   </Text>
-                  {selectedToneId === tone.id && (
+                  {selectedToneId === tone.toneId && (
                     <IconSymbol
                       ios_icon_name="checkmark.circle.fill"
                       android_material_icon_name="check_circle"
@@ -209,7 +209,7 @@ export default function AIPreferencesOnboardingScreen() {
                   )}
                 </View>
                 <Text style={[styles.toneDescription, { color: theme.textSecondary }]}>
-                  {tone.description}
+                  {tone.shortDescription}
                 </Text>
               </TouchableOpacity>
             ))}

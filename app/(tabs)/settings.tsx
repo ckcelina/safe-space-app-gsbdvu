@@ -27,7 +27,7 @@ import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
-import { AI_TONES, getToneById } from '@/constants/AITones';
+import { AI_TONES, getToneById, getTonesByCategory } from '@/constants/AITones';
 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -422,7 +422,7 @@ export default function SettingsScreen() {
                         AI Tone
                       </Text>
                       <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
-                        {getToneById(preferences.ai_tone_id)?.name || 'Balanced Blend'}
+                        {getToneById(preferences.ai_tone_id)?.displayName || 'Balanced Blend'}
                       </Text>
                     </View>
                   </View>
@@ -942,17 +942,22 @@ export default function SettingsScreen() {
                 <Text style={[styles.aiPrefsSectionTitle, { color: theme.textPrimary }]}>
                   AI Tone
                 </Text>
-                {AI_TONES.map((tone) => (
+                
+                {/* Gentle Tones */}
+                <Text style={[styles.aiCategoryLabel, { color: theme.textSecondary }]}>
+                  Gentle & Supportive
+                </Text>
+                {getTonesByCategory('gentle').map((tone) => (
                   <TouchableOpacity
-                    key={tone.id}
+                    key={tone.toneId}
                     style={[
                       styles.aiToneCard,
                       {
-                        backgroundColor: selectedToneId === tone.id ? theme.primary + '15' : theme.background,
-                        borderColor: selectedToneId === tone.id ? theme.primary : theme.textSecondary + '30',
+                        backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
+                        borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
                       },
                     ]}
-                    onPress={() => setSelectedToneId(tone.id)}
+                    onPress={() => setSelectedToneId(tone.toneId)}
                     activeOpacity={0.7}
                   >
                     <View style={styles.aiToneCardHeader}>
@@ -960,14 +965,14 @@ export default function SettingsScreen() {
                         style={[
                           styles.aiToneName,
                           {
-                            color: selectedToneId === tone.id ? theme.primary : theme.textPrimary,
-                            fontWeight: selectedToneId === tone.id ? '700' : '600',
+                            color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
+                            fontWeight: selectedToneId === tone.toneId ? '700' : '600',
                           },
                         ]}
                       >
-                        {tone.name}
+                        {tone.displayName}
                       </Text>
-                      {selectedToneId === tone.id && (
+                      {selectedToneId === tone.toneId && (
                         <IconSymbol
                           ios_icon_name="checkmark.circle.fill"
                           android_material_icon_name="check_circle"
@@ -977,7 +982,95 @@ export default function SettingsScreen() {
                       )}
                     </View>
                     <Text style={[styles.aiToneDescription, { color: theme.textSecondary }]}>
-                      {tone.description}
+                      {tone.shortDescription}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+
+                {/* Balanced Tones */}
+                <Text style={[styles.aiCategoryLabel, { color: theme.textSecondary, marginTop: 12 }]}>
+                  Balanced & Clear
+                </Text>
+                {getTonesByCategory('balanced').map((tone) => (
+                  <TouchableOpacity
+                    key={tone.toneId}
+                    style={[
+                      styles.aiToneCard,
+                      {
+                        backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
+                        borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
+                      },
+                    ]}
+                    onPress={() => setSelectedToneId(tone.toneId)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.aiToneCardHeader}>
+                      <Text
+                        style={[
+                          styles.aiToneName,
+                          {
+                            color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
+                            fontWeight: selectedToneId === tone.toneId ? '700' : '600',
+                          },
+                        ]}
+                      >
+                        {tone.displayName}
+                      </Text>
+                      {selectedToneId === tone.toneId && (
+                        <IconSymbol
+                          ios_icon_name="checkmark.circle.fill"
+                          android_material_icon_name="check_circle"
+                          size={18}
+                          color={theme.primary}
+                        />
+                      )}
+                    </View>
+                    <Text style={[styles.aiToneDescription, { color: theme.textSecondary }]}>
+                      {tone.shortDescription}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+
+                {/* Direct Tones */}
+                <Text style={[styles.aiCategoryLabel, { color: theme.textSecondary, marginTop: 12 }]}>
+                  Direct & Firm
+                </Text>
+                {getTonesByCategory('direct').map((tone) => (
+                  <TouchableOpacity
+                    key={tone.toneId}
+                    style={[
+                      styles.aiToneCard,
+                      {
+                        backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
+                        borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
+                      },
+                    ]}
+                    onPress={() => setSelectedToneId(tone.toneId)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.aiToneCardHeader}>
+                      <Text
+                        style={[
+                          styles.aiToneName,
+                          {
+                            color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
+                            fontWeight: selectedToneId === tone.toneId ? '700' : '600',
+                          },
+                        ]}
+                      >
+                        {tone.displayName}
+                      </Text>
+                      {selectedToneId === tone.toneId && (
+                        <IconSymbol
+                          ios_icon_name="checkmark.circle.fill"
+                          android_material_icon_name="check_circle"
+                          size={18}
+                          color={theme.primary}
+                        />
+                      )}
+                    </View>
+                    <Text style={[styles.aiToneDescription, { color: theme.textSecondary }]}>
+                      {tone.shortDescription}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -1299,6 +1392,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 12,
     marginBottom: 12,
+  },
+  aiCategoryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 10,
+    marginTop: 8,
   },
   aiToneCard: {
     borderRadius: 10,
