@@ -6,6 +6,8 @@
 //
 // CRITICAL: This function ALWAYS returns HTTP 200 with JSON response
 // Errors are communicated via the "error" field in the response body
+// NEVER returns 4xx/5xx status codes
+// NEVER throws uncaught errors
 
 import { serve } from 'jsr:@std/http@0.224.5/server';
 
@@ -37,7 +39,6 @@ interface MemoryExtractionResult {
   mentioned_keys: any[];
   continuity?: ContinuityData;
   error: string | null;
-  debug: { missing_env: boolean; reason: string } | null;
 }
 
 // Memory extraction system prompt
@@ -241,20 +242,21 @@ Output:
 /**
  * Helper function to create a safe JSON response with status 200
  * This ensures we NEVER return non-2xx status codes
+ * 
+ * ALWAYS returns HTTP 200 with JSON body:
+ * { "memories": [], "mentioned_keys": [], "continuity": {...}, "error": "string-or-null" }
  */
 function createSafeResponse(
   memories: any[] = [],
   mentioned_keys: any[] = [],
   continuity?: ContinuityData,
-  error: string | null = null,
-  debug: { missing_env: boolean; reason: string } | null = null
+  error: string | null = null
 ): Response {
   const responseBody: MemoryExtractionResult = {
     memories,
     mentioned_keys,
     continuity,
     error,
-    debug,
   };
 
   return new Response(
@@ -273,6 +275,7 @@ function createSafeResponse(
 
 /**
  * Call OpenAI to extract memories
+ * Returns empty arrays on any error (never throws)
  */
 async function extractMemoriesFromOpenAI(
   personName: string,
@@ -280,11 +283,12 @@ async function extractMemoriesFromOpenAI(
   lastAssistantMessage: string | undefined,
   existingMemories: any[]
 ): Promise<{ memories: any[]; mentioned_keys: any[] }> {
-  const existingMemoriesText = existingMemories.length > 0
-    ? `\n\nEXISTING MEMORIES:\n${existingMemories.map(m => `- ${m.key}: ${m.value}`).join('\n')}`
-    : '';
+  try {
+    const existingMemoriesText = existingMemories.length > 0
+      ? `\n\nEXISTING MEMORIES:\n${existingMemories.map(m => `- ${m.key}: ${m.value}`).join('\n')}`
+      : '';
 
-  const userPrompt = `Person Name: ${personName}
+    const userPrompt = `Person Name: ${personName}
 
 Recent User Messages:
 ${recentUserMessages.map((msg, i) => `${i + 1}. ${msg}`).join('\n')}
@@ -294,106 +298,140 @@ ${existingMemoriesText}
 
 Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: EXTRACTION_SYSTEM_PROMPT,
-        },
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-    }),
-  });
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: EXTRACTION_SYSTEM_PROMPT,
+          },
+          {
+            role: 'user',
+            content: userPrompt,
+          },
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
-  }
+    if (!response.ok) {
+      console.error(`OpenAI API error: ${response.status}`);
+      return { memories: [], mentioned_keys: [] };
+    }
 
-  const data = await response.json();
-  const jsonString = data.choices?.[0]?.message?.content;
+    const data = await response.json();
+    const jsonString = data.choices?.[0]?.message?.content;
 
-  if (!jsonString) {
+    if (!jsonString) {
+      return { memories: [], mentioned_keys: [] };
+    }
+
+    const result = JSON.parse(jsonString);
+    
+    return {
+      memories: Array.isArray(result.memories) ? result.memories : [],
+      mentioned_keys: Array.isArray(result.mentioned_keys) ? result.mentioned_keys : [],
+    };
+  } catch (error) {
+    console.error('Error in extractMemoriesFromOpenAI:', error);
     return { memories: [], mentioned_keys: [] };
   }
-
-  const result = JSON.parse(jsonString);
-  
-  return {
-    memories: Array.isArray(result.memories) ? result.memories : [],
-    mentioned_keys: Array.isArray(result.mentioned_keys) ? result.mentioned_keys : [],
-  };
 }
 
 /**
  * Call OpenAI to extract conversation continuity
+ * Returns empty continuity object on any error (never throws)
  */
 async function extractContinuityFromOpenAI(
   personName: string,
   recentUserMessages: string[],
   lastAssistantMessage: string | undefined
 ): Promise<ContinuityData> {
-  // Build conversation history for context
-  const conversationHistory: string[] = [];
-  
-  // Interleave user messages with assistant message
-  for (let i = 0; i < recentUserMessages.length; i++) {
-    conversationHistory.push(`User: ${recentUserMessages[i]}`);
-  }
-  
-  if (lastAssistantMessage) {
-    conversationHistory.push(`AI: ${lastAssistantMessage}`);
-  }
+  try {
+    // Build conversation history for context
+    const conversationHistory: string[] = [];
+    
+    // Interleave user messages with assistant message
+    for (let i = 0; i < recentUserMessages.length; i++) {
+      conversationHistory.push(`User: ${recentUserMessages[i]}`);
+    }
+    
+    if (lastAssistantMessage) {
+      conversationHistory.push(`AI: ${lastAssistantMessage}`);
+    }
 
-  const userPrompt = `Person Name: ${personName}
+    const userPrompt = `Person Name: ${personName}
 
 Recent Conversation:
 ${conversationHistory.join('\n\n')}
 
 Extract conversation continuity data to help continue this conversation naturally. Return valid JSON only.`;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: CONTINUITY_SYSTEM_PROMPT,
-        },
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
-      temperature: 0.2, // Slightly higher for more natural continuity
-      response_format: { type: 'json_object' },
-    }),
-  });
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: CONTINUITY_SYSTEM_PROMPT,
+          },
+          {
+            role: 'user',
+            content: userPrompt,
+          },
+        ],
+        temperature: 0.2, // Slightly higher for more natural continuity
+        response_format: { type: 'json_object' },
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
-  }
+    if (!response.ok) {
+      console.error(`OpenAI API error: ${response.status}`);
+      return {
+        summary_update: '',
+        open_loops: [],
+        current_goal: '',
+        last_advice: '',
+        next_question: '',
+      };
+    }
 
-  const data = await response.json();
-  const jsonString = data.choices?.[0]?.message?.content;
+    const data = await response.json();
+    const jsonString = data.choices?.[0]?.message?.content;
 
-  if (!jsonString) {
+    if (!jsonString) {
+      return {
+        summary_update: '',
+        open_loops: [],
+        current_goal: '',
+        last_advice: '',
+        next_question: '',
+      };
+    }
+
+    const result = JSON.parse(jsonString);
+    
+    return {
+      summary_update: result.summary_update || '',
+      open_loops: Array.isArray(result.open_loops) ? result.open_loops.slice(0, 8) : [],
+      current_goal: result.current_goal || '',
+      last_advice: result.last_advice || '',
+      next_question: result.next_question || '',
+    };
+  } catch (error) {
+    console.error('Error in extractContinuityFromOpenAI:', error);
     return {
       summary_update: '',
       open_loops: [],
@@ -402,16 +440,6 @@ Extract conversation continuity data to help continue this conversation naturall
       next_question: '',
     };
   }
-
-  const result = JSON.parse(jsonString);
-  
-  return {
-    summary_update: result.summary_update || '',
-    open_loops: Array.isArray(result.open_loops) ? result.open_loops.slice(0, 8) : [],
-    current_goal: result.current_goal || '',
-    last_advice: result.last_advice || '',
-    next_question: result.next_question || '',
-  };
 }
 
 serve(async (req: Request) => {
@@ -437,12 +465,14 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
-        undefined,
-        'missing_openai_key',
         {
-          missing_env: true,
-          reason: 'OPENAI_API_KEY environment variable is not set or is empty',
-        }
+          summary_update: '',
+          open_loops: [],
+          current_goal: '',
+          last_advice: '',
+          next_question: '',
+        },
+        'missing_openai_key'
       );
     }
 
@@ -455,12 +485,14 @@ serve(async (req: Request) => {
         return createSafeResponse(
           [],
           [],
-          undefined,
-          'invalid_input',
           {
-            missing_env: false,
-            reason: 'Request body is empty',
-          }
+            summary_update: '',
+            open_loops: [],
+            current_goal: '',
+            last_advice: '',
+            next_question: '',
+          },
+          'invalid_input'
         );
       }
       requestBody = JSON.parse(rawBody);
@@ -469,12 +501,14 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
-        undefined,
-        'invalid_input',
         {
-          missing_env: false,
-          reason: `Invalid JSON in request body: ${jsonError instanceof Error ? jsonError.message : 'unknown error'}`,
-        }
+          summary_update: '',
+          open_loops: [],
+          current_goal: '',
+          last_advice: '',
+          next_question: '',
+        },
+        'invalid_input'
       );
     }
 
@@ -499,12 +533,14 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
-        undefined,
-        'invalid_input',
         {
-          missing_env: false,
-          reason: 'personName is required and must be a non-empty string',
-        }
+          summary_update: '',
+          open_loops: [],
+          current_goal: '',
+          last_advice: '',
+          next_question: '',
+        },
+        'invalid_input'
       );
     }
 
@@ -513,12 +549,14 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
-        undefined,
-        'invalid_input',
         {
-          missing_env: false,
-          reason: 'recentUserMessages must be an array',
-        }
+          summary_update: '',
+          open_loops: [],
+          current_goal: '',
+          last_advice: '',
+          next_question: '',
+        },
+        'invalid_input'
       );
     }
 
@@ -527,12 +565,14 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
-        undefined,
-        'invalid_input',
         {
-          missing_env: false,
-          reason: 'recentUserMessages array is empty',
-        }
+          summary_update: '',
+          open_loops: [],
+          current_goal: '',
+          last_advice: '',
+          next_question: '',
+        },
+        'invalid_input'
       );
     }
 
@@ -541,64 +581,45 @@ serve(async (req: Request) => {
       return createSafeResponse(
         [],
         [],
-        undefined,
-        'invalid_input',
         {
-          missing_env: false,
-          reason: 'existingMemories must be an array',
-        }
-      );
-    }
-
-    // STEP 1: Extract memories
-    console.log('Step 1: Extracting memories...');
-    let memories: any[] = [];
-    let mentioned_keys: any[] = [];
-    
-    try {
-      const memoryResult = await extractMemoriesFromOpenAI(
-        personName,
-        recentUserMessages,
-        lastAssistantMessage,
-        existingMemories
-      );
-      memories = memoryResult.memories;
-      mentioned_keys = memoryResult.mentioned_keys;
-      console.log('✅ Memories extracted:', memories.length);
-    } catch (memoryError) {
-      console.error('⚠️ Memory extraction failed (continuing):', memoryError);
-      // Continue even if memory extraction fails
-    }
-
-    // STEP 2: Extract conversation continuity (only if we have enough messages)
-    console.log('Step 2: Extracting conversation continuity...');
-    let continuity: ContinuityData | undefined;
-    
-    // Only extract continuity if we have at least 2 user messages (meaningful conversation)
-    if (recentUserMessages.length >= 2) {
-      try {
-        continuity = await extractContinuityFromOpenAI(
-          personName,
-          recentUserMessages,
-          lastAssistantMessage
-        );
-        console.log('✅ Continuity extracted');
-        console.log('  - Summary:', continuity.summary_update ? 'yes' : 'no');
-        console.log('  - Open loops:', continuity.open_loops.length);
-        console.log('  - Current goal:', continuity.current_goal ? 'yes' : 'no');
-        console.log('  - Last advice:', continuity.last_advice ? 'yes' : 'no');
-        console.log('  - Next question:', continuity.next_question ? 'yes' : 'no');
-      } catch (continuityError) {
-        console.error('⚠️ Continuity extraction failed (continuing):', continuityError);
-        // Continue even if continuity extraction fails
-        continuity = {
           summary_update: '',
           open_loops: [],
           current_goal: '',
           last_advice: '',
           next_question: '',
-        };
-      }
+        },
+        'invalid_input'
+      );
+    }
+
+    // STEP 1: Extract memories (never throws - returns empty arrays on error)
+    console.log('Step 1: Extracting memories...');
+    const { memories, mentioned_keys } = await extractMemoriesFromOpenAI(
+      personName,
+      recentUserMessages,
+      lastAssistantMessage,
+      existingMemories
+    );
+    console.log('✅ Memories extracted:', memories.length);
+
+    // STEP 2: Extract conversation continuity (only if we have enough messages)
+    // Never throws - returns empty continuity on error
+    console.log('Step 2: Extracting conversation continuity...');
+    let continuity: ContinuityData;
+    
+    // Only extract continuity if we have at least 2 user messages (meaningful conversation)
+    if (recentUserMessages.length >= 2) {
+      continuity = await extractContinuityFromOpenAI(
+        personName,
+        recentUserMessages,
+        lastAssistantMessage
+      );
+      console.log('✅ Continuity extracted');
+      console.log('  - Summary:', continuity.summary_update ? 'yes' : 'no');
+      console.log('  - Open loops:', continuity.open_loops.length);
+      console.log('  - Current goal:', continuity.current_goal ? 'yes' : 'no');
+      console.log('  - Last advice:', continuity.last_advice ? 'yes' : 'no');
+      console.log('  - Next question:', continuity.next_question ? 'yes' : 'no');
     } else {
       console.log('⚠️ Not enough messages for continuity extraction (need at least 2)');
       continuity = {
@@ -613,30 +634,31 @@ serve(async (req: Request) => {
     console.log('=== Memory Extraction + Continuity Request Completed Successfully ===');
 
     // Success - return the extracted memories and continuity
-    return createSafeResponse(memories, mentioned_keys, continuity, null, null);
+    // ALWAYS returns HTTP 200
+    return createSafeResponse(memories, mentioned_keys, continuity, null);
 
   } catch (error) {
     // Catch-all error handler - NEVER let this function crash
+    // ALWAYS returns HTTP 200 even on catastrophic failure
     console.error('❌ Unexpected error in extract-memories:', error);
     
     // Convert error to string safely
     let errorMessage = 'unknown_error';
-    let errorDetails = 'An unexpected error occurred';
     try {
       if (error instanceof Error) {
         errorMessage = error.message;
-        errorDetails = `${error.name}: ${error.message}`;
         if (error.stack) {
           console.error('Stack trace:', error.stack);
         }
       } else {
         errorMessage = String(error);
-        errorDetails = String(error);
       }
     } catch (e) {
       console.error('Could not stringify error:', e);
     }
 
+    // Return safe response with error message
+    // HTTP 200 with error field populated
     return createSafeResponse(
       [],
       [],
@@ -647,11 +669,7 @@ serve(async (req: Request) => {
         last_advice: '',
         next_question: '',
       },
-      'openai_failed',
-      {
-        missing_env: false,
-        reason: errorDetails,
-      }
+      errorMessage
     );
   }
 });
