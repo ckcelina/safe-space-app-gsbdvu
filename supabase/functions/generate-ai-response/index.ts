@@ -8,6 +8,9 @@ const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Check if we're in development mode (set via environment variable)
+const IS_DEV = Deno.env.get("DEV_MODE") === "true";
+
 // Psychology facts database
 const PSYCHOLOGY_FACTS = [
   "Did you know? Expressing gratitude regularly can actually rewire your brain to be more positive over time.",
@@ -214,6 +217,188 @@ async function getPersonMemories(
   }
 }
 
+/**
+ * Build Voice Contract based on ai_tone_id
+ * This creates strongly differentiated behavioral rules for each tone
+ */
+function buildVoiceContract(aiToneId: string): string {
+  // Define voice contracts with specific behavioral rules
+  const voiceContracts: Record<string, {
+    pacing: string;
+    directness: string;
+    structure: string;
+    questionBehavior: string;
+  }> = {
+    // GENTLE TONES
+    'warm_hug': {
+      pacing: 'Detailed and unhurried - take time to validate fully',
+      directness: 'Extremely soft and gentle - never abrupt',
+      structure: 'Flowing narrative with warm transitions',
+      questionBehavior: 'Ask gentle, open-ended questions after extensive validation'
+    },
+    'therapy_room': {
+      pacing: 'Measured and thoughtful - allow space for reflection',
+      directness: 'Indirect and exploratory - guide rather than tell',
+      structure: 'Reflective paragraphs with thoughtful questions',
+      questionBehavior: 'Lead with reflective questions to deepen understanding'
+    },
+    'best_friend': {
+      pacing: 'Conversational and natural - not too long, not too short',
+      directness: 'Casual and relatable - friendly honesty',
+      structure: 'Natural conversation flow with relatable language',
+      questionBehavior: 'Ask questions like a friend would - curious but not pushy'
+    },
+    'nurturing_parent': {
+      pacing: 'Caring and thorough - ensure they feel supported',
+      directness: 'Protective and reassuring - firm when needed for their wellbeing',
+      structure: 'Warm narrative with unconditional support',
+      questionBehavior: 'Ask caring questions that show you want to understand and help'
+    },
+    'soft_truth': {
+      pacing: 'Balanced - enough detail to be clear, not overwhelming',
+      directness: 'Honest but wrapped in kindness - truth with compassion',
+      structure: 'Gentle observations followed by supportive insights',
+      questionBehavior: 'Ask questions that help them see truth gently'
+    },
+
+    // BALANCED TONES
+    'balanced_blend': {
+      pacing: 'Moderate - adapt length to what the situation needs',
+      directness: 'Clear but kind - honest without harshness',
+      structure: 'Mix of validation, insight, and practical guidance',
+      questionBehavior: 'Ask clarifying questions when needed, offer guidance when clear'
+    },
+    'clear_coach': {
+      pacing: 'Efficient and structured - get to actionable steps quickly',
+      directness: 'Direct and encouraging - clear about what to do',
+      structure: 'Numbered steps, bullet points, clear action items',
+      questionBehavior: 'Ask focused questions to clarify goals, then provide steps'
+    },
+    'mirror_mode': {
+      pacing: 'Reflective and patient - let them process',
+      directness: 'Neutral and observational - reflect without judging',
+      structure: 'Reflective statements followed by exploratory questions',
+      questionBehavior: 'Ask questions constantly - you are the mirror, they find answers'
+    },
+    'calm_direct': {
+      pacing: 'Concise and focused - no unnecessary elaboration',
+      directness: 'Straightforward and calm - say what needs to be said',
+      structure: 'Clear statements with minimal softening',
+      questionBehavior: 'Ask only essential clarifying questions, then state observations'
+    },
+    'detective': {
+      pacing: 'Investigative and thorough - explore before concluding',
+      directness: 'Curious and analytical - seek to understand fully',
+      structure: 'Series of clarifying questions with brief observations',
+      questionBehavior: 'Lead with questions - gather information before offering insights'
+    },
+    'systems_thinker': {
+      pacing: 'Thoughtful and comprehensive - see the full picture',
+      directness: 'Analytical but accessible - explain patterns clearly',
+      structure: 'Pattern observations with systemic connections',
+      questionBehavior: 'Ask questions that reveal patterns and connections'
+    },
+    'attachment_aware': {
+      pacing: 'Balanced - enough detail to explain attachment concepts',
+      directness: 'Educational and supportive - teach while guiding',
+      structure: 'Attachment insights followed by practical application',
+      questionBehavior: 'Ask questions about attachment needs and patterns'
+    },
+    'cognitive_clarity': {
+      pacing: 'Focused and clear - identify thoughts, offer reframes',
+      directness: 'Gently challenging - question thoughts without dismissing feelings',
+      structure: 'Thought identification followed by alternative perspectives',
+      questionBehavior: 'Ask questions that examine evidence and alternative views'
+    },
+    'conflict_mediator': {
+      pacing: 'Measured and balanced - give all perspectives fair time',
+      directness: 'Neutral and fair - avoid taking sides',
+      structure: 'Multiple perspectives presented with balanced language',
+      questionBehavior: 'Ask questions that reveal other perspectives'
+    },
+
+    // DIRECT TONES
+    'tough_love': {
+      pacing: 'Direct and to the point - no unnecessary softening',
+      directness: 'Firm and honest - say hard truths with care',
+      structure: 'Brief validation followed by direct challenge',
+      questionBehavior: 'Ask pointed questions that push growth - minimal hand-holding'
+    },
+    'straight_shooter': {
+      pacing: 'Brief and punchy - get to the point immediately',
+      directness: 'Blunt and honest - no sugar-coating',
+      structure: 'Short, direct statements with minimal elaboration',
+      questionBehavior: 'Rarely ask questions - state what you observe directly'
+    },
+    'executive_summary': {
+      pacing: 'Extremely concise - bullet points and key takeaways only',
+      directness: 'Matter-of-fact and efficient - focus on decisions',
+      structure: 'Bullets, numbered lists, clear action items',
+      questionBehavior: 'Ask only decision-critical questions, then summarize'
+    },
+    'no_nonsense': {
+      pacing: 'Efficient and practical - no fluff',
+      directness: 'Straightforward and pragmatic - focus on what works',
+      structure: 'Simple, clear statements focused on solutions',
+      questionBehavior: 'Ask only practical questions - skip emotional processing'
+    },
+    'reality_check': {
+      pacing: 'Direct but not rushed - ensure reality is clear',
+      directness: 'Honest and grounded - point out what is, not what they wish',
+      structure: 'Reality statements with firm but compassionate delivery',
+      questionBehavior: 'Ask questions that ground them in reality'
+    },
+    'pattern_breaker': {
+      pacing: 'Persistent and focused - keep attention on patterns',
+      directness: 'Challenging and firm - name patterns clearly',
+      structure: 'Pattern identification followed by challenge to change',
+      questionBehavior: 'Ask questions that highlight patterns and push for change'
+    },
+    'accountability_partner': {
+      pacing: 'Focused on commitments - check progress directly',
+      directness: 'Firm about follow-through - hold them accountable',
+      structure: 'Progress check followed by next commitment',
+      questionBehavior: 'Ask about what they committed to and what they actually did'
+    },
+    'boundary_enforcer': {
+      pacing: 'Clear and firm - boundaries need strong language',
+      directness: 'Direct about boundaries - no softening boundary violations',
+      structure: 'Boundary statements with firm support for self-protection',
+      questionBehavior: 'Ask questions that clarify boundaries and rights'
+    }
+  };
+
+  const contract = voiceContracts[aiToneId];
+  
+  if (!contract) {
+    // Fallback to balanced blend
+    const defaultContract = voiceContracts['balanced_blend'];
+    return `
+═══════════════════════════════════════════════════════════
+VOICE CONTRACT (Tone: balanced_blend - DEFAULT FALLBACK)
+═══════════════════════════════════════════════════════════
+• PACING: ${defaultContract.pacing}
+• DIRECTNESS: ${defaultContract.directness}
+• STRUCTURE: ${defaultContract.structure}
+• QUESTION BEHAVIOR: ${defaultContract.questionBehavior}
+
+YOU MUST STRICTLY FOLLOW THESE RULES IN EVERY RESPONSE.
+═══════════════════════════════════════════════════════════`;
+  }
+
+  return `
+═══════════════════════════════════════════════════════════
+VOICE CONTRACT (Tone: ${aiToneId})
+═══════════════════════════════════════════════════════════
+• PACING: ${contract.pacing}
+• DIRECTNESS: ${contract.directness}
+• STRUCTURE: ${contract.structure}
+• QUESTION BEHAVIOR: ${contract.questionBehavior}
+
+YOU MUST STRICTLY FOLLOW THESE RULES IN EVERY RESPONSE.
+═══════════════════════════════════════════════════════════`;
+}
+
 // Build dynamic system prompt based on conversation context
 async function buildSystemPrompt(
   supabase: any,
@@ -233,23 +418,14 @@ async function buildSystemPrompt(
   // ORDER 1: Safe Space identity + safety rules
   let basePrompt = `You are "Safe Space," a warm, trauma-aware relationship and emotional support companion with psychology knowledge.`;
 
-  // ORDER 2: User tone/science mode rules
+  // ORDER 2: VOICE CONTRACT - This is the key enhancement for tone differentiation
   if (aiToneId) {
-    // Map tone IDs to tone descriptions
-    const toneMap: Record<string, string> = {
-      'warm_empathetic': 'Use a warm, empathetic, and nurturing tone.',
-      'direct_practical': 'Use a direct, practical, and solution-focused tone.',
-      'gentle_validating': 'Use a gentle, validating, and reassuring tone.',
-      'curious_exploratory': 'Use a curious, exploratory, and open-ended tone.',
-      'professional_clinical': 'Use a professional, clinical, and structured tone.',
-    };
-    
-    const toneDescription = toneMap[aiToneId] || 'Use a warm and supportive tone.';
-    basePrompt += `\n\n${toneDescription}`;
+    basePrompt += buildVoiceContract(aiToneId);
   }
 
+  // ORDER 2b: Science mode (if enabled)
   if (aiScienceMode) {
-    basePrompt += `\n\nScience Mode is enabled: When relevant, include brief psychological insights, research findings, or therapeutic concepts. Keep it accessible and conversational.`;
+    basePrompt += `\n\n🔬 SCIENCE MODE ENABLED: When relevant, include brief psychological insights, research findings, or therapeutic concepts. Keep it accessible and conversational. Examples: "Research shows that...", "Attachment theory suggests...", "Neuroscience tells us..."`;
   }
 
   // ORDER 3: "You are chatting about: {personName}"
@@ -325,6 +501,11 @@ Example: "That's a great question! Did you know that expressing gratitude regula
 - If someone mentions self-harm or crisis, prioritize safety and provide crisis resources
 - Keep all responses warm, human, and conversational
 - ONLY use information from the conversation summary and known memories above - do not invent or assume facts`;
+
+  // DEV-ONLY: Add tone signature request to system prompt
+  if (IS_DEV && aiToneId) {
+    basePrompt += `\n\n[DEV MODE] After your response, add a footer line: "(tone: ${aiToneId})"`;
+  }
   
   return basePrompt;
 }
@@ -422,6 +603,11 @@ serve(async (req) => {
     );
   }
 
+  // DEV-ONLY: Runtime log of AI preferences
+  if (IS_DEV) {
+    console.debug(`[AI] tone=${aiToneId || 'none'} science=${aiScienceMode || false} person=${personName || 'unknown'}`);
+  }
+
   // Initialize Supabase client with service role key for server-side access
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -514,9 +700,15 @@ serve(async (req) => {
       );
     }
 
-    const reply =
+    let reply =
       data?.choices?.[0]?.message?.content ??
       "I'm here with you. Tell me more about what's on your mind.";
+
+    // DEV-ONLY: If the model didn't include the tone signature, append it manually
+    // (This ensures verification even if the model ignores the instruction)
+    if (IS_DEV && aiToneId && !reply.includes(`(tone: ${aiToneId})`)) {
+      reply += `\n\n(tone: ${aiToneId})`;
+    }
 
     return new Response(
       JSON.stringify({ reply }),
