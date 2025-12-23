@@ -37,56 +37,130 @@ interface PersonMemory {
   updated_at: string;
 }
 
+// Category labels mapping
+const CATEGORY_LABELS: Record<string, string> = {
+  loss_grief: 'Loss & Grief',
+  identity: 'Identity',
+  relationship: 'Relationship',
+  preferences: 'Preferences',
+  boundaries: 'Boundaries',
+  conflict_patterns: 'Patterns',
+  goals: 'Goals',
+  context: 'Context',
+  personal: 'Personal Details',
+  health: 'Health & Wellness',
+  work: 'Work & Career',
+  interests: 'Interests & Hobbies',
+  communication: 'Communication',
+  general: 'General',
+};
+
 // Friendly labels for memory keys
 const FRIENDLY_KEY_LABELS: Record<string, string> = {
+  // Loss & Grief
+  is_deceased: 'Deceased',
+  time_of_death: 'Time since passing',
+  cause_of_death: 'Cause of passing',
+  grief_stage: 'Grief stage',
+  memorial_preferences: 'Memorial preferences',
+  
   // Personal details
   age: 'Age',
   birthday: 'Birthday',
   occupation: 'Occupation',
   location: 'Location',
   hometown: 'Hometown',
+  full_name: 'Full name',
+  nickname: 'Nickname',
   
   // Relationships
-  relationship_status: 'Relationship Status',
-  family_members: 'Family Members',
+  relationship_type: 'Relationship',
+  relationship_status: 'Relationship status',
+  family_members: 'Family members',
   children: 'Children',
   pets: 'Pets',
+  significant_other: 'Significant other',
   
   // Interests & Hobbies
   hobbies: 'Hobbies',
   interests: 'Interests',
-  favorite_music: 'Favorite Music',
-  favorite_movies: 'Favorite Movies',
-  favorite_books: 'Favorite Books',
-  favorite_food: 'Favorite Food',
+  favorite_music: 'Favorite music',
+  favorite_movies: 'Favorite movies',
+  favorite_books: 'Favorite books',
+  favorite_food: 'Favorite food',
+  favorite_color: 'Favorite color',
+  sports: 'Sports',
   
   // Health & Wellness
-  health_conditions: 'Health Conditions',
+  health_conditions: 'Health conditions',
   medications: 'Medications',
   allergies: 'Allergies',
-  mental_health: 'Mental Health',
+  mental_health: 'Mental health',
+  dietary_restrictions: 'Dietary restrictions',
   
   // Work & Education
   education: 'Education',
-  career_goals: 'Career Goals',
-  work_challenges: 'Work Challenges',
+  career_goals: 'Career goals',
+  work_challenges: 'Work challenges',
+  current_job: 'Current job',
+  dream_job: 'Dream job',
   
   // Personality & Traits
-  personality_traits: 'Personality Traits',
+  personality_traits: 'Personality traits',
   values: 'Values',
   fears: 'Fears',
   goals: 'Goals',
   dreams: 'Dreams',
+  strengths: 'Strengths',
+  weaknesses: 'Weaknesses',
   
   // Communication
-  communication_style: 'Communication Style',
-  love_language: 'Love Language',
-  conflict_style: 'Conflict Style',
+  communication_style: 'Communication style',
+  love_language: 'Love language',
+  conflict_style: 'Conflict style',
+  preferred_contact: 'Preferred contact method',
+  
+  // Boundaries
+  personal_boundaries: 'Personal boundaries',
+  emotional_boundaries: 'Emotional boundaries',
+  time_boundaries: 'Time boundaries',
+  
+  // Preferences
+  preferences: 'Preferences',
+  likes: 'Likes',
+  dislikes: 'Dislikes',
+  pet_peeves: 'Pet peeves',
 };
 
-// Get friendly label for a key, or return the key itself
+// Get friendly label for a category
+function getCategoryLabel(category: string): string {
+  return CATEGORY_LABELS[category.toLowerCase()] || category.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
+// Get friendly label for a key
 function getFriendlyLabel(key: string): string {
-  return FRIENDLY_KEY_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  return FRIENDLY_KEY_LABELS[key.toLowerCase()] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
+// Format date for display
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) {
+    return 'Today';
+  } else if (diffDays === 1) {
+    return 'Yesterday';
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`;
+  } else if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
+  } else {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
 }
 
 // Group memories by category
@@ -94,7 +168,7 @@ function groupMemoriesByCategory(memories: PersonMemory[]): Record<string, Perso
   const grouped: Record<string, PersonMemory[]> = {};
   
   memories.forEach((memory) => {
-    const category = memory.category || 'General';
+    const category = memory.category || 'general';
     if (!grouped[category]) {
       grouped[category] = [];
     }
@@ -423,7 +497,7 @@ export default function MemoriesScreen() {
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: insets.bottom + 16 }
+            { paddingBottom: insets.bottom + 100 }
           ]}
           showsVerticalScrollIndicator={false}
         >
@@ -433,15 +507,18 @@ export default function MemoriesScreen() {
                 <IconSymbol
                   ios_icon_name="brain"
                   android_material_icon_name="psychology"
-                  size={40}
+                  size={48}
                   color={theme.primary}
                 />
               </View>
-              <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
+              <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>
                 No memories saved yet
               </Text>
               <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-                As you chat, the AI will learn and remember important details about {personName}
+                As you chat, the AI will learn and remember important details about {personName}.
+              </Text>
+              <Text style={[styles.emptyHint, { color: theme.textSecondary }]}>
+                You can edit or delete memories anytime.
               </Text>
             </View>
           ) : (
@@ -449,12 +526,31 @@ export default function MemoriesScreen() {
               {categories.map((category) => (
                 <View key={category} style={styles.categorySection}>
                   <Text style={[styles.categoryHeader, { color: theme.textPrimary }]}>
-                    {category}
+                    {getCategoryLabel(category)}
                   </Text>
                   {groupedMemories[category].map((memory) => (
                     <View
                       key={memory.id}
-                      style={[styles.memoryCard, { backgroundColor: theme.card }]}
+                      style={[
+                        styles.memoryCard,
+                        { 
+                          backgroundColor: theme.card,
+                          ...Platform.select({
+                            ios: {
+                              shadowColor: '#000',
+                              shadowOffset: { width: 0, height: 2 },
+                              shadowOpacity: 0.08,
+                              shadowRadius: 8,
+                            },
+                            android: {
+                              elevation: 3,
+                            },
+                            web: {
+                              boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+                            },
+                          }),
+                        }
+                      ]}
                     >
                       <View style={styles.memoryHeader}>
                         <View style={styles.memoryTitleRow}>
@@ -499,14 +595,33 @@ export default function MemoriesScreen() {
                           </TouchableOpacity>
                         </View>
                       </View>
+                      
                       <Text style={[styles.memoryValue, { color: theme.textSecondary }]}>
                         {memory.value}
                       </Text>
-                      {memory.last_mentioned_at && (
-                        <Text style={[styles.memoryMeta, { color: theme.textSecondary }]}>
-                          Last mentioned: {new Date(memory.last_mentioned_at).toLocaleDateString()}
-                        </Text>
-                      )}
+                      
+                      <View style={styles.memoryFooter}>
+                        <View style={styles.metadataRow}>
+                          {memory.confidence >= 7 && (
+                            <View style={[styles.metadataBadge, { backgroundColor: theme.primary + '15' }]}>
+                              <IconSymbol
+                                ios_icon_name="checkmark.circle.fill"
+                                android_material_icon_name="check_circle"
+                                size={12}
+                                color={theme.primary}
+                              />
+                              <Text style={[styles.metadataText, { color: theme.primary }]}>
+                                High confidence
+                              </Text>
+                            </View>
+                          )}
+                          {memory.last_mentioned_at && (
+                            <Text style={[styles.memoryMeta, { color: theme.textSecondary }]}>
+                              Updated {formatDate(memory.updated_at)}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -603,8 +718,8 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   headerGradient: {
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   header: {
     flexDirection: 'row',
@@ -612,12 +727,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: '5%',
     paddingVertical: 12,
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
   backButton: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   headerCenter: {
     flex: 1,
@@ -625,15 +740,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontWeight: '700',
     color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 2,
+    color: 'rgba(255, 255, 255, 0.95)',
+    marginTop: 4,
   },
   errorBanner: {
     flexDirection: 'row',
@@ -660,88 +776,136 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: '5%',
-    paddingVertical: 16,
+    paddingTop: 24,
   },
   emptyState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
     paddingHorizontal: '10%',
   },
   emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  categorySection: {
     marginBottom: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+      web: {
+        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+      },
+    }),
   },
-  categoryHeader: {
-    fontSize: 18,
+  emptyTitle: {
+    fontSize: 22,
     fontWeight: '700',
     marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  emptySubtext: {
+    fontSize: 15,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  emptyHint: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  categorySection: {
+    marginBottom: 32,
+  },
+  categoryHeader: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 16,
+    letterSpacing: 0.3,
+    paddingLeft: 4,
   },
   memoryCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
-    elevation: 2,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 14,
   },
   memoryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   memoryTitleRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 12,
   },
   memoryKey: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     marginRight: 8,
+    letterSpacing: 0.2,
   },
   importanceBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
   },
   memoryActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
   },
   actionButton: {
-    padding: 4,
+    padding: 6,
   },
   memoryValue: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 4,
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 12,
+    fontWeight: '400',
+  },
+  memoryFooter: {
+    marginTop: 4,
+  },
+  metadataRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  metadataBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  metadataText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   memoryMeta: {
     fontSize: 12,
+    fontWeight: '500',
     fontStyle: 'italic',
   },
   modalContent: {
