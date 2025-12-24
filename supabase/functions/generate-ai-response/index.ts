@@ -720,136 +720,142 @@ Example: "That's a great question! Did you know that expressing gratitude regula
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
-  }
-
-  if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { 
-        status: 405, 
-        headers: { 
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        } 
-      },
-    );
-  }
-
-  if (!OPENAI_API_KEY) {
-    console.error("[Edge] Missing OPENAI_API_KEY");
-    return new Response(
-      JSON.stringify({ error: "Server misconfiguration: missing OPENAI_API_KEY" }),
-      { 
-        status: 500, 
-        headers: { 
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        } 
-      },
-    );
-  }
-
-  // Parse incoming JSON safely
-  let body: any;
+  // ========== GLOBAL TRY-CATCH WRAPPER ==========
+  // This ensures we NEVER return non-2xx status codes
   try {
-    body = await req.json();
-  } catch (err) {
-    console.error("[Edge] Failed to parse request JSON:", err);
-    return new Response(
-      JSON.stringify({ error: "Invalid JSON body from client" }),
-      { 
-        status: 400, 
-        headers: { 
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        } 
-      },
+    // Handle CORS preflight
+    if (req.method === "OPTIONS") {
+      return new Response(null, {
+        status: 200,
+        headers: corsHeaders,
+      });
+    }
+
+    // Check method
+    if (req.method !== "POST") {
+      console.log("[Edge] Method not allowed:", req.method);
+      return new Response(
+        JSON.stringify({ reply: null, error: "invalid_input" }),
+        { 
+          status: 200, 
+          headers: { 
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          } 
+        },
+      );
+    }
+
+    // Check for OpenAI API key
+    if (!OPENAI_API_KEY) {
+      console.error("[Edge] Missing OPENAI_API_KEY");
+      return new Response(
+        JSON.stringify({ reply: null, error: "missing_env" }),
+        { 
+          status: 200, 
+          headers: { 
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          } 
+        },
+      );
+    }
+
+    // Parse incoming JSON safely
+    let body: any;
+    try {
+      body = await req.json();
+    } catch (err) {
+      console.error("[Edge] Failed to parse request JSON:", err);
+      return new Response(
+        JSON.stringify({ reply: null, error: "invalid_input" }),
+        { 
+          status: 200, 
+          headers: { 
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          } 
+        },
+      );
+    }
+
+    const { 
+      messages, 
+      personId, 
+      personName, 
+      personRelationshipType, 
+      currentSubject,
+      aiToneId,
+      aiScienceMode,
+      userId 
+    } = body ?? {};
+
+    // Validate required fields
+    if (!Array.isArray(messages)) {
+      console.error("[Edge] Missing or invalid 'messages' array in request body");
+      return new Response(
+        JSON.stringify({ reply: null, error: "invalid_input" }),
+        { 
+          status: 200, 
+          headers: { 
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          } 
+        },
+      );
+    }
+
+    if (!userId) {
+      console.error("[Edge] Missing userId in request body");
+      return new Response(
+        JSON.stringify({ reply: null, error: "invalid_input" }),
+        { 
+          status: 200, 
+          headers: { 
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          } 
+        },
+      );
+    }
+
+    // DEV-ONLY: Runtime log of AI preferences
+    if (IS_DEV) {
+      console.debug(`[AI] tone=${aiToneId || 'none'} science=${aiScienceMode || false} person=${personName || 'unknown'}`);
+    }
+
+    // Initialize Supabase client with service role key for server-side access
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Get the last user message for context analysis
+    const lastUserMessage = messages
+      .filter((msg: any) => msg.role === "user")
+      .pop()?.content || "";
+
+    // Build dynamic system prompt based on context (including continuity, summary, and memories)
+    const systemPrompt = await buildSystemPrompt(
+      supabase,
+      userId,
+      personId,
+      lastUserMessage,
+      personName || "this person",
+      personRelationshipType || "your relationship",
+      currentSubject,
+      aiToneId,
+      aiScienceMode
     );
-  }
 
-  const { 
-    messages, 
-    personId, 
-    personName, 
-    personRelationshipType, 
-    currentSubject,
-    aiToneId,
-    aiScienceMode,
-    userId 
-  } = body ?? {};
+    const systemMessage = {
+      role: "system" as const,
+      content: systemPrompt,
+    };
 
-  if (!Array.isArray(messages)) {
-    console.error("[Edge] Missing or invalid 'messages' array in request body");
-    return new Response(
-      JSON.stringify({ error: "Missing or invalid 'messages' in request body" }),
-      { 
-        status: 400, 
-        headers: { 
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        } 
-      },
-    );
-  }
+    // Convert messages to OpenAI format
+    const openaiMessages = messages.map((msg: any) => ({
+      role: msg.role === "user" ? "user" : "assistant",
+      content: msg.content,
+    }));
 
-  if (!userId) {
-    console.error("[Edge] Missing userId in request body");
-    return new Response(
-      JSON.stringify({ error: "Missing userId in request body" }),
-      { 
-        status: 400, 
-        headers: { 
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        } 
-      },
-    );
-  }
-
-  // DEV-ONLY: Runtime log of AI preferences
-  if (IS_DEV) {
-    console.debug(`[AI] tone=${aiToneId || 'none'} science=${aiScienceMode || false} person=${personName || 'unknown'}`);
-  }
-
-  // Initialize Supabase client with service role key for server-side access
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-  // Get the last user message for context analysis
-  const lastUserMessage = messages
-    .filter((msg: any) => msg.role === "user")
-    .pop()?.content || "";
-
-  // Build dynamic system prompt based on context (including continuity, summary, and memories)
-  const systemPrompt = await buildSystemPrompt(
-    supabase,
-    userId,
-    personId,
-    lastUserMessage,
-    personName || "this person",
-    personRelationshipType || "your relationship",
-    currentSubject,
-    aiToneId,
-    aiScienceMode
-  );
-
-  const systemMessage = {
-    role: "system" as const,
-    content: systemPrompt,
-  };
-
-  // Convert messages to OpenAI format
-  const openaiMessages = messages.map((msg: any) => ({
-    role: msg.role === "user" ? "user" : "assistant",
-    content: msg.content,
-  }));
-
-  try {
     // Call OpenAI
     const openaiRes = await fetch(OPENAI_API_URL, {
       method: "POST",
@@ -874,13 +880,9 @@ serve(async (req) => {
         rawText,
       );
       return new Response(
-        JSON.stringify({
-          error: "OpenAI API error",
-          status: openaiRes.status,
-          details: rawText || "No response body",
-        }),
+        JSON.stringify({ reply: null, error: "openai_failed" }),
         { 
-          status: 500, 
+          status: 200, 
           headers: { 
             "Content-Type": "application/json",
             ...corsHeaders,
@@ -895,12 +897,9 @@ serve(async (req) => {
     } catch (err) {
       console.error("[Edge] Failed to parse OpenAI JSON:", err, rawText);
       return new Response(
-        JSON.stringify({
-          error: "Failed to parse OpenAI response",
-          details: rawText || "Empty response body",
-        }),
+        JSON.stringify({ reply: null, error: "openai_failed" }),
         { 
-          status: 500, 
+          status: 200, 
           headers: { 
             "Content-Type": "application/json",
             ...corsHeaders,
@@ -945,8 +944,9 @@ serve(async (req) => {
       }
     })();
 
+    // ========== ALWAYS RETURN 200 WITH VALID JSON ==========
     return new Response(
-      JSON.stringify({ reply }),
+      JSON.stringify({ reply, error: null }),
       { 
         status: 200, 
         headers: { 
@@ -956,11 +956,13 @@ serve(async (req) => {
       },
     );
   } catch (err) {
-    console.error("[Edge] Unexpected error while calling OpenAI:", err);
+    // ========== CATCH-ALL ERROR HANDLER ==========
+    // This catches ANY uncaught error and returns 200 with error
+    console.error("[Edge] Unexpected error in main handler:", err);
     return new Response(
-      JSON.stringify({ error: "Unexpected server error", details: String(err) }),
+      JSON.stringify({ reply: null, error: "openai_failed" }),
       { 
-        status: 500, 
+        status: 200, 
         headers: { 
           "Content-Type": "application/json",
           ...corsHeaders,
