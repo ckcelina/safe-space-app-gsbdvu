@@ -469,24 +469,71 @@ export default function ChatScreen() {
       );
 
       if (fnError) {
-        console.error('[Chat] AI function error:', fnError);
+        // Silent error handling: Do NOT console.error
         if (isMountedRef.current) {
           setIsTyping(false);
           setIsSending(false);
           isGeneratingRef.current = false;
-          setError(
-            (fnError as any)?.message ||
-              'Failed to generate AI reply. Please try again.'
-          );
+          
+          // Insert fallback assistant message
+          const fallbackMessage = "I'm having trouble responding right now. Please try again.";
+          const { data: fallbackInserted } = await supabase
+            .from('messages')
+            .insert({
+              user_id: userId,
+              person_id: personId,
+              role: 'assistant',
+              content: fallbackMessage,
+              subject: currentSubject,
+              created_at: new Date().toISOString(),
+            })
+            .select('*')
+            .single();
+
+          if (fallbackInserted) {
+            setAllMessages((prev) => [...prev, fallbackInserted]);
+            scrollToBottom();
+          }
         }
         return;
       }
 
       console.log('[Chat] AI response received');
 
+      // Check if the Edge Function returned an error in the response body
+      if (aiResponse?.error) {
+        // Silent error handling: Do NOT console.error
+        if (isMountedRef.current) {
+          setIsTyping(false);
+          setIsSending(false);
+          isGeneratingRef.current = false;
+          
+          // Insert fallback assistant message
+          const fallbackMessage = "I'm having trouble responding right now. Please try again.";
+          const { data: fallbackInserted } = await supabase
+            .from('messages')
+            .insert({
+              user_id: userId,
+              person_id: personId,
+              role: 'assistant',
+              content: fallbackMessage,
+              subject: currentSubject,
+              created_at: new Date().toISOString(),
+            })
+            .select('*')
+            .single();
+
+          if (fallbackInserted) {
+            setAllMessages((prev) => [...prev, fallbackInserted]);
+            scrollToBottom();
+          }
+        }
+        return;
+      }
+
       let replyText =
         aiResponse?.reply ||
-        "I'm here with you. Tell me more about how you're feeling.";
+        "I'm having trouble responding right now. Please try again.";
 
       if (lastAssistantMessage && areSimilar(replyText, lastAssistantMessage.content)) {
         console.warn('[Chat] Loop detected! AI response is too similar to previous response');
