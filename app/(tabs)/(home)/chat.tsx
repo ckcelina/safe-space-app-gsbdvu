@@ -6,12 +6,14 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   Platform,
   Animated,
   Dimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  KeyboardAvoidingView,
+  ListRenderItemInfo,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,7 +29,6 @@ import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
-import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast } from '@/utils/toast';
 import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
@@ -172,10 +173,8 @@ export default function ChatScreen() {
   const lastProcessedUserMessageIdRef = useRef<string | null>(null);
   const isGeneratingRef = useRef(false);
 
-  // Smart scroll tracking
-  const scrollViewRef = useRef<ScrollView>(null);
-  const scrollPositionRef = useRef({ offset: 0, contentHeight: 0, layoutHeight: 0 });
-  const shouldAutoScrollRef = useRef(true);
+  // FlatList ref for inverted list
+  const flatListRef = useRef<FlatList>(null);
 
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
@@ -210,39 +209,6 @@ export default function ChatScreen() {
   }, []);
 
   const isFreeUser = role === 'free';
-
-  // Helper to check if user is near bottom
-  const isNearBottom = useCallback(() => {
-    const { offset, contentHeight, layoutHeight } = scrollPositionRef.current;
-    const distanceFromBottom = contentHeight - (offset + layoutHeight);
-    return distanceFromBottom < 200;
-  }, []);
-
-  // Smart scroll to bottom - only scrolls if near bottom or forced
-  const scrollToBottom = useCallback((force = false) => {
-    if (!scrollViewRef.current) return;
-    
-    if (force || shouldAutoScrollRef.current) {
-      setTimeout(() => {
-        if (isMountedRef.current && scrollViewRef.current) {
-          scrollViewRef.current.scrollToEnd({ animated: true });
-        }
-      }, 100);
-    }
-  }, []);
-
-  // Track scroll position
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    scrollPositionRef.current = {
-      offset: contentOffset.y,
-      contentHeight: contentSize.height,
-      layoutHeight: layoutMeasurement.height,
-    };
-    
-    // Update auto-scroll flag based on position
-    shouldAutoScrollRef.current = isNearBottom();
-  }, [isNearBottom]);
 
   // Safe backfill function - updates NULL/empty subjects to 'General'
   const backfillSubjects = useCallback(async () => {
@@ -313,8 +279,6 @@ export default function ChatScreen() {
       
       if (isMountedRef.current) {
         setAllMessages(data ?? []);
-        // Force scroll to bottom on initial load
-        scrollToBottom(true);
       }
 
       backfillSubjects();
@@ -328,7 +292,7 @@ export default function ChatScreen() {
         setLoading(false);
       }
     }
-  }, [personId, authUser?.id, scrollToBottom, backfillSubjects]);
+  }, [personId, authUser?.id, backfillSubjects]);
 
   useEffect(() => {
     if (personId && authUser?.id) {
@@ -350,6 +314,11 @@ export default function ChatScreen() {
       return msgSubject === currentSubject;
     });
   }, [allMessages, currentSubject]);
+
+  // REVERSED messages for inverted FlatList
+  const reversedMessages = React.useMemo(() => {
+    return [...displayedMessages].reverse();
+  }, [displayedMessages]);
 
   const handleRetry = useCallback(() => {
     loadMessages();
@@ -447,9 +416,6 @@ export default function ChatScreen() {
         });
       }
 
-      // FORCE scroll to bottom after user sends message
-      scrollToBottom(true);
-
       // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
       // This runs even if the AI reply fails, ensuring memories are always saved
       try {
@@ -536,8 +502,6 @@ export default function ChatScreen() {
 
           if (fallbackInserted) {
             setAllMessages((prev) => [...prev, fallbackInserted]);
-            // FORCE scroll to bottom after assistant message
-            scrollToBottom(true);
           }
         }
         return;
@@ -570,8 +534,6 @@ export default function ChatScreen() {
 
           if (fallbackInserted) {
             setAllMessages((prev) => [...prev, fallbackInserted]);
-            // FORCE scroll to bottom after assistant message
-            scrollToBottom(true);
           }
         }
         return;
@@ -618,8 +580,6 @@ export default function ChatScreen() {
 
       if (isMountedRef.current) {
         setAllMessages((prev) => [...prev, aiInserted]);
-        // FORCE scroll to bottom after assistant message
-        scrollToBottom(true);
         setIsTyping(false);
         setIsSending(false);
         isGeneratingRef.current = false;
@@ -678,7 +638,7 @@ export default function ChatScreen() {
         isGeneratingRef.current = false;
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, scrollToBottom, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -745,9 +705,70 @@ export default function ChatScreen() {
     closeAddSubjectModal();
   }, [customSubjectInput, quickSelectedSubject, closeAddSubjectModal]);
 
+  // Render individual message item
+  const renderMessageItem = useCallback(({ item }: ListRenderItemInfo<Message>) => {
+    return (
+      <ChatBubble
+        message={item.content}
+        isUser={item.role === 'user'}
+        timestamp={item.created_at}
+        animate={false}
+      />
+    );
+  }, []);
+
+  // Key extractor for FlatList
+  const keyExtractor = useCallback((item: Message) => item.id, []);
+
+  // Empty list component
+  const renderEmptyList = useCallback(() => {
+    if (loading) return null;
+    
+    return (
+      <View style={styles.emptyChat}>
+        <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
+          <IconSymbol
+            ios_icon_name="bubble.left.and.bubble.right.fill"
+            android_material_icon_name="chat"
+            size={40}
+            color={theme.primary}
+          />
+        </View>
+        <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
+          Start the conversation
+        </Text>
+        <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
+          Share your thoughts and feelings about {personName}
+        </Text>
+        {currentSubject !== 'General' && allMessages.length > 0 && (
+          <Text style={[styles.emptyHint, { color: theme.textSecondary }]}>
+            No messages for &quot;{currentSubject}&quot; yet. Switch to &quot;General&quot; to see other messages.
+          </Text>
+        )}
+        {error && (
+          <TouchableOpacity style={{ marginTop: 12 }} onPress={handleRetry} activeOpacity={0.7}>
+            <Text style={{ color: theme.primary, fontWeight: '600' }}>
+              Try loading messages again
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }, [loading, theme, personName, currentSubject, allMessages.length, error, handleRetry]);
+
+  // Footer component (typing indicator at top of inverted list)
+  const renderListFooter = useCallback(() => {
+    if (!isTyping) return null;
+    return <TypingIndicator />;
+  }, [isTyping]);
+
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
-      <KeyboardAvoider>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
         <View style={[styles.container, { backgroundColor: theme.background }]}>
           {/* Status Bar Gradient - matches theme gradient */}
           <LinearGradient
@@ -815,28 +836,23 @@ export default function ChatScreen() {
 
           {/* Subject Pills Row */}
           <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
-            <ScrollView
+            <FlatList
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.pillsScrollContent}
               keyboardShouldPersistTaps="handled"
-            >
-              {availableSubjects.map((subject, index) => (
+              data={[...availableSubjects, '+ Add subject']}
+              renderItem={({ item, index }) => (
                 <SubjectPill
-                  key={`subject-${index}-${subject}`}
-                  subject={subject}
-                  isSelected={currentSubject === subject}
-                  onPress={handleSubjectPress}
+                  key={`subject-${index}-${item}`}
+                  subject={item}
+                  isSelected={currentSubject === item}
+                  onPress={item === '+ Add subject' ? openAddSubjectModal : handleSubjectPress}
+                  isAddButton={item === '+ Add subject'}
                 />
-              ))}
-              <SubjectPill
-                key="add-subject-button"
-                subject="+ Add subject"
-                isSelected={false}
-                onPress={openAddSubjectModal}
-                isAddButton={true}
-              />
-            </ScrollView>
+              )}
+              keyExtractor={(item, index) => `subject-${index}-${item}`}
+            />
           </View>
 
           {isFreeUser && (
@@ -878,62 +894,25 @@ export default function ChatScreen() {
             </View>
           )}
 
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.messagesContainer}
+          {/* INVERTED FlatList for chat messages */}
+          <FlatList
+            ref={flatListRef}
+            data={reversedMessages}
+            renderItem={renderMessageItem}
+            keyExtractor={keyExtractor}
+            inverted={true}
+            maintainVisibleContentPosition={{
+              minIndexForVisible: 1,
+            }}
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
             keyboardShouldPersistTaps="handled"
-          >
-            {displayedMessages.length === 0 && !loading ? (
-              <View style={styles.emptyChat}>
-                <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-                  <IconSymbol
-                    ios_icon_name="bubble.left.and.bubble.right.fill"
-                    android_material_icon_name="chat"
-                    size={40}
-                    color={theme.primary}
-                  />
-                </View>
-                <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
-                  Start the conversation
-                </Text>
-                <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-                  Share your thoughts and feelings about {personName}
-                </Text>
-                {currentSubject !== 'General' && allMessages.length > 0 && (
-                  <Text style={[styles.emptyHint, { color: theme.textSecondary }]}>
-                    No messages for &quot;{currentSubject}&quot; yet. Switch to &quot;General&quot; to see other messages.
-                  </Text>
-                )}
-                {error && (
-                  <TouchableOpacity style={{ marginTop: 12 }} onPress={handleRetry} activeOpacity={0.7}>
-                    <Text style={{ color: theme.primary, fontWeight: '600' }}>
-                      Try loading messages again
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : (
-              <React.Fragment>
-                {displayedMessages.map((message) => (
-                  <ChatBubble
-                    key={message.id}
-                    message={message.content}
-                    isUser={message.role === 'user'}
-                    timestamp={message.created_at}
-                    animate={false}
-                  />
-                ))}
-              </React.Fragment>
-            )}
+            ListEmptyComponent={renderEmptyList}
+            ListFooterComponent={renderListFooter}
+            removeClippedSubviews={Platform.OS === 'android'}
+          />
 
-            {isTyping && <TypingIndicator />}
-          </ScrollView>
-
-          {/* Input Container - NO EXTRA PADDING, sits directly on keyboard */}
+          {/* Input Container */}
           <View style={[
             styles.inputContainer, 
             { 
@@ -992,7 +971,7 @@ export default function ChatScreen() {
             </View>
           </View>
         </View>
-      </KeyboardAvoider>
+      </KeyboardAvoidingView>
 
       <LoadingOverlay visible={loading && !error} />
 
@@ -1003,7 +982,10 @@ export default function ChatScreen() {
         animationType="slide"
         showHandle={true}
       >
-        <KeyboardAvoider>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={styles.modalContent}>
             <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
               Add a subject
@@ -1012,92 +994,99 @@ export default function ChatScreen() {
               Choose what you&apos;d like to focus on in this conversation.
             </Text>
 
-            <ScrollView
+            <FlatList
               style={styles.modalScrollView}
               contentContainerStyle={styles.modalScrollContent}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-            >
-              {/* Quick Select Subjects */}
-              <View style={styles.quickSelectContainer}>
-                <Text style={[styles.quickSelectLabel, { color: theme.textPrimary }]}>
-                  Quick select:
-                </Text>
-                <View style={styles.quickSelectGrid}>
-                  {QUICK_SELECT_SUBJECTS.map((subject, index) => (
-                    <TouchableOpacity
-                      key={`quick-${index}-${subject}`}
-                      onPress={() => handleQuickSubjectSelect(subject)}
-                      activeOpacity={0.7}
-                      style={[
-                        styles.quickSelectButton,
-                        {
-                          backgroundColor:
-                            quickSelectedSubject === subject
-                              ? theme.primary + '20'
-                              : theme.background,
-                          borderWidth: 1.5,
-                          borderColor:
-                            quickSelectedSubject === subject
-                              ? theme.primary
-                              : theme.textSecondary + '40',
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.quickSelectText,
-                          {
-                            color:
-                              quickSelectedSubject === subject
-                                ? theme.primary
-                                : theme.textPrimary,
-                            fontWeight: quickSelectedSubject === subject ? '600' : '500',
-                          },
-                        ]}
-                      >
-                        {subject}
+              data={[{ type: 'quick' }, { type: 'custom' }]}
+              renderItem={({ item }) => {
+                if (item.type === 'quick') {
+                  return (
+                    <View style={styles.quickSelectContainer}>
+                      <Text style={[styles.quickSelectLabel, { color: theme.textPrimary }]}>
+                        Quick select:
                       </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Custom Subject Input */}
-              <View style={styles.customInputContainer}>
-                <Text style={[styles.customInputLabel, { color: theme.textPrimary }]}>
-                  Custom subject:
-                </Text>
-                <View style={[
-                  styles.customInputWrapper,
-                  {
-                    backgroundColor: theme.background,
-                    borderWidth: customSubjectFocused ? 2 : 1.5,
-                    borderColor: customSubjectFocused
-                      ? theme.primary
-                      : theme.textSecondary + '40',
-                  },
-                ]}>
-                  <TextInput
-                    style={[styles.customInput, { color: theme.textPrimary }]}
-                    placeholder="Type your own subject..."
-                    placeholderTextColor={theme.textSecondary}
-                    value={customSubjectInput}
-                    onChangeText={setCustomSubjectInput}
-                    onFocus={() => setCustomSubjectFocused(true)}
-                    onBlur={() => setCustomSubjectFocused(false)}
-                    autoCapitalize="sentences"
-                    autoCorrect={false}
-                    maxLength={100}
-                    returnKeyType="done"
-                    onSubmitEditing={saveSubject}
-                    autoFocus={false}
-                    cursorColor={theme.primary}
-                    selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-                  />
-                </View>
-              </View>
-            </ScrollView>
+                      <View style={styles.quickSelectGrid}>
+                        {QUICK_SELECT_SUBJECTS.map((subject, index) => (
+                          <TouchableOpacity
+                            key={`quick-${index}-${subject}`}
+                            onPress={() => handleQuickSubjectSelect(subject)}
+                            activeOpacity={0.7}
+                            style={[
+                              styles.quickSelectButton,
+                              {
+                                backgroundColor:
+                                  quickSelectedSubject === subject
+                                    ? theme.primary + '20'
+                                    : theme.background,
+                                borderWidth: 1.5,
+                                borderColor:
+                                  quickSelectedSubject === subject
+                                    ? theme.primary
+                                    : theme.textSecondary + '40',
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.quickSelectText,
+                                {
+                                  color:
+                                    quickSelectedSubject === subject
+                                      ? theme.primary
+                                      : theme.textPrimary,
+                                  fontWeight: quickSelectedSubject === subject ? '600' : '500',
+                                },
+                              ]}
+                            >
+                              {subject}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                } else {
+                  return (
+                    <View style={styles.customInputContainer}>
+                      <Text style={[styles.customInputLabel, { color: theme.textPrimary }]}>
+                        Custom subject:
+                      </Text>
+                      <View style={[
+                        styles.customInputWrapper,
+                        {
+                          backgroundColor: theme.background,
+                          borderWidth: customSubjectFocused ? 2 : 1.5,
+                          borderColor: customSubjectFocused
+                            ? theme.primary
+                            : theme.textSecondary + '40',
+                        },
+                      ]}>
+                        <TextInput
+                          style={[styles.customInput, { color: theme.textPrimary }]}
+                          placeholder="Type your own subject..."
+                          placeholderTextColor={theme.textSecondary}
+                          value={customSubjectInput}
+                          onChangeText={setCustomSubjectInput}
+                          onFocus={() => setCustomSubjectFocused(true)}
+                          onBlur={() => setCustomSubjectFocused(false)}
+                          autoCapitalize="sentences"
+                          autoCorrect={false}
+                          maxLength={100}
+                          returnKeyType="done"
+                          onSubmitEditing={saveSubject}
+                          autoFocus={false}
+                          cursorColor={theme.primary}
+                          selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                        />
+                      </View>
+                    </View>
+                  );
+                }
+              }}
+              keyExtractor={(item) => item.type}
+            />
 
             {/* Modal Buttons */}
             <View style={styles.modalButtons}>
@@ -1121,7 +1110,7 @@ export default function ChatScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoider>
+        </KeyboardAvoidingView>
       </SwipeableModal>
     </FullScreenSwipeHandler>
   );
@@ -1243,13 +1232,9 @@ const styles = StyleSheet.create({
     padding: 4,
     marginLeft: 8,
   },
-  messagesContainer: {
-    flex: 1,
-  },
   messagesContent: {
     paddingHorizontal: '5%',
     paddingVertical: 16,
-    paddingBottom: 8,
   },
   emptyChat: {
     flex: 1,
@@ -1257,6 +1242,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 60,
     paddingHorizontal: '10%',
+    transform: [{ scaleY: -1 }], // Flip back for inverted list
   },
   emptyIconContainer: {
     width: 80,
