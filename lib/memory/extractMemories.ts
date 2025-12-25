@@ -1,6 +1,7 @@
 
 import { invokeEdgeFunction } from '../supabase/invokeEdgeFunction';
 import { upsertPersonMemories, touchMemories, PersonMemoryInput } from './personMemory';
+import { extractMemoriesFromUserText } from './localExtract';
 
 /**
  * Extract memories from recent chat messages and upsert them to the database.
@@ -8,6 +9,7 @@ import { upsertPersonMemories, touchMemories, PersonMemoryInput } from './person
  * 
  * ALWAYS returns a result (never throws)
  * Fails silently if extraction or upsert fails
+ * Uses local fallback extraction if Edge Function fails
  * 
  * @param params - Extraction parameters
  * @returns Object with continuity data (if available) and error (if any)
@@ -49,7 +51,25 @@ export async function extractMemories(params: {
     // Check for invocation error (network, HTTP error, etc.)
     if (invokeError) {
       console.log('[Memory Extraction] Edge Function error:', invokeError.message);
-      console.log('[Memory Extraction] Returning empty result');
+      console.log('[Memory Extraction] Falling back to local extraction...');
+      
+      // LOCAL FALLBACK: Use local extraction when Edge Function fails
+      const localMemories: PersonMemoryInput[] = [];
+      
+      // Extract from each user message
+      for (const message of recentUserMessages) {
+        const extracted = extractMemoriesFromUserText(message, personName);
+        localMemories.push(...extracted);
+      }
+      
+      if (localMemories.length > 0) {
+        console.log('[Memory Extraction] Local extraction found', localMemories.length, 'memories');
+        await upsertPersonMemories(userId, personId, localMemories);
+        console.log('[Memory Extraction] Local memories upserted');
+      } else {
+        console.log('[Memory Extraction] Local extraction found no memories');
+      }
+      
       return { 
         error: 'edge_function_invocation_error' 
       };
@@ -73,7 +93,25 @@ export async function extractMemories(params: {
     // Check if Edge Function returned success: false
     if (!result?.success || result?.error) {
       console.log('[Memory] Edge Function returned error:', result?.error || 'unknown');
-      console.log('[Memory] Returning empty result');
+      console.log('[Memory] Falling back to local extraction...');
+      
+      // LOCAL FALLBACK: Use local extraction when Edge Function returns error
+      const localMemories: PersonMemoryInput[] = [];
+      
+      // Extract from each user message
+      for (const message of recentUserMessages) {
+        const extracted = extractMemoriesFromUserText(message, personName);
+        localMemories.push(...extracted);
+      }
+      
+      if (localMemories.length > 0) {
+        console.log('[Memory Extraction] Local extraction found', localMemories.length, 'memories');
+        await upsertPersonMemories(userId, personId, localMemories);
+        console.log('[Memory Extraction] Local memories upserted');
+      } else {
+        console.log('[Memory Extraction] Local extraction found no memories');
+      }
+      
       return { 
         error: result?.error || 'extraction_failed' 
       };
@@ -106,9 +144,30 @@ export async function extractMemories(params: {
     };
   } catch (error: any) {
     console.log('[Memory] Unexpected error during extraction:', error?.message || error);
+    
+    // LOCAL FALLBACK: Use local extraction on unexpected error
+    try {
+      console.log('[Memory] Attempting local extraction fallback...');
+      const localMemories: PersonMemoryInput[] = [];
+      
+      // Extract from each user message
+      for (const message of recentUserMessages) {
+        const extracted = extractMemoriesFromUserText(message, personName);
+        localMemories.push(...extracted);
+      }
+      
+      if (localMemories.length > 0) {
+        console.log('[Memory Extraction] Local extraction found', localMemories.length, 'memories');
+        await upsertPersonMemories(userId, personId, localMemories);
+        console.log('[Memory Extraction] Local memories upserted');
+      } else {
+        console.log('[Memory Extraction] Local extraction found no memories');
+      }
+    } catch (fallbackError) {
+      console.log('[Memory] Local fallback also failed:', fallbackError);
+    }
+    
     return { 
-      memories: [], 
-      mentioned_keys: [],
       error: 'unexpected_error' 
     };
   }

@@ -4,6 +4,8 @@
  * 
  * This module provides lightweight, rule-based memory extraction that works
  * even when the AI Edge Function fails. It extracts stable facts only.
+ * 
+ * IMPROVED: Tighter rules to avoid low-signal extractions
  */
 
 export interface ExtractedMemory {
@@ -17,15 +19,11 @@ export interface ExtractedMemory {
 /**
  * Extract memories from user text using simple heuristics
  * 
- * Rules:
- * - If text contains "died", "passed away", "deceased", "late", "RIP":
- *   memory: { category:"loss_grief", key:"is_deceased", value:"true", importance:5, confidence:5 }
- * - If text contains "kidney failure":
- *   memory: { category:"history", key:"medical_history", value:"kidney failure (mentioned)", importance:3, confidence:4 }
- * - If text says "when he/she was <number>" capture as:
- *   { category:"history", key:"age_reference", value:"<number>", importance:2, confidence:3 }
- * 
- * Only stores stable facts; does not store feelings.
+ * IMPROVED RULES:
+ * - Only store stable facts with clear context
+ * - Avoid generic age references unless tied to medical/major events
+ * - Require labeled keys for numbers
+ * - Focus on: death, medical history, relationship changes, major dates
  * 
  * @param text - The user's message text
  * @param personName - The name of the person being discussed
@@ -43,11 +41,12 @@ export function extractMemoriesFromUserText(
 
   const lowerText = text.toLowerCase();
 
-  // Rule 1: Death/Loss detection
+  // Rule 1: Death/Loss detection (HIGH PRIORITY)
   const deathPatterns = [
     /\b(died|passed away|deceased|late|rip|rest in peace)\b/i,
     /\bno longer (with us|here|alive)\b/i,
     /\blost (him|her|them)\b/i,
+    /\b(death|funeral|burial|cremation)\b/i,
   ];
 
   for (const pattern of deathPatterns) {
@@ -64,67 +63,59 @@ export function extractMemoriesFromUserText(
     }
   }
 
-  // Rule 2: Medical history - kidney failure
-  if (/kidney failure/i.test(text)) {
-    memories.push({
-      category: 'history',
-      key: 'medical_history',
-      value: 'kidney failure (mentioned)',
-      importance: 3,
-      confidence: 4,
-    });
-    console.log('[LocalExtract] Detected: kidney failure');
-  }
-
-  // Rule 3: Age reference - "when he/she was <number>"
-  const agePatterns = [
-    /when (he|she|they) was (\d+)/i,
-    /when (he|she|they) were (\d+)/i,
-    /at age (\d+)/i,
-    /at (\d+) years old/i,
-  ];
-
-  for (const pattern of agePatterns) {
-    const match = pattern.exec(text);
-    if (match) {
-      // Extract the age number (last captured group)
-      const age = match[match.length - 1];
-      memories.push({
-        category: 'history',
-        key: 'age_reference',
-        value: age,
-        importance: 2,
-        confidence: 3,
-      });
-      console.log('[LocalExtract] Detected: age reference', age);
-      break; // Only add first match
-    }
-  }
-
-  // Rule 4: Additional medical conditions
+  // Rule 2: Medical history - ONLY store if clearly stated
   const medicalConditions = [
-    { pattern: /\b(cancer|tumor|malignant)\b/i, value: 'cancer (mentioned)' },
-    { pattern: /\b(diabetes|diabetic)\b/i, value: 'diabetes (mentioned)' },
-    { pattern: /\b(heart attack|cardiac arrest)\b/i, value: 'heart condition (mentioned)' },
-    { pattern: /\b(stroke|cerebrovascular)\b/i, value: 'stroke (mentioned)' },
-    { pattern: /\b(alzheimer|dementia)\b/i, value: 'cognitive condition (mentioned)' },
-    { pattern: /\b(depression|depressed)\b/i, value: 'depression (mentioned)' },
-    { pattern: /\b(anxiety|anxious)\b/i, value: 'anxiety (mentioned)' },
+    { 
+      pattern: /\b(kidney failure|renal failure|kidney disease)\b/i, 
+      key: 'medical_history:kidney_condition',
+      value: 'kidney failure (mentioned)',
+      importance: 4,
+    },
+    { 
+      pattern: /\b(cancer|tumor|malignant|chemotherapy|radiation therapy)\b/i, 
+      key: 'medical_history:cancer',
+      value: 'cancer (mentioned)',
+      importance: 4,
+    },
+    { 
+      pattern: /\b(heart attack|cardiac arrest|heart disease|coronary)\b/i, 
+      key: 'medical_history:heart_condition',
+      value: 'heart condition (mentioned)',
+      importance: 4,
+    },
+    { 
+      pattern: /\b(stroke|cerebrovascular|brain hemorrhage)\b/i, 
+      key: 'medical_history:stroke',
+      value: 'stroke (mentioned)',
+      importance: 4,
+    },
+    { 
+      pattern: /\b(alzheimer|dementia|cognitive decline)\b/i, 
+      key: 'medical_history:cognitive_condition',
+      value: 'cognitive condition (mentioned)',
+      importance: 4,
+    },
+    { 
+      pattern: /\b(diabetes|diabetic|insulin)\b/i, 
+      key: 'medical_history:diabetes',
+      value: 'diabetes (mentioned)',
+      importance: 3,
+    },
   ];
 
   for (const condition of medicalConditions) {
     if (condition.pattern.test(text)) {
       // Check if we already have a medical_history entry
       const existingMedical = memories.find(
-        (m) => m.category === 'history' && m.key === 'medical_history'
+        (m) => m.key.startsWith('medical_history:')
       );
       
       if (!existingMedical) {
         memories.push({
           category: 'history',
-          key: 'medical_history',
+          key: condition.key,
           value: condition.value,
-          importance: 3,
+          importance: condition.importance,
           confidence: 4,
         });
         console.log('[LocalExtract] Detected: medical condition', condition.value);
@@ -133,12 +124,69 @@ export function extractMemoriesFromUserText(
     }
   }
 
-  // Rule 5: Relationship status changes
+  // Rule 3: Age reference - ONLY if tied to medical/major event
+  // Example: "He got kidney failure when he was 10" => store with context
+  const contextualAgePatterns = [
+    {
+      pattern: /when (he|she|they) (was|were) (\d+)[,\s]+(kidney|cancer|heart|stroke|died|passed)/i,
+      contextExtractor: (match: RegExpMatchArray) => {
+        const age = match[3];
+        const condition = match[4];
+        return {
+          key: `medical_history:${condition.toLowerCase()}_age`,
+          value: `${condition} at age ${age}`,
+        };
+      },
+    },
+    {
+      pattern: /(kidney|cancer|heart|stroke|died|passed)[^.]*when (he|she|they) (was|were) (\d+)/i,
+      contextExtractor: (match: RegExpMatchArray) => {
+        const condition = match[1];
+        const age = match[4];
+        return {
+          key: `medical_history:${condition.toLowerCase()}_age`,
+          value: `${condition} at age ${age}`,
+        };
+      },
+    },
+  ];
+
+  for (const agePattern of contextualAgePatterns) {
+    const match = agePattern.pattern.exec(text);
+    if (match) {
+      const extracted = agePattern.contextExtractor(match);
+      memories.push({
+        category: 'history',
+        key: extracted.key,
+        value: extracted.value,
+        importance: 4,
+        confidence: 4,
+      });
+      console.log('[LocalExtract] Detected: contextual age reference', extracted.value);
+      break; // Only add first match
+    }
+  }
+
+  // Rule 4: Relationship status changes (STABLE FACTS ONLY)
   const relationshipPatterns = [
-    { pattern: /\b(divorced|separated|split up)\b/i, key: 'relationship_status', value: 'divorced/separated' },
-    { pattern: /\b(married|got married|wedding)\b/i, key: 'relationship_status', value: 'married' },
-    { pattern: /\b(engaged|engagement)\b/i, key: 'relationship_status', value: 'engaged' },
-    { pattern: /\b(broke up|ended relationship)\b/i, key: 'relationship_status', value: 'broke up' },
+    { 
+      pattern: /\b(divorced|separated|split up|ended marriage)\b/i, 
+      key: 'relationship_status', 
+      value: 'divorced/separated',
+      importance: 4,
+    },
+    { 
+      pattern: /\b(married|got married|wedding|spouse)\b/i, 
+      key: 'relationship_status', 
+      value: 'married',
+      importance: 4,
+    },
+    { 
+      pattern: /\b(engaged|engagement|fianc[eé])\b/i, 
+      key: 'relationship_status', 
+      value: 'engaged',
+      importance: 3,
+    },
   ];
 
   for (const rel of relationshipPatterns) {
@@ -147,7 +195,7 @@ export function extractMemoriesFromUserText(
         category: 'relationship',
         key: rel.key,
         value: rel.value,
-        importance: 4,
+        importance: rel.importance,
         confidence: 4,
       });
       console.log('[LocalExtract] Detected: relationship status', rel.value);
@@ -155,25 +203,43 @@ export function extractMemoriesFromUserText(
     }
   }
 
-  // Rule 6: Location/residence
-  const locationPatterns = [
-    /\b(moved to|living in|lives in|relocated to) ([A-Z][a-zA-Z\s]+)/,
-    /\bin ([A-Z][a-zA-Z\s]+) (now|currently)/,
+  // Rule 5: Major life events (births, deaths, moves)
+  const majorEventPatterns = [
+    {
+      pattern: /\b(had a baby|gave birth|became a (mother|father|parent))\b/i,
+      key: 'major_life_event',
+      value: 'became a parent',
+      importance: 4,
+    },
+    {
+      pattern: /\b(moved to|relocated to|living in) ([A-Z][a-zA-Z\s]{2,30})/i,
+      keyExtractor: () => 'current_location',
+      valueExtractor: (match: RegExpMatchArray) => match[2].trim(),
+      importance: 3,
+    },
+    {
+      pattern: /\b(retired|retirement)\b/i,
+      key: 'major_life_event',
+      value: 'retired',
+      importance: 3,
+    },
   ];
 
-  for (const pattern of locationPatterns) {
-    const match = pattern.exec(text);
+  for (const event of majorEventPatterns) {
+    const match = event.pattern.exec(text);
     if (match) {
-      const location = match[match.length - 1].trim();
-      if (location.length > 2 && location.length < 50) {
+      const key = event.keyExtractor ? event.keyExtractor() : event.key;
+      const value = event.valueExtractor ? event.valueExtractor(match) : event.value;
+      
+      if (value && value.length > 2 && value.length < 100) {
         memories.push({
-          category: 'location',
-          key: 'current_location',
-          value: location,
-          importance: 2,
+          category: event.key === 'current_location' ? 'location' : 'history',
+          key: key!,
+          value: value!,
+          importance: event.importance,
           confidence: 3,
         });
-        console.log('[LocalExtract] Detected: location', location);
+        console.log('[LocalExtract] Detected: major life event', value);
         break;
       }
     }

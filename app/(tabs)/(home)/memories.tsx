@@ -55,6 +55,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   interests: 'Interests & Hobbies',
   communication: 'Communication',
   general: 'General',
+  history: 'History',
+  location: 'Location',
 };
 
 // Friendly labels for memory keys
@@ -74,6 +76,7 @@ const FRIENDLY_KEY_LABELS: Record<string, string> = {
   hometown: 'Hometown',
   full_name: 'Full name',
   nickname: 'Nickname',
+  current_location: 'Current location',
   
   // Relationships
   relationship_type: 'Relationship',
@@ -132,6 +135,9 @@ const FRIENDLY_KEY_LABELS: Record<string, string> = {
   likes: 'Likes',
   dislikes: 'Dislikes',
   pet_peeves: 'Pet peeves',
+  
+  // Major life events
+  major_life_event: 'Major life event',
 };
 
 // Get friendly label for a category
@@ -141,6 +147,12 @@ function getCategoryLabel(category: string): string {
 
 // Get friendly label for a key
 function getFriendlyLabel(key: string): string {
+  // Handle medical_history: prefixed keys
+  if (key.startsWith('medical_history:')) {
+    const condition = key.replace('medical_history:', '').replace(/_/g, ' ');
+    return condition.replace(/\b\w/g, (l) => l.toUpperCase());
+  }
+  
   return FRIENDLY_KEY_LABELS[key.toLowerCase()] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
@@ -205,6 +217,7 @@ export default function MemoriesScreen() {
 
   const [memories, setMemories] = useState<PersonMemory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Conversation Continuity toggle state
@@ -282,7 +295,8 @@ export default function MemoriesScreen() {
   }, [personId, currentUser?.id]);
 
   // Fetch memories
-  const fetchMemories = useCallback(async () => {
+  // CRITICAL: Keep previous list during refresh to prevent blank state flashing
+  const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
       console.warn('[Memories] Missing personId or userId');
       if (isMountedRef.current) {
@@ -293,7 +307,13 @@ export default function MemoriesScreen() {
     }
 
     try {
-      setLoading(true);
+      // Set loading state appropriately
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      
       setError(null);
       console.log('[Memories] Fetching memories for person:', personId, 'user:', currentUser.id);
 
@@ -305,7 +325,7 @@ export default function MemoriesScreen() {
         .order('importance', { ascending: false })
         .order('last_mentioned_at', { ascending: false, nullsFirst: false })
         .order('updated_at', { ascending: false })
-        .limit(25);
+        .limit(50);
 
       if (fetchError) {
         console.log('[Memories] Error fetching memories:', {
@@ -329,8 +349,10 @@ export default function MemoriesScreen() {
         });
       }
       
-      if (isMountedRef.current) {
-        setMemories(data || []);
+      // CRITICAL: Only update memories if we got valid data
+      // This prevents blank state from overwriting existing list
+      if (isMountedRef.current && data !== null) {
+        setMemories(data);
       }
     } catch (err: any) {
       console.log('[Memories] Unexpected error:', err);
@@ -340,12 +362,13 @@ export default function MemoriesScreen() {
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
+        setRefreshing(false);
       }
     }
   }, [personId, currentUser?.id]);
 
   useEffect(() => {
-    fetchMemories();
+    fetchMemories(false);
     fetchContinuitySetting();
   }, [fetchMemories, fetchContinuitySetting]);
 
@@ -432,7 +455,7 @@ export default function MemoriesScreen() {
 
       showSuccessToast('Memory updated');
       handleCloseEditModal();
-      fetchMemories();
+      fetchMemories(true);
     } catch (err: any) {
       console.error('[Memories] Unexpected error saving edit:', err);
       showErrorToast('An unexpected error occurred');
@@ -490,7 +513,7 @@ export default function MemoriesScreen() {
               }
 
               showSuccessToast('Memory deleted');
-              fetchMemories();
+              fetchMemories(true);
             } catch (err: any) {
               console.error('[Memories] Unexpected error deleting:', err);
               showErrorToast('An unexpected error occurred');
@@ -628,7 +651,7 @@ export default function MemoriesScreen() {
             </Text>
           </View>
 
-          {memories.length === 0 && !loading ? (
+          {memories.length === 0 && !loading && !refreshing ? (
             <View style={styles.emptyState}>
               <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
                 <IconSymbol
@@ -657,7 +680,7 @@ export default function MemoriesScreen() {
                   </Text>
                   {groupedMemories[category].map((memory) => (
                     <View
-                      key={memory.id}
+                      key={`${memory.id}-${memory.category}-${memory.key}`}
                       style={[
                         styles.memoryCard,
                         { 
@@ -828,7 +851,7 @@ export default function MemoriesScreen() {
         </SwipeableModal>
       </View>
 
-      <LoadingOverlay visible={loading && !error} />
+      <LoadingOverlay visible={loading && !error && memories.length === 0} />
     </KeyboardAvoider>
   );
 }
