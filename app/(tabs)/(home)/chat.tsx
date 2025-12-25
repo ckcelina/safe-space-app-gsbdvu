@@ -10,6 +10,8 @@ import {
   Platform,
   Animated,
   Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -170,6 +172,11 @@ export default function ChatScreen() {
   const lastProcessedUserMessageIdRef = useRef<string | null>(null);
   const isGeneratingRef = useRef(false);
 
+  // Smart scroll tracking
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollPositionRef = useRef({ offset: 0, contentHeight: 0, layoutHeight: 0 });
+  const shouldAutoScrollRef = useRef(true);
+
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
     if (initialSubject && initialSubject.trim()) {
@@ -193,7 +200,6 @@ export default function ChatScreen() {
   const [quickSelectedSubject, setQuickSelectedSubject] = useState<string | null>(null);
   const [customSubjectFocused, setCustomSubjectFocused] = useState(false);
 
-  const scrollViewRef = useRef<ScrollView>(null);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -205,13 +211,38 @@ export default function ChatScreen() {
 
   const isFreeUser = role === 'free';
 
-  const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      if (isMountedRef.current && scrollViewRef.current) {
-        scrollViewRef.current.scrollToEnd({ animated: true });
-      }
-    }, 100);
+  // Helper to check if user is near bottom
+  const isNearBottom = useCallback(() => {
+    const { offset, contentHeight, layoutHeight } = scrollPositionRef.current;
+    const distanceFromBottom = contentHeight - (offset + layoutHeight);
+    return distanceFromBottom < 200;
   }, []);
+
+  // Smart scroll to bottom - only scrolls if near bottom or forced
+  const scrollToBottom = useCallback((force = false) => {
+    if (!scrollViewRef.current) return;
+    
+    if (force || shouldAutoScrollRef.current) {
+      setTimeout(() => {
+        if (isMountedRef.current && scrollViewRef.current) {
+          scrollViewRef.current.scrollToEnd({ animated: true });
+        }
+      }, 100);
+    }
+  }, []);
+
+  // Track scroll position
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    scrollPositionRef.current = {
+      offset: contentOffset.y,
+      contentHeight: contentSize.height,
+      layoutHeight: layoutMeasurement.height,
+    };
+    
+    // Update auto-scroll flag based on position
+    shouldAutoScrollRef.current = isNearBottom();
+  }, [isNearBottom]);
 
   // Safe backfill function - updates NULL/empty subjects to 'General'
   const backfillSubjects = useCallback(async () => {
@@ -282,7 +313,8 @@ export default function ChatScreen() {
       
       if (isMountedRef.current) {
         setAllMessages(data ?? []);
-        scrollToBottom();
+        // Force scroll to bottom on initial load
+        scrollToBottom(true);
       }
 
       backfillSubjects();
@@ -318,12 +350,6 @@ export default function ChatScreen() {
       return msgSubject === currentSubject;
     });
   }, [allMessages, currentSubject]);
-
-  useEffect(() => {
-    if (displayedMessages.length > 0) {
-      scrollToBottom();
-    }
-  }, [displayedMessages.length, scrollToBottom]);
 
   const handleRetry = useCallback(() => {
     loadMessages();
@@ -421,7 +447,8 @@ export default function ChatScreen() {
         });
       }
 
-      scrollToBottom();
+      // FORCE scroll to bottom after user sends message
+      scrollToBottom(true);
 
       // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
       // This runs even if the AI reply fails, ensuring memories are always saved
@@ -509,7 +536,8 @@ export default function ChatScreen() {
 
           if (fallbackInserted) {
             setAllMessages((prev) => [...prev, fallbackInserted]);
-            scrollToBottom();
+            // FORCE scroll to bottom after assistant message
+            scrollToBottom(true);
           }
         }
         return;
@@ -542,7 +570,8 @@ export default function ChatScreen() {
 
           if (fallbackInserted) {
             setAllMessages((prev) => [...prev, fallbackInserted]);
-            scrollToBottom();
+            // FORCE scroll to bottom after assistant message
+            scrollToBottom(true);
           }
         }
         return;
@@ -589,7 +618,8 @@ export default function ChatScreen() {
 
       if (isMountedRef.current) {
         setAllMessages((prev) => [...prev, aiInserted]);
-        scrollToBottom();
+        // FORCE scroll to bottom after assistant message
+        scrollToBottom(true);
         setIsTyping(false);
         setIsSending(false);
         isGeneratingRef.current = false;
@@ -853,7 +883,8 @@ export default function ChatScreen() {
             style={styles.messagesContainer}
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
-            onContentSizeChange={scrollToBottom}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
             keyboardShouldPersistTaps="handled"
           >
             {displayedMessages.length === 0 && !loading ? (
