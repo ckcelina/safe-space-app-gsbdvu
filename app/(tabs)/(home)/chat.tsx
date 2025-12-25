@@ -855,22 +855,6 @@ export default function ChatScreen() {
             />
           </View>
 
-          {isFreeUser && (
-            <View style={[styles.freeBanner, { backgroundColor: theme.card }]}>
-              <IconSymbol
-                ios_icon_name="info.circle.fill"
-                android_material_icon_name="info"
-                size={16}
-                color={theme.textSecondary}
-                style={styles.bannerIcon}
-              />
-              <Text style={[styles.bannerText, { color: theme.textSecondary }]}>
-                You&apos;re on the free plan. In the future, free plans may have limits on
-                daily messages.
-              </Text>
-            </View>
-          )}
-
           {error && (
             <View style={[styles.errorBanner, { backgroundColor: '#FF3B30' }]}>
               <IconSymbol
@@ -1200,12 +1184,6 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontSize: 14,
-  },
-  freeBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
   },
   bannerIcon: {
     marginRight: 8,
