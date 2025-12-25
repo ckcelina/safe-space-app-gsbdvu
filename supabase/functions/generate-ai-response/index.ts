@@ -735,7 +735,11 @@ serve(async (req) => {
     if (req.method !== "POST") {
       console.log("[Edge] Method not allowed:", req.method);
       return new Response(
-        JSON.stringify({ reply: null, error: "invalid_input" }),
+        JSON.stringify({ 
+          success: false,
+          reply: null, 
+          error: "invalid_input" 
+        }),
         { 
           status: 200, 
           headers: { 
@@ -748,9 +752,17 @@ serve(async (req) => {
 
     // Check for OpenAI API key
     if (!OPENAI_API_KEY) {
-      console.error("[Edge] Missing OPENAI_API_KEY");
+      console.error("[Edge] ❌ CRITICAL: Missing OPENAI_API_KEY environment variable");
+      console.error("[Edge] Please set OPENAI_API_KEY in Supabase Edge Function secrets");
       return new Response(
-        JSON.stringify({ reply: null, error: "missing_env" }),
+        JSON.stringify({ 
+          success: false,
+          reply: null, 
+          error: "missing_openai_key",
+          debug: {
+            message: "OPENAI_API_KEY environment variable is not set"
+          }
+        }),
         { 
           status: 200, 
           headers: { 
@@ -768,7 +780,11 @@ serve(async (req) => {
     } catch (err) {
       console.error("[Edge] Failed to parse request JSON:", err);
       return new Response(
-        JSON.stringify({ reply: null, error: "invalid_input" }),
+        JSON.stringify({ 
+          success: false,
+          reply: null, 
+          error: "invalid_input" 
+        }),
         { 
           status: 200, 
           headers: { 
@@ -794,7 +810,11 @@ serve(async (req) => {
     if (!Array.isArray(messages)) {
       console.error("[Edge] Missing or invalid 'messages' array in request body");
       return new Response(
-        JSON.stringify({ reply: null, error: "invalid_input" }),
+        JSON.stringify({ 
+          success: false,
+          reply: null, 
+          error: "invalid_input" 
+        }),
         { 
           status: 200, 
           headers: { 
@@ -808,7 +828,11 @@ serve(async (req) => {
     if (!userId) {
       console.error("[Edge] Missing userId in request body");
       return new Response(
-        JSON.stringify({ reply: null, error: "invalid_input" }),
+        JSON.stringify({ 
+          success: false,
+          reply: null, 
+          error: "invalid_input" 
+        }),
         { 
           status: 200, 
           headers: { 
@@ -857,6 +881,7 @@ serve(async (req) => {
     }));
 
     // Call OpenAI
+    console.log('[Edge] Calling OpenAI API...');
     const openaiRes = await fetch(OPENAI_API_URL, {
       method: "POST",
       headers: {
@@ -874,13 +899,22 @@ serve(async (req) => {
     const rawText = await openaiRes.text();
 
     if (!openaiRes.ok) {
-      console.error(
-        "[Edge] OpenAI returned non-2xx:",
-        openaiRes.status,
-        rawText,
-      );
+      console.error("[Edge] ❌ OpenAI API error:");
+      console.error("[Edge]   - Status:", openaiRes.status);
+      console.error("[Edge]   - Status text:", openaiRes.statusText);
+      console.error("[Edge]   - Response body preview:", rawText.substring(0, 500));
+      
       return new Response(
-        JSON.stringify({ reply: null, error: "openai_failed" }),
+        JSON.stringify({ 
+          success: false,
+          reply: null, 
+          error: "openai_api_error",
+          debug: {
+            status: openaiRes.status,
+            statusText: openaiRes.statusText,
+            bodyPreview: rawText.substring(0, 200)
+          }
+        }),
         { 
           status: 200, 
           headers: { 
@@ -890,14 +924,24 @@ serve(async (req) => {
         },
       );
     }
+    
+    console.log('[Edge] ✅ OpenAI API call successful');
 
     let data: any;
     try {
       data = rawText ? JSON.parse(rawText) : null;
     } catch (err) {
-      console.error("[Edge] Failed to parse OpenAI JSON:", err, rawText);
+      console.error("[Edge] Failed to parse OpenAI JSON:", err);
+      console.error("[Edge] Raw text preview:", rawText.substring(0, 500));
       return new Response(
-        JSON.stringify({ reply: null, error: "openai_failed" }),
+        JSON.stringify({ 
+          success: false,
+          reply: null, 
+          error: "openai_parse_failed",
+          debug: {
+            rawPreview: rawText.substring(0, 200)
+          }
+        }),
         { 
           status: 200, 
           headers: { 
@@ -946,7 +990,11 @@ serve(async (req) => {
 
     // ========== ALWAYS RETURN 200 WITH VALID JSON ==========
     return new Response(
-      JSON.stringify({ reply, error: null }),
+      JSON.stringify({ 
+        success: true,
+        reply, 
+        error: null 
+      }),
       { 
         status: 200, 
         headers: { 
@@ -959,8 +1007,31 @@ serve(async (req) => {
     // ========== CATCH-ALL ERROR HANDLER ==========
     // This catches ANY uncaught error and returns 200 with error
     console.error("[Edge] Unexpected error in main handler:", err);
+    
+    // Try to extract error details safely
+    let errorMessage = 'unknown_error';
+    try {
+      if (err instanceof Error) {
+        errorMessage = err.message;
+        if (err.stack) {
+          console.error("[Edge] Stack trace:", err.stack.substring(0, 500));
+        }
+      } else {
+        errorMessage = String(err);
+      }
+    } catch (e) {
+      console.error("[Edge] Could not stringify error");
+    }
+    
     return new Response(
-      JSON.stringify({ reply: null, error: "openai_failed" }),
+      JSON.stringify({ 
+        success: false,
+        reply: null, 
+        error: "unexpected_error",
+        debug: {
+          message: errorMessage
+        }
+      }),
       { 
         status: 200, 
         headers: { 

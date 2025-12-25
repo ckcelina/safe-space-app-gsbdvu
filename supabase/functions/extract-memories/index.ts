@@ -252,7 +252,8 @@ function createSafeResponse(
   continuity?: ContinuityData,
   error: string | null = null
 ): Response {
-  const responseBody: MemoryExtractionResult = {
+  const responseBody = {
+    success: error === null,
     memories,
     mentioned_keys,
     continuity,
@@ -298,6 +299,7 @@ ${existingMemoriesText}
 
 Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
 
+    console.log('[Memory Extract] Calling OpenAI API for memory extraction...');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -322,9 +324,15 @@ Extract any NEW stable facts from the user's messages. Return valid JSON only.`;
     });
 
     if (!response.ok) {
-      console.error(`OpenAI API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`❌ OpenAI API error for memory extraction:`);
+      console.error(`  - Status: ${response.status}`);
+      console.error(`  - Status text: ${response.statusText}`);
+      console.error(`  - Response body preview: ${errorText.substring(0, 500)}`);
       return { memories: [], mentioned_keys: [] };
     }
+    
+    console.log('[Memory Extract] ✅ OpenAI API call successful');
 
     const data = await response.json();
     const jsonString = data.choices?.[0]?.message?.content;
@@ -374,6 +382,7 @@ ${conversationHistory.join('\n\n')}
 
 Extract conversation continuity data to help continue this conversation naturally. Return valid JSON only.`;
 
+    console.log('[Continuity Extract] Calling OpenAI API for continuity extraction...');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -398,7 +407,11 @@ Extract conversation continuity data to help continue this conversation naturall
     });
 
     if (!response.ok) {
-      console.error(`OpenAI API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`❌ OpenAI API error for continuity extraction:`);
+      console.error(`  - Status: ${response.status}`);
+      console.error(`  - Status text: ${response.statusText}`);
+      console.error(`  - Response body preview: ${errorText.substring(0, 500)}`);
       return {
         summary_update: '',
         open_loops: [],
@@ -407,6 +420,8 @@ Extract conversation continuity data to help continue this conversation naturall
         next_question: '',
       };
     }
+    
+    console.log('[Continuity Extract] ✅ OpenAI API call successful');
 
     const data = await response.json();
     const jsonString = data.choices?.[0]?.message?.content;
@@ -462,7 +477,8 @@ serve(async (req: Request) => {
 
     // Check for OpenAI API key FIRST
     if (!OPENAI_API_KEY || OPENAI_API_KEY.trim() === '') {
-      console.error('❌ OPENAI_API_KEY is not set in environment variables');
+      console.error('❌ CRITICAL: OPENAI_API_KEY is not set in environment variables');
+      console.error('Please set OPENAI_API_KEY in Supabase Edge Function secrets');
       return createSafeResponse(
         [],
         [],

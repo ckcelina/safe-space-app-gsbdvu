@@ -31,6 +31,7 @@ import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
 import { upsertPersonContinuity } from '@/lib/memory/personSummary';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
+import { invokeEdge } from '@/lib/supabase/invokeEdge';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -471,24 +472,21 @@ export default function ChatScreen() {
         .filter((m) => m.role === 'assistant')
         .slice(-1)[0];
 
-      const { data: aiResponse, error: fnError } = await supabase.functions.invoke(
-        'generate-ai-response',
-        {
-          body: {
-            userId,
-            personId,
-            personName,
-            personRelationshipType: relationshipType || 'Unknown',
-            messages: recentMessages,
-            currentSubject: currentSubject,
-            aiToneId: preferences.ai_tone_id,
-            aiScienceMode: preferences.ai_science_mode,
-          },
-        }
-      );
+      // Use invokeEdge helper for resilient Edge Function calls
+      const { data: aiResponse, error: invokeError } = await invokeEdge('generate-ai-response', {
+        userId,
+        personId,
+        personName,
+        personRelationshipType: relationshipType || 'Unknown',
+        messages: recentMessages,
+        currentSubject: currentSubject,
+        aiToneId: preferences.ai_tone_id,
+        aiScienceMode: preferences.ai_science_mode,
+      });
 
-      if (fnError) {
-        // Silent error handling: Do NOT console.error
+      // Check for invocation error (network, HTTP error, etc.)
+      if (invokeError) {
+        console.log('[Chat] Edge Function invocation failed');
         if (isMountedRef.current) {
           setIsTyping(false);
           setIsSending(false);
@@ -519,9 +517,9 @@ export default function ChatScreen() {
 
       console.log('[Chat] AI response received');
 
-      // Check if the Edge Function returned an error in the response body
-      if (aiResponse?.error) {
-        // Silent error handling: Do NOT console.error
+      // Check if the Edge Function returned success: false or an error
+      if (!aiResponse?.success || aiResponse?.error) {
+        console.log('[Chat] Edge Function returned error:', aiResponse?.error || 'unknown');
         if (isMountedRef.current) {
           setIsTyping(false);
           setIsSending(false);

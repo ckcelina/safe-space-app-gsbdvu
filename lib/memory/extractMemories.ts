@@ -1,5 +1,5 @@
 
-import { supabase } from '../supabase';
+import { invokeEdge } from '../supabase/invokeEdge';
 import { upsertPersonMemories, touchMemories, PersonMemoryInput } from './personMemory';
 
 /**
@@ -36,27 +36,30 @@ export async function extractMemories(params: {
     console.log('[Memory] User messages:', recentUserMessages.length);
     console.log('[Memory] Existing memories:', existingMemories.length);
 
-    // Call the Edge Function
-    const { data, error: fnError } = await supabase.functions.invoke('extract-memories', {
-      body: {
-        personName,
-        recentUserMessages,
-        lastAssistantMessage,
-        existingMemories,
-        userId,
-        personId,
-      },
+    // Call the Edge Function using invokeEdge helper
+    const { data, error: invokeError } = await invokeEdge('extract-memories', {
+      personName,
+      recentUserMessages,
+      lastAssistantMessage,
+      existingMemories,
+      userId,
+      personId,
     });
 
-    if (fnError) {
-      console.log('[Memory] Edge Function invocation error:', fnError.message);
-      // Try local fallback
-      await localFallbackExtraction(recentUserMessages, userId, personId);
-      return { error: 'edge_function_error' };
+    // Check for invocation error (network, HTTP error, etc.)
+    if (invokeError) {
+      console.log('[Memory] Edge Function invocation failed:', invokeError.message);
+      console.log('[Memory] Returning empty result');
+      return { 
+        memories: [], 
+        mentioned_keys: [],
+        error: 'edge_function_invocation_error' 
+      };
     }
 
     // Edge Function should ALWAYS return HTTP 200 with this structure
     const result = data as {
+      success: boolean;
       memories: PersonMemoryInput[];
       mentioned_keys: string[];
       continuity?: {
@@ -69,11 +72,13 @@ export async function extractMemories(params: {
       error: string | null;
     };
 
-    if (result.error) {
-      console.log('[Memory] Edge Function returned error:', result.error);
-      // Try local fallback
-      await localFallbackExtraction(recentUserMessages, userId, personId);
-      return { error: result.error };
+    // Check if Edge Function returned success: false
+    if (!result?.success || result?.error) {
+      console.log('[Memory] Edge Function returned error:', result?.error || 'unknown');
+      console.log('[Memory] Returning empty result');
+      return { 
+        error: result?.error || 'extraction_failed' 
+      };
     }
 
     console.log('[Memory] Extraction successful');
@@ -103,85 +108,10 @@ export async function extractMemories(params: {
     };
   } catch (error: any) {
     console.log('[Memory] Unexpected error during extraction:', error?.message || error);
-    // Try local fallback
-    await localFallbackExtraction(recentUserMessages, userId, personId);
-    return { error: 'unexpected_error' };
-  }
-}
-
-/**
- * Local fallback for memory extraction when Edge Function fails.
- * Uses simple heuristics to extract basic facts.
- * NEVER throws - fails silently.
- */
-async function localFallbackExtraction(
-  recentUserMessages: string[],
-  userId: string,
-  personId: string
-): Promise<void> {
-  try {
-    console.log('[Memory] Running local fallback extraction...');
-
-    const memories: PersonMemoryInput[] = [];
-
-    // Combine recent messages into one text
-    const text = recentUserMessages.join(' ').toLowerCase();
-
-    // HEURISTIC 1: Deceased detection
-    if (
-      text.includes('passed away') ||
-      text.includes('died') ||
-      text.includes('deceased') ||
-      text.includes('is dead') ||
-      text.includes('has died')
-    ) {
-      console.log('[Memory] Fallback: Detected deceased');
-      memories.push({
-        category: 'loss_grief',
-        key: 'is_deceased',
-        value: 'true',
-        importance: 5,
-        confidence: 5,
-      });
-    }
-
-    // HEURISTIC 2: Relationship type detection
-    const relationshipPatterns = [
-      { pattern: /my mom|my mother/i, type: 'Mother' },
-      { pattern: /my dad|my father/i, type: 'Father' },
-      { pattern: /my boyfriend/i, type: 'Boyfriend' },
-      { pattern: /my girlfriend/i, type: 'Girlfriend' },
-      { pattern: /my husband/i, type: 'Husband' },
-      { pattern: /my wife/i, type: 'Wife' },
-      { pattern: /my friend/i, type: 'Friend' },
-      { pattern: /my brother/i, type: 'Brother' },
-      { pattern: /my sister/i, type: 'Sister' },
-    ];
-
-    for (const { pattern, type } of relationshipPatterns) {
-      if (pattern.test(text)) {
-        console.log('[Memory] Fallback: Detected relationship type:', type);
-        memories.push({
-          category: 'relationship',
-          key: 'relationship_type',
-          value: type,
-          importance: 4,
-          confidence: 4,
-        });
-        break; // Only detect one relationship type
-      }
-    }
-
-    // Upsert fallback memories if any were detected
-    if (memories.length > 0) {
-      console.log('[Memory] Fallback: Upserting', memories.length, 'memories...');
-      await upsertPersonMemories(userId, personId, memories);
-      console.log('[Memory] Fallback: Upsert complete');
-    } else {
-      console.log('[Memory] Fallback: No memories detected');
-    }
-  } catch (error) {
-    console.log('[Memory] Fallback extraction failed (silent):', error);
-    // Fail silently - never crash
+    return { 
+      memories: [], 
+      mentioned_keys: [],
+      error: 'unexpected_error' 
+    };
   }
 }
