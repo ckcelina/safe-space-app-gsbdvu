@@ -1,5 +1,5 @@
 
-import { invokeEdge } from '../supabase/invokeEdge';
+import { invokeEdgeFunction } from '../supabase/invokeEdgeFunction';
 import { upsertPersonMemories, touchMemories, PersonMemoryInput } from './personMemory';
 
 /**
@@ -36,8 +36,8 @@ export async function extractMemories(params: {
     console.log('[Memory] User messages:', recentUserMessages.length);
     console.log('[Memory] Existing memories:', existingMemories.length);
 
-    // Call the Edge Function using invokeEdge helper
-    const { data, error: invokeError } = await invokeEdge('extract-memories', {
+    // Call the Edge Function using invokeEdgeFunction helper with proper auth headers
+    const { data, error: invokeError } = await invokeEdgeFunction('extract-memories', {
       personName,
       recentUserMessages,
       lastAssistantMessage,
@@ -48,11 +48,9 @@ export async function extractMemories(params: {
 
     // Check for invocation error (network, HTTP error, etc.)
     if (invokeError) {
-      console.log('[Memory] Edge Function invocation failed:', invokeError.message);
-      console.log('[Memory] Returning empty result');
+      console.log('[Memory Extraction] Edge Function error:', invokeError.message);
+      console.log('[Memory Extraction] Returning empty result');
       return { 
-        memories: [], 
-        mentioned_keys: [],
         error: 'edge_function_invocation_error' 
       };
     }

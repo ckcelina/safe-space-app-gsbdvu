@@ -33,7 +33,7 @@ import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
 import { upsertPersonContinuity } from '@/lib/memory/personSummary';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
-import { invokeEdge } from '@/lib/supabase/invokeEdge';
+import { invokeEdgeFunction } from '@/lib/supabase/invokeEdgeFunction';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -499,8 +499,8 @@ export default function ChatScreen() {
         .filter((m) => m.role === 'assistant')
         .slice(-1)[0];
 
-      // Use invokeEdge helper for resilient Edge Function calls
-      const { data: aiResponse, error: invokeError } = await invokeEdge('generate-ai-response', {
+      // Use invokeEdgeFunction helper for resilient Edge Function calls with proper auth headers
+      const { data: aiResponse, error: invokeError } = await invokeEdgeFunction('generate-ai-response', {
         userId,
         personId,
         personName,
