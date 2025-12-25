@@ -388,6 +388,38 @@ async function getPersonMemories(
 }
 
 /**
+ * Get tone display name from tone ID
+ */
+function getToneDisplayName(toneId: string): string {
+  const toneNames: Record<string, string> = {
+    'warm_hug': 'Warm Hug',
+    'therapy_room': 'Therapy Room',
+    'best_friend': 'Best Friend',
+    'nurturing_parent': 'Nurturing Parent',
+    'soft_truth': 'Soft Truth',
+    'balanced_blend': 'Balanced Blend',
+    'clear_coach': 'Clear Coach',
+    'mirror_mode': 'Mirror Mode',
+    'calm_direct': 'Calm & Direct',
+    'detective': 'Detective',
+    'systems_thinker': 'Systems Thinker',
+    'attachment_aware': 'Attachment-Aware',
+    'cognitive_clarity': 'Cognitive Clarity',
+    'conflict_mediator': 'Conflict Mediator',
+    'tough_love': 'Tough Love',
+    'straight_shooter': 'Straight Shooter',
+    'executive_summary': 'Executive Summary',
+    'no_nonsense': 'No Nonsense',
+    'reality_check': 'Reality Check',
+    'pattern_breaker': 'Pattern Breaker',
+    'accountability_partner': 'Accountability Partner',
+    'boundary_enforcer': 'Boundary Enforcer',
+  };
+  
+  return toneNames[toneId] || toneId;
+}
+
+/**
  * Build Voice Contract based on ai_tone_id
  * This creates strongly differentiated behavioral rules for each tone
  */
@@ -545,7 +577,7 @@ function buildVoiceContract(aiToneId: string): string {
     const defaultContract = voiceContracts['balanced_blend'];
     return `
 ═══════════════════════════════════════════════════════════
-VOICE CONTRACT (Tone: balanced_blend - DEFAULT FALLBACK)
+VOICE CONTRACT (Tone: ${getToneDisplayName('balanced_blend')} - DEFAULT FALLBACK)
 ═══════════════════════════════════════════════════════════
 • PACING: ${defaultContract.pacing}
 • DIRECTNESS: ${defaultContract.directness}
@@ -558,7 +590,7 @@ YOU MUST STRICTLY FOLLOW THESE RULES IN EVERY RESPONSE.
 
   return `
 ═══════════════════════════════════════════════════════════
-VOICE CONTRACT (Tone: ${aiToneId})
+VOICE CONTRACT (Tone: ${getToneDisplayName(aiToneId)})
 ═══════════════════════════════════════════════════════════
 • PACING: ${contract.pacing}
 • DIRECTNESS: ${contract.directness}
@@ -567,6 +599,36 @@ VOICE CONTRACT (Tone: ${aiToneId})
 
 YOU MUST STRICTLY FOLLOW THESE RULES IN EVERY RESPONSE.
 ═══════════════════════════════════════════════════════════`;
+}
+
+/**
+ * Build science mode instructions
+ */
+function buildScienceModeInstructions(): string {
+  return `
+🔬 SCIENCE & EVIDENCE MODE ENABLED:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+When relevant to the conversation, briefly mention:
+- Evidence-based psychological frameworks (e.g., attachment theory, CBT, DBT)
+- Research findings in accessible language (e.g., "Research shows that...")
+- Therapeutic concepts that might help (e.g., "Therapists often use...")
+- Suggested reading material WITHOUT fake citations
+
+IMPORTANT RULES:
+- Keep it conversational and accessible - not academic
+- Only mention when naturally relevant to the topic
+- Phrase suggestions as: "You may like: [Book/Author/Topic]" or "Consider exploring: [Concept]"
+- NEVER invent specific citations, quotes, or study details
+- If you mention a book, use well-known titles (e.g., "The Body Keeps the Score" by Bessel van der Kolk)
+- Balance evidence with empathy - don't sound like a textbook
+
+EXAMPLES:
+✓ "Research on attachment theory suggests that..."
+✓ "You might find it helpful to explore the concept of cognitive distortions"
+✓ "If you're interested in learning more, 'Attached' by Amir Levine is a great read on relationship patterns"
+✗ "According to Smith et al. (2019), 73% of participants..." (too academic, possibly fake)
+✗ "As Dr. Johnson said in her 2020 study..." (don't invent specific citations)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 }
 
 // Build dynamic system prompt based on conversation context
@@ -595,7 +657,7 @@ async function buildSystemPrompt(
 
   // ORDER 2b: Science mode (if enabled)
   if (aiScienceMode) {
-    basePrompt += `\n\n🔬 SCIENCE MODE ENABLED: When relevant, include brief psychological insights, research findings, or therapeutic concepts. Keep it accessible and conversational. Examples: "Research shows that...", "Attachment theory suggests...", "Neuroscience tells us..."`;
+    basePrompt += buildScienceModeInstructions();
   }
 
   // ORDER 3: "You are chatting about: {personName}"
@@ -843,9 +905,19 @@ serve(async (req) => {
       );
     }
 
-    // DEV-ONLY: Runtime log of AI preferences
+    // ========== FAIL-SAFE: Default to neutral tone if preferences missing ==========
+    const safeToneId = aiToneId || 'balanced_blend';
+    const safeScienceMode = aiScienceMode ?? false;
+
+    // ========== DEBUG LOGGING (DEV-ONLY) ==========
     if (IS_DEV) {
-      console.debug(`[AI] tone=${aiToneId || 'none'} science=${aiScienceMode || false} person=${personName || 'unknown'}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🔍 AI PREFERENCES DEBUG');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(`📝 Selected Tone: ${getToneDisplayName(safeToneId)} (${safeToneId})`);
+      console.log(`🔬 Science Mode: ${safeScienceMode ? 'ENABLED' : 'DISABLED'}`);
+      console.log(`👤 Person: ${personName || 'unknown'}`);
+      console.log(`📊 Message Count: ${messages.length}`);
     }
 
     // Initialize Supabase client with service role key for server-side access
@@ -865,9 +937,19 @@ serve(async (req) => {
       personName || "this person",
       personRelationshipType || "your relationship",
       currentSubject,
-      aiToneId,
-      aiScienceMode
+      safeToneId,
+      safeScienceMode
     );
+
+    // ========== DEBUG LOGGING: System Prompt Details (DEV-ONLY) ==========
+    if (IS_DEV) {
+      console.log(`📏 System Prompt Length: ${systemPrompt.length} characters`);
+      console.log('📄 System Prompt Preview (first 300 chars):');
+      console.log('─────────────────────────────────────────────────────────');
+      console.log(systemPrompt.substring(0, 300));
+      console.log('─────────────────────────────────────────────────────────');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
 
     const systemMessage = {
       role: "system" as const,
@@ -958,8 +1040,8 @@ serve(async (req) => {
 
     // DEV-ONLY: If the model didn't include the tone signature, append it manually
     // (This ensures verification even if the model ignores the instruction)
-    if (IS_DEV && aiToneId && !reply.includes(`(tone: ${aiToneId})`)) {
-      reply += `\n\n(tone: ${aiToneId})`;
+    if (IS_DEV && safeToneId && !reply.includes(`(tone: ${safeToneId})`)) {
+      reply += `\n\n(tone: ${safeToneId})`;
     }
 
     // ========== GOAL B: UPDATE CONTINUITY STATE (AFTER ASSISTANT REPLY) ==========
