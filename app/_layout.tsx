@@ -23,6 +23,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider as AppThemeProvider, useThemeContext } from "@/contexts/ThemeContext";
 import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { runDevDiagnostics, logStartupError } from "@/utils/devDiagnostics";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -36,7 +37,7 @@ if (typeof global !== 'undefined') {
   
   ErrorUtils.setGlobalHandler((error, isFatal) => {
     // Log startup errors without crashing
-    console.log('[Startup] Unhandled error:', error?.message || error);
+    logStartupError('Unhandled Error', error);
     
     // Only call original handler for fatal errors in production
     if (isFatal && !__DEV__) {
@@ -54,30 +55,51 @@ function RootLayoutInner() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
+  // Run dev diagnostics on mount (in useEffect to avoid blocking render)
+  useEffect(() => {
+    try {
+      runDevDiagnostics();
+    } catch (error) {
+      logStartupError('Dev Diagnostics', error);
+    }
+  }, []);
+
   // Startup logging - confirms JS bundle is loaded
   useEffect(() => {
-    const env = __DEV__ ? 'development' : 'production';
-    const platform = Platform.OS;
-    
-    console.log('✅ Safe Space JS loaded');
-    console.log(`[Startup] Environment: ${env}`);
-    console.log(`[Startup] Platform: ${platform}`);
-    console.log(`[Startup] Expo SDK: ${Constants.expoConfig?.sdkVersion || 'unknown'}`);
+    try {
+      const env = __DEV__ ? 'development' : 'production';
+      const platform = Platform.OS;
+      
+      console.log('✅ Safe Space JS loaded');
+      console.log(`[Startup] Environment: ${env}`);
+      console.log(`[Startup] Platform: ${platform}`);
+      console.log(`[Startup] Expo SDK: ${Constants.expoConfig?.sdkVersion || 'unknown'}`);
+    } catch (error) {
+      logStartupError('Startup Logging', error);
+    }
   }, []);
 
   useEffect(() => {
-    if (loaded) {
-      console.log('[Startup] Fonts loaded, hiding splash screen');
-      SplashScreen.hideAsync();
+    try {
+      if (loaded) {
+        console.log('[Startup] Fonts loaded, hiding splash screen');
+        SplashScreen.hideAsync();
+      }
+    } catch (error) {
+      logStartupError('Splash Screen', error);
     }
   }, [loaded]);
 
   React.useEffect(() => {
-    if (!networkState.isConnected && networkState.isInternetReachable === false) {
-      Alert.alert(
-        "🔌 You are offline",
-        "You can keep using the app! Your changes will be saved locally and synced when you are back online."
-      );
+    try {
+      if (!networkState.isConnected && networkState.isInternetReachable === false) {
+        Alert.alert(
+          "🔌 You are offline",
+          "You can keep using the app! Your changes will be saved locally and synced when you are back online."
+        );
+      }
+    } catch (error) {
+      logStartupError('Network Check', error);
     }
   }, [networkState.isConnected, networkState.isInternetReachable]);
 
