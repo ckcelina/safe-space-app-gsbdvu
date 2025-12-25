@@ -581,40 +581,46 @@ export default function ChatScreen() {
 
       // MEMORY EXTRACTION + CONTINUITY UPDATE: Extract memories and update continuity in the background
       // This is fire-and-forget and will not block or delay the chat flow
-      try {
-        console.log('[Chat] Triggering memory extraction and continuity update...');
-        
-        // Get existing memories for context
-        const existingMemories = await getPersonMemories(userId, personId, 50);
-        
-        // Extract last 5 user messages for context
-        const userMessages = subjectMessages
-          .filter(m => m.role === 'user')
-          .slice(-5)
-          .map(m => m.content);
+      (async () => {
+        try {
+          console.log('[Chat] Triggering memory extraction and continuity update...');
+          
+          // Get existing memories for context
+          const existingMemories = await getPersonMemories(userId, personId, 50);
+          
+          // Extract last 5 user messages for context
+          const userMessages = subjectMessages
+            .filter(m => m.role === 'user')
+            .slice(-5)
+            .map(m => m.content);
 
-        // Extract memories and continuity (await to get continuity data)
-        const extractionResult = await extractMemories({
-          personName,
-          recentUserMessages: userMessages,
-          lastAssistantMessage: replyText,
-          existingMemories,
-          userId,
-          personId,
-        });
-        
-        console.log('[Chat] Memory extraction complete');
-        
-        // Update continuity if we got valid data
-        if (extractionResult.continuity) {
-          console.log('[Chat] Updating conversation continuity...');
-          await upsertPersonContinuity(userId, personId, extractionResult.continuity);
-          console.log('[Chat] Continuity updated successfully');
+          // Extract memories and continuity (await to get continuity data)
+          const extractionResult = await extractMemories({
+            personName,
+            recentUserMessages: userMessages,
+            lastAssistantMessage: replyText,
+            existingMemories: existingMemories.map(m => ({
+              key: m.key,
+              value: m.value,
+              category: m.category,
+            })),
+            userId,
+            personId,
+          });
+          
+          console.log('[Chat] Memory extraction complete');
+          
+          // Update continuity if we got valid data
+          if (extractionResult.continuity) {
+            console.log('[Chat] Updating conversation continuity...');
+            await upsertPersonContinuity(userId, personId, extractionResult.continuity);
+            console.log('[Chat] Continuity updated successfully');
+          }
+        } catch (memoryError) {
+          // Silently fail - memory extraction should never break chat
+          console.log('[Chat] Memory extraction/continuity update failed (silent):', memoryError);
         }
-      } catch (memoryError) {
-        // Silently fail - memory extraction should never break chat
-        console.debug('[Chat] Memory extraction/continuity update failed (silent):', memoryError);
-      }
+      })();
     } catch (err: any) {
       console.error('[Chat] sendMessage unexpected error:', err);
       if (isMountedRef.current) {

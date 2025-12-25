@@ -43,6 +43,8 @@ export async function getPersonMemories(
   limit: number = 25
 ): Promise<PersonMemory[]> {
   try {
+    console.log('[Memory] Fetching memories for user:', userId, 'person:', personId);
+
     const { data, error } = await supabase
       .from('person_memories')
       .select('*')
@@ -54,19 +56,22 @@ export async function getPersonMemories(
       .limit(limit);
 
     if (error) {
-      console.log('[PersonMemory] Error fetching memories:', error.message);
+      console.log('[Memory] Error fetching memories:', error.message, error.code, error.hint);
       return [];
     }
 
+    console.log('[Memory] Fetched', data?.length || 0, 'memories');
     return data || [];
   } catch (error) {
-    console.log('[PersonMemory] Unexpected error fetching memories:', error);
+    console.log('[Memory] Unexpected error fetching memories:', error);
     return [];
   }
 }
 
 /**
  * Upsert (insert or update) memories for a specific person/topic
+ * 
+ * CRITICAL: Uses conflict target (user_id, person_id, key) for upsert
  * 
  * @param userId - The authenticated user's ID
  * @param personId - The person/topic ID
@@ -79,10 +84,13 @@ export async function upsertPersonMemories(
   memories: PersonMemoryInput[]
 ): Promise<void> {
   if (!memories || memories.length === 0) {
+    console.log('[Memory] No memories to upsert');
     return;
   }
 
   try {
+    console.log('[Memory] Upsert start:', { userId, personId, count: memories.length });
+
     const updates = memories.map((memory) => ({
       user_id: userId,
       person_id: personId,
@@ -94,18 +102,32 @@ export async function upsertPersonMemories(
       updated_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase
+    console.log('[Memory] Prepared', updates.length, 'records for upsert');
+
+    const { data, error } = await supabase
       .from('person_memories')
       .upsert(updates, {
         onConflict: 'user_id,person_id,key',
         ignoreDuplicates: false,
-      });
+      })
+      .select();
 
     if (error) {
-      console.log('[PersonMemory] Error upserting memories:', error.message);
+      console.log('[Memory] Upsert error:', {
+        message: error.message,
+        code: error.code,
+        hint: error.hint,
+        details: error.details,
+      });
+      return;
     }
-  } catch (error) {
-    console.log('[PersonMemory] Unexpected error upserting memories:', error);
+
+    console.log('[Memory] Upsert ok:', data?.length || 0, 'rows affected');
+  } catch (error: any) {
+    console.log('[Memory] Unexpected error upserting memories:', {
+      message: error?.message || 'unknown',
+      name: error?.name || 'unknown',
+    });
   }
 }
 
@@ -127,6 +149,8 @@ export async function touchMemories(
   }
 
   try {
+    console.log('[Memory] Touching', keys.length, 'memory keys');
+
     const { error } = await supabase
       .from('person_memories')
       .update({ last_mentioned_at: new Date().toISOString() })
@@ -135,9 +159,11 @@ export async function touchMemories(
       .in('key', keys);
 
     if (error) {
-      console.log('[PersonMemory] Error touching memories:', error.message);
+      console.log('[Memory] Error touching memories:', error.message);
+    } else {
+      console.log('[Memory] Touch complete');
     }
   } catch (error) {
-    console.log('[PersonMemory] Unexpected error touching memories:', error);
+    console.log('[Memory] Unexpected error touching memories:', error);
   }
 }

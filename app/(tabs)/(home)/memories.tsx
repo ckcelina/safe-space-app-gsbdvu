@@ -295,19 +295,25 @@ export default function MemoriesScreen() {
     try {
       setLoading(true);
       setError(null);
-      console.log('[Memories] Fetching memories for person:', personId);
+      console.log('[Memories] Fetching memories for person:', personId, 'user:', currentUser.id);
 
       const { data, error: fetchError } = await supabase
         .from('person_memories')
         .select('*')
         .eq('user_id', currentUser.id)
         .eq('person_id', personId)
-        .order('category', { ascending: true })
         .order('importance', { ascending: false })
-        .order('updated_at', { ascending: false });
+        .order('last_mentioned_at', { ascending: false, nullsFirst: false })
+        .order('updated_at', { ascending: false })
+        .limit(25);
 
       if (fetchError) {
-        console.error('[Memories] Error fetching memories:', fetchError);
+        console.log('[Memories] Error fetching memories:', {
+          message: fetchError.message,
+          code: fetchError.code,
+          hint: fetchError.hint,
+          details: fetchError.details,
+        });
         if (isMountedRef.current) {
           setError('Failed to load memories');
         }
@@ -315,11 +321,19 @@ export default function MemoriesScreen() {
       }
 
       console.log('[Memories] Loaded memories:', data?.length || 0);
+      if (data && data.length > 0) {
+        console.log('[Memories] Sample memory:', {
+          category: data[0].category,
+          key: data[0].key,
+          value: data[0].value.substring(0, 50),
+        });
+      }
+      
       if (isMountedRef.current) {
         setMemories(data || []);
       }
     } catch (err: any) {
-      console.error('[Memories] Unexpected error:', err);
+      console.log('[Memories] Unexpected error:', err);
       if (isMountedRef.current) {
         setError('An unexpected error occurred');
       }

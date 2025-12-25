@@ -458,6 +458,7 @@ serve(async (req: Request) => {
   // Wrap entire handler in try-catch to ensure we NEVER throw uncaught errors
   try {
     console.log('=== Memory Extraction + Continuity Request Started ===');
+    console.log('Timestamp:', new Date().toISOString());
 
     // Check for OpenAI API key FIRST
     if (!OPENAI_API_KEY || OPENAI_API_KEY.trim() === '') {
@@ -475,6 +476,8 @@ serve(async (req: Request) => {
         'missing_openai_key'
       );
     }
+    
+    console.log('✅ OpenAI API key is present');
 
     // Parse request body with defensive error handling
     let requestBody: RequestBody;
@@ -594,13 +597,26 @@ serve(async (req: Request) => {
 
     // STEP 1: Extract memories (never throws - returns empty arrays on error)
     console.log('Step 1: Extracting memories...');
+    console.log('  - Person name:', personName);
+    console.log('  - User messages:', recentUserMessages.length);
+    console.log('  - Existing memories:', existingMemories.length);
+    
     const { memories, mentioned_keys } = await extractMemoriesFromOpenAI(
       personName,
       recentUserMessages,
       lastAssistantMessage,
       existingMemories
     );
+    
     console.log('✅ Memories extracted:', memories.length);
+    if (memories.length > 0) {
+      console.log('  - Sample memory:', {
+        category: memories[0].category,
+        key: memories[0].key,
+        value: memories[0].value.substring(0, 50),
+      });
+    }
+    console.log('✅ Mentioned keys:', mentioned_keys.length);
 
     // STEP 2: Extract conversation continuity (only if we have enough messages)
     // Never throws - returns empty continuity on error
