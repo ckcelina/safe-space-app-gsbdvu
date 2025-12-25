@@ -35,69 +35,87 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUserProfile = async (authUserId: string) => {
+    // Wrap in timeout to prevent blocking startup
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+    );
+
     try {
       console.log('[AuthContext] Fetching user profile for:', authUserId);
       
-      // Step 1: Check if user profile already exists
-      const { data: existingUser, error: selectError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authUserId)
-        .maybeSingle();
+      // Race between fetch and timeout
+      const fetchPromise = (async () => {
+        // Step 1: Check if user profile already exists
+        const { data: existingUser, error: selectError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUserId)
+          .maybeSingle();
 
-      if (selectError && selectError.code !== 'PGRST116') {
-        console.error('[AuthContext] Error checking existing user profile:', selectError);
-      }
+        if (selectError && selectError.code !== 'PGRST116') {
+          console.log('[AuthContext] Error checking existing user profile:', selectError.message);
+        }
 
-      // Step 2: If user exists, set it and stop
-      if (existingUser) {
-        console.log('[AuthContext] User profile found:', existingUser);
-        setUser(existingUser);
-        return;
-      }
+        // Step 2: If user exists, set it and stop
+        if (existingUser) {
+          console.log('[AuthContext] User profile found');
+          setUser(existingUser);
+          return;
+        }
 
-      // Step 3: User doesn't exist, create one
-      console.log('[AuthContext] User profile not found, creating one');
-      const { data: authUser } = await supabase.auth.getUser();
-      
-      const { data: newUser, error: insertError } = await supabase
-        .from('users')
-        .insert([{ 
-          id: authUserId, 
-          email: authUser.user?.email || null,
-          role: 'free' 
-        }])
-        .select()
-        .maybeSingle();
+        // Step 3: User doesn't exist, create one
+        console.log('[AuthContext] User profile not found, creating one');
+        const { data: authUser } = await supabase.auth.getUser();
+        
+        const { data: newUser, error: insertError } = await supabase
+          .from('users')
+          .insert([{ 
+            id: authUserId, 
+            email: authUser.user?.email || null,
+            role: 'free' 
+          }])
+          .select()
+          .maybeSingle();
 
-      // Step 4: Handle duplicate key error gracefully
-      if (insertError) {
-        if (insertError.code === '23505') {
-          // Duplicate key error - this is non-fatal
-          console.warn('[AuthContext] Duplicate user profile detected, fetching existing profile.');
-          
-          // Re-select the existing user profile
-          const { data: retryUser, error: retrySelectError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', authUserId)
-            .maybeSingle();
+        // Step 4: Handle duplicate key error gracefully
+        if (insertError) {
+          if (insertError.code === '23505') {
+            // Duplicate key error - this is non-fatal
+            console.log('[AuthContext] Duplicate user profile detected, fetching existing profile');
+            
+            // Re-select the existing user profile
+            const { data: retryUser, error: retrySelectError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', authUserId)
+              .maybeSingle();
 
-          if (retrySelectError) {
-            console.error('[AuthContext] Error fetching existing user profile after duplicate error:', retrySelectError);
-            // Set a fallback user object
-            setUser({ 
-              id: authUserId, 
-              email: authUser.user?.email || null,
-              username: null,
-              role: 'free', 
-              created_at: new Date().toISOString() 
-            });
-          } else if (retryUser) {
-            console.log('[AuthContext] Successfully fetched existing user profile:', retryUser);
-            setUser(retryUser);
+            if (retrySelectError) {
+              console.log('[AuthContext] Error fetching existing user profile after duplicate error:', retrySelectError.message);
+              // Set a fallback user object
+              setUser({ 
+                id: authUserId, 
+                email: authUser.user?.email || null,
+                username: null,
+                role: 'free', 
+                created_at: new Date().toISOString() 
+              });
+            } else if (retryUser) {
+              console.log('[AuthContext] Successfully fetched existing user profile');
+              setUser(retryUser);
+            } else {
+              console.log('[AuthContext] No user found after duplicate error, using fallback');
+              setUser({ 
+                id: authUserId, 
+                email: authUser.user?.email || null,
+                username: null,
+                role: 'free', 
+                created_at: new Date().toISOString() 
+              });
+            }
           } else {
-            console.warn('[AuthContext] No user found after duplicate error, using fallback');
+            // Real error - log it but don't block the user
+            console.log('[AuthContext] Error creating user profile:', insertError.message);
             setUser({ 
               id: authUserId, 
               email: authUser.user?.email || null,
@@ -106,9 +124,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               created_at: new Date().toISOString() 
             });
           }
+        } else if (newUser) {
+          console.log('[AuthContext] User profile created');
+          setUser(newUser);
         } else {
-          // Real error - log it but don't block the user
-          console.error('[AuthContext] Error creating user profile:', insertError);
+          // Fallback if insert returns no data
           setUser({ 
             id: authUserId, 
             email: authUser.user?.email || null,
@@ -117,21 +137,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             created_at: new Date().toISOString() 
           });
         }
-      } else if (newUser) {
-        console.log('[AuthContext] User profile created:', newUser);
-        setUser(newUser);
-      } else {
-        // Fallback if insert returns no data
-        setUser({ 
-          id: authUserId, 
-          email: authUser.user?.email || null,
-          username: null,
-          role: 'free', 
-          created_at: new Date().toISOString() 
-        });
-      }
-    } catch (error) {
-      console.error('[AuthContext] Error in fetchUserProfile:', error);
+      })();
+
+      await Promise.race([fetchPromise, timeoutPromise]);
+    } catch (error: any) {
+      console.log('[AuthContext] Error in fetchUserProfile:', error?.message || 'Unknown error');
       // Set a default user object to prevent blocking
       setUser({ 
         id: authUserId, 
@@ -152,26 +162,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log('[AuthContext] Initializing...');
     
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error('[AuthContext] Error getting initial session:', error);
-        setLoading(false);
-        return;
-      }
+    // Wrap initial session fetch in timeout
+    const initAuth = async () => {
+      try {
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session fetch timeout')), 5000)
+        );
 
-      console.log('[AuthContext] Initial session:', session?.user?.email || 'No session');
-      setSession(session);
-      setCurrentUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserProfile(session.user.id).finally(() => setLoading(false));
-      } else {
+        const sessionPromise = supabase.auth.getSession();
+
+        const { data: { session }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
+
+        if (error) {
+          console.log('[AuthContext] Error getting initial session:', error.message);
+          setLoading(false);
+          return;
+        }
+
+        console.log('[AuthContext] Initial session:', session?.user?.email || 'No session');
+        setSession(session);
+        setCurrentUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        }
+      } catch (error: any) {
+        console.log('[AuthContext] Error initializing auth:', error?.message || 'Unknown error');
+      } finally {
         setLoading(false);
       }
-    }).catch((error) => {
-      console.error('[AuthContext] Error getting initial session:', error);
-      setLoading(false);
-    });
+    };
+
+    initAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -202,18 +227,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        console.error('[AuthContext] Signup error:', error);
+        console.log('[AuthContext] Signup error:', error.message);
         return { error };
       }
 
-      console.log('[AuthContext] Signup successful:', data.user?.email || 'No email');
+      console.log('[AuthContext] Signup successful');
       
       // The user profile will be created automatically by fetchUserProfile
       // when the auth state changes to SIGNED_IN
       
       return { error: null };
-    } catch (error) {
-      console.error('[AuthContext] Unexpected signup error:', error);
+    } catch (error: any) {
+      console.log('[AuthContext] Unexpected signup error:', error?.message || 'Unknown error');
       return { error };
     }
   };
@@ -227,14 +252,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        console.error('[AuthContext] Sign in error:', error);
+        console.log('[AuthContext] Sign in error:', error.message);
         return { error };
       }
 
-      console.log('[AuthContext] Sign in successful:', data.user?.email || 'No email');
+      console.log('[AuthContext] Sign in successful');
       return { error: null };
-    } catch (error) {
-      console.error('[AuthContext] Unexpected sign in error:', error);
+    } catch (error: any) {
+      console.log('[AuthContext] Unexpected sign in error:', error?.message || 'Unknown error');
       return { error };
     }
   };
@@ -254,13 +279,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signOut();
       
       if (error) {
-        console.error('[AuthContext] Supabase sign out error:', error);
+        console.log('[AuthContext] Supabase sign out error:', error.message);
         // Don't throw - we've already cleared local state
       } else {
         console.log('[AuthContext] Supabase sign out successful');
       }
-    } catch (error) {
-      console.error('[AuthContext] Sign out error:', error);
+    } catch (error: any) {
+      console.log('[AuthContext] Sign out error:', error?.message || 'Unknown error');
       // Even if there's an error, state is already cleared
     }
   };

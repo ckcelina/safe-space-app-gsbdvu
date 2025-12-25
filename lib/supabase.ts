@@ -9,9 +9,9 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 // Validate environment variables at startup
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('[Supabase] Missing environment variables!');
-  console.error('[Supabase] URL:', supabaseUrl ? 'Present' : 'MISSING');
-  console.error('[Supabase] Key:', supabaseAnonKey ? 'Present' : 'MISSING');
+  console.log('[Supabase] Missing environment variables!');
+  console.log('[Supabase] URL:', supabaseUrl ? 'Present' : 'MISSING');
+  console.log('[Supabase] Key:', supabaseAnonKey ? 'Present' : 'MISSING');
   
   // Show user-friendly error instead of crashing
   setTimeout(() => {

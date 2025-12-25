@@ -22,6 +22,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
+    // Log but don't crash
+    console.log('[Startup] Error boundary caught:', error?.message || error);
     return {
       hasError: true,
       error,
@@ -29,7 +31,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // Silent logging - no red screen
+    console.log('[Startup] Unhandled error:', error?.message || error);
+    console.log('[Startup] Error info:', errorInfo?.componentStack || 'No stack');
   }
 
   handleReset = () => {

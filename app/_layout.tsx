@@ -6,8 +6,9 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, View } from "react-native";
+import { useColorScheme, Alert, View, Platform } from "react-native";
 import { useNetworkState } from "expo-network";
+import Constants from "expo-constants";
 import {
   DarkTheme,
   DefaultTheme,
@@ -29,6 +30,21 @@ export const unstable_settings = {
   initialRouteName: "onboarding",
 };
 
+// Global error handler for unhandled promise rejections
+if (typeof global !== 'undefined') {
+  const originalHandler = ErrorUtils.getGlobalHandler();
+  
+  ErrorUtils.setGlobalHandler((error, isFatal) => {
+    // Log startup errors without crashing
+    console.log('[Startup] Unhandled error:', error?.message || error);
+    
+    // Only call original handler for fatal errors in production
+    if (isFatal && !__DEV__) {
+      originalHandler(error, isFatal);
+    }
+  });
+}
+
 // Inner component that has access to theme context
 function RootLayoutInner() {
   const colorScheme = useColorScheme();
@@ -38,8 +54,22 @@ function RootLayoutInner() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
+  // Startup logging - confirms JS bundle is loaded
   useEffect(() => {
-    if (loaded) SplashScreen.hideAsync();
+    const env = __DEV__ ? 'development' : 'production';
+    const platform = Platform.OS;
+    
+    console.log('✅ Safe Space JS loaded');
+    console.log(`[Startup] Environment: ${env}`);
+    console.log(`[Startup] Platform: ${platform}`);
+    console.log(`[Startup] Expo SDK: ${Constants.expoConfig?.sdkVersion || 'unknown'}`);
+  }, []);
+
+  useEffect(() => {
+    if (loaded) {
+      console.log('[Startup] Fonts loaded, hiding splash screen');
+      SplashScreen.hideAsync();
+    }
   }, [loaded]);
 
   React.useEffect(() => {
