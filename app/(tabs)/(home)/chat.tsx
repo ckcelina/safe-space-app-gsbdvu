@@ -28,8 +28,9 @@ import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast } from '@/utils/toast';
 import { extractMemories } from '@/lib/memory/extractMemories';
-import { getPersonMemories } from '@/lib/memory/personMemory';
+import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
 import { upsertPersonContinuity } from '@/lib/memory/personSummary';
+import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -420,6 +421,24 @@ export default function ChatScreen() {
       }
 
       scrollToBottom();
+
+      // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
+      // This runs even if the AI reply fails, ensuring memories are always saved
+      try {
+        console.log('[Chat] Running local memory extraction...');
+        const extractedMemories = extractMemoriesFromUserText(text, personName);
+        
+        if (extractedMemories.length > 0) {
+          console.log('[Chat] Extracted', extractedMemories.length, 'memories locally');
+          await upsertPersonMemories(userId, personId, extractedMemories);
+          console.log('[Chat] Local memories upserted successfully');
+        } else {
+          console.log('[Chat] No memories extracted from user text');
+        }
+      } catch (memoryError: any) {
+        // Silent failure - never crash the chat
+        console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
+      }
 
       console.log('[Chat] Calling AI Edge Function...');
       console.log('[Chat] Total messages in history:', updatedMessages.length);
