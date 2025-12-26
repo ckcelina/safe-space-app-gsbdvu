@@ -1,42 +1,24 @@
 
-import * as MailComposer from 'expo-mail-composer';
 import * as Linking from 'expo-linking';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 
 /**
  * Opens the user's email app with a pre-filled support email
  */
 export async function openSupportEmail() {
+  const email = 'support@byceli.com';
+  const subject = 'Safe Space App Support';
+  const body = 'Hi Support Team,';
+  const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
   try {
-    // Get app version and platform info
-    const appVersion = Constants.expoConfig?.version || '1.0.0';
-    const platform = Platform.OS;
-    const platformVersion = Platform.Version;
-
-    // Check if mail composer is available
-    const isAvailable = await MailComposer.isAvailableAsync();
-    
-    if (!isAvailable) {
-      // Fallback to mailto: link
-      const subject = encodeURIComponent('Safe Space Support');
-      const body = encodeURIComponent(
-        `\n\n---\nApp Version: ${appVersion}\nPlatform: ${platform} ${platformVersion}\n`
-      );
-      await Linking.openURL(`mailto:support@example.com?subject=${subject}&body=${body}`);
-      return;
+    const supported = await Linking.canOpenURL(mailtoUrl);
+    if (supported) {
+      await Linking.openURL(mailtoUrl);
+    } else {
+      console.warn('[SupportHelpers] Cannot open email URL');
     }
-
-    // Compose email with pre-filled information
-    await MailComposer.composeAsync({
-      recipients: ['support@example.com'],
-      subject: 'Safe Space Support',
-      body: `\n\n---\nApp Version: ${appVersion}\nPlatform: ${platform} ${platformVersion}\n`,
-    });
   } catch (error) {
-    console.error('Error opening support email:', error);
-    // Last resort fallback
-    await Linking.openURL('mailto:support@example.com');
+    console.error('[SupportHelpers] Error opening email:', error);
   }
 }
 
