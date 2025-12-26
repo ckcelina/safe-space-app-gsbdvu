@@ -35,7 +35,7 @@ import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
 import { upsertPersonContinuity } from '@/lib/memory/personSummary';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
-import { invokeEdge, copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
+import { invokeEdgeSafe, copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -175,7 +175,7 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   // Dev-only debug state
-  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
@@ -493,63 +493,29 @@ export default function ChatScreen() {
         .filter((m) => m.role === 'assistant')
         .slice(-1)[0];
 
-      // STEP 2: Wrap Edge Function call in try/catch and handle ALL response shapes safely
-      let aiResponse: any = null;
-      let invokeError: any = null;
-      let debug: any = null;
+      // STEP 2: Call invokeEdgeSafe with retry and timeout logic
+      const result = await invokeEdgeSafe('generate-ai-response', {
+        userId,
+        personId,
+        personName,
+        personRelationshipType: relationshipType || 'Unknown',
+        messages: recentMessages,
+        currentSubject: currentSubject,
+        aiToneId: preferences.ai_tone_id,
+        aiScienceMode: preferences.ai_science_mode,
+      });
 
-      try {
-        const result = await invokeEdge('generate-ai-response', {
-          userId,
-          personId,
-          personName,
-          personRelationshipType: relationshipType || 'Unknown',
-          messages: recentMessages,
-          currentSubject: currentSubject,
-          aiToneId: preferences.ai_tone_id,
-          aiScienceMode: preferences.ai_science_mode,
-        });
-
-        aiResponse = result.data;
-        invokeError = result.error;
-        debug = result.debug;
-      } catch (invokeException: any) {
-        console.error('[Chat] invokeEdge threw exception:', invokeException);
-        invokeError = {
-          name: 'invoke_exception',
-          message: invokeException?.message || 'Unexpected error calling Edge Function',
-        };
-        debug = {
-          exceptionMessage: invokeException?.message,
-          exceptionStack: invokeException?.stack,
-        };
-      }
-
-      // STEP 3: Normalize response and build debug string
-      const ok = aiResponse?.success === true;
-      const errObj = aiResponse?.error ?? null;
-
-      if (invokeError || !ok) {
-        // Build detailed debug string
+      // STEP 3: Handle result - check ok flag
+      if (!result.ok) {
+        // Build detailed debug string for DEV mode
         const debugString = JSON.stringify({
           functionName: 'generate-ai-response',
           timestamp: new Date().toISOString(),
-          invocationError: invokeError ? {
-            name: invokeError.name,
-            message: invokeError.message,
-            status: invokeError.status,
-          } : null,
-          edgeFunctionError: errObj ? {
-            code: typeof errObj === 'object' ? errObj.code : errObj,
-            message: typeof errObj === 'object' ? errObj.message : 'Unknown error',
-            details: typeof errObj === 'object' ? errObj.details : undefined,
-          } : null,
-          responseData: aiResponse ? JSON.stringify(aiResponse).substring(0, 300) : null,
-          debug,
+          lastUserMessageId: insertedMessage.id,
+          error: result.error,
         }, null, 2);
 
-        console.error('[Chat] Edge Function error detected');
-        console.error('[Chat] Debug info:', debugString);
+        console.error('[Chat] Edge Function failed:', result.error);
 
         // Store debug info for dev mode banner
         if (__DEV__) {
@@ -559,7 +525,7 @@ export default function ChatScreen() {
         if (isMountedRef.current) {
           setIsTyping(false);
           
-          // STEP 4: Insert ONE assistant bubble with error message
+          // STEP 4: Insert fallback error message
           const fallbackMessage = "I'm having trouble responding right now. Please try again.";
           const { data: fallbackInserted } = await supabase
             .from('messages')
@@ -583,7 +549,8 @@ export default function ChatScreen() {
         return;
       }
 
-      // Success path - extract reply
+      // Success path - extract reply from data
+      const aiResponse = result.data;
       let replyText =
         aiResponse?.reply ||
         "I'm having trouble responding right now. Please try again.";
