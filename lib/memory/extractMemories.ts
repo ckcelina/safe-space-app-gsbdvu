@@ -1,5 +1,5 @@
 
-import { invokeEdgeFunction } from '../supabase/invokeEdgeFunction';
+import { invokeEdge } from '../supabase/invokeEdge';
 import { upsertPersonMemories, touchMemories, PersonMemoryInput } from './personMemory';
 import { extractMemoriesFromUserText } from './localExtract';
 
@@ -38,8 +38,8 @@ export async function extractMemories(params: {
     console.log('[Memory] User messages:', recentUserMessages.length);
     console.log('[Memory] Existing memories:', existingMemories.length);
 
-    // Call the Edge Function using invokeEdgeFunction helper with proper auth headers
-    const { data, error: invokeError } = await invokeEdgeFunction('extract-memories', {
+    // Call the Edge Function using invokeEdge helper with detailed error logging
+    const { data, error: invokeError } = await invokeEdge('extract-memories', {
       personName,
       recentUserMessages,
       lastAssistantMessage,
@@ -50,7 +50,12 @@ export async function extractMemories(params: {
 
     // Check for invocation error (network, HTTP error, etc.)
     if (invokeError) {
-      console.log('[Memory Extraction] Edge Function error:', invokeError.message);
+      console.error('[Memory Extraction] Edge Function invocation error:', invokeError.message);
+      console.error('[Memory Extraction] Error details:', {
+        name: invokeError.name,
+        status: invokeError.status,
+        responseBody: invokeError.responseBody?.substring(0, 200),
+      });
       console.log('[Memory Extraction] Falling back to local extraction...');
       
       // LOCAL FALLBACK: Use local extraction when Edge Function fails
@@ -92,7 +97,7 @@ export async function extractMemories(params: {
 
     // Check if Edge Function returned success: false
     if (!result?.success || result?.error) {
-      console.log('[Memory] Edge Function returned error:', result?.error || 'unknown');
+      console.error('[Memory] Edge Function returned error:', result?.error || 'unknown');
       console.log('[Memory] Falling back to local extraction...');
       
       // LOCAL FALLBACK: Use local extraction when Edge Function returns error
@@ -143,7 +148,7 @@ export async function extractMemories(params: {
       error: null,
     };
   } catch (error: any) {
-    console.log('[Memory] Unexpected error during extraction:', error?.message || error);
+    console.error('[Memory] Unexpected error during extraction:', error?.message || error);
     
     // LOCAL FALLBACK: Use local extraction on unexpected error
     try {
@@ -164,7 +169,7 @@ export async function extractMemories(params: {
         console.log('[Memory Extraction] Local extraction found no memories');
       }
     } catch (fallbackError) {
-      console.log('[Memory] Local fallback also failed:', fallbackError);
+      console.error('[Memory] Local fallback also failed:', fallbackError);
     }
     
     return { 

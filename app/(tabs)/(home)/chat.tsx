@@ -34,7 +34,7 @@ import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
 import { upsertPersonContinuity } from '@/lib/memory/personSummary';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
-import { invokeEdgeFunction } from '@/lib/supabase/invokeEdgeFunction';
+import { invokeEdge, copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -175,6 +175,9 @@ export default function ChatScreen() {
 
   // FlatList ref for inverted list
   const flatListRef = useRef<FlatList>(null);
+
+  // Dev-only debug state
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
@@ -376,6 +379,7 @@ export default function ChatScreen() {
     setIsSending(true);
     isGeneratingRef.current = true;
     setError(null);
+    setDebugInfo(null); // Clear previous debug info
     setInputText('');
 
     try {
@@ -465,8 +469,8 @@ export default function ChatScreen() {
         .filter((m) => m.role === 'assistant')
         .slice(-1)[0];
 
-      // Use invokeEdgeFunction helper for resilient Edge Function calls with proper auth headers
-      const { data: aiResponse, error: invokeError } = await invokeEdgeFunction('generate-ai-response', {
+      // Use invokeEdge helper for resilient Edge Function calls with detailed error logging
+      const { data: aiResponse, error: invokeError, debug } = await invokeEdge('generate-ai-response', {
         userId,
         personId,
         personName,
@@ -479,13 +483,19 @@ export default function ChatScreen() {
 
       // Check for invocation error (network, HTTP error, etc.)
       if (invokeError) {
-        console.log('[Chat] Edge Function invocation failed');
+        console.error('[Chat] Edge Function invocation failed');
+        
+        // Store debug info for dev mode
+        if (__DEV__ && debug) {
+          setDebugInfo(debug);
+        }
+        
         if (isMountedRef.current) {
           setIsTyping(false);
           setIsSending(false);
           isGeneratingRef.current = false;
           
-          // Insert fallback assistant message
+          // Insert fallback assistant message with retry capability
           const fallbackMessage = "I'm having trouble responding right now. Please try again.";
           const { data: fallbackInserted } = await supabase
             .from('messages')
@@ -503,6 +513,9 @@ export default function ChatScreen() {
           if (fallbackInserted) {
             setAllMessages((prev) => [...prev, fallbackInserted]);
           }
+          
+          // Show error toast
+          showErrorToast('AI response failed. Check logs for details.');
         }
         return;
       }
@@ -511,7 +524,21 @@ export default function ChatScreen() {
 
       // Check if the Edge Function returned success: false or an error
       if (!aiResponse?.success || aiResponse?.error) {
-        console.log('[Chat] Edge Function returned error:', aiResponse?.error || 'unknown');
+        console.error('[Chat] Edge Function returned error:', aiResponse?.error || 'unknown');
+        
+        // Store debug info for dev mode
+        if (__DEV__) {
+          setDebugInfo({
+            functionName: 'generate-ai-response',
+            timestamp: new Date().toISOString(),
+            errorDetails: {
+              success: aiResponse?.success,
+              error: aiResponse?.error,
+              fullResponse: JSON.stringify(aiResponse).substring(0, 500),
+            },
+          });
+        }
+        
         if (isMountedRef.current) {
           setIsTyping(false);
           setIsSending(false);
@@ -535,6 +562,9 @@ export default function ChatScreen() {
           if (fallbackInserted) {
             setAllMessages((prev) => [...prev, fallbackInserted]);
           }
+          
+          // Show error toast
+          showErrorToast('AI response failed. Check logs for details.');
         }
         return;
       }
@@ -705,6 +735,14 @@ export default function ChatScreen() {
     closeAddSubjectModal();
   }, [customSubjectInput, quickSelectedSubject, closeAddSubjectModal]);
 
+  // Handle debug banner tap (copy to clipboard)
+  const handleDebugBannerTap = useCallback(async () => {
+    if (debugInfo) {
+      await copyDebugToClipboard(debugInfo);
+      showErrorToast('Debug info copied to clipboard');
+    }
+  }, [debugInfo]);
+
   // Render individual message item
   const renderMessageItem = useCallback(({ item }: ListRenderItemInfo<Message>) => {
     return (
@@ -854,6 +892,26 @@ export default function ChatScreen() {
               keyExtractor={(item, index) => `subject-${index}-${item}`}
             />
           </View>
+
+          {/* DEV-ONLY: Debug Banner */}
+          {__DEV__ && debugInfo && (
+            <TouchableOpacity 
+              style={[styles.debugBanner, { backgroundColor: '#FF9500' }]}
+              onPress={handleDebugBannerTap}
+              activeOpacity={0.7}
+            >
+              <IconSymbol
+                ios_icon_name="exclamationmark.triangle.fill"
+                android_material_icon_name="error"
+                size={16}
+                color="#FFFFFF"
+                style={styles.bannerIcon}
+              />
+              <Text style={[styles.debugBannerText, { color: '#FFFFFF' }]}>
+                AI error (tap to copy debug)
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {error && (
             <View style={[styles.errorBanner, { backgroundColor: '#FF3B30' }]}>
@@ -1184,6 +1242,18 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontSize: 14,
+  },
+  debugBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  debugBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   bannerIcon: {
     marginRight: 8,
