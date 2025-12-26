@@ -24,136 +24,34 @@ import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { getPersonContinuity, setContinuityEnabled } from '@/lib/memory/personContinuity';
+import { mergeMemoriesForDisplay, DisplayMemory, DisplaySection, RawMemory } from '@/lib/memory/mergeMemoriesForDisplay';
 
-interface PersonMemory {
-  id: string;
-  user_id: string;
-  person_id: string;
-  category: string;
-  key: string;
-  value: string;
-  importance: number;
-  confidence: number;
-  last_mentioned_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// Category labels mapping
-const CATEGORY_LABELS: Record<string, string> = {
-  loss_grief: 'Loss & Grief',
-  identity: 'Identity',
-  relationship: 'Relationship',
-  preferences: 'Preferences',
-  boundaries: 'Boundaries',
-  conflict_patterns: 'Patterns',
-  goals: 'Goals',
-  context: 'Context',
-  personal: 'Personal Details',
-  health: 'Health & Wellness',
-  work: 'Work & Career',
-  interests: 'Interests & Hobbies',
-  communication: 'Communication',
-  general: 'General',
-  history: 'History',
-  location: 'Location',
+// Category icon mapping
+const CATEGORY_ICONS: Record<string, { ios: string; android: string; emoji: string }> = {
+  'Health': { ios: 'heart.text.square.fill', android: 'medical_services', emoji: '🩺' },
+  'Family': { ios: 'person.3.fill', android: 'family_restroom', emoji: '👨‍👩‍👧' },
+  'Mental Health': { ios: 'brain.head.profile', android: 'psychology', emoji: '🧠' },
+  'Timeline': { ios: 'clock.fill', android: 'schedule', emoji: '⏳' },
+  'Relationships': { ios: 'heart.fill', android: 'favorite', emoji: '❤️' },
+  'Loss & Grief': { ios: 'heart.slash.fill', android: 'heart_broken', emoji: '💔' },
+  'Identity': { ios: 'person.fill', android: 'person', emoji: '👤' },
+  'Preferences': { ios: 'star.fill', android: 'star', emoji: '⭐' },
+  'Boundaries': { ios: 'hand.raised.fill', android: 'back_hand', emoji: '✋' },
+  'Patterns': { ios: 'arrow.triangle.2.circlepath', android: 'sync', emoji: '🔄' },
+  'Goals': { ios: 'flag.fill', android: 'flag', emoji: '🎯' },
+  'Context': { ios: 'info.circle.fill', android: 'info', emoji: 'ℹ️' },
+  'Personal Details': { ios: 'person.text.rectangle.fill', android: 'badge', emoji: '📋' },
+  'Work & Career': { ios: 'briefcase.fill', android: 'work', emoji: '💼' },
+  'Interests & Hobbies': { ios: 'gamecontroller.fill', android: 'sports_esports', emoji: '🎮' },
+  'Communication': { ios: 'bubble.left.and.bubble.right.fill', android: 'chat', emoji: '💬' },
+  'General': { ios: 'square.grid.2x2.fill', android: 'apps', emoji: '📦' },
+  'History': { ios: 'book.fill', android: 'history', emoji: '📖' },
+  'Location': { ios: 'location.fill', android: 'location_on', emoji: '📍' },
 };
 
-// Friendly labels for memory keys
-const FRIENDLY_KEY_LABELS: Record<string, string> = {
-  // Loss & Grief
-  is_deceased: 'Deceased',
-  time_of_death: 'Time since passing',
-  cause_of_death: 'Cause of passing',
-  grief_stage: 'Grief stage',
-  memorial_preferences: 'Memorial preferences',
-  
-  // Personal details
-  age: 'Age',
-  birthday: 'Birthday',
-  occupation: 'Occupation',
-  location: 'Location',
-  hometown: 'Hometown',
-  full_name: 'Full name',
-  nickname: 'Nickname',
-  current_location: 'Current location',
-  
-  // Relationships
-  relationship_type: 'Relationship',
-  relationship_status: 'Relationship status',
-  family_members: 'Family members',
-  children: 'Children',
-  pets: 'Pets',
-  significant_other: 'Significant other',
-  
-  // Interests & Hobbies
-  hobbies: 'Hobbies',
-  interests: 'Interests',
-  favorite_music: 'Favorite music',
-  favorite_movies: 'Favorite movies',
-  favorite_books: 'Favorite books',
-  favorite_food: 'Favorite food',
-  favorite_color: 'Favorite color',
-  sports: 'Sports',
-  
-  // Health & Wellness
-  health_conditions: 'Health conditions',
-  medications: 'Medications',
-  allergies: 'Allergies',
-  mental_health: 'Mental health',
-  dietary_restrictions: 'Dietary restrictions',
-  
-  // Work & Education
-  education: 'Education',
-  career_goals: 'Career goals',
-  work_challenges: 'Work challenges',
-  current_job: 'Current job',
-  dream_job: 'Dream job',
-  
-  // Personality & Traits
-  personality_traits: 'Personality traits',
-  values: 'Values',
-  fears: 'Fears',
-  goals: 'Goals',
-  dreams: 'Dreams',
-  strengths: 'Strengths',
-  weaknesses: 'Weaknesses',
-  
-  // Communication
-  communication_style: 'Communication style',
-  love_language: 'Love language',
-  conflict_style: 'Conflict style',
-  preferred_contact: 'Preferred contact method',
-  
-  // Boundaries
-  personal_boundaries: 'Personal boundaries',
-  emotional_boundaries: 'Emotional boundaries',
-  time_boundaries: 'Time boundaries',
-  
-  // Preferences
-  preferences: 'Preferences',
-  likes: 'Likes',
-  dislikes: 'Dislikes',
-  pet_peeves: 'Pet peeves',
-  
-  // Major life events
-  major_life_event: 'Major life event',
-};
-
-// Get friendly label for a category
-function getCategoryLabel(category: string): string {
-  return CATEGORY_LABELS[category.toLowerCase()] || category.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-}
-
-// Get friendly label for a key
-function getFriendlyLabel(key: string): string {
-  // Handle medical_history: prefixed keys
-  if (key.startsWith('medical_history:')) {
-    const condition = key.replace('medical_history:', '').replace(/_/g, ' ');
-    return condition.replace(/\b\w/g, (l) => l.toUpperCase());
-  }
-  
-  return FRIENDLY_KEY_LABELS[key.toLowerCase()] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+// Get icon for category
+function getCategoryIcon(category: string): { ios: string; android: string; emoji: string } {
+  return CATEGORY_ICONS[category] || { ios: 'square.fill', android: 'square', emoji: '📦' };
 }
 
 // Format date for display
@@ -177,29 +75,28 @@ function formatDate(dateString: string): string {
   }
 }
 
-// Group memories by category
-function groupMemoriesByCategory(memories: PersonMemory[]): Record<string, PersonMemory[]> {
-  const grouped: Record<string, PersonMemory[]> = {};
+// Friendly labels for memory keys
+const FRIENDLY_KEY_LABELS: Record<string, string> = {
+  is_deceased: 'Deceased',
+  time_of_death: 'Time since passing',
+  cause_of_death: 'Cause of passing',
+  age: 'Age',
+  birthday: 'Birthday',
+  occupation: 'Occupation',
+  location: 'Location',
+  relationship_type: 'Relationship',
+  health_conditions: 'Health conditions',
+  hobbies: 'Hobbies',
+  interests: 'Interests',
+};
+
+function getFriendlyLabel(key: string): string {
+  if (key.startsWith('medical_history:')) {
+    const condition = key.replace('medical_history:', '').replace(/_/g, ' ');
+    return condition.replace(/\b\w/g, (l) => l.toUpperCase());
+  }
   
-  memories.forEach((memory) => {
-    const category = memory.category || 'general';
-    if (!grouped[category]) {
-      grouped[category] = [];
-    }
-    grouped[category].push(memory);
-  });
-  
-  // Sort memories within each category by importance (desc), then updated_at (desc)
-  Object.keys(grouped).forEach((category) => {
-    grouped[category].sort((a, b) => {
-      if (b.importance !== a.importance) {
-        return b.importance - a.importance;
-      }
-      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    });
-  });
-  
-  return grouped;
+  return FRIENDLY_KEY_LABELS[key.toLowerCase()] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
 export default function MemoriesScreen() {
@@ -215,10 +112,14 @@ export default function MemoriesScreen() {
   const { currentUser } = useAuth();
   const { theme } = useThemeContext();
 
-  const [memories, setMemories] = useState<PersonMemory[]>([]);
+  const [rawMemories, setRawMemories] = useState<RawMemory[]>([]);
+  const [displaySections, setDisplaySections] = useState<DisplaySection[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Collapsible sections state
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   // Conversation Continuity toggle state
   const [continuityEnabled, setContinuityEnabledState] = useState(true);
@@ -226,7 +127,7 @@ export default function MemoriesScreen() {
 
   // Edit modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editingMemory, setEditingMemory] = useState<PersonMemory | null>(null);
+  const [editingMemory, setEditingMemory] = useState<DisplayMemory | null>(null);
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -255,7 +156,6 @@ export default function MemoriesScreen() {
       }
     } catch (err) {
       console.error('[Memories] Error fetching continuity setting:', err);
-      // Fail silently - default to enabled
     }
   }, [personId, currentUser?.id]);
 
@@ -269,10 +169,7 @@ export default function MemoriesScreen() {
     setContinuityLoading(true);
 
     try {
-      // Optimistically update UI
       setContinuityEnabledState(value);
-
-      // Update in database
       await setContinuityEnabled(currentUser.id, personId, value);
       
       console.log('[Memories] Continuity setting updated successfully');
@@ -283,8 +180,6 @@ export default function MemoriesScreen() {
       );
     } catch (err) {
       console.error('[Memories] Error updating continuity setting:', err);
-      
-      // Revert on error
       setContinuityEnabledState(!value);
       showErrorToast('Failed to update setting');
     } finally {
@@ -295,7 +190,6 @@ export default function MemoriesScreen() {
   }, [personId, currentUser?.id]);
 
   // Fetch memories
-  // CRITICAL: Keep previous list during refresh to prevent blank state flashing
   const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
       console.warn('[Memories] Missing personId or userId');
@@ -307,7 +201,6 @@ export default function MemoriesScreen() {
     }
 
     try {
-      // Set loading state appropriately
       if (isRefresh) {
         setRefreshing(true);
       } else {
@@ -331,8 +224,6 @@ export default function MemoriesScreen() {
         console.log('[Memories] Error fetching memories:', {
           message: fetchError.message,
           code: fetchError.code,
-          hint: fetchError.hint,
-          details: fetchError.details,
         });
         if (isMountedRef.current) {
           setError('Failed to load memories');
@@ -341,18 +232,14 @@ export default function MemoriesScreen() {
       }
 
       console.log('[Memories] Loaded memories:', data?.length || 0);
-      if (data && data.length > 0) {
-        console.log('[Memories] Sample memory:', {
-          category: data[0].category,
-          key: data[0].key,
-          value: data[0].value.substring(0, 50),
-        });
-      }
       
-      // CRITICAL: Only update memories if we got valid data
-      // This prevents blank state from overwriting existing list
       if (isMountedRef.current && data !== null) {
-        setMemories(data);
+        setRawMemories(data);
+        
+        // Transform using merge logic
+        const sections = mergeMemoriesForDisplay(data);
+        setDisplaySections(sections);
+        console.log('[Memories] Transformed into', sections.length, 'sections');
       }
     } catch (err: any) {
       console.log('[Memories] Unexpected error:', err);
@@ -386,8 +273,21 @@ export default function MemoriesScreen() {
     }
   }, []);
 
+  // Toggle section collapse
+  const toggleSection = useCallback((category: string) => {
+    setCollapsedSections((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  }, []);
+
   // Open edit modal
-  const handleEditPress = useCallback((memory: PersonMemory) => {
+  const handleEditPress = useCallback((memory: DisplayMemory) => {
     console.log('[Memories] Opening edit modal for:', memory.key);
     setEditingMemory(memory);
     setEditValue(memory.value);
@@ -414,7 +314,6 @@ export default function MemoriesScreen() {
     }
 
     if (newValue === editingMemory.value) {
-      // No change
       handleCloseEditModal();
       return;
     }
@@ -423,7 +322,7 @@ export default function MemoriesScreen() {
     setSaving(true);
 
     try {
-      // Update memory
+      // Update primary memory
       const { error: updateError } = await supabase
         .from('person_memories')
         .update({
@@ -439,20 +338,6 @@ export default function MemoriesScreen() {
         return;
       }
 
-      // Insert audit record
-      try {
-        await supabase.from('person_memory_audit').insert({
-          user_id: currentUser.id,
-          person_id: editingMemory.person_id,
-          memory_key: editingMemory.key,
-          action: 'update',
-          old_value: editingMemory.value,
-          new_value: newValue,
-        });
-      } catch (auditError) {
-        console.error('[Memories] Audit insert failed (non-critical):', auditError);
-      }
-
       showSuccessToast('Memory updated');
       handleCloseEditModal();
       fetchMemories(true);
@@ -465,7 +350,7 @@ export default function MemoriesScreen() {
   }, [editingMemory, editValue, currentUser?.id, handleCloseEditModal, fetchMemories]);
 
   // Delete memory
-  const handleDeletePress = useCallback((memory: PersonMemory) => {
+  const handleDeletePress = useCallback((memory: DisplayMemory) => {
     if (!currentUser?.id) {
       return;
     }
@@ -485,7 +370,7 @@ export default function MemoriesScreen() {
             console.log('[Memories] Deleting memory:', memory.key);
 
             try {
-              // Delete memory
+              // Delete primary memory
               const { error: deleteError } = await supabase
                 .from('person_memories')
                 .delete()
@@ -496,20 +381,6 @@ export default function MemoriesScreen() {
                 console.error('[Memories] Error deleting memory:', deleteError);
                 showErrorToast('Failed to delete memory');
                 return;
-              }
-
-              // Insert audit record
-              try {
-                await supabase.from('person_memory_audit').insert({
-                  user_id: currentUser.id,
-                  person_id: memory.person_id,
-                  memory_key: memory.key,
-                  action: 'delete',
-                  old_value: memory.value,
-                  new_value: null,
-                });
-              } catch (auditError) {
-                console.error('[Memories] Audit insert failed (non-critical):', auditError);
               }
 
               showSuccessToast('Memory deleted');
@@ -523,9 +394,6 @@ export default function MemoriesScreen() {
       ]
     );
   }, [currentUser?.id, fetchMemories]);
-
-  const groupedMemories = groupMemoriesByCategory(memories);
-  const categories = Object.keys(groupedMemories).sort();
 
   return (
     <KeyboardAvoider>
@@ -600,7 +468,7 @@ export default function MemoriesScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Conversation Continuity Toggle Section */}
+          {/* Conversation Continuity Toggle Section - Slimmer */}
           <View style={[
             styles.continuitySection,
             {
@@ -608,15 +476,15 @@ export default function MemoriesScreen() {
               ...Platform.select({
                 ios: {
                   shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 4,
                 },
                 android: {
-                  elevation: 3,
+                  elevation: 2,
                 },
                 web: {
-                  boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+                  boxShadow: '0px 1px 4px rgba(0, 0, 0, 0.05)',
                 },
               }),
             }
@@ -626,12 +494,12 @@ export default function MemoriesScreen() {
                 <IconSymbol
                   ios_icon_name="arrow.triangle.2.circlepath"
                   android_material_icon_name="sync"
-                  size={24}
+                  size={20}
                   color={theme.primary}
                   style={styles.continuityIcon}
                 />
                 <Text style={[styles.continuityTitle, { color: theme.textPrimary }]}>
-                  Continue conversations automatically
+                  Continue conversations
                 </Text>
               </View>
               <Switch
@@ -646,136 +514,148 @@ export default function MemoriesScreen() {
                 ios_backgroundColor={theme.textSecondary + '40'}
               />
             </View>
-            <Text style={[styles.continuityHelper, { color: theme.textSecondary }]}>
-              Stores where you left off with this person/topic (goal, open loops, next question).
-            </Text>
           </View>
 
-          {memories.length === 0 && !loading && !refreshing ? (
+          {displaySections.length === 0 && !loading && !refreshing ? (
             <View style={styles.emptyState}>
               <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-                <IconSymbol
-                  ios_icon_name="brain"
-                  android_material_icon_name="psychology"
-                  size={48}
-                  color={theme.primary}
-                />
+                <Text style={styles.emptyEmoji}>🧠</Text>
               </View>
               <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>
                 No memories saved yet
               </Text>
               <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-                As you chat, the AI will learn and remember important details about {personName}.
-              </Text>
-              <Text style={[styles.emptyHint, { color: theme.textSecondary }]}>
-                You can edit or delete memories anytime.
+                As you chat, the AI will save important details here.
               </Text>
             </View>
           ) : (
             <>
-              {categories.map((category) => (
-                <View key={category} style={styles.categorySection}>
-                  <Text style={[styles.categoryHeader, { color: theme.textPrimary }]}>
-                    {getCategoryLabel(category)}
-                  </Text>
-                  {groupedMemories[category].map((memory) => (
-                    <View
-                      key={`${memory.id}-${memory.category}-${memory.key}`}
-                      style={[
-                        styles.memoryCard,
-                        { 
-                          backgroundColor: theme.card,
-                          ...Platform.select({
-                            ios: {
-                              shadowColor: '#000',
-                              shadowOffset: { width: 0, height: 2 },
-                              shadowOpacity: 0.08,
-                              shadowRadius: 8,
-                            },
-                            android: {
-                              elevation: 3,
-                            },
-                            web: {
-                              boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-                            },
-                          }),
-                        }
-                      ]}
+              {displaySections.map((section) => {
+                const icon = getCategoryIcon(section.category);
+                const isCollapsed = collapsedSections.has(section.category);
+                
+                return (
+                  <View key={section.category} style={styles.categorySection}>
+                    {/* Category Header - Collapsible */}
+                    <TouchableOpacity
+                      style={styles.categoryHeaderButton}
+                      onPress={() => toggleSection(section.category)}
+                      activeOpacity={0.7}
                     >
-                      <View style={styles.memoryHeader}>
-                        <View style={styles.memoryTitleRow}>
-                          <Text style={[styles.memoryKey, { color: theme.textPrimary }]}>
-                            {getFriendlyLabel(memory.key)}
+                      <View style={styles.categoryHeaderLeft}>
+                        <Text style={styles.categoryEmoji}>{icon.emoji}</Text>
+                        <Text style={[styles.categoryTitle, { color: theme.textPrimary }]}>
+                          {section.category}
+                        </Text>
+                        <View style={[styles.countBadge, { backgroundColor: theme.primary + '20' }]}>
+                          <Text style={[styles.countText, { color: theme.primary }]}>
+                            {section.memories.length}
                           </Text>
-                          {memory.importance >= 8 && (
-                            <View style={[styles.importanceBadge, { backgroundColor: theme.primary + '20' }]}>
-                              <IconSymbol
-                                ios_icon_name="star.fill"
-                                android_material_icon_name="star"
-                                size={12}
-                                color={theme.primary}
-                              />
-                            </View>
-                          )}
-                        </View>
-                        <View style={styles.memoryActions}>
-                          <TouchableOpacity
-                            onPress={() => handleEditPress(memory)}
-                            style={styles.actionButton}
-                            activeOpacity={0.7}
-                          >
-                            <IconSymbol
-                              ios_icon_name="pencil"
-                              android_material_icon_name="edit"
-                              size={18}
-                              color={theme.primary}
-                            />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => handleDeletePress(memory)}
-                            style={styles.actionButton}
-                            activeOpacity={0.7}
-                          >
-                            <IconSymbol
-                              ios_icon_name="trash"
-                              android_material_icon_name="delete"
-                              size={18}
-                              color="#FF3B30"
-                            />
-                          </TouchableOpacity>
                         </View>
                       </View>
-                      
-                      <Text style={[styles.memoryValue, { color: theme.textSecondary }]}>
-                        {memory.value}
-                      </Text>
-                      
-                      <View style={styles.memoryFooter}>
-                        <View style={styles.metadataRow}>
-                          {memory.confidence >= 7 && (
-                            <View style={[styles.metadataBadge, { backgroundColor: theme.primary + '15' }]}>
-                              <IconSymbol
-                                ios_icon_name="checkmark.circle.fill"
-                                android_material_icon_name="check_circle"
-                                size={12}
-                                color={theme.primary}
-                              />
-                              <Text style={[styles.metadataText, { color: theme.primary }]}>
-                                High confidence
-                              </Text>
+                      <IconSymbol
+                        ios_icon_name={isCollapsed ? 'chevron.down' : 'chevron.up'}
+                        android_material_icon_name={isCollapsed ? 'expand_more' : 'expand_less'}
+                        size={20}
+                        color={theme.textSecondary}
+                      />
+                    </TouchableOpacity>
+
+                    {/* Memory Items */}
+                    {!isCollapsed && (
+                      <View style={styles.memoriesContainer}>
+                        {section.memories.map((memory) => (
+                          <View
+                            key={memory.id}
+                            style={[
+                              styles.memoryChip,
+                              { 
+                                backgroundColor: theme.card,
+                                borderColor: theme.primary + '20',
+                                ...Platform.select({
+                                  ios: {
+                                    shadowColor: '#000',
+                                    shadowOffset: { width: 0, height: 1 },
+                                    shadowOpacity: 0.06,
+                                    shadowRadius: 3,
+                                  },
+                                  android: {
+                                    elevation: 2,
+                                  },
+                                  web: {
+                                    boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.06)',
+                                  },
+                                }),
+                              }
+                            ]}
+                          >
+                            <View style={styles.memoryChipContent}>
+                              {/* Left: Icon Badge */}
+                              <View style={[styles.memoryIconBadge, { backgroundColor: theme.primary + '15' }]}>
+                                <IconSymbol
+                                  ios_icon_name={icon.ios}
+                                  android_material_icon_name={icon.android}
+                                  size={16}
+                                  color={theme.primary}
+                                />
+                              </View>
+
+                              {/* Center: Title & Subtitle */}
+                              <View style={styles.memoryTextContainer}>
+                                <Text style={[styles.memoryTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                                  {getFriendlyLabel(memory.key)}
+                                </Text>
+                                <Text style={[styles.memorySubtitle, { color: theme.textSecondary }]} numberOfLines={2}>
+                                  {memory.value}
+                                </Text>
+                                {memory.mergedAges && memory.mergedAges.length > 0 && (
+                                  <View style={styles.ageBadgesContainer}>
+                                    {memory.mergedAges.map((age, idx) => (
+                                      <View key={idx} style={[styles.ageBadge, { backgroundColor: theme.accent + '30' }]}>
+                                        <Text style={[styles.ageBadgeText, { color: theme.primary }]}>
+                                          {age}
+                                        </Text>
+                                      </View>
+                                    ))}
+                                  </View>
+                                )}
+                              </View>
+
+                              {/* Right: Actions */}
+                              <View style={styles.memoryActions}>
+                                <TouchableOpacity
+                                  onPress={() => handleEditPress(memory)}
+                                  style={styles.actionButton}
+                                  activeOpacity={0.7}
+                                >
+                                  <IconSymbol
+                                    ios_icon_name="pencil"
+                                    android_material_icon_name="edit"
+                                    size={18}
+                                    color={theme.primary}
+                                  />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={() => handleDeletePress(memory)}
+                                  style={styles.actionButton}
+                                  activeOpacity={0.7}
+                                >
+                                  <IconSymbol
+                                    ios_icon_name="trash"
+                                    android_material_icon_name="delete"
+                                    size={18}
+                                    color="#FF3B30"
+                                  />
+                                </TouchableOpacity>
+                              </View>
                             </View>
-                          )}
-                          {memory.last_mentioned_at && (
-                            <Text style={[styles.memoryMeta, { color: theme.textSecondary }]}>
-                              Updated {formatDate(memory.updated_at)}
-                            </Text>
-                          )}
-                        </View>
+                          </View>
+                        ))}
                       </View>
-                    </View>
-                  ))}
-                </View>
-              ))}
+                    )}
+                  </View>
+                );
+              })}
             </>
           )}
         </ScrollView>
@@ -851,7 +731,7 @@ export default function MemoriesScreen() {
         </SwipeableModal>
       </View>
 
-      <LoadingOverlay visible={loading && !error && memories.length === 0} />
+      <LoadingOverlay visible={loading && !error && displaySections.length === 0} />
     </KeyboardAvoider>
   );
 }
@@ -926,18 +806,18 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: '5%',
-    paddingTop: 24,
+    paddingTop: 20,
   },
+  // Slimmer continuity section
   continuitySection: {
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 24,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
   },
   continuityHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
   },
   continuityTitleRow: {
     flex: 1,
@@ -946,19 +826,15 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   continuityIcon: {
-    marginRight: 10,
+    marginRight: 8,
   },
   continuityTitle: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '600',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
     flex: 1,
   },
-  continuityHelper: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '400',
-  },
+  // Empty state
   emptyState: {
     flex: 1,
     alignItems: 'center',
@@ -988,6 +864,9 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  emptyEmoji: {
+    fontSize: 48,
+  },
   emptyTitle: {
     fontSize: 22,
     fontWeight: '700',
@@ -1000,95 +879,105 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 16,
   },
-  emptyHint: {
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
-    lineHeight: 18,
-    fontStyle: 'italic',
-  },
+  // Category section
   categorySection: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  categoryHeader: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 16,
-    letterSpacing: 0.3,
-    paddingLeft: 4,
-  },
-  memoryCard: {
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 14,
-  },
-  memoryHeader: {
+  categoryHeaderButton: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
   },
-  memoryTitleRow: {
-    flex: 1,
+  categoryHeaderLeft: {
     flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  categoryEmoji: {
+    fontSize: 24,
+    marginRight: 10,
+  },
+  categoryTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    marginRight: 8,
+  },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    minWidth: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  // Memory items container
+  memoriesContainer: {
+    gap: 10,
+  },
+  // Memory chip (compact card)
+  memoryChip: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  memoryChipContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  memoryIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  memoryKey: {
-    fontSize: 17,
-    fontWeight: '600',
+  memoryTextContainer: {
+    flex: 1,
     marginRight: 8,
-    letterSpacing: 0.2,
   },
-  importanceBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+  memoryTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+    letterSpacing: 0.1,
+  },
+  memorySubtitle: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '400',
+  },
+  ageBadgesContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  ageBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  ageBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   memoryActions: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    padding: 6,
-  },
-  memoryValue: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 12,
-    fontWeight: '400',
-  },
-  memoryFooter: {
-    marginTop: 4,
-  },
-  metadataRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
     gap: 8,
   },
-  metadataBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
+  actionButton: {
+    padding: 4,
   },
-  metadataText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  memoryMeta: {
-    fontSize: 12,
-    fontWeight: '500',
-    fontStyle: 'italic',
-  },
+  // Modal styles
   modalContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
