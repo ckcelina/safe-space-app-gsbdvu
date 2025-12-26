@@ -136,10 +136,20 @@ function TopicBubble({
             </TouchableOpacity>
           </View>
           <View style={styles.bubbleContent}>
-            <Text style={[styles.bubbleTitle, { color: theme.textPrimary }]} numberOfLines={2}>
+            <Text 
+              style={[styles.bubbleTitle, { color: theme.textPrimary }]} 
+              numberOfLines={2}
+              ellipsizeMode="tail"
+              allowFontScaling={true}
+            >
               {topic.title}
             </Text>
-            <Text style={[styles.bubbleDescription, { color: theme.textSecondary }]} numberOfLines={3}>
+            <Text 
+              style={[styles.bubbleDescription, { color: theme.textSecondary }]} 
+              numberOfLines={3}
+              ellipsizeMode="tail"
+              allowFontScaling={true}
+            >
               {topic.shortDescription}
             </Text>
           </View>
@@ -555,16 +565,19 @@ const styles = StyleSheet.create({
   bubbleContent: {
     padding: 16,
     paddingTop: 12,
+    minHeight: 90,
   },
   bubbleTitle: {
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 8,
     lineHeight: 20,
+    minHeight: 40,
   },
   bubbleDescription: {
     fontSize: 13,
     lineHeight: 18,
+    minHeight: 54,
   },
   noResultsContainer: {
     alignItems: 'center',
