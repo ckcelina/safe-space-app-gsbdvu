@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, Dimensions, ScrollView, Platform, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Alert, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { SafeSpaceTitle } from '@/components/ui/SafeSpaceText';
 import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
@@ -13,8 +12,6 @@ import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { supabase } from '@/lib/supabase';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { signInWithGoogle } from '@/lib/auth/oauth';
-import { signInWithApple, isAppleSignInAvailable } from '@/lib/auth/apple';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -24,32 +21,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isAppleLoading, setIsAppleLoading] = useState(false);
-  const [appleSignInAvailable, setAppleSignInAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resetEmail, setResetEmail] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
-
-  // Check if Apple Sign-In is available on mount
-  useEffect(() => {
-    const checkAppleAvailability = async () => {
-      if (isAppleSignInAvailable()) {
-        try {
-          const available = await AppleAuthentication.isAvailableAsync();
-          setAppleSignInAvailable(available);
-          console.debug('[Login] Apple Sign-In available:', available);
-        } catch (error) {
-          console.debug('[Login] Error checking Apple Sign-In availability:', error);
-          setAppleSignInAvailable(false);
-        }
-      } else {
-        setAppleSignInAvailable(false);
-      }
-    };
-    
-    checkAppleAvailability();
-  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -131,36 +104,6 @@ export default function LoginScreen() {
       console.error('Unexpected login error:', err);
       setError('An unexpected error occurred. Please try again.');
       setIsLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    setError(null);
-    
-    try {
-      await signInWithGoogle();
-      // The AuthProvider will handle navigation via onAuthStateChange
-    } catch (error: any) {
-      console.debug('Google sign-in error:', error.message);
-      // Error is already handled in signInWithGoogle with user-friendly alerts
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
-  const handleAppleSignIn = async () => {
-    setIsAppleLoading(true);
-    setError(null);
-    
-    try {
-      await signInWithApple();
-      // The AuthProvider will handle navigation via onAuthStateChange
-    } catch (error: any) {
-      console.debug('Apple sign-in error:', error.message);
-      // Error is already handled in signInWithApple with user-friendly alerts
-    } finally {
-      setIsAppleLoading(false);
     }
   };
 
@@ -257,7 +200,7 @@ export default function LoginScreen() {
                   }}
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  editable={!isLoading && !isGoogleLoading && !isAppleLoading}
+                  editable={!isLoading}
                 />
 
                 <View style={styles.passwordContainer}>
@@ -269,7 +212,7 @@ export default function LoginScreen() {
                       if (error) setError(null);
                     }}
                     secureTextEntry={!showPassword}
-                    editable={!isLoading && !isGoogleLoading && !isAppleLoading}
+                    editable={!isLoading}
                     containerStyle={styles.passwordInputContainer}
                   />
                   <TouchableOpacity
@@ -287,7 +230,7 @@ export default function LoginScreen() {
 
                 <TouchableOpacity 
                   onPress={handleForgotPassword}
-                  disabled={isLoading || isResettingPassword || isGoogleLoading || isAppleLoading}
+                  disabled={isLoading || isResettingPassword}
                   style={styles.forgotPasswordContainer}
                 >
                   <Text style={[styles.forgotPasswordText, { color: theme.buttonText }]}>
@@ -306,53 +249,16 @@ export default function LoginScreen() {
                 <SafeSpaceButton 
                   onPress={handleLogin} 
                   loading={isLoading} 
-                  disabled={isLoading || isGoogleLoading || isAppleLoading}
+                  disabled={isLoading}
                 >
                   {isLoading ? 'Logging in…' : 'Log In'}
                 </SafeSpaceButton>
-
-                <View style={styles.dividerContainer}>
-                  <View style={[styles.dividerLine, { backgroundColor: theme.buttonText }]} />
-                  <Text style={[styles.dividerText, { color: theme.buttonText }]}>or</Text>
-                  <View style={[styles.dividerLine, { backgroundColor: theme.buttonText }]} />
-                </View>
-
-                <TouchableOpacity
-                  onPress={handleGoogleSignIn}
-                  disabled={isLoading || isGoogleLoading || isAppleLoading}
-                  style={[
-                    styles.googleButton,
-                    { 
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                      opacity: (isLoading || isGoogleLoading || isAppleLoading) ? 0.6 : 1,
-                    }
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="logo-google" size={20} color="#DB4437" />
-                  <Text style={styles.googleButtonText}>
-                    {isGoogleLoading ? 'Signing in…' : 'Continue with Google'}
-                  </Text>
-                </TouchableOpacity>
-
-                {appleSignInAvailable && (
-                  <AppleAuthentication.AppleAuthenticationButton
-                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                    cornerRadius={12}
-                    style={[
-                      styles.appleButton,
-                      { opacity: (isLoading || isGoogleLoading || isAppleLoading) ? 0.6 : 1 }
-                    ]}
-                    onPress={handleAppleSignIn}
-                  />
-                )}
 
                 <View style={styles.linkSpacing} />
 
                 <SafeSpaceLinkButton 
                   onPress={() => router.replace('/signup')} 
-                  disabled={isLoading || isGoogleLoading || isAppleLoading}
+                  disabled={isLoading}
                   style={{ color: theme.buttonText }}
                 >
                   Don&apos;t have an account? Sign Up
@@ -430,42 +336,6 @@ const styles = StyleSheet.create({
   },
   buttonSpacing: {
     height: 8,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    opacity: 0.3,
-  },
-  dividerText: {
-    marginHorizontal: 12,
-    fontSize: 14,
-    fontWeight: '500',
-    opacity: 0.7,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 10,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-  },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333333',
-  },
-  appleButton: {
-    width: '100%',
-    height: 48,
-    marginTop: 12,
   },
   linkSpacing: {
     height: 8,
