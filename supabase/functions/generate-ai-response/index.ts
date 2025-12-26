@@ -694,7 +694,7 @@ async function buildSystemPrompt(
   const continuity = await getPersonContinuity(supabase, userId, personId);
   
   // ========== DEFENSIVE CONTINUITY BLOCK BUILDING ==========
-  // Build continuity block only if fields are non-empty
+  // Build continuity block only if continuity_enabled is true AND fields are non-empty
   let continuityBlock = '';
   try {
     if (continuity.continuity_enabled && (
@@ -953,6 +953,9 @@ serve(async (req) => {
       .filter((msg: any) => msg.role === "user")
       .pop()?.content || "";
 
+    // Fetch continuity to check if it's enabled BEFORE building prompt
+    const continuity = await getPersonContinuity(supabase, userId, personId);
+
     // Build dynamic system prompt based on context (including continuity, summary, and memories)
     const systemPrompt = await buildSystemPrompt(
       supabase,
@@ -1070,30 +1073,36 @@ serve(async (req) => {
     }
 
     // ========== GOAL B: UPDATE CONTINUITY STATE (AFTER ASSISTANT REPLY) ==========
-    // Run extraction in background - do not block the response
-    (async () => {
-      try {
-        // Build conversation text from recent messages
-        const conversationText = messages
-          .slice(-6) // Last 6 messages for context
-          .map((msg: any) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-          .join('\n\n');
+    // ========== RESPECT continuity_enabled FLAG ==========
+    // Only run extraction and update if continuity_enabled is true
+    if (continuity.continuity_enabled) {
+      // Run extraction in background - do not block the response
+      (async () => {
+        try {
+          // Build conversation text from recent messages
+          const conversationText = messages
+            .slice(-6) // Last 6 messages for context
+            .map((msg: any) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+            .join('\n\n');
 
-        // Extract continuity fields
-        const extracted = await extractContinuityFields(conversationText, reply);
-        
-        if (extracted) {
-          // Update continuity state
-          await upsertPersonContinuity(supabase, userId, personId, extracted);
-          console.log('[Edge] Continuity state updated successfully');
-        } else {
-          console.log('[Edge] Continuity extraction returned null, skipping update');
+          // Extract continuity fields
+          const extracted = await extractContinuityFields(conversationText, reply);
+          
+          if (extracted) {
+            // Update continuity state
+            await upsertPersonContinuity(supabase, userId, personId, extracted);
+            console.log('[Edge] Continuity state updated successfully');
+          } else {
+            console.log('[Edge] Continuity extraction returned null, skipping update');
+          }
+        } catch (err) {
+          // Fail silently - never block the chat response
+          console.log('[Edge] Background continuity update failed (non-blocking):', err);
         }
-      } catch (err) {
-        // Fail silently - never block the chat response
-        console.log('[Edge] Background continuity update failed (non-blocking):', err);
-      }
-    })();
+      })();
+    } else {
+      console.log('[Edge] Continuity disabled for this person - skipping continuity update');
+    }
 
     // ========== ALWAYS RETURN 200 WITH VALID JSON ==========
     return new Response(
@@ -1117,11 +1126,15 @@ serve(async (req) => {
     
     // Try to extract error details safely
     let errorMessage = 'unknown_error';
+    let errorStack: string | undefined;
     try {
       if (err instanceof Error) {
         errorMessage = err.message;
-        if (err.stack) {
-          console.error("[Edge] Stack trace:", err.stack.substring(0, 500));
+        // Only include stack in non-production
+        if (!IS_DEV) {
+          errorStack = undefined;
+        } else if (err.stack) {
+          errorStack = err.stack.substring(0, 500);
         }
       } else {
         errorMessage = String(err);
@@ -1136,7 +1149,8 @@ serve(async (req) => {
         reply: null, 
         error: "unexpected_error",
         debug: {
-          message: errorMessage
+          message: errorMessage,
+          stack: errorStack
         }
       }),
       { 
