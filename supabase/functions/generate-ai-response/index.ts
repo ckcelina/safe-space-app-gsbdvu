@@ -11,6 +11,39 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // Check if we're in development mode (set via environment variable)
 const IS_DEV = Deno.env.get("DEV_MODE") === "true";
 
+// ========== HELPER FUNCTIONS ==========
+function asText(value: any): string {
+  try {
+    if (value == null) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (Array.isArray(value)) {
+      return value
+        .map((v) => (typeof v === 'string' ? v : JSON.stringify(v)))
+        .filter(Boolean)
+        .join(', ');
+    }
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  } catch {
+    return '';
+  }
+}
+
+function clean(value: any): string {
+  return asText(value).trim().replace(/\s+/g, ' ');
+}
+
+function isDevEnv(): boolean {
+  try {
+    const env = (Deno.env.get('ENV') || '').toLowerCase();
+    const nodeEnv = (Deno.env.get('NODE_ENV') || '').toLowerCase();
+    return env === 'dev' || nodeEnv !== 'production';
+  } catch {
+    return true;
+  }
+}
+
 // Psychology facts database
 const PSYCHOLOGY_FACTS = [
   "Did you know? Expressing gratitude regularly can actually rewire your brain to be more positive over time.",
@@ -104,44 +137,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// Helper function to safely convert any value to text
-function asText(value: unknown): string {
-  if (value == null) return "";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-
-  // If it's an array, join into a readable string
-  if (Array.isArray(value)) {
-    return value.map((v) => asText(v)).filter(Boolean).join(", ");
-  }
-
-  // If it's an object, try common shapes, otherwise JSON stringify
-  if (typeof value === "object") {
-    const anyVal: any = value;
-    if (typeof anyVal.text === "string") return anyVal.text;
-    if (typeof anyVal.value === "string") return anyVal.value;
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return String(value);
-    }
-  }
-
-  return String(value);
-}
-
-// Helper function to clean and trim text
-function clean(value: unknown): string {
-  return asText(value).trim();
-}
-
-// Helper function to check if we're in dev environment
-function isDevEnv(): boolean {
-  const env = (Deno.env.get("ENV") || "").toLowerCase();
-  const nodeEnv = (Deno.env.get("NODE_ENV") || "").toLowerCase();
-  return env === "dev" || nodeEnv !== "production";
-}
 
 // Helper function to detect if user is asking for advice
 function isAskingForAdvice(message: string): boolean {
@@ -730,7 +725,6 @@ Example: "That's a great question! Did you know that expressing gratitude regula
 
 serve(async (req) => {
   // ========== GLOBAL TRY-CATCH WRAPPER ==========
-  // This ensures we NEVER return non-2xx status codes
   try {
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
@@ -1012,42 +1006,22 @@ serve(async (req) => {
         } 
       },
     );
-  } catch (err) {
+  } catch (e: any) {
     // ========== CATCH-ALL ERROR HANDLER ==========
-    // This catches ANY uncaught error and returns 200 with error
-    console.error("[Edge] Unexpected error in main handler:", err);
-    
-    // Try to extract error details safely
-    let errorMessage = 'unknown_error';
-    try {
-      if (err instanceof Error) {
-        errorMessage = err.message;
-        if (err.stack) {
-          console.error("[Edge] Stack trace:", err.stack.substring(0, 500));
-        }
-      } else {
-        errorMessage = String(err);
-      }
-    } catch (e) {
-      console.error("[Edge] Could not stringify error");
-    }
-    
+    console.error('generate-ai-response fatal', e);
+    const dev = isDevEnv();
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: false,
-        reply: null, 
-        error: "unexpected_error",
+        reply: null,
+        error: 'unexpected_error',
         debug: {
-          message: errorMessage
-        }
+          message: e?.message ?? String(e),
+          ...(dev ? { stack: e?.stack } : {}),
+        },
       }),
-      { 
-        status: 200, 
-        headers: { 
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        } 
-      },
+      { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   }
 });
