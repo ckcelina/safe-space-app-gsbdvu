@@ -44,6 +44,21 @@ export async function invokeEdge(functionName: string, body: any): Promise<Invok
       return { success: false, reply: null, error: 'non_json_response', debug: { raw: data } };
     }
 
+    // If data looks like a Response-like object, try to read text/json safely
+    if (data && typeof data === 'object' && typeof (data as any).text === 'function') {
+      try {
+        const raw = await (data as any).text();
+        const parsed = safeJsonParse(raw);
+        if (parsed) return parsed;
+
+        console.error('[invokeEdge] Response-like non-JSON', { functionName, raw });
+        return { success: false, reply: null, error: 'non_json_response', debug: { raw } };
+      } catch (e: any) {
+        console.error('[invokeEdge] Failed reading Response-like body', { functionName, message: e?.message });
+        return { success: false, reply: null, error: 'read_response_failed', debug: { message: e?.message } };
+      }
+    }
+
     return data;
   } catch (e: any) {
     console.error('[invokeEdge] exception', { functionName, message: e?.message, stack: e?.stack });
