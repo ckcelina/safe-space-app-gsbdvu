@@ -1,3 +1,4 @@
+
 // supabase/functions/generate-ai-response/index.ts
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.2";
@@ -9,6 +10,10 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 // Check if we're in development mode (set via environment variable)
 const IS_DEV = Deno.env.get("DEV_MODE") === "true";
+
+// Timeout configuration (in milliseconds)
+const OPENAI_TIMEOUT_MS = 18000; // 18 seconds (leave 2s buffer for processing)
+const TOTAL_FUNCTION_TIMEOUT_MS = 20000; // 20 seconds total
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -266,8 +271,15 @@ async function upsertPersonContinuity(
   }
 }
 
-// Extract continuity fields from conversation using OpenAI
-async function extractContinuityFields(conversationText: string, assistantReply: string) {
+// Extract continuity fields from conversation using OpenAI with timeout
+async function extractContinuityFields(
+  conversationText: string,
+  assistantReply: string,
+  timeoutMs: number = 10000
+): Promise<any> {
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+
   try {
     const extractionPrompt = `You are analyzing a conversation to extract continuity information. Based on the conversation below, extract the following fields as JSON:
 
@@ -305,8 +317,11 @@ Return ONLY the JSON object, no other text.`;
         messages: [{ role: "system", content: extractionPrompt }],
         temperature: 0.3,
         max_tokens: 500
-      })
+      }),
+      signal: abortController.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!extractionRes.ok) {
       console.log("[Edge] OpenAI extraction failed:", extractionRes.status);
@@ -327,8 +342,13 @@ Return ONLY the JSON object, no other text.`;
       last_action_plan: clean(extracted?.last_action_plan).substring(0, 250),
       next_best_question: clean(extracted?.next_best_question).substring(0, 250)
     };
-  } catch (err) {
-    console.log("[Edge] Exception in extractContinuityFields:", err);
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      console.log("[Edge] Extraction timeout after", timeoutMs, "ms");
+    } else {
+      console.log("[Edge] Exception in extractContinuityFields:", err);
+    }
     return null;
   }
 }
@@ -435,14 +455,14 @@ async function buildSystemPrompt(
 - Validate feelings first.
 - Ask gentle follow-up questions.
 - Never diagnose.
-- Don’t invent facts beyond the supplied context.`;
+- Don't invent facts beyond the supplied context.`;
 
   if (askingForAdvice) {
     basePrompt += `\n\nThe user is asking for advice: validate briefly, give 1–2 actionable suggestions, then a gentle question.`;
   }
 
   if (condition && CONDITION_INFO?.[condition]) {
-    basePrompt += `\n\nThey mentioned ${condition}. Provide brief general info + relationship impact + one resource. Include: "I’m not a doctor; this is general info."`;
+    basePrompt += `\n\nThey mentioned ${condition}. Provide brief general info + relationship impact + one resource. Include: "I'm not a doctor; this is general info."`;
   }
 
   if (wantsLearning && !condition) {
@@ -454,44 +474,99 @@ async function buildSystemPrompt(
   return basePrompt;
 }
 
+// Helper to create error response
+function createErrorResponse(
+  code: string,
+  message: string,
+  details?: any,
+  requestId?: string,
+  timestamp?: number
+): Response {
+  const responseBody = {
+    success: false,
+    reply: null,
+    error: {
+      code,
+      message,
+      details: details || {}
+    },
+    requestId: requestId || crypto.randomUUID(),
+    timestamp: timestamp || Date.now()
+  };
+
+  console.error(`[Edge][Chat][${responseBody.requestId}] Error:`, {
+    code,
+    message,
+    details
+  });
+
+  return new Response(
+    JSON.stringify(responseBody),
+    {
+      status: 200, // Always return 200 to prevent 502
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        ...corsHeaders
+      }
+    }
+  );
+}
+
 serve(async (req) => {
+  const requestId = crypto.randomUUID();
+  const timestamp = Date.now();
+  const functionStartTime = Date.now();
+
+  // Set up function-level timeout
+  const functionTimeoutController = new AbortController();
+  const functionTimeoutId = setTimeout(() => {
+    console.error(`[Edge][Chat][${requestId}] Function timeout after ${TOTAL_FUNCTION_TIMEOUT_MS}ms`);
+    functionTimeoutController.abort();
+  }, TOTAL_FUNCTION_TIMEOUT_MS);
+
   try {
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
-      return new Response(null, { status: 200, headers: corsHeaders });
+      clearTimeout(functionTimeoutId);
+      return new Response(null, { status: 204, headers: corsHeaders });
     }
 
     // Validate HTTP method
     if (req.method !== "POST") {
-      console.error("[Edge][Chat] Invalid method:", req.method);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          reply: null,
-          error: {
-            code: "METHOD_NOT_ALLOWED",
-            message: "Only POST requests are allowed",
-            details: { method: req.method }
-          }
-        }),
-        { status: 405, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "METHOD_NOT_ALLOWED",
+        "Only POST requests are allowed",
+        { method: req.method },
+        requestId,
+        timestamp
       );
     }
 
     // Validate OpenAI API key
     if (!OPENAI_API_KEY) {
-      console.error("[Edge][Chat] Missing OPENAI_API_KEY");
-      return new Response(
-        JSON.stringify({
-          success: false,
-          reply: null,
-          error: {
-            code: "MISSING_API_KEY",
-            message: "OpenAI API key is not configured",
-            details: { env: "OPENAI_API_KEY not set" }
-          }
-        }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "MISSING_API_KEY",
+        "OpenAI API key is not configured",
+        { env: "OPENAI_API_KEY not set" },
+        requestId,
+        timestamp
+      );
+    }
+
+    // Validate Supabase configuration
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "MISSING_SUPABASE_CONFIG",
+        "Supabase configuration is incomplete",
+        {
+          hasUrl: !!SUPABASE_URL,
+          hasServiceKey: !!SUPABASE_SERVICE_ROLE_KEY
+        },
+        requestId,
+        timestamp
       );
     }
 
@@ -500,18 +575,13 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch (parseError: any) {
-      console.error("[Edge][Chat] Failed to parse request body:", parseError?.message);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          reply: null,
-          error: {
-            code: "INVALID_JSON",
-            message: "Request body must be valid JSON",
-            details: { parseError: parseError?.message }
-          }
-        }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "INVALID_JSON",
+        "Request body must be valid JSON",
+        { parseError: parseError?.message },
+        requestId,
+        timestamp
       );
     }
 
@@ -531,50 +601,47 @@ serve(async (req) => {
 
     // Validate required fields
     if (!Array.isArray(messages)) {
-      console.error("[Edge][Chat] Invalid messages field:", typeof messages);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          reply: null,
-          error: {
-            code: "BAD_REQUEST",
-            message: "messages field must be an array",
-            details: { messagesType: typeof messages }
-          }
-        }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "BAD_REQUEST",
+        "messages field must be an array",
+        { messagesType: typeof messages },
+        requestId,
+        timestamp
       );
     }
 
     if (!userId) {
-      console.error("[Edge][Chat] Missing userId");
-      return new Response(
-        JSON.stringify({
-          success: false,
-          reply: null,
-          error: {
-            code: "BAD_REQUEST",
-            message: "userId is required",
-            details: { userId }
-          }
-        }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "BAD_REQUEST",
+        "userId is required",
+        { userId },
+        requestId,
+        timestamp
       );
     }
 
     if (!personId) {
-      console.error("[Edge][Chat] Missing personId");
-      return new Response(
-        JSON.stringify({
-          success: false,
-          reply: null,
-          error: {
-            code: "BAD_REQUEST",
-            message: "personId is required",
-            details: { personId }
-          }
-        }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "BAD_REQUEST",
+        "personId is required",
+        { personId },
+        requestId,
+        timestamp
+      );
+    }
+
+    // Check if we're approaching timeout
+    if (Date.now() - functionStartTime > TOTAL_FUNCTION_TIMEOUT_MS - 2000) {
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "TIMEOUT",
+        "Function timeout approaching",
+        { elapsed: Date.now() - functionStartTime },
+        requestId,
+        timestamp
       );
     }
 
@@ -603,7 +670,14 @@ serve(async (req) => {
       content: msg.content
     }));
 
-    // Call OpenAI API
+    // Set up OpenAI-specific timeout
+    const openaiAbortController = new AbortController();
+    const openaiTimeoutId = setTimeout(() => {
+      console.error(`[Edge][Chat][${requestId}] OpenAI timeout after ${OPENAI_TIMEOUT_MS}ms`);
+      openaiAbortController.abort();
+    }, OPENAI_TIMEOUT_MS);
+
+    // Call OpenAI API with timeout
     let openaiRes: Response;
     try {
       openaiRes = await fetch(OPENAI_API_URL, {
@@ -617,50 +691,55 @@ serve(async (req) => {
           messages: [systemMessage, ...openaiMessages],
           temperature: 0.7,
           max_tokens: 300
-        })
-      });
-    } catch (fetchError: any) {
-      console.error("[Edge][Chat] OpenAI fetch failed:", fetchError?.message);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          reply: null,
-          error: {
-            code: "OPENAI_NETWORK_ERROR",
-            message: "Failed to connect to OpenAI API",
-            details: {
-              error: fetchError?.message,
-              stack: isDevEnv() ? fetchError?.stack : undefined
-            }
-          }
         }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        signal: openaiAbortController.signal
+      });
+
+      clearTimeout(openaiTimeoutId);
+    } catch (fetchError: any) {
+      clearTimeout(openaiTimeoutId);
+      clearTimeout(functionTimeoutId);
+
+      if (fetchError.name === "AbortError") {
+        return createErrorResponse(
+          "TIMEOUT",
+          "OpenAI API request timed out",
+          {
+            timeoutMs: OPENAI_TIMEOUT_MS,
+            elapsed: Date.now() - functionStartTime
+          },
+          requestId,
+          timestamp
+        );
+      }
+
+      return createErrorResponse(
+        "OPENAI_NETWORK_ERROR",
+        "Failed to connect to OpenAI API",
+        {
+          error: fetchError?.message,
+          name: fetchError?.name,
+          stack: isDevEnv() ? fetchError?.stack : undefined
+        },
+        requestId,
+        timestamp
       );
     }
 
     const rawText = await openaiRes.text();
 
     if (!openaiRes.ok) {
-      console.error("[Edge][Chat] OpenAI API error:", {
-        status: openaiRes.status,
-        statusText: openaiRes.statusText,
-        bodyPreview: rawText.substring(0, 200)
-      });
-      return new Response(
-        JSON.stringify({
-          success: false,
-          reply: null,
-          error: {
-            code: "OPENAI_API_ERROR",
-            message: `OpenAI API returned ${openaiRes.status}: ${openaiRes.statusText}`,
-            details: {
-              status: openaiRes.status,
-              statusText: openaiRes.statusText,
-              bodyPreview: rawText.substring(0, 200)
-            }
-          }
-        }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "OPENAI_API_ERROR",
+        `OpenAI API returned ${openaiRes.status}: ${openaiRes.statusText}`,
+        {
+          status: openaiRes.status,
+          statusText: openaiRes.statusText,
+          bodyPreview: rawText.substring(0, 200)
+        },
+        requestId,
+        timestamp
       );
     }
 
@@ -668,21 +747,16 @@ serve(async (req) => {
     try {
       data = rawText ? JSON.parse(rawText) : null;
     } catch (parseError: any) {
-      console.error("[Edge][Chat] Failed to parse OpenAI response:", parseError?.message);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          reply: null,
-          error: {
-            code: "OPENAI_PARSE_ERROR",
-            message: "Failed to parse OpenAI response as JSON",
-            details: {
-              parseError: parseError?.message,
-              rawPreview: rawText.substring(0, 200)
-            }
-          }
-        }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "OPENAI_PARSE_ERROR",
+        "Failed to parse OpenAI response as JSON",
+        {
+          parseError: parseError?.message,
+          rawPreview: rawText.substring(0, 200)
+        },
+        requestId,
+        timestamp
       );
     }
 
@@ -695,10 +769,12 @@ serve(async (req) => {
     }
 
     // ✅ Continuity update ONLY if effective continuity is enabled (request toggle AND DB toggle)
+    // Run in background, don't block response
     const continuityData = await getPersonContinuity(supabase, userId, personId);
     const continuity_enabled_effective = !!continuity_enabled_request && !!continuityData?.continuity_enabled;
 
     if (continuity_enabled_effective) {
+      // Fire and forget - don't await
       (async () => {
         try {
           const conversationText = messages
@@ -706,44 +782,59 @@ serve(async (req) => {
             .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
             .join("\n\n");
 
-          const extracted = await extractContinuityFields(conversationText, reply);
+          const extracted = await extractContinuityFields(conversationText, reply, 8000);
           if (extracted) {
             await upsertPersonContinuity(supabase, userId, personId, extracted);
           }
         } catch (err) {
-          console.log("[Edge] Background continuity update failed (non-blocking):", err);
+          console.log(`[Edge][Chat][${requestId}] Background continuity update failed (non-blocking):`, err);
         }
       })();
     }
 
+    clearTimeout(functionTimeoutId);
+
+    const responseBody = {
+      success: true,
+      reply,
+      error: null,
+      requestId,
+      timestamp
+    };
+
+    console.log(`[Edge][Chat][${requestId}] Success in ${Date.now() - functionStartTime}ms`);
+
     return new Response(
-      JSON.stringify({ success: true, reply, error: null }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      JSON.stringify(responseBody),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          ...corsHeaders
+        }
+      }
     );
   } catch (e: any) {
-    console.error("[Edge][Chat] Fatal error:", {
+    clearTimeout(functionTimeoutId);
+
+    console.error(`[Edge][Chat][${requestId}] Fatal error:`, {
       message: e?.message ?? String(e),
       name: e?.name,
       stack: e?.stack
     });
-    
+
     const dev = isDevEnv();
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        reply: null,
-        error: {
-          code: "UNEXPECTED_ERROR",
-          message: e?.message ?? "An unexpected error occurred",
-          details: {
-            name: e?.name,
-            message: e?.message ?? String(e),
-            ...(dev ? { stack: e?.stack } : {})
-          }
-        }
-      }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+
+    return createErrorResponse(
+      "UNEXPECTED_ERROR",
+      e?.message ?? "An unexpected error occurred",
+      {
+        name: e?.name,
+        message: e?.message ?? String(e),
+        ...(dev ? { stack: e?.stack } : {})
+      },
+      requestId,
+      timestamp
     );
   }
 });
