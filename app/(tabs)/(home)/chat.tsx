@@ -14,6 +14,7 @@ import {
   NativeSyntheticEvent,
   KeyboardAvoidingView,
   ListRenderItemInfo,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,21 +39,18 @@ import { invokeEdge, copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Default subjects list
+// Default subjects list - IMPROVED LABELS
 const DEFAULT_SUBJECTS = [
   'General',
-  'Work / Career',
-  'Self-esteem & Confidence',
-  'Mental Health & Disorders',
-  'Family in General',
-  'Romantic Relationships',
-  'Friendships',
-  'Studies / School',
-  'Money & Finances',
+  'Relationships',
+  'Family',
+  'Friends',
+  'Work & Career',
+  'Self-worth & Confidence',
+  'Mental Health',
+  'Studies & School',
+  'Money & Life Admin',
 ];
-
-// Quick select subjects (excluding General)
-const QUICK_SELECT_SUBJECTS = DEFAULT_SUBJECTS.filter((s) => s !== 'General');
 
 interface SubjectPillProps {
   subject: string;
@@ -197,10 +195,9 @@ export default function ChatScreen() {
     }
   }, [initialSubject]);
 
-  const [addSubjectModalVisible, setAddSubjectModalVisible] = useState(false);
-  const [customSubjectInput, setCustomSubjectInput] = useState('');
-  const [quickSelectedSubject, setQuickSelectedSubject] = useState<string | null>(null);
-  const [customSubjectFocused, setCustomSubjectFocused] = useState(false);
+  // NEW: Simple modal state for adding subjects
+  const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
+  const [newSubjectName, setNewSubjectName] = useState('');
 
   const isMountedRef = useRef(true);
 
@@ -690,50 +687,54 @@ export default function ChatScreen() {
     setCurrentSubject(subject);
   }, []);
 
+  // NEW: Open simple add subject modal
   const openAddSubjectModal = useCallback(() => {
     console.log('[Chat] Opening Add Subject modal');
-    setAddSubjectModalVisible(true);
-    setCustomSubjectInput('');
-    setQuickSelectedSubject(null);
-    setCustomSubjectFocused(false);
+    setShowAddSubjectModal(true);
+    setNewSubjectName('');
   }, []);
 
+  // NEW: Close simple add subject modal
   const closeAddSubjectModal = useCallback(() => {
     console.log('[Chat] Closing Add Subject modal');
-    setAddSubjectModalVisible(false);
-    setCustomSubjectInput('');
-    setQuickSelectedSubject(null);
-    setCustomSubjectFocused(false);
+    setShowAddSubjectModal(false);
+    setNewSubjectName('');
   }, []);
 
-  const handleQuickSubjectSelect = useCallback((subject: string) => {
-    console.log('[Chat] Quick subject selected:', subject);
-    setQuickSelectedSubject(subject);
-  }, []);
-
-  const saveSubject = useCallback(() => {
-    const customSubject = customSubjectInput.trim();
+  // NEW: Add subject handler
+  const addSubject = useCallback(() => {
+    const trimmedSubject = newSubjectName.trim();
     
-    const newSubject = customSubject || quickSelectedSubject;
-
-    if (!newSubject) {
-      console.log('[Chat] No subject to save');
-      closeAddSubjectModal();
+    if (!trimmedSubject) {
+      console.log('[Chat] No subject to add');
       return;
     }
 
-    console.log('[Chat] Saving subject:', newSubject);
+    // Check for duplicates (case-insensitive)
+    const lowercasedSubject = trimmedSubject.toLowerCase();
+    const isDuplicate = availableSubjects.some(
+      (s) => s.toLowerCase() === lowercasedSubject
+    );
 
-    setAvailableSubjects((prev) => {
-      if (!prev.includes(newSubject)) {
-        return [...prev, newSubject];
-      }
-      return prev;
-    });
+    if (isDuplicate) {
+      console.log('[Chat] Subject already exists:', trimmedSubject);
+      showErrorToast('This subject already exists');
+      return;
+    }
 
-    setCurrentSubject(newSubject);
+    console.log('[Chat] Adding new subject:', trimmedSubject);
+
+    // Add to available subjects
+    setAvailableSubjects((prev) => [...prev, trimmedSubject]);
+
+    // Auto-select the new subject
+    setCurrentSubject(trimmedSubject);
+
+    // Close modal
     closeAddSubjectModal();
-  }, [customSubjectInput, quickSelectedSubject, closeAddSubjectModal]);
+
+    // TODO: Persist to Supabase if needed (currently local state only)
+  }, [newSubjectName, availableSubjects, closeAddSubjectModal]);
 
   // Handle debug banner tap (copy to clipboard)
   const handleDebugBannerTap = useCallback(async () => {
@@ -1017,143 +1018,83 @@ export default function ChatScreen() {
 
       <LoadingOverlay visible={loading && !error} />
 
-      {/* Add Subject Modal */}
-      <SwipeableModal
-        visible={addSubjectModalVisible}
-        onClose={closeAddSubjectModal}
-        animationType="slide"
-        showHandle={true}
+      {/* NEW: Simple Add Subject Modal */}
+      <Modal
+        visible={showAddSubjectModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={closeAddSubjectModal}
       >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.modalContent}>
-            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-              Add a subject
-            </Text>
-            <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
-              Choose what you&apos;d like to focus on in this conversation.
-            </Text>
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={closeAddSubjectModal}
+          >
+            <TouchableOpacity
+              style={[styles.simpleModalContent, { backgroundColor: theme.card }]}
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={[styles.simpleModalTitle, { color: theme.textPrimary }]}>
+                Add subject
+              </Text>
 
-            <FlatList
-              style={styles.modalScrollView}
-              contentContainerStyle={styles.modalScrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              data={[{ type: 'quick' }, { type: 'custom' }]}
-              renderItem={({ item }) => {
-                if (item.type === 'quick') {
-                  return (
-                    <View style={styles.quickSelectContainer}>
-                      <Text style={[styles.quickSelectLabel, { color: theme.textPrimary }]}>
-                        Quick select:
-                      </Text>
-                      <View style={styles.quickSelectGrid}>
-                        {QUICK_SELECT_SUBJECTS.map((subject, index) => (
-                          <TouchableOpacity
-                            key={`quick-${index}-${subject}`}
-                            onPress={() => handleQuickSubjectSelect(subject)}
-                            activeOpacity={0.7}
-                            style={[
-                              styles.quickSelectButton,
-                              {
-                                backgroundColor:
-                                  quickSelectedSubject === subject
-                                    ? theme.primary + '20'
-                                    : theme.background,
-                                borderWidth: 1.5,
-                                borderColor:
-                                  quickSelectedSubject === subject
-                                    ? theme.primary
-                                    : theme.textSecondary + '40',
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.quickSelectText,
-                                {
-                                  color:
-                                    quickSelectedSubject === subject
-                                      ? theme.primary
-                                      : theme.textPrimary,
-                                  fontWeight: quickSelectedSubject === subject ? '600' : '500',
-                                },
-                              ]}
-                            >
-                              {subject}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  );
-                } else {
-                  return (
-                    <View style={styles.customInputContainer}>
-                      <Text style={[styles.customInputLabel, { color: theme.textPrimary }]}>
-                        Custom subject:
-                      </Text>
-                      <View style={[
-                        styles.customInputWrapper,
-                        {
-                          backgroundColor: theme.background,
-                          borderWidth: customSubjectFocused ? 2 : 1.5,
-                          borderColor: customSubjectFocused
-                            ? theme.primary
-                            : theme.textSecondary + '40',
-                        },
-                      ]}>
-                        <TextInput
-                          style={[styles.customInput, { color: theme.textPrimary }]}
-                          placeholder="Type your own subject..."
-                          placeholderTextColor={theme.textSecondary}
-                          value={customSubjectInput}
-                          onChangeText={setCustomSubjectInput}
-                          onFocus={() => setCustomSubjectFocused(true)}
-                          onBlur={() => setCustomSubjectFocused(false)}
-                          autoCapitalize="sentences"
-                          autoCorrect={false}
-                          maxLength={100}
-                          returnKeyType="done"
-                          onSubmitEditing={saveSubject}
-                          autoFocus={false}
-                          cursorColor={theme.primary}
-                          selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-                        />
-                      </View>
-                    </View>
-                  );
-                }
-              }}
-              keyExtractor={(item) => item.type}
-            />
+              <TextInput
+                style={[
+                  styles.simpleModalInput,
+                  {
+                    backgroundColor: theme.background,
+                    color: theme.textPrimary,
+                    borderColor: theme.textSecondary + '40',
+                  },
+                ]}
+                placeholder="e.g., Friendships"
+                placeholderTextColor={theme.textSecondary}
+                value={newSubjectName}
+                onChangeText={setNewSubjectName}
+                autoFocus={true}
+                autoCapitalize="words"
+                maxLength={50}
+                returnKeyType="done"
+                onSubmitEditing={addSubject}
+                cursorColor={theme.primary}
+                selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+              />
 
-            {/* Modal Buttons */}
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: theme.background }]}
-                onPress={closeAddSubjectModal}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.modalButtonText, { color: theme.textPrimary }]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: theme.primary }]}
-                onPress={saveSubject}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
-                  Save subject
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+              <View style={styles.simpleModalButtons}>
+                <TouchableOpacity
+                  style={[styles.simpleModalButton, { backgroundColor: theme.background }]}
+                  onPress={closeAddSubjectModal}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.simpleModalButtonText, { color: theme.textPrimary }]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.simpleModalButton,
+                    { backgroundColor: theme.primary },
+                    !newSubjectName.trim() && styles.simpleModalButtonDisabled,
+                  ]}
+                  onPress={addSubject}
+                  disabled={!newSubjectName.trim()}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.simpleModalButtonText, { color: '#FFFFFF' }]}>
+                    Add
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </KeyboardAvoidingView>
-      </SwipeableModal>
+      </Modal>
     </FullScreenSwipeHandler>
   );
 }
@@ -1355,84 +1296,54 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     opacity: 0.4,
   },
-  // Modal styles
-  modalContent: {
+  // NEW: Simple modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
-    maxHeight: '85%',
   },
-  modalTitle: {
-    fontSize: 24,
+  simpleModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  simpleModalTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 20,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  modalScrollView: {
-    maxHeight: 400,
-  },
-  modalScrollContent: {
-    paddingBottom: 16,
-  },
-  quickSelectContainer: {
-    marginBottom: 24,
-  },
-  quickSelectLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  quickSelectGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  quickSelectButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  quickSelectText: {
-    fontSize: 14,
-  },
-  customInputContainer: {
     marginBottom: 16,
+    textAlign: 'center',
   },
-  customInputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  customInputWrapper: {
+  simpleModalInput: {
+    borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
-  },
-  customInput: {
+    paddingVertical: 12,
     fontSize: 16,
-    lineHeight: 20,
-    minHeight: 20,
+    marginBottom: 20,
   },
-  modalButtons: {
+  simpleModalButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 16,
   },
-  modalButton: {
+  simpleModalButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalButtonText: {
+  simpleModalButtonDisabled: {
+    opacity: 0.4,
+  },
+  simpleModalButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },
