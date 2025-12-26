@@ -460,6 +460,8 @@ export default function ChatScreen() {
         messageCount: recentMessages.length,
         lastUserMessageId: insertedMessage.id,
         subject: currentSubject,
+        aiToneId: preferences.ai_tone_id,
+        aiScienceMode: preferences.ai_science_mode,
       });
 
       const lastAssistantMessage = subjectMessages

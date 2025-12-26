@@ -11,29 +11,6 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // Check if we're in development mode (set via environment variable)
 const IS_DEV = Deno.env.get("DEV_MODE") === "true";
 
-// ========== CONTINUITY FIELD NORMALIZATION HELPERS ==========
-// These functions ensure continuity fields are always safe strings
-function asText(value: any): string {
-  if (value == null) return '';
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) {
-    // join array values as bullet lines
-    return value
-      .map(v => (v == null ? '' : String(v)))
-      .map(s => s.trim())
-      .filter(Boolean)
-      .map(s => `- ${s}`)
-      .join('\n');
-  }
-  // object/number/bool fallback
-  return String(value);
-}
-
-function clean(value: any): string {
-  return asText(value).trim();
-}
-// ========== END NORMALIZATION HELPERS ==========
-
 // Psychology facts database
 const PSYCHOLOGY_FACTS = [
   "Did you know? Expressing gratitude regularly can actually rewire your brain to be more positive over time.",
@@ -128,6 +105,44 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Helper function to safely convert any value to text
+function asText(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  // If it's an array, join into a readable string
+  if (Array.isArray(value)) {
+    return value.map((v) => asText(v)).filter(Boolean).join(", ");
+  }
+
+  // If it's an object, try common shapes, otherwise JSON stringify
+  if (typeof value === "object") {
+    const anyVal: any = value;
+    if (typeof anyVal.text === "string") return anyVal.text;
+    if (typeof anyVal.value === "string") return anyVal.value;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  return String(value);
+}
+
+// Helper function to clean and trim text
+function clean(value: unknown): string {
+  return asText(value).trim();
+}
+
+// Helper function to check if we're in dev environment
+function isDevEnv(): boolean {
+  const env = (Deno.env.get("ENV") || "").toLowerCase();
+  const nodeEnv = (Deno.env.get("NODE_ENV") || "").toLowerCase();
+  return env === "dev" || nodeEnv !== "production";
+}
+
 // Helper function to detect if user is asking for advice
 function isAskingForAdvice(message: string): boolean {
   const adviceKeywords = [
@@ -192,7 +207,7 @@ async function getPersonContinuity(
 ): Promise<{ 
   continuity_enabled: boolean;
   summary: string; 
-  open_loops: string; 
+  open_loops: string[]; 
   current_goal: string;
   last_advice: string;
   next_question: string;
@@ -210,32 +225,28 @@ async function getPersonContinuity(
       return { 
         continuity_enabled: true,
         summary: '', 
-        open_loops: '', 
+        open_loops: [], 
         current_goal: '', 
         last_advice: '', 
         next_question: '' 
       };
     }
 
-    // ========== DEFENSIVE NORMALIZATION ==========
-    // Normalize all continuity fields to safe strings using helper functions
-    const continuityRaw = data ?? {};
-    const continuityNorm = {
-      continuity_enabled: continuityRaw.continuity_enabled ?? true,
-      summary: clean(continuityRaw.summary),
-      open_loops: clean(continuityRaw.open_loops),
-      current_goal: clean(continuityRaw.current_goal),
-      last_advice: clean(continuityRaw.last_advice),
-      next_question: clean(continuityRaw.next_question),
-    };
+    // Safely parse and validate the data
+    const continuity_enabled = data?.continuity_enabled ?? true;
+    const summary = data?.summary || '';
+    const open_loops = Array.isArray(data?.open_loops) ? data.open_loops : [];
+    const current_goal = data?.current_goal || '';
+    const last_advice = data?.last_advice || '';
+    const next_question = data?.next_question || '';
 
-    return continuityNorm;
+    return { continuity_enabled, summary, open_loops, current_goal, last_advice, next_question };
   } catch (err) {
     console.log('[Edge] Exception in getPersonContinuity:', err);
     return { 
       continuity_enabled: true,
       summary: '', 
-      open_loops: '', 
+      open_loops: [], 
       current_goal: '', 
       last_advice: '', 
       next_question: '' 
@@ -358,32 +369,6 @@ Return ONLY the JSON object, no other text.`;
   }
 }
 
-// Fetch person chat summary from Supabase (deprecated - use getPersonContinuity)
-async function getPersonSummary(
-  supabase: any,
-  userId: string,
-  personId: string
-): Promise<string> {
-  try {
-    const { data, error } = await supabase
-      .from('person_chat_summaries')
-      .select('summary')
-      .eq('user_id', userId)
-      .eq('person_id', personId)
-      .single();
-
-    if (error) {
-      console.log('[Edge] Error fetching person summary:', error.message);
-      return '';
-    }
-
-    return data?.summary || '';
-  } catch (err) {
-    console.log('[Edge] Exception in getPersonSummary:', err);
-    return '';
-  }
-}
-
 // Fetch person memories from Supabase
 async function getPersonMemories(
   supabase: any,
@@ -412,38 +397,6 @@ async function getPersonMemories(
     console.log('[Edge] Exception in getPersonMemories:', err);
     return [];
   }
-}
-
-/**
- * Get tone display name from tone ID
- */
-function getToneDisplayName(toneId: string): string {
-  const toneNames: Record<string, string> = {
-    'warm_hug': 'Warm Hug',
-    'therapy_room': 'Therapy Room',
-    'best_friend': 'Best Friend',
-    'nurturing_parent': 'Nurturing Parent',
-    'soft_truth': 'Soft Truth',
-    'balanced_blend': 'Balanced Blend',
-    'clear_coach': 'Clear Coach',
-    'mirror_mode': 'Mirror Mode',
-    'calm_direct': 'Calm & Direct',
-    'detective': 'Detective',
-    'systems_thinker': 'Systems Thinker',
-    'attachment_aware': 'Attachment-Aware',
-    'cognitive_clarity': 'Cognitive Clarity',
-    'conflict_mediator': 'Conflict Mediator',
-    'tough_love': 'Tough Love',
-    'straight_shooter': 'Straight Shooter',
-    'executive_summary': 'Executive Summary',
-    'no_nonsense': 'No Nonsense',
-    'reality_check': 'Reality Check',
-    'pattern_breaker': 'Pattern Breaker',
-    'accountability_partner': 'Accountability Partner',
-    'boundary_enforcer': 'Boundary Enforcer',
-  };
-  
-  return toneNames[toneId] || toneId;
 }
 
 /**
@@ -604,7 +557,7 @@ function buildVoiceContract(aiToneId: string): string {
     const defaultContract = voiceContracts['balanced_blend'];
     return `
 ═══════════════════════════════════════════════════════════
-VOICE CONTRACT (Tone: ${getToneDisplayName('balanced_blend')} - DEFAULT FALLBACK)
+VOICE CONTRACT (Tone: balanced_blend - DEFAULT FALLBACK)
 ═══════════════════════════════════════════════════════════
 • PACING: ${defaultContract.pacing}
 • DIRECTNESS: ${defaultContract.directness}
@@ -617,7 +570,7 @@ YOU MUST STRICTLY FOLLOW THESE RULES IN EVERY RESPONSE.
 
   return `
 ═══════════════════════════════════════════════════════════
-VOICE CONTRACT (Tone: ${getToneDisplayName(aiToneId)})
+VOICE CONTRACT (Tone: ${aiToneId})
 ═══════════════════════════════════════════════════════════
 • PACING: ${contract.pacing}
 • DIRECTNESS: ${contract.directness}
@@ -626,36 +579,6 @@ VOICE CONTRACT (Tone: ${getToneDisplayName(aiToneId)})
 
 YOU MUST STRICTLY FOLLOW THESE RULES IN EVERY RESPONSE.
 ═══════════════════════════════════════════════════════════`;
-}
-
-/**
- * Build science mode instructions
- */
-function buildScienceModeInstructions(): string {
-  return `
-🔬 SCIENCE & EVIDENCE MODE ENABLED:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-When relevant to the conversation, briefly mention:
-- Evidence-based psychological frameworks (e.g., attachment theory, CBT, DBT)
-- Research findings in accessible language (e.g., "Research shows that...")
-- Therapeutic concepts that might help (e.g., "Therapists often use...")
-- Suggested reading material WITHOUT fake citations
-
-IMPORTANT RULES:
-- Keep it conversational and accessible - not academic
-- Only mention when naturally relevant to the topic
-- Phrase suggestions as: "You may like: [Book/Author/Topic]" or "Consider exploring: [Concept]"
-- NEVER invent specific citations, quotes, or study details
-- If you mention a book, use well-known titles (e.g., "The Body Keeps the Score" by Bessel van der Kolk)
-- Balance evidence with empathy - don't sound like a textbook
-
-EXAMPLES:
-✓ "Research on attachment theory suggests that..."
-✓ "You might find it helpful to explore the concept of cognitive distortions"
-✓ "If you're interested in learning more, 'Attached' by Amir Levine is a great read on relationship patterns"
-✗ "According to Smith et al. (2019), 73% of participants..." (too academic, possibly fake)
-✗ "As Dr. Johnson said in her 2020 study..." (don't invent specific citations)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 }
 
 // Build dynamic system prompt based on conversation context
@@ -684,7 +607,7 @@ async function buildSystemPrompt(
 
   // ORDER 2b: Science mode (if enabled)
   if (aiScienceMode) {
-    basePrompt += buildScienceModeInstructions();
+    basePrompt += `\n\n🔬 SCIENCE MODE ENABLED: When relevant, include brief psychological insights, research findings, or therapeutic concepts. Keep it accessible and conversational. Examples: "Research shows that...", "Attachment theory suggests...", "Neuroscience tells us..."`;
   }
 
   // ORDER 3: "You are chatting about: {personName}"
@@ -693,36 +616,35 @@ async function buildSystemPrompt(
   // ORDER 4: CONVERSATION CONTINUITY - Fetch and inject continuity data
   const continuity = await getPersonContinuity(supabase, userId, personId);
   
-  // ========== DEFENSIVE CONTINUITY BLOCK BUILDING ==========
-  // Build continuity block only if continuity_enabled is true AND fields are non-empty
-  let continuityBlock = '';
-  try {
-    if (continuity.continuity_enabled && (
-      continuity.current_goal || 
-      continuity.open_loops || 
-      continuity.last_user_need || 
-      continuity.last_action_plan || 
-      continuity.next_question
-    )) {
-      continuityBlock = [
-        continuity.current_goal ? `Goal: ${continuity.current_goal}` : '',
-        continuity.open_loops ? `Open loops:\n${continuity.open_loops}` : '',
-        continuity.next_question ? `Next question: ${continuity.next_question}` : '',
-        continuity.summary ? `Summary: ${continuity.summary}` : '',
-      ].filter(Boolean).join('\n\n');
-    }
-  } catch (e) {
-    console.error('[Edge] continuity normalize failed', e);
-    // continue with prompt without continuity
-  }
-
-  if (continuityBlock) {
+  if (continuity.continuity_enabled && (
+    continuity.current_goal || 
+    continuity.open_loops.length > 0 || 
+    clean(continuity.summary)
+  )) {
     basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 CONVERSATION CONTINUITY (do not invent - use only what's here):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${continuityBlock}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
-⚠️ CONTINUITY INSTRUCTION:
+    if (continuity.current_goal && clean(continuity.current_goal)) {
+      basePrompt += `\n- Current goal: ${clean(continuity.current_goal)}`;
+    }
+
+    if (continuity.open_loops && continuity.open_loops.length > 0) {
+      const openLoopsText = continuity.open_loops.map(loop => clean(loop)).filter(Boolean).join(', ');
+      if (openLoopsText) {
+        basePrompt += `\n- Open loops: ${openLoopsText}`;
+      }
+    }
+
+    if (continuity.next_question && clean(continuity.next_question)) {
+      basePrompt += `\n- Best next question: ${clean(continuity.next_question)}`;
+    }
+
+    if (continuity.summary && clean(continuity.summary)) {
+      basePrompt += `\n- Summary: ${clean(continuity.summary)}`;
+    }
+
+    basePrompt += `\n\n⚠️ CONTINUITY INSTRUCTION:
 Continue from open loops or next_best_question unless the user clearly changes topic.
 Do not assume details; ask if unclear.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
@@ -930,19 +852,9 @@ serve(async (req) => {
       );
     }
 
-    // ========== FAIL-SAFE: Default to neutral tone if preferences missing ==========
-    const safeToneId = aiToneId || 'balanced_blend';
-    const safeScienceMode = aiScienceMode ?? false;
-
-    // ========== DEBUG LOGGING (DEV-ONLY) ==========
+    // DEV-ONLY: Runtime log of AI preferences
     if (IS_DEV) {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🔍 AI PREFERENCES DEBUG');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log(`📝 Selected Tone: ${getToneDisplayName(safeToneId)} (${safeToneId})`);
-      console.log(`🔬 Science Mode: ${safeScienceMode ? 'ENABLED' : 'DISABLED'}`);
-      console.log(`👤 Person: ${personName || 'unknown'}`);
-      console.log(`📊 Message Count: ${messages.length}`);
+      console.debug(`[AI] tone=${aiToneId || 'none'} science=${aiScienceMode || false} person=${personName || 'unknown'}`);
     }
 
     // Initialize Supabase client with service role key for server-side access
@@ -953,9 +865,6 @@ serve(async (req) => {
       .filter((msg: any) => msg.role === "user")
       .pop()?.content || "";
 
-    // Fetch continuity to check if it's enabled BEFORE building prompt
-    const continuity = await getPersonContinuity(supabase, userId, personId);
-
     // Build dynamic system prompt based on context (including continuity, summary, and memories)
     const systemPrompt = await buildSystemPrompt(
       supabase,
@@ -965,19 +874,9 @@ serve(async (req) => {
       personName || "this person",
       personRelationshipType || "your relationship",
       currentSubject,
-      safeToneId,
-      safeScienceMode
+      aiToneId,
+      aiScienceMode
     );
-
-    // ========== DEBUG LOGGING: System Prompt Details (DEV-ONLY) ==========
-    if (IS_DEV) {
-      console.log(`📏 System Prompt Length: ${systemPrompt.length} characters`);
-      console.log('📄 System Prompt Preview (first 300 chars):');
-      console.log('─────────────────────────────────────────────────────────');
-      console.log(systemPrompt.substring(0, 300));
-      console.log('─────────────────────────────────────────────────────────');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    }
 
     const systemMessage = {
       role: "system" as const,
@@ -1068,41 +967,35 @@ serve(async (req) => {
 
     // DEV-ONLY: If the model didn't include the tone signature, append it manually
     // (This ensures verification even if the model ignores the instruction)
-    if (IS_DEV && safeToneId && !reply.includes(`(tone: ${safeToneId})`)) {
-      reply += `\n\n(tone: ${safeToneId})`;
+    if (IS_DEV && aiToneId && !reply.includes(`(tone: ${aiToneId})`)) {
+      reply += `\n\n(tone: ${aiToneId})`;
     }
 
     // ========== GOAL B: UPDATE CONTINUITY STATE (AFTER ASSISTANT REPLY) ==========
-    // ========== RESPECT continuity_enabled FLAG ==========
-    // Only run extraction and update if continuity_enabled is true
-    if (continuity.continuity_enabled) {
-      // Run extraction in background - do not block the response
-      (async () => {
-        try {
-          // Build conversation text from recent messages
-          const conversationText = messages
-            .slice(-6) // Last 6 messages for context
-            .map((msg: any) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-            .join('\n\n');
+    // Run extraction in background - do not block the response
+    (async () => {
+      try {
+        // Build conversation text from recent messages
+        const conversationText = messages
+          .slice(-6) // Last 6 messages for context
+          .map((msg: any) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+          .join('\n\n');
 
-          // Extract continuity fields
-          const extracted = await extractContinuityFields(conversationText, reply);
-          
-          if (extracted) {
-            // Update continuity state
-            await upsertPersonContinuity(supabase, userId, personId, extracted);
-            console.log('[Edge] Continuity state updated successfully');
-          } else {
-            console.log('[Edge] Continuity extraction returned null, skipping update');
-          }
-        } catch (err) {
-          // Fail silently - never block the chat response
-          console.log('[Edge] Background continuity update failed (non-blocking):', err);
+        // Extract continuity fields
+        const extracted = await extractContinuityFields(conversationText, reply);
+        
+        if (extracted) {
+          // Update continuity state
+          await upsertPersonContinuity(supabase, userId, personId, extracted);
+          console.log('[Edge] Continuity state updated successfully');
+        } else {
+          console.log('[Edge] Continuity extraction returned null, skipping update');
         }
-      })();
-    } else {
-      console.log('[Edge] Continuity disabled for this person - skipping continuity update');
-    }
+      } catch (err) {
+        // Fail silently - never block the chat response
+        console.log('[Edge] Background continuity update failed (non-blocking):', err);
+      }
+    })();
 
     // ========== ALWAYS RETURN 200 WITH VALID JSON ==========
     return new Response(
@@ -1126,15 +1019,11 @@ serve(async (req) => {
     
     // Try to extract error details safely
     let errorMessage = 'unknown_error';
-    let errorStack: string | undefined;
     try {
       if (err instanceof Error) {
         errorMessage = err.message;
-        // Only include stack in non-production
-        if (!IS_DEV) {
-          errorStack = undefined;
-        } else if (err.stack) {
-          errorStack = err.stack.substring(0, 500);
+        if (err.stack) {
+          console.error("[Edge] Stack trace:", err.stack.substring(0, 500));
         }
       } else {
         errorMessage = String(err);
@@ -1149,8 +1038,7 @@ serve(async (req) => {
         reply: null, 
         error: "unexpected_error",
         debug: {
-          message: errorMessage,
-          stack: errorStack
+          message: errorMessage
         }
       }),
       { 
