@@ -14,6 +14,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Switch,
+  Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -177,16 +178,36 @@ export default function SettingsScreen() {
     }
   };
 
-  const handlePrivacyPress = () => {
-    router.push('/legal/privacy-policy');
+  const handlePrivacyPress = async () => {
+    try {
+      const url = 'https://www.byceli.com/privacy-policy';
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        console.error('[Settings] Cannot open URL:', url);
+        showErrorToast('Could not open link');
+      }
+    } catch (error) {
+      console.error('[Settings] Error opening privacy policy:', error);
+      showErrorToast('Could not open link');
+    }
   };
 
-  const handleTermsPress = () => {
-    router.push('/legal/terms-of-service');
-  };
-
-  const handleTermsConditionsPress = () => {
-    router.push('/legal/terms-summary');
+  const handleTermsPress = async () => {
+    try {
+      const url = 'https://www.byceli.com/terms-conditions';
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        console.error('[Settings] Cannot open URL:', url);
+        showErrorToast('Could not open link');
+      }
+    } catch (error) {
+      console.error('[Settings] Error opening terms and conditions:', error);
+      showErrorToast('Could not open link');
+    }
   };
 
   const handleInfoPress = () => {
@@ -575,7 +596,7 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.row}
+                  style={[styles.row, { borderBottomWidth: 0 }]}
                   onPress={handleTermsPress}
                   activeOpacity={0.7}
                 >
@@ -587,31 +608,7 @@ export default function SettingsScreen() {
                       color={theme.primary}
                     />
                     <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
-                      Terms of Service & Use
-                    </Text>
-                  </View>
-                  <IconSymbol
-                    ios_icon_name="chevron.right"
-                    android_material_icon_name="arrow_forward"
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.row, { borderBottomWidth: 0 }]}
-                  onPress={handleTermsConditionsPress}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.rowLeft}>
-                    <IconSymbol
-                      ios_icon_name="doc.plaintext.fill"
-                      android_material_icon_name="article"
-                      size={20}
-                      color={theme.primary}
-                    />
-                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
-                      Terms Summary
+                      Terms and Conditions
                     </Text>
                   </View>
                   <IconSymbol
