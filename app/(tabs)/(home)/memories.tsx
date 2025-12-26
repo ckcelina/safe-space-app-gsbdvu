@@ -24,7 +24,26 @@ import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { getPersonContinuity, setContinuityEnabled } from '@/lib/memory/personContinuity';
-import { mergeMemoriesForDisplay, DisplayMemory, DisplaySection, RawMemory } from '@/lib/memory/mergeMemoriesForDisplay';
+import { useFocusEffect } from '@react-navigation/native';
+
+// Memory type from the memories table
+interface Memory {
+  id: string;
+  user_id: string;
+  person_id: string;
+  category: string;
+  content: string;
+  source_message: string | null;
+  confidence: number | null;
+  memory_key: string | null;
+  created_at: string;
+}
+
+// Grouped memories by category
+interface MemoryCategory {
+  category: string;
+  memories: Memory[];
+}
 
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, { ios: string; android: string; emoji: string }> = {
@@ -47,6 +66,7 @@ const CATEGORY_ICONS: Record<string, { ios: string; android: string; emoji: stri
   'General': { ios: 'square.grid.2x2.fill', android: 'apps', emoji: '📦' },
   'History': { ios: 'book.fill', android: 'history', emoji: '📖' },
   'Location': { ios: 'location.fill', android: 'location_on', emoji: '📍' },
+  'Friends': { ios: 'person.2.fill', android: 'group', emoji: '👥' },
 };
 
 // Get icon for category
@@ -75,30 +95,6 @@ function formatDate(dateString: string): string {
   }
 }
 
-// Friendly labels for memory keys
-const FRIENDLY_KEY_LABELS: Record<string, string> = {
-  is_deceased: 'Deceased',
-  time_of_death: 'Time since passing',
-  cause_of_death: 'Cause of passing',
-  age: 'Age',
-  birthday: 'Birthday',
-  occupation: 'Occupation',
-  location: 'Location',
-  relationship_type: 'Relationship',
-  health_conditions: 'Health conditions',
-  hobbies: 'Hobbies',
-  interests: 'Interests',
-};
-
-function getFriendlyLabel(key: string): string {
-  if (key.startsWith('medical_history:')) {
-    const condition = key.replace('medical_history:', '').replace(/_/g, ' ');
-    return condition.replace(/\b\w/g, (l) => l.toUpperCase());
-  }
-  
-  return FRIENDLY_KEY_LABELS[key.toLowerCase()] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-}
-
 export default function MemoriesScreen() {
   const params = useLocalSearchParams<{
     personId?: string | string[];
@@ -112,8 +108,8 @@ export default function MemoriesScreen() {
   const { currentUser } = useAuth();
   const { theme } = useThemeContext();
 
-  const [rawMemories, setRawMemories] = useState<RawMemory[]>([]);
-  const [displaySections, setDisplaySections] = useState<DisplaySection[]>([]);
+  const [memories, setMemories] = useState<Memory[]>([]);
+  const [groupedMemories, setGroupedMemories] = useState<MemoryCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +123,7 @@ export default function MemoriesScreen() {
 
   // Edit modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editingMemory, setEditingMemory] = useState<DisplayMemory | null>(null);
+  const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -189,6 +185,36 @@ export default function MemoriesScreen() {
     }
   }, [personId, currentUser?.id]);
 
+  // Group memories by category
+  const groupMemoriesByCategory = useCallback((memoriesData: Memory[]): MemoryCategory[] => {
+    const categoryMap = new Map<string, Memory[]>();
+    
+    memoriesData.forEach((memory) => {
+      const category = memory.category || 'General';
+      if (!categoryMap.has(category)) {
+        categoryMap.set(category, []);
+      }
+      categoryMap.get(category)!.push(memory);
+    });
+    
+    // Convert to array and sort by category name
+    const grouped = Array.from(categoryMap.entries()).map(([category, memories]) => ({
+      category,
+      memories: memories.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ),
+    }));
+    
+    // Sort categories alphabetically, but keep General first
+    grouped.sort((a, b) => {
+      if (a.category === 'General') return -1;
+      if (b.category === 'General') return 1;
+      return a.category.localeCompare(b.category);
+    });
+    
+    return grouped;
+  }, []);
+
   // Fetch memories
   const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
@@ -211,14 +237,11 @@ export default function MemoriesScreen() {
       console.log('[Memories] Fetching memories for person:', personId, 'user:', currentUser.id);
 
       const { data, error: fetchError } = await supabase
-        .from('person_memories')
+        .from('memories')
         .select('*')
         .eq('user_id', currentUser.id)
         .eq('person_id', personId)
-        .order('importance', { ascending: false })
-        .order('last_mentioned_at', { ascending: false, nullsFirst: false })
-        .order('updated_at', { ascending: false })
-        .limit(50);
+        .order('created_at', { ascending: false });
 
       if (fetchError) {
         console.log('[Memories] Error fetching memories:', {
@@ -234,12 +257,10 @@ export default function MemoriesScreen() {
       console.log('[Memories] Loaded memories:', data?.length || 0);
       
       if (isMountedRef.current && data !== null) {
-        setRawMemories(data);
-        
-        // Transform using merge logic
-        const sections = mergeMemoriesForDisplay(data);
-        setDisplaySections(sections);
-        console.log('[Memories] Transformed into', sections.length, 'sections');
+        setMemories(data);
+        const grouped = groupMemoriesByCategory(data);
+        setGroupedMemories(grouped);
+        console.log('[Memories] Grouped into', grouped.length, 'categories');
       }
     } catch (err: any) {
       console.log('[Memories] Unexpected error:', err);
@@ -252,12 +273,21 @@ export default function MemoriesScreen() {
         setRefreshing(false);
       }
     }
-  }, [personId, currentUser?.id]);
+  }, [personId, currentUser?.id, groupMemoriesByCategory]);
 
+  // Fetch on mount
   useEffect(() => {
     fetchMemories(false);
     fetchContinuitySetting();
   }, [fetchMemories, fetchContinuitySetting]);
+
+  // Refetch when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[Memories] Screen focused, refreshing memories');
+      fetchMemories(true);
+    }, [fetchMemories])
+  );
 
   // Handle back press
   const handleBackPress = useCallback(() => {
@@ -287,10 +317,10 @@ export default function MemoriesScreen() {
   }, []);
 
   // Open edit modal
-  const handleEditPress = useCallback((memory: DisplayMemory) => {
-    console.log('[Memories] Opening edit modal for:', memory.key);
+  const handleEditPress = useCallback((memory: Memory) => {
+    console.log('[Memories] Opening edit modal for:', memory.id);
     setEditingMemory(memory);
-    setEditValue(memory.value);
+    setEditValue(memory.content);
     setEditModalVisible(true);
   }, []);
 
@@ -313,21 +343,19 @@ export default function MemoriesScreen() {
       return;
     }
 
-    if (newValue === editingMemory.value) {
+    if (newValue === editingMemory.content) {
       handleCloseEditModal();
       return;
     }
 
-    console.log('[Memories] Saving edit for:', editingMemory.key);
+    console.log('[Memories] Saving edit for:', editingMemory.id);
     setSaving(true);
 
     try {
-      // Update primary memory
       const { error: updateError } = await supabase
-        .from('person_memories')
+        .from('memories')
         .update({
-          value: newValue,
-          updated_at: new Date().toISOString(),
+          content: newValue,
         })
         .eq('id', editingMemory.id)
         .eq('user_id', currentUser.id);
@@ -350,14 +378,14 @@ export default function MemoriesScreen() {
   }, [editingMemory, editValue, currentUser?.id, handleCloseEditModal, fetchMemories]);
 
   // Delete memory
-  const handleDeletePress = useCallback((memory: DisplayMemory) => {
+  const handleDeletePress = useCallback((memory: Memory) => {
     if (!currentUser?.id) {
       return;
     }
 
     Alert.alert(
       'Delete Memory',
-      `Are you sure you want to delete "${getFriendlyLabel(memory.key)}"?`,
+      `Are you sure you want to delete this memory?`,
       [
         {
           text: 'Cancel',
@@ -367,12 +395,11 @@ export default function MemoriesScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            console.log('[Memories] Deleting memory:', memory.key);
+            console.log('[Memories] Deleting memory:', memory.id);
 
             try {
-              // Delete primary memory
               const { error: deleteError } = await supabase
-                .from('person_memories')
+                .from('memories')
                 .delete()
                 .eq('id', memory.id)
                 .eq('user_id', currentUser.id);
@@ -468,7 +495,7 @@ export default function MemoriesScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Conversation Continuity Toggle Section - Slimmer */}
+          {/* Conversation Continuity Toggle Section */}
           <View style={[
             styles.continuitySection,
             {
@@ -516,7 +543,7 @@ export default function MemoriesScreen() {
             </View>
           </View>
 
-          {displaySections.length === 0 && !loading && !refreshing ? (
+          {memories.length === 0 && !loading && !refreshing ? (
             <View style={styles.emptyState}>
               <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
                 <Text style={styles.emptyEmoji}>🧠</Text>
@@ -530,26 +557,26 @@ export default function MemoriesScreen() {
             </View>
           ) : (
             <>
-              {displaySections.map((section) => {
-                const icon = getCategoryIcon(section.category);
-                const isCollapsed = collapsedSections.has(section.category);
+              {groupedMemories.map((categoryGroup) => {
+                const icon = getCategoryIcon(categoryGroup.category);
+                const isCollapsed = collapsedSections.has(categoryGroup.category);
                 
                 return (
-                  <View key={section.category} style={styles.categorySection}>
+                  <View key={categoryGroup.category} style={styles.categorySection}>
                     {/* Category Header - Collapsible */}
                     <TouchableOpacity
                       style={styles.categoryHeaderButton}
-                      onPress={() => toggleSection(section.category)}
+                      onPress={() => toggleSection(categoryGroup.category)}
                       activeOpacity={0.7}
                     >
                       <View style={styles.categoryHeaderLeft}>
                         <Text style={styles.categoryEmoji}>{icon.emoji}</Text>
                         <Text style={[styles.categoryTitle, { color: theme.textPrimary }]}>
-                          {section.category}
+                          {categoryGroup.category}
                         </Text>
                         <View style={[styles.countBadge, { backgroundColor: theme.primary + '20' }]}>
                           <Text style={[styles.countText, { color: theme.primary }]}>
-                            {section.memories.length}
+                            {categoryGroup.memories.length}
                           </Text>
                         </View>
                       </View>
@@ -564,7 +591,7 @@ export default function MemoriesScreen() {
                     {/* Memory Items */}
                     {!isCollapsed && (
                       <View style={styles.memoriesContainer}>
-                        {section.memories.map((memory) => (
+                        {categoryGroup.memories.map((memory) => (
                           <View
                             key={memory.id}
                             style={[
@@ -600,25 +627,14 @@ export default function MemoriesScreen() {
                                 />
                               </View>
 
-                              {/* Center: Title & Subtitle */}
+                              {/* Center: Content & Date */}
                               <View style={styles.memoryTextContainer}>
-                                <Text style={[styles.memoryTitle, { color: theme.textPrimary }]} numberOfLines={1}>
-                                  {getFriendlyLabel(memory.key)}
+                                <Text style={[styles.memoryContent, { color: theme.textPrimary }]} numberOfLines={3}>
+                                  {memory.content}
                                 </Text>
-                                <Text style={[styles.memorySubtitle, { color: theme.textSecondary }]} numberOfLines={2}>
-                                  {memory.value}
+                                <Text style={[styles.memoryDate, { color: theme.textSecondary }]}>
+                                  {formatDate(memory.created_at)}
                                 </Text>
-                                {memory.mergedAges && memory.mergedAges.length > 0 && (
-                                  <View style={styles.ageBadgesContainer}>
-                                    {memory.mergedAges.map((age, idx) => (
-                                      <View key={idx} style={[styles.ageBadge, { backgroundColor: theme.accent + '30' }]}>
-                                        <Text style={[styles.ageBadgeText, { color: theme.primary }]}>
-                                          {age}
-                                        </Text>
-                                      </View>
-                                    ))}
-                                  </View>
-                                )}
                               </View>
 
                               {/* Right: Actions */}
@@ -672,11 +688,6 @@ export default function MemoriesScreen() {
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                 Edit Memory
               </Text>
-              {editingMemory && (
-                <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
-                  {getFriendlyLabel(editingMemory.key)}
-                </Text>
-              )}
 
               <View style={styles.modalInputContainer}>
                 <TextInput
@@ -688,7 +699,7 @@ export default function MemoriesScreen() {
                       borderColor: theme.textSecondary + '40',
                     },
                   ]}
-                  placeholder="Enter value..."
+                  placeholder="Enter memory content..."
                   placeholderTextColor={theme.textSecondary}
                   value={editValue}
                   onChangeText={setEditValue}
@@ -731,7 +742,7 @@ export default function MemoriesScreen() {
         </SwipeableModal>
       </View>
 
-      <LoadingOverlay visible={loading && !error && displaySections.length === 0} />
+      <LoadingOverlay visible={loading && !error && memories.length === 0} />
     </KeyboardAvoider>
   );
 }
@@ -808,7 +819,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: '5%',
     paddingTop: 20,
   },
-  // Slimmer continuity section
   continuitySection: {
     borderRadius: 12,
     padding: 14,
@@ -834,7 +844,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
     flex: 1,
   },
-  // Empty state
   emptyState: {
     flex: 1,
     alignItems: 'center',
@@ -880,7 +889,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  // Category section
   categorySection: {
     marginBottom: 24,
   },
@@ -918,11 +926,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  // Memory items container
   memoriesContainer: {
     gap: 10,
   },
-  // Memory chip (compact card)
   memoryChip: {
     borderRadius: 12,
     borderWidth: 1,
@@ -944,31 +950,15 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
-  memoryTitle: {
+  memoryContent: {
     fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
-    letterSpacing: 0.1,
+    lineHeight: 20,
+    fontWeight: '500',
+    marginBottom: 6,
   },
-  memorySubtitle: {
-    fontSize: 14,
-    lineHeight: 18,
+  memoryDate: {
+    fontSize: 12,
     fontWeight: '400',
-  },
-  ageBadgesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 6,
-  },
-  ageBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  ageBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
   },
   memoryActions: {
     flexDirection: 'row',
@@ -977,7 +967,6 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 4,
   },
-  // Modal styles
   modalContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -986,12 +975,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: 16,
-    fontWeight: '500',
     marginBottom: 20,
     textAlign: 'center',
   },
