@@ -424,6 +424,24 @@ export default function ChatScreen() {
         });
       }
 
+      // MEMORY CAPTURE: Fire-and-forget capture of factual statements
+      // This is imported from lib/memoryCapture.ts and runs asynchronously
+      // It will never block the chat flow or throw errors
+      import('@/lib/memoryCapture').then(({ captureMemoriesFromMessage }) => {
+        captureMemoriesFromMessage(
+          userId,
+          personId,
+          userMessageText,
+          personName,
+          currentSubject
+        );
+      }).catch(() => {
+        // Silent failure - import error should never happen but catch just in case
+        if (__DEV__) {
+          console.log('[Chat] Memory capture import failed');
+        }
+      });
+
       // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
       // This runs even if the AI reply fails, ensuring memories are always saved
       try {
