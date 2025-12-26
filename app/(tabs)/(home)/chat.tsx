@@ -481,6 +481,8 @@ export default function ChatScreen() {
       // Check for invocation error (network, HTTP error, etc.)
       if (invokeError) {
         console.error('[Chat] Edge Function invocation failed');
+        console.error('[Chat] invokeError object', invokeError);
+        console.error('[Chat] debug object', debug);
         
         // Store debug info for dev mode
         if (__DEV__ && debug) {
