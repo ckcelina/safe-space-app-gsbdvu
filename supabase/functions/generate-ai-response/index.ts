@@ -586,7 +586,8 @@ async function buildSystemPrompt(
   relationshipType: string,
   currentSubject?: string,
   aiToneId?: string,
-  aiScienceMode?: boolean
+  aiScienceMode?: boolean,
+  continuity_enabled?: boolean
 ): Promise<string> {
   const askingForAdvice = isAskingForAdvice(lastUserMessage);
   const wantsLearning = wantsToLearn(lastUserMessage);
@@ -608,41 +609,44 @@ async function buildSystemPrompt(
   // ORDER 3: "You are chatting about: {personName}"
   basePrompt += `\n\nYou're talking about ${personName} (${relationshipType}).`;
 
-  // ORDER 4: CONVERSATION CONTINUITY - Fetch and inject continuity data
-  const continuity = await getPersonContinuity(supabase, userId, personId);
-  
-  if (continuity.continuity_enabled && (
-    continuity.current_goal || 
-    continuity.open_loops.length > 0 || 
-    clean(continuity.summary)
-  )) {
-    basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ORDER 4: CONVERSATION CONTINUITY - Fetch and inject continuity data ONLY if enabled
+  if (continuity_enabled) {
+    const continuityData = await getPersonContinuity(supabase, userId, personId);
+    
+    // Normalize all continuity fields using clean()
+    const continuity = {
+      goal: clean(continuityData?.current_goal),
+      open_loops: clean(continuityData?.open_loops),
+      next_question: clean(continuityData?.next_question),
+      summary: clean(continuityData?.summary),
+    };
+    
+    if (continuity.goal || continuity.open_loops || continuity.next_question || continuity.summary) {
+      basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 CONVERSATION CONTINUITY (do not invent - use only what's here):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
-    if (continuity.current_goal && clean(continuity.current_goal)) {
-      basePrompt += `\n- Current goal: ${clean(continuity.current_goal)}`;
-    }
-
-    if (continuity.open_loops && continuity.open_loops.length > 0) {
-      const openLoopsText = continuity.open_loops.map(loop => clean(loop)).filter(Boolean).join(', ');
-      if (openLoopsText) {
-        basePrompt += `\n- Open loops: ${openLoopsText}`;
+      if (continuity.goal) {
+        basePrompt += `\n- Current goal: ${continuity.goal}`;
       }
-    }
 
-    if (continuity.next_question && clean(continuity.next_question)) {
-      basePrompt += `\n- Best next question: ${clean(continuity.next_question)}`;
-    }
+      if (continuity.open_loops) {
+        basePrompt += `\n- Open loops: ${continuity.open_loops}`;
+      }
 
-    if (continuity.summary && clean(continuity.summary)) {
-      basePrompt += `\n- Summary: ${clean(continuity.summary)}`;
-    }
+      if (continuity.next_question) {
+        basePrompt += `\n- Best next question: ${continuity.next_question}`;
+      }
 
-    basePrompt += `\n\n⚠️ CONTINUITY INSTRUCTION:
+      if (continuity.summary) {
+        basePrompt += `\n- Summary: ${continuity.summary}`;
+      }
+
+      basePrompt += `\n\n⚠️ CONTINUITY INSTRUCTION:
 Continue from open loops or next_best_question unless the user clearly changes topic.
 Do not assume details; ask if unclear.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    }
   }
 
   // Inject subject into AI prompt
@@ -798,6 +802,9 @@ serve(async (req) => {
       );
     }
 
+    // A) Extract continuity_enabled flag from request body
+    const continuity_enabled = !!body?.continuity_enabled;
+
     const { 
       messages, 
       personId, 
@@ -848,7 +855,7 @@ serve(async (req) => {
 
     // DEV-ONLY: Runtime log of AI preferences
     if (IS_DEV) {
-      console.debug(`[AI] tone=${aiToneId || 'none'} science=${aiScienceMode || false} person=${personName || 'unknown'}`);
+      console.debug(`[AI] tone=${aiToneId || 'none'} science=${aiScienceMode || false} person=${personName || 'unknown'} continuity=${continuity_enabled}`);
     }
 
     // Initialize Supabase client with service role key for server-side access
@@ -869,7 +876,8 @@ serve(async (req) => {
       personRelationshipType || "your relationship",
       currentSubject,
       aiToneId,
-      aiScienceMode
+      aiScienceMode,
+      continuity_enabled
     );
 
     const systemMessage = {
@@ -965,31 +973,35 @@ serve(async (req) => {
       reply += `\n\n(tone: ${aiToneId})`;
     }
 
-    // ========== GOAL B: UPDATE CONTINUITY STATE (AFTER ASSISTANT REPLY) ==========
+    // ========== C) CONTINUITY UPDATE - ONLY IF ENABLED ==========
     // Run extraction in background - do not block the response
-    (async () => {
-      try {
-        // Build conversation text from recent messages
-        const conversationText = messages
-          .slice(-6) // Last 6 messages for context
-          .map((msg: any) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-          .join('\n\n');
+    if (continuity_enabled) {
+      (async () => {
+        try {
+          // Build conversation text from recent messages
+          const conversationText = messages
+            .slice(-6) // Last 6 messages for context
+            .map((msg: any) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+            .join('\n\n');
 
-        // Extract continuity fields
-        const extracted = await extractContinuityFields(conversationText, reply);
-        
-        if (extracted) {
-          // Update continuity state
-          await upsertPersonContinuity(supabase, userId, personId, extracted);
-          console.log('[Edge] Continuity state updated successfully');
-        } else {
-          console.log('[Edge] Continuity extraction returned null, skipping update');
+          // Extract continuity fields
+          const extracted = await extractContinuityFields(conversationText, reply);
+          
+          if (extracted) {
+            // Update continuity state
+            await upsertPersonContinuity(supabase, userId, personId, extracted);
+            console.log('[Edge] Continuity state updated successfully');
+          } else {
+            console.log('[Edge] Continuity extraction returned null, skipping update');
+          }
+        } catch (err) {
+          // Fail silently - never block the chat response
+          console.log('[Edge] Background continuity update failed (non-blocking):', err);
         }
-      } catch (err) {
-        // Fail silently - never block the chat response
-        console.log('[Edge] Background continuity update failed (non-blocking):', err);
-      }
-    })();
+      })();
+    } else {
+      console.log('[Edge] Continuity disabled, skipping continuity update');
+    }
 
     // ========== ALWAYS RETURN 200 WITH VALID JSON ==========
     return new Response(
