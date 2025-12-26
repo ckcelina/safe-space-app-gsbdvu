@@ -483,12 +483,23 @@ export default function ChatScreen() {
       // Check for invocation error (network, HTTP error, etc.)
       if (invokeError) {
         console.error('[Chat] Edge Function invocation failed');
-        console.error('[Chat] invokeError object', invokeError);
-        console.error('[Chat] debug object', debug);
+        console.error('[Chat] Error name:', invokeError.name);
+        console.error('[Chat] Error message:', invokeError.message);
+        console.error('[Chat] Error status:', invokeError.status);
+        console.error('[Chat] Debug object:', debug);
         
         // Store debug info for dev mode
-        if (__DEV__ && debug) {
-          setDebugInfo(debug);
+        if (__DEV__) {
+          setDebugInfo({
+            functionName: 'generate-ai-response',
+            timestamp: new Date().toISOString(),
+            invocationError: {
+              name: invokeError.name,
+              message: invokeError.message,
+              status: invokeError.status,
+            },
+            debug,
+          });
         }
         
         if (isMountedRef.current) {
@@ -515,8 +526,9 @@ export default function ChatScreen() {
             setAllMessages((prev) => [...prev, fallbackInserted]);
           }
           
-          // Show error toast
-          showErrorToast('AI response failed. Check logs for details.');
+          // Show detailed error toast
+          const errorMsg = invokeError.message || invokeError.name || 'AI response failed';
+          showErrorToast(errorMsg);
         }
         return;
       }
@@ -525,18 +537,28 @@ export default function ChatScreen() {
 
       // Check if the Edge Function returned success: false or an error
       if (!aiResponse?.success || aiResponse?.error) {
-        console.error('[Chat] Edge Function returned error:', aiResponse?.error || 'unknown');
+        const errorObj = aiResponse?.error;
+        const errorCode = typeof errorObj === 'object' ? errorObj?.code : errorObj;
+        const errorMessage = typeof errorObj === 'object' ? errorObj?.message : 'Unknown error';
+        const errorDetails = typeof errorObj === 'object' ? errorObj?.details : undefined;
+        
+        console.error('[Chat] Edge Function returned error');
+        console.error('[Chat] Error code:', errorCode);
+        console.error('[Chat] Error message:', errorMessage);
+        console.error('[Chat] Error details:', errorDetails);
         
         // Store debug info for dev mode
         if (__DEV__) {
           setDebugInfo({
             functionName: 'generate-ai-response',
             timestamp: new Date().toISOString(),
-            errorDetails: {
+            edgeFunctionError: {
               success: aiResponse?.success,
-              error: aiResponse?.error,
-              fullResponse: JSON.stringify(aiResponse).substring(0, 500),
+              code: errorCode,
+              message: errorMessage,
+              details: errorDetails,
             },
+            fullResponse: JSON.stringify(aiResponse).substring(0, 500),
           });
         }
         
@@ -564,8 +586,8 @@ export default function ChatScreen() {
             setAllMessages((prev) => [...prev, fallbackInserted]);
           }
           
-          // Show error toast
-          showErrorToast('AI response failed. Check logs for details.');
+          // Show detailed error toast
+          showErrorToast(errorMessage || 'AI response failed');
         }
         return;
       }
