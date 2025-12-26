@@ -11,6 +11,29 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // Check if we're in development mode (set via environment variable)
 const IS_DEV = Deno.env.get("DEV_MODE") === "true";
 
+// ========== CONTINUITY FIELD NORMALIZATION HELPERS ==========
+// These functions ensure continuity fields are always safe strings
+function asText(value: any): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    // join array values as bullet lines
+    return value
+      .map(v => (v == null ? '' : String(v)))
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(s => `- ${s}`)
+      .join('\n');
+  }
+  // object/number/bool fallback
+  return String(value);
+}
+
+function clean(value: any): string {
+  return asText(value).trim();
+}
+// ========== END NORMALIZATION HELPERS ==========
+
 // Psychology facts database
 const PSYCHOLOGY_FACTS = [
   "Did you know? Expressing gratitude regularly can actually rewire your brain to be more positive over time.",
@@ -169,7 +192,7 @@ async function getPersonContinuity(
 ): Promise<{ 
   continuity_enabled: boolean;
   summary: string; 
-  open_loops: string[]; 
+  open_loops: string; 
   current_goal: string;
   last_advice: string;
   next_question: string;
@@ -187,28 +210,32 @@ async function getPersonContinuity(
       return { 
         continuity_enabled: true,
         summary: '', 
-        open_loops: [], 
+        open_loops: '', 
         current_goal: '', 
         last_advice: '', 
         next_question: '' 
       };
     }
 
-    // Safely parse and validate the data
-    const continuity_enabled = data?.continuity_enabled ?? true;
-    const summary = data?.summary || '';
-    const open_loops = Array.isArray(data?.open_loops) ? data.open_loops : [];
-    const current_goal = data?.current_goal || '';
-    const last_advice = data?.last_advice || '';
-    const next_question = data?.next_question || '';
+    // ========== DEFENSIVE NORMALIZATION ==========
+    // Normalize all continuity fields to safe strings using helper functions
+    const continuityRaw = data ?? {};
+    const continuityNorm = {
+      continuity_enabled: continuityRaw.continuity_enabled ?? true,
+      summary: clean(continuityRaw.summary),
+      open_loops: clean(continuityRaw.open_loops),
+      current_goal: clean(continuityRaw.current_goal),
+      last_advice: clean(continuityRaw.last_advice),
+      next_question: clean(continuityRaw.next_question),
+    };
 
-    return { continuity_enabled, summary, open_loops, current_goal, last_advice, next_question };
+    return continuityNorm;
   } catch (err) {
     console.log('[Edge] Exception in getPersonContinuity:', err);
     return { 
       continuity_enabled: true,
       summary: '', 
-      open_loops: [], 
+      open_loops: '', 
       current_goal: '', 
       last_advice: '', 
       next_question: '' 
@@ -666,38 +693,36 @@ async function buildSystemPrompt(
   // ORDER 4: CONVERSATION CONTINUITY - Fetch and inject continuity data
   const continuity = await getPersonContinuity(supabase, userId, personId);
   
-  if (continuity.continuity_enabled && (
-    continuity.current_goal || 
-    continuity.open_loops.length > 0 || 
-    continuity.last_user_need || 
-    continuity.last_action_plan || 
-    continuity.next_question
-  )) {
+  // ========== DEFENSIVE CONTINUITY BLOCK BUILDING ==========
+  // Build continuity block only if fields are non-empty
+  let continuityBlock = '';
+  try {
+    if (continuity.continuity_enabled && (
+      continuity.current_goal || 
+      continuity.open_loops || 
+      continuity.last_user_need || 
+      continuity.last_action_plan || 
+      continuity.next_question
+    )) {
+      continuityBlock = [
+        continuity.current_goal ? `Goal: ${continuity.current_goal}` : '',
+        continuity.open_loops ? `Open loops:\n${continuity.open_loops}` : '',
+        continuity.next_question ? `Next question: ${continuity.next_question}` : '',
+        continuity.summary ? `Summary: ${continuity.summary}` : '',
+      ].filter(Boolean).join('\n\n');
+    }
+  } catch (e) {
+    console.error('[Edge] continuity normalize failed', e);
+    // continue with prompt without continuity
+  }
+
+  if (continuityBlock) {
     basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 CONVERSATION CONTINUITY (do not invent - use only what's here):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${continuityBlock}
 
-    if (continuity.current_goal && continuity.current_goal.trim()) {
-      basePrompt += `\n- Current goal: ${continuity.current_goal}`;
-    }
-
-    if (continuity.open_loops && continuity.open_loops.trim()) {
-      basePrompt += `\n- Open loops: ${continuity.open_loops}`;
-    }
-
-    if (continuity.last_user_need && continuity.last_user_need.trim()) {
-      basePrompt += `\n- Last user need: ${continuity.last_user_need}`;
-    }
-
-    if (continuity.last_action_plan && continuity.last_action_plan.trim()) {
-      basePrompt += `\n- Last action plan: ${continuity.last_action_plan}`;
-    }
-
-    if (continuity.next_question && continuity.next_question.trim()) {
-      basePrompt += `\n- Best next question: ${continuity.next_question}`;
-    }
-
-    basePrompt += `\n\n⚠️ CONTINUITY INSTRUCTION:
+⚠️ CONTINUITY INSTRUCTION:
 Continue from open loops or next_best_question unless the user clearly changes topic.
 Do not assume details; ask if unclear.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
