@@ -14,7 +14,6 @@
  */
 
 import { supabase } from '../supabase';
-import * as Clipboard from 'expo-clipboard';
 
 export interface InvokeEdgeError {
   name: string;
@@ -182,13 +181,11 @@ export async function invokeEdge<T = any>(
 
 /**
  * Copy debug information to clipboard (for dev mode)
+ * No-op implementation to avoid expo-clipboard dependency
  */
 export async function copyDebugToClipboard(debug: any): Promise<void> {
-  try {
-    const debugString = JSON.stringify(debug, null, 2);
-    await Clipboard.setStringAsync(debugString);
-    console.log('[invokeEdge] Debug info copied to clipboard');
-  } catch (error) {
-    console.error('[invokeEdge] Failed to copy debug info:', error);
-  }
+  // No-op in this build; avoid extra dependency
+  // Debug info is already logged to console
+  console.log('[invokeEdge] Debug info available in console (clipboard copy disabled)');
+  return;
 }
