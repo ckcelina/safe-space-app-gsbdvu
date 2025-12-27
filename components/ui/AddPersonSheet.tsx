@@ -312,6 +312,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
                 onPress={handleSave}
                 style={[
                   styles.saveButton,
+                  { backgroundColor: theme.primary },
                   (!name.trim() || saving) && styles.saveButtonDisabled,
                 ]}
                 disabled={saving || !name.trim()}
@@ -438,7 +439,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     borderRadius: 50,
-    backgroundColor: '#007AFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
