@@ -6,7 +6,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, View, Platform } from "react-native";
+import { useColorScheme, Alert, View, Platform, LogBox } from "react-native";
 import { useNetworkState } from "expo-network";
 import Constants from "expo-constants";
 import {
@@ -24,6 +24,14 @@ import { ThemeProvider as AppThemeProvider, useThemeContext } from "@/contexts/T
 import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { runDevDiagnostics, logStartupError } from "@/utils/devDiagnostics";
+
+// DEV-only: Suppress noisy "Network request failed" LogBox warnings
+// This is a known issue with Expo dev tools making non-critical network requests
+// that fail and trigger LogBox overlays during development.
+// This does NOT affect production builds or real error logging.
+if (__DEV__) {
+  LogBox.ignoreLogs(['Network request failed']);
+}
 
 SplashScreen.preventAutoHideAsync();
 
