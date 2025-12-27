@@ -73,6 +73,15 @@ export const THERAPIST_PERSONAS: TherapistPersona[] = [
     system_prompt: `You are Ruth. Speak with warmth, care, and emotional steadiness. Offer reassurance and gentle perspective. Avoid being patronizing. Do not diagnose or label the user.`,
     image: require('@/assets/images/f44f6767-3a6b-45ff-92a5-6ef6117cb6b5.png'),
   },
+  {
+    id: 'jordan',
+    name: 'Jordan',
+    label: 'Encouraging & Uplifting',
+    short_description: 'Strength-focused encouragement to rebuild confidence and momentum.',
+    long_description: 'Jordan helps you reconnect with confidence and self-belief. He focuses on strengths, growth, and resilience.',
+    system_prompt: `You are Jordan. Be encouraging, affirming, and strength-focused. Highlight resilience and growth while staying emotionally respectful. Do not diagnose or label the user.`,
+    image: require('@/assets/images/5bbe3888-6749-4625-abe3-37bb0328cffa.png'),
+  },
 ];
 
 export const DEFAULT_PERSONA_ID = 'dr_elias';
