@@ -378,6 +378,28 @@ async function getPersonMemories(supabase: any, userId: string, personId: string
   }
 }
 
+// Fetch user personalization updates from Supabase
+async function getUserPersonalizationUpdates(supabase: any, userId: string, limit = 3) {
+  try {
+    const { data, error } = await supabase
+      .from("user_personalization_updates")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.log("[Edge] Error fetching personalization updates:", error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.log("[Edge] Exception in getUserPersonalizationUpdates:", err);
+    return [];
+  }
+}
+
 // Build Voice Contract based on ai_tone_id
 // Maps each tone to specific response style guidelines
 function buildVoiceContract(aiToneId: string): string {
@@ -842,6 +864,34 @@ async function buildSystemPrompt(
     for (const m of memories) {
       basePrompt += `\n- ${m.key}: ${m.value}`;
     }
+  }
+
+  // ✅ FETCH AND INCLUDE USER PERSONALIZATION UPDATES
+  const updates = await getUserPersonalizationUpdates(supabase, userId, 3);
+  if (updates.length > 0) {
+    basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 RECENT USER UPDATES (Personal Preferences):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The user has shared recent changes to help you stay relevant:`;
+    
+    updates.forEach((update, index) => {
+      basePrompt += `\n\n${index + 1}. ${update.title}`;
+      if (update.details) {
+        basePrompt += `\n   Details: ${update.details}`;
+      }
+      if (update.ai_preference) {
+        basePrompt += `\n   Preference: ${update.ai_preference}`;
+      }
+      if (update.started_at) {
+        const date = new Date(update.started_at);
+        basePrompt += `\n   Started: ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+      }
+    });
+
+    basePrompt += `\n\n⚠️ IMPORTANT: These are self-reflection notes for personalization only. Do NOT diagnose, label, or classify the user. Respect their preferences and adjust your responses accordingly.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
   }
 
   basePrompt += `\n\nCore rules:

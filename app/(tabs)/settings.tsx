@@ -90,6 +90,26 @@ const DECISION_STYLES = [
   'I prefer guidance and options',
 ];
 
+// AI Preference options for Updates Over Time
+const AI_PREFERENCE_OPTIONS = [
+  'Be more gentle',
+  'Be more direct',
+  'Ask more questions',
+  'Give shorter responses',
+  'Give more structure/steps',
+];
+
+interface PersonalizationUpdate {
+  id: string;
+  user_id: string;
+  title: string;
+  details?: string;
+  started_at?: string;
+  ai_preference?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
@@ -129,6 +149,21 @@ export default function SettingsScreen() {
   const [culturalContext, setCulturalContext] = useState(preferences.cultural_context || '');
   const [valuesBoundaries, setValuesBoundaries] = useState(preferences.values_boundaries || '');
   const [recentChanges, setRecentChanges] = useState(preferences.recent_changes || '');
+
+  // Updates Over Time State
+  const [showUpdatesModal, setShowUpdatesModal] = useState(false);
+  const [showAddUpdateModal, setShowAddUpdateModal] = useState(false);
+  const [updates, setUpdates] = useState<PersonalizationUpdate[]>([]);
+  const [isLoadingUpdates, setIsLoadingUpdates] = useState(false);
+  const [editingUpdate, setEditingUpdate] = useState<PersonalizationUpdate | null>(null);
+  
+  // Add/Edit Update Form State
+  const [updateTitle, setUpdateTitle] = useState('');
+  const [updateDetails, setUpdateDetails] = useState('');
+  const [updateStartedAt, setUpdateStartedAt] = useState('');
+  const [updateAiPreference, setUpdateAiPreference] = useState('');
+  const [isSavingUpdate, setIsSavingUpdate] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     setSelectedTheme(themeKey);
@@ -478,6 +513,168 @@ export default function SettingsScreen() {
     setShowPersonalizationInfoModal(false);
   };
 
+  // Updates Over Time Handlers
+  const fetchUpdates = async () => {
+    if (!userId) return;
+
+    setIsLoadingUpdates(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_personalization_updates')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[Settings] Error fetching updates:', error);
+        showErrorToast('Failed to load updates');
+      } else {
+        setUpdates(data || []);
+      }
+    } catch (error) {
+      console.error('[Settings] Exception fetching updates:', error);
+      showErrorToast('Failed to load updates');
+    } finally {
+      setIsLoadingUpdates(false);
+    }
+  };
+
+  const handleOpenUpdatesModal = async () => {
+    setShowUpdatesModal(true);
+    await fetchUpdates();
+  };
+
+  const handleCloseUpdatesModal = () => {
+    setShowUpdatesModal(false);
+  };
+
+  const handleOpenAddUpdateModal = () => {
+    setEditingUpdate(null);
+    setUpdateTitle('');
+    setUpdateDetails('');
+    setUpdateStartedAt('');
+    setUpdateAiPreference('');
+    setShowAddUpdateModal(true);
+  };
+
+  const handleOpenEditUpdateModal = (update: PersonalizationUpdate) => {
+    setEditingUpdate(update);
+    setUpdateTitle(update.title);
+    setUpdateDetails(update.details || '');
+    setUpdateStartedAt(update.started_at || '');
+    setUpdateAiPreference(update.ai_preference || '');
+    setShowAddUpdateModal(true);
+  };
+
+  const handleCloseAddUpdateModal = () => {
+    setShowAddUpdateModal(false);
+    setEditingUpdate(null);
+    setUpdateTitle('');
+    setUpdateDetails('');
+    setUpdateStartedAt('');
+    setUpdateAiPreference('');
+  };
+
+  const handleSaveUpdate = async () => {
+    if (!userId) {
+      showErrorToast('User ID not found');
+      return;
+    }
+
+    if (!updateTitle.trim()) {
+      showErrorToast('Please enter what changed');
+      return;
+    }
+
+    setIsSavingUpdate(true);
+
+    try {
+      const updateData = {
+        user_id: userId,
+        title: updateTitle.trim(),
+        details: updateDetails.trim() || null,
+        started_at: updateStartedAt || null,
+        ai_preference: updateAiPreference || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (editingUpdate) {
+        // Update existing
+        const { error } = await supabase
+          .from('user_personalization_updates')
+          .update(updateData)
+          .eq('id', editingUpdate.id);
+
+        if (error) {
+          console.error('[Settings] Error updating update:', error);
+          showErrorToast('Failed to save update');
+        } else {
+          showSuccessToast('Update saved');
+          handleCloseAddUpdateModal();
+          await fetchUpdates();
+        }
+      } else {
+        // Insert new
+        const { error } = await supabase
+          .from('user_personalization_updates')
+          .insert([updateData]);
+
+        if (error) {
+          console.error('[Settings] Error creating update:', error);
+          showErrorToast('Failed to save update');
+        } else {
+          showSuccessToast('Update added');
+          handleCloseAddUpdateModal();
+          await fetchUpdates();
+        }
+      }
+    } catch (error) {
+      console.error('[Settings] Exception saving update:', error);
+      showErrorToast('Failed to save update');
+    } finally {
+      setIsSavingUpdate(false);
+    }
+  };
+
+  const handleDeleteUpdate = async (updateId: string) => {
+    Alert.alert(
+      'Delete Update',
+      'Are you sure you want to delete this update?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('user_personalization_updates')
+                .delete()
+                .eq('id', updateId);
+
+              if (error) {
+                console.error('[Settings] Error deleting update:', error);
+                showErrorToast('Failed to delete update');
+              } else {
+                showSuccessToast('Update deleted');
+                await fetchUpdates();
+              }
+            } catch (error) {
+              console.error('[Settings] Exception deleting update:', error);
+              showErrorToast('Failed to delete update');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   const renderToneCard = (toneId: string) => {
     const tone = getToneById(toneId);
     if (!tone) return null;
@@ -776,7 +973,7 @@ export default function SettingsScreen() {
                 </Text>
 
                 <TouchableOpacity
-                  style={[styles.row, { borderBottomWidth: 0, marginTop: 8 }]}
+                  style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)', marginTop: 8 }]}
                   onPress={handleOpenPersonalizationModal}
                   activeOpacity={0.7}
                 >
@@ -793,6 +990,36 @@ export default function SettingsScreen() {
                       </Text>
                       <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
                         {hasPersonalizationData ? 'Configured' : 'Not set'}
+                      </Text>
+                    </View>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="arrow_forward"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+
+                {/* Updates Over Time Section */}
+                <TouchableOpacity
+                  style={[styles.row, { borderBottomWidth: 0, marginTop: 0 }]}
+                  onPress={handleOpenUpdatesModal}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="clock.fill"
+                      android_material_icon_name="schedule"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
+                        Updates Over Time
+                      </Text>
+                      <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
+                        {updates.length > 0 ? `${updates.length} update${updates.length !== 1 ? 's' : ''}` : 'No updates yet'}
                       </Text>
                     </View>
                   </View>
@@ -1635,6 +1862,292 @@ export default function SettingsScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Updates Over Time Modal */}
+      <Modal
+        visible={showUpdatesModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleCloseUpdatesModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.updatesModalContent, { backgroundColor: '#FFFFFF' }]}>
+            <View style={styles.updatesModalHeader}>
+              <TouchableOpacity
+                onPress={handleCloseUpdatesModal}
+                style={styles.updatesModalCloseButton}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="xmark"
+                  android_material_icon_name="close"
+                  size={24}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+              <Text style={[styles.updatesModalTitle, { color: theme.textPrimary }]}>
+                Updates Over Time
+              </Text>
+              <View style={{ width: 40 }} />
+            </View>
+
+            <Text style={[styles.updatesModalDescription, { color: theme.textSecondary }]}>
+              Add short updates so responses stay relevant to what you&apos;re experiencing.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.addUpdateButton, { backgroundColor: theme.primary }]}
+              onPress={handleOpenAddUpdateModal}
+              activeOpacity={0.8}
+            >
+              <IconSymbol
+                ios_icon_name="plus"
+                android_material_icon_name="add"
+                size={20}
+                color="#FFFFFF"
+              />
+              <Text style={styles.addUpdateButtonText}>Add update</Text>
+            </TouchableOpacity>
+
+            <ScrollView
+              style={styles.updatesListScrollView}
+              contentContainerStyle={styles.updatesListContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {isLoadingUpdates ? (
+                <View style={styles.updatesLoadingContainer}>
+                  <ActivityIndicator size="large" color={theme.primary} />
+                </View>
+              ) : updates.length === 0 ? (
+                <View style={styles.updatesEmptyContainer}>
+                  <IconSymbol
+                    ios_icon_name="clock"
+                    android_material_icon_name="schedule"
+                    size={48}
+                    color={theme.textSecondary}
+                  />
+                  <Text style={[styles.updatesEmptyText, { color: theme.textSecondary }]}>
+                    No updates yet
+                  </Text>
+                  <Text style={[styles.updatesEmptySubtext, { color: theme.textSecondary }]}>
+                    Add your first update to help personalize your experience
+                  </Text>
+                </View>
+              ) : (
+                updates.map((update, index) => (
+                  <View
+                    key={update.id}
+                    style={[
+                      styles.updateCard,
+                      {
+                        backgroundColor: theme.background,
+                        borderColor: theme.textSecondary + '20',
+                      },
+                    ]}
+                  >
+                    <View style={styles.updateCardHeader}>
+                      <Text style={[styles.updateCardTitle, { color: theme.textPrimary }]}>
+                        {update.title}
+                      </Text>
+                      {update.started_at && (
+                        <Text style={[styles.updateCardDate, { color: theme.textSecondary }]}>
+                          {formatDate(update.started_at)}
+                        </Text>
+                      )}
+                    </View>
+
+                    {update.details && (
+                      <Text
+                        style={[styles.updateCardDetails, { color: theme.textSecondary }]}
+                        numberOfLines={2}
+                      >
+                        {update.details}
+                      </Text>
+                    )}
+
+                    {update.ai_preference && (
+                      <View style={[styles.updateCardPreference, { backgroundColor: theme.primary + '15' }]}>
+                        <Text style={[styles.updateCardPreferenceText, { color: theme.primary }]}>
+                          {update.ai_preference}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={styles.updateCardActions}>
+                      <TouchableOpacity
+                        style={styles.updateCardActionButton}
+                        onPress={() => handleOpenEditUpdateModal(update)}
+                        activeOpacity={0.7}
+                      >
+                        <IconSymbol
+                          ios_icon_name="pencil"
+                          android_material_icon_name="edit"
+                          size={18}
+                          color={theme.primary}
+                        />
+                        <Text style={[styles.updateCardActionText, { color: theme.primary }]}>
+                          Edit
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.updateCardActionButton}
+                        onPress={() => handleDeleteUpdate(update.id)}
+                        activeOpacity={0.7}
+                      >
+                        <IconSymbol
+                          ios_icon_name="trash"
+                          android_material_icon_name="delete"
+                          size={18}
+                          color="#FF3B30"
+                        />
+                        <Text style={[styles.updateCardActionText, { color: '#FF3B30' }]}>
+                          Delete
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Add/Edit Update Modal */}
+      <Modal
+        visible={showAddUpdateModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleCloseAddUpdateModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <ScrollView
+            contentContainerStyle={styles.modalScrollContent}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <View style={[styles.addUpdateModalContent, { backgroundColor: '#FFFFFF' }]}>
+              <View style={styles.modalIconContainer}>
+                <IconSymbol
+                  ios_icon_name="plus.circle.fill"
+                  android_material_icon_name="add_circle"
+                  size={48}
+                  color={theme.primary}
+                />
+              </View>
+
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                {editingUpdate ? 'Edit Update' : 'Add Update'}
+              </Text>
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  What changed? *
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.background,
+                      color: theme.textPrimary,
+                      borderColor: theme.primary,
+                    },
+                  ]}
+                  placeholder="e.g., Feeling more sensitive lately"
+                  placeholderTextColor={theme.textSecondary}
+                  value={updateTitle}
+                  onChangeText={setUpdateTitle}
+                  editable={!isSavingUpdate}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  Details (optional)
+                </Text>
+                <TextInput
+                  style={[
+                    styles.multilineTextInput,
+                    {
+                      backgroundColor: theme.background,
+                      color: theme.textPrimary,
+                      borderColor: theme.textSecondary + '30',
+                    },
+                  ]}
+                  placeholder="Add more context if helpful"
+                  placeholderTextColor={theme.textSecondary}
+                  multiline
+                  numberOfLines={3}
+                  value={updateDetails}
+                  onChangeText={setUpdateDetails}
+                  editable={!isSavingUpdate}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  When did this start? (optional)
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.background,
+                      color: theme.textPrimary,
+                      borderColor: theme.textSecondary + '30',
+                    },
+                  ]}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={theme.textSecondary}
+                  value={updateStartedAt}
+                  onChangeText={setUpdateStartedAt}
+                  editable={!isSavingUpdate}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  How should the AI respond differently? (optional)
+                </Text>
+                {renderOptionCard(AI_PREFERENCE_OPTIONS, updateAiPreference, setUpdateAiPreference)}
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                  onPress={handleCloseAddUpdateModal}
+                  disabled={isSavingUpdate}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
+                  onPress={handleSaveUpdate}
+                  disabled={isSavingUpdate}
+                  activeOpacity={0.8}
+                >
+                  {isSavingUpdate ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalButtonText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
     </>
   );
 }
@@ -1851,6 +2364,14 @@ const styles = StyleSheet.create({
     boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
     elevation: 5,
   },
+  addUpdateModalContent: {
+    borderRadius: 20,
+    padding: '6%',
+    width: '100%',
+    maxWidth: 500,
+    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
+    elevation: 5,
+  },
   modalIconContainer: {
     alignItems: 'center',
     marginBottom: '5%',
@@ -2031,5 +2552,134 @@ const styles = StyleSheet.create({
   },
   personalizationButtonsContainer: {
     marginTop: 8,
+  },
+  updatesModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: SCREEN_HEIGHT * 0.85,
+    paddingTop: 16,
+  },
+  updatesModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
+  },
+  updatesModalCloseButton: {
+    padding: 8,
+  },
+  updatesModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  updatesModalDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  addUpdateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    gap: 8,
+  },
+  addUpdateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  updatesListScrollView: {
+    flex: 1,
+  },
+  updatesListContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  updatesLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  updatesEmptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  updatesEmptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  updatesEmptySubtext: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
+  updateCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  updateCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  updateCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 12,
+  },
+  updateCardDate: {
+    fontSize: 13,
+  },
+  updateCardDetails: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  updateCardPreference: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  updateCardPreferenceText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  updateCardActions: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.08)',
+  },
+  updateCardActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  updateCardActionText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
