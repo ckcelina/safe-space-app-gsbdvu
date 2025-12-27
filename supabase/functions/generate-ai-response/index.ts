@@ -378,6 +378,27 @@ async function getPersonMemories(supabase: any, userId: string, personId: string
   }
 }
 
+// ✅ NEW: Fetch user base preferences from Supabase
+async function getUserPreferences(supabase: any, userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("user_preferences")
+      .select("conversation_style, stress_response, processing_style, decision_style, cultural_context, values_boundaries, recent_changes")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      console.log("[Edge] Error fetching user preferences:", error.message);
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    console.log("[Edge] Exception in getUserPreferences:", err);
+    return null;
+  }
+}
+
 // Fetch user personalization updates from Supabase
 async function getUserPersonalizationUpdates(supabase: any, userId: string, limit = 3) {
   try {
@@ -398,6 +419,52 @@ async function getUserPersonalizationUpdates(supabase: any, userId: string, limi
     console.log("[Edge] Exception in getUserPersonalizationUpdates:", err);
     return [];
   }
+}
+
+// ✅ NEW: Build personalization context string
+function buildPersonalizationContext(preferences: any, updates: any[]): string {
+  const contextParts: string[] = [];
+
+  // Add base preferences if they exist
+  if (preferences) {
+    if (preferences.conversation_style) {
+      contextParts.push(`Prefers ${preferences.conversation_style.toLowerCase()} conversation style`);
+    }
+    if (preferences.stress_response) {
+      contextParts.push(`When stressed, finds ${preferences.stress_response.toLowerCase()} most helpful`);
+    }
+    if (preferences.processing_style) {
+      contextParts.push(`Processes emotions ${preferences.processing_style.toLowerCase()}`);
+    }
+    if (preferences.decision_style) {
+      contextParts.push(`Decision-making: ${preferences.decision_style.toLowerCase()}`);
+    }
+    if (preferences.cultural_context) {
+      contextParts.push(`Cultural context: ${clean(preferences.cultural_context)}`);
+    }
+    if (preferences.values_boundaries) {
+      contextParts.push(`Values/boundaries: ${clean(preferences.values_boundaries)}`);
+    }
+    if (preferences.recent_changes) {
+      contextParts.push(`Recent changes: ${clean(preferences.recent_changes)}`);
+    }
+  }
+
+  // Add recent updates if they exist
+  if (updates && updates.length > 0) {
+    updates.forEach((update, index) => {
+      let updateText = `Update ${index + 1}: ${update.title}`;
+      if (update.details) {
+        updateText += ` - ${clean(update.details)}`;
+      }
+      if (update.ai_preference) {
+        updateText += ` (Preference: ${update.ai_preference})`;
+      }
+      contextParts.push(updateText);
+    });
+  }
+
+  return contextParts.join(". ");
 }
 
 // Build Voice Contract based on ai_tone_id
@@ -866,32 +933,31 @@ async function buildSystemPrompt(
     }
   }
 
-  // ✅ FETCH AND INCLUDE USER PERSONALIZATION UPDATES
+  // ✅ FETCH AND INCLUDE USER PERSONALIZATION DATA
+  const preferences = await getUserPreferences(supabase, userId);
   const updates = await getUserPersonalizationUpdates(supabase, userId, 3);
-  if (updates.length > 0) {
-    basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📝 RECENT USER UPDATES (Personal Preferences):
+  
+  if (preferences || (updates && updates.length > 0)) {
+    const personalizationContext = buildPersonalizationContext(preferences, updates);
+    
+    if (personalizationContext) {
+      basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 USER PERSONALIZATION (Optional Context):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-The user has shared recent changes to help you stay relevant:`;
-    
-    updates.forEach((update, index) => {
-      basePrompt += `\n\n${index + 1}. ${update.title}`;
-      if (update.details) {
-        basePrompt += `\n   Details: ${update.details}`;
-      }
-      if (update.ai_preference) {
-        basePrompt += `\n   Preference: ${update.ai_preference}`;
-      }
-      if (update.started_at) {
-        const date = new Date(update.started_at);
-        basePrompt += `\n   Started: ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-      }
-    });
+${personalizationContext}
 
-    basePrompt += `\n\n⚠️ IMPORTANT: These are self-reflection notes for personalization only. Do NOT diagnose, label, or classify the user. Respect their preferences and adjust your responses accordingly.
+⚠️ USAGE RULES:
+- Use this ONLY to subtly adjust tone, pacing, emotional framing, and examples
+- Do NOT diagnose, label, or classify the user
+- Do NOT suggest treatment or name disorders
+- Do NOT say this data implies a condition
+- Do NOT mention "mental health profiling" or "brain wiring" explicitly
+- If no personalization data exists, behave exactly as you normally would
+- This is user-written self-reflection for personalization only
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    }
   }
 
   basePrompt += `\n\nCore rules:
