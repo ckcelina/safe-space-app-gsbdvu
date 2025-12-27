@@ -9,6 +9,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Switch,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
@@ -16,6 +17,7 @@ import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useUserPreferences } from '@/contexts/UserPreferencesContext';
 import { getToneById } from '@/constants/AITones';
+import { THERAPIST_PERSONAS } from '@/constants/TherapistPersonas';
 import { IconSymbol } from '@/components/IconSymbol';
 import { showSuccessToast, showErrorToast } from '@/utils/toast';
 
@@ -55,6 +57,7 @@ export default function AIPreferencesOnboardingScreen() {
   const { preferences, updatePreferences } = useUserPreferences();
   
   const [selectedToneId, setSelectedToneId] = useState(preferences.ai_tone_id);
+  const [selectedPersonaId, setSelectedPersonaId] = useState(preferences.therapist_persona_id || null);
   const [scienceMode, setScienceMode] = useState(preferences.ai_science_mode);
   const [isSaving, setIsSaving] = useState(false);
   const [showAdvancedStyles, setShowAdvancedStyles] = useState(false);
@@ -64,6 +67,7 @@ export default function AIPreferencesOnboardingScreen() {
     
     const result = await updatePreferences({
       ai_tone_id: selectedToneId,
+      therapist_persona_id: selectedPersonaId || undefined,
       ai_science_mode: scienceMode,
     });
 
@@ -79,6 +83,71 @@ export default function AIPreferencesOnboardingScreen() {
 
   const handleSkip = () => {
     router.replace('/(tabs)/(home)');
+  };
+
+  const renderPersonaCard = (persona: typeof THERAPIST_PERSONAS[0]) => {
+    const isSelected = selectedPersonaId === persona.id;
+
+    return (
+      <TouchableOpacity
+        key={persona.id}
+        style={[
+          styles.personaCard,
+          {
+            backgroundColor: isSelected ? theme.primary + '15' : theme.background,
+            borderColor: isSelected ? theme.primary : theme.textSecondary + '30',
+          },
+        ]}
+        onPress={() => setSelectedPersonaId(persona.id)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.personaImageContainer}>
+          <Image
+            source={persona.image}
+            style={styles.personaImage}
+            resizeMode="cover"
+          />
+        </View>
+        <View style={styles.personaContent}>
+          <View style={styles.personaHeader}>
+            <View style={styles.personaTextContainer}>
+              <Text
+                style={[
+                  styles.personaName,
+                  {
+                    color: isSelected ? theme.primary : theme.textPrimary,
+                    fontWeight: isSelected ? '700' : '600',
+                  },
+                ]}
+              >
+                {persona.name}
+              </Text>
+              <Text
+                style={[
+                  styles.personaLabel,
+                  {
+                    color: isSelected ? theme.primary : theme.textSecondary,
+                  },
+                ]}
+              >
+                {persona.label}
+              </Text>
+            </View>
+            {isSelected && (
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={24}
+                color={theme.primary}
+              />
+            )}
+          </View>
+          <Text style={[styles.personaDescription, { color: theme.textSecondary }]}>
+            {persona.long_description}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
   };
 
   const renderToneCard = (toneId: string) => {
@@ -137,6 +206,32 @@ export default function AIPreferencesOnboardingScreen() {
           <Text style={[styles.subtitle, { color: theme.buttonText }]}>
             Customize how Safe Space communicates with you. You can change this anytime in Settings.
           </Text>
+        </View>
+
+        {/* Therapist Persona Selection */}
+        <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+            Choose Your Guide
+          </Text>
+          <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>
+            Select a therapist persona to guide your conversations
+          </Text>
+
+          <View style={styles.personasContainer}>
+            {THERAPIST_PERSONAS.map((persona) => renderPersonaCard(persona))}
+          </View>
+
+          {selectedPersonaId && (
+            <TouchableOpacity
+              style={styles.clearPersonaButton}
+              onPress={() => setSelectedPersonaId(null)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.clearPersonaText, { color: theme.textSecondary }]}>
+                Clear selection (use default AI)
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Tone Selection */}
@@ -264,6 +359,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 16,
+  },
+  personasContainer: {
+    gap: 12,
+  },
+  personaCard: {
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  personaImageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    overflow: 'hidden',
+    marginRight: 16,
+  },
+  personaImage: {
+    width: '100%',
+    height: '100%',
+  },
+  personaContent: {
+    flex: 1,
+  },
+  personaHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  personaTextContainer: {
+    flex: 1,
+  },
+  personaName: {
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  personaLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  personaDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  clearPersonaButton: {
+    marginTop: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  clearPersonaText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   tonesScrollView: {
     maxHeight: 400,
