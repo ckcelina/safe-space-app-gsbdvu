@@ -218,6 +218,8 @@ export default function MemoriesScreen() {
 
     if (__DEV__) {
       console.log('[Memories] Toggling continuity to:', value);
+      console.log('[Memories] ⚠️  NOTE: This toggle ONLY affects saving NEW memories.');
+      console.log('[Memories]    Existing memories will ALWAYS be displayed regardless of toggle state.');
     }
     setContinuityLoading(true);
 
@@ -281,10 +283,16 @@ export default function MemoriesScreen() {
   }, []);
 
   /**
-   * ENHANCED: Fetch memories from Supabase with detailed logging
-   * Uses the query pattern specified in requirements:
+   * CRITICAL: Fetch memories from Supabase
+   * 
+   * This query INTENTIONALLY does NOT filter by continuity_enabled.
+   * The continuity toggle ONLY affects saving NEW memories, not displaying existing ones.
+   * ALL existing memories are ALWAYS displayed regardless of toggle state.
+   * 
+   * Query pattern:
    * - Filter by user_id and person_id (BOTH ARE UUIDs)
    * - Order by updated_at DESC NULLS LAST, then created_at DESC NULLS LAST
+   * - NO FILTER on continuity_enabled (this is stored in person_chat_summaries, not person_memories)
    */
   const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
@@ -317,6 +325,9 @@ export default function MemoriesScreen() {
         console.log('[Memories] User ID:', currentUser.id);
         console.log('[Memories] Person ID:', personId);
         console.log('[Memories] Person Name:', personName);
+        console.log('[Memories] Continuity Enabled:', continuityEnabled);
+        console.log('[Memories] ⚠️  IMPORTANT: Query does NOT filter by continuity_enabled');
+        console.log('[Memories]    ALL memories are fetched regardless of toggle state');
         console.log('[Memories] Query filters:');
         console.log('[Memories]   - user_id =', currentUser.id);
         console.log('[Memories]   - person_id =', personId);
@@ -325,7 +336,9 @@ export default function MemoriesScreen() {
         console.log('───────────────────────────────────────────────────────');
       }
 
-      // Query with proper ordering as specified in requirements
+      // CRITICAL: This query does NOT filter by continuity_enabled
+      // The continuity toggle ONLY affects saving NEW memories
+      // ALL existing memories are ALWAYS displayed
       const { data, error: fetchError } = await supabase
         .from('person_memories')
         .select('*')
@@ -373,6 +386,7 @@ export default function MemoriesScreen() {
           console.log('[Memories]     1. No memories have been saved yet');
           console.log('[Memories]     2. The person_id does not match any records');
           console.log('[Memories]     3. RLS policies are blocking access');
+          console.log('[Memories]   - NOTE: The continuity toggle does NOT affect this query');
         }
       }
       
@@ -410,7 +424,7 @@ export default function MemoriesScreen() {
         setRefreshing(false);
       }
     }
-  }, [personId, personName, currentUser?.id, groupMemoriesByKey]);
+  }, [personId, personName, currentUser?.id, continuityEnabled, groupMemoriesByKey]);
 
   // Fetch on mount
   useEffect(() => {
@@ -696,6 +710,10 @@ export default function MemoriesScreen() {
                 ios_backgroundColor={theme.textSecondary + '40'}
               />
             </View>
+            <Text style={[styles.continuityDescription, { color: theme.textSecondary }]}>
+              When enabled, the AI will save new memories from your conversations. 
+              Your existing memories below are always visible.
+            </Text>
           </View>
 
           {/* Loading State */}
@@ -1010,6 +1028,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
   },
   continuityTitleRow: {
     flex: 1,
@@ -1025,6 +1044,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.1,
     flex: 1,
+  },
+  continuityDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '400',
+    marginTop: 4,
   },
   loadingState: {
     flex: 1,
