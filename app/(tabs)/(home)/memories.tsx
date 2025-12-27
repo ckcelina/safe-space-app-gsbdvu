@@ -232,8 +232,8 @@ export default function MemoriesScreen() {
       }
       showSuccessToast(
         value 
-          ? 'Conversation continuity enabled' 
-          : 'Conversation continuity disabled'
+          ? 'Memory saving enabled' 
+          : 'Memory saving paused'
       );
     } catch (err) {
       console.error('[Memories] Error updating continuity setting:', err);
@@ -695,7 +695,7 @@ export default function MemoriesScreen() {
                   style={styles.continuityIcon}
                 />
                 <Text style={[styles.continuityTitle, { color: theme.textPrimary }]}>
-                  Continue conversations
+                  Save new memories
                 </Text>
               </View>
               <Switch
@@ -711,8 +711,9 @@ export default function MemoriesScreen() {
               />
             </View>
             <Text style={[styles.continuityDescription, { color: theme.textSecondary }]}>
-              When enabled, the AI will save new memories from your conversations. 
-              Your existing memories below are always visible.
+              {continuityEnabled 
+                ? 'The AI will save important details from your conversations as memories.'
+                : 'Memory saving is paused. Your existing memories below remain visible and can be edited.'}
             </Text>
           </View>
 
@@ -736,7 +737,9 @@ export default function MemoriesScreen() {
                 No memories saved yet
               </Text>
               <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-                As you chat, the AI will save important details here.
+                {continuityEnabled 
+                  ? 'As you chat, the AI will save important details here.'
+                  : 'Memory saving is currently paused. Turn it on to start saving new memories.'}
               </Text>
             </View>
           )}
