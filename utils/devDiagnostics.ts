@@ -58,40 +58,17 @@ export function runDevDiagnostics() {
       console.log('✅ All required environment variables are present');
     }
     
-    // Check Metro bundler connection
-    checkMetroConnection();
+    // Log Metro bundler status (without making network requests)
+    if (typeof global !== 'undefined' && global.__DEV__) {
+      console.log('✅ Metro bundler: Connected (JS bundle loaded successfully)');
+      console.log('📦 Running in development mode with hot reload enabled');
+    }
     
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🔧 DEV DIAGNOSTICS END');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   } catch (error) {
     console.log('[Dev Diagnostics] Error running diagnostics:', error);
-  }
-}
-
-/**
- * Check if Metro bundler is reachable
- * This helps diagnose "Your app is starting..." issues
- */
-function checkMetroConnection() {
-  if (!isDev) return;
-
-  try {
-    // In development, if we've reached this point, Metro is working
-    // (otherwise the JS bundle wouldn't have loaded)
-    console.log('✅ Metro bundler: Connected (JS bundle loaded successfully)');
-    
-    // Log helpful info about the connection
-    if (typeof global !== 'undefined' && global.__DEV__) {
-      console.log('📦 Running in development mode with hot reload enabled');
-    }
-  } catch (error) {
-    console.log('⚠️ Metro bundler: Unable to verify connection');
-    console.log('   If you see "Your app is starting..." for a long time:');
-    console.log('   1. Check that Metro bundler is running (npm run dev)');
-    console.log('   2. Try restarting Metro with --clear flag');
-    console.log('   3. Check your network connection');
-    console.log('   4. Ensure your device/emulator can reach your computer');
   }
 }
 

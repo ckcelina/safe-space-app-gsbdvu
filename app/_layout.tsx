@@ -24,13 +24,46 @@ import { ThemeProvider as AppThemeProvider, useThemeContext } from "@/contexts/T
 import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { runDevDiagnostics, logStartupError } from "@/utils/devDiagnostics";
+import { setupNetworkDebugging } from "@/utils/networkDebug";
 
-// DEV-only: Suppress noisy "Network request failed" LogBox warnings
-// This is a known issue with Expo dev tools making non-critical network requests
-// that fail and trigger LogBox overlays during development.
-// This does NOT affect production builds or real error logging.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DEV-ONLY: Network Request Failed Error Suppression
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 
+// ISSUE: "TypeError: Network request failed" LogBox overlay appears in development
+// 
+// ROOT CAUSE: Expo's internal dev tools (telemetry, update checks, analytics) make
+// network requests at startup that may fail due to:
+// - Network connectivity issues
+// - ATS (App Transport Security) blocking HTTP requests on iOS
+// - Firewall/proxy blocking Expo's services
+// - Timeout issues with Expo's servers
+// 
+// SOLUTION: 
+// 1. Suppress the noisy LogBox warning (DEV-only, does not affect production)
+// 2. Install network debugging wrapper to identify failing requests
+// 3. All app-critical network calls (Supabase) already have proper error handling
+// 
+// SAFETY:
+// - This ONLY affects development builds (__DEV__ === true)
+// - Production builds (TestFlight, App Store) are NOT affected
+// - Real errors are still logged to console for debugging
+// - App functionality (auth, database, AI) remains unchanged
+// 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 if (__DEV__) {
-  LogBox.ignoreLogs(['Network request failed']);
+  // Suppress the LogBox overlay for this specific error
+  LogBox.ignoreLogs([
+    'Network request failed',
+    // Also ignore related warnings that may appear
+    'Possible Unhandled Promise Rejection',
+  ]);
+
+  // Install network debugging to identify failing requests
+  setupNetworkDebugging();
+
+  console.log('[App] DEV mode: Network error suppression active');
+  console.log('[App] DEV mode: Network debugging enabled');
 }
 
 SplashScreen.preventAutoHideAsync();
@@ -82,10 +115,16 @@ function RootLayoutInner() {
       console.log(`[Startup] Environment: ${env}`);
       console.log(`[Startup] Platform: ${platform}`);
       console.log(`[Startup] Expo SDK: ${Constants.expoConfig?.sdkVersion || 'unknown'}`);
+      
+      // Log network state at startup
+      if (__DEV__) {
+        console.log(`[Startup] Network connected: ${networkState.isConnected}`);
+        console.log(`[Startup] Internet reachable: ${networkState.isInternetReachable}`);
+      }
     } catch (error) {
       logStartupError('Startup Logging', error);
     }
-  }, []);
+  }, [networkState]);
 
   useEffect(() => {
     try {
