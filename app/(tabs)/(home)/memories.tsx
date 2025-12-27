@@ -173,6 +173,20 @@ export default function MemoriesScreen() {
     };
   }, []);
 
+  // ENHANCED: Validate personId is a valid UUID format
+  useEffect(() => {
+    if (__DEV__) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (personId && !uuidRegex.test(personId)) {
+        console.error('[Memories] ⚠️  CRITICAL: personId is not a valid UUID!');
+        console.error('[Memories]   - Received personId:', personId);
+        console.error('[Memories]   - Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
+      } else if (personId) {
+        console.log('[Memories] ✅ personId is a valid UUID:', personId);
+      }
+    }
+  }, [personId]);
+
   // Fetch continuity setting
   const fetchContinuitySetting = useCallback(async () => {
     if (!personId || !currentUser?.id) {
@@ -267,9 +281,9 @@ export default function MemoriesScreen() {
   }, []);
 
   /**
-   * Fetch memories from Supabase
+   * ENHANCED: Fetch memories from Supabase with detailed logging
    * Uses the query pattern specified in requirements:
-   * - Filter by user_id and person_id
+   * - Filter by user_id and person_id (BOTH ARE UUIDs)
    * - Order by updated_at DESC NULLS LAST, then created_at DESC NULLS LAST
    */
   const fetchMemories = useCallback(async (isRefresh = false) => {
@@ -351,7 +365,14 @@ export default function MemoriesScreen() {
           data.slice(0, 3).forEach((mem, idx) => {
             const groupKey = getMemoryGroupKey(mem);
             console.log(`[Memories]   ${idx + 1}. [${groupKey}] ${mem.value}`);
+            console.log(`[Memories]      person_id: ${mem.person_id}`);
           });
+        } else {
+          console.log('[Memories] ⚠️  No memories found for this person');
+          console.log('[Memories]   - This could mean:');
+          console.log('[Memories]     1. No memories have been saved yet');
+          console.log('[Memories]     2. The person_id does not match any records');
+          console.log('[Memories]     3. RLS policies are blocking access');
         }
       }
       
