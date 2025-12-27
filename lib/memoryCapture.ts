@@ -65,17 +65,13 @@ async function memoryExists(memoryKey: string): Promise<boolean> {
       .maybeSingle();
     
     if (error) {
-      if (__DEV__) {
-        console.log('[MemoryCapture] Error checking duplicate:', error.message);
-      }
+      console.log('[MemoryCapture] Error checking duplicate:', error.message);
       return false; // Assume doesn't exist on error
     }
     
     return !!data;
   } catch (err) {
-    if (__DEV__) {
-      console.log('[MemoryCapture] Unexpected error checking duplicate:', err);
-    }
+    console.log('[MemoryCapture] Unexpected error checking duplicate:', err);
     return false;
   }
 }
@@ -236,21 +232,29 @@ async function saveMemory(
   confidence: number
 ): Promise<boolean> {
   try {
+    console.log('[MemoryCapture] Attempting to save memory...');
+    console.log('[MemoryCapture] - User ID:', userId);
+    console.log('[MemoryCapture] - Person ID:', personId);
+    console.log('[MemoryCapture] - Category:', category);
+    console.log('[MemoryCapture] - Content:', content.substring(0, 50) + '...');
+    
     // Generate memory key for duplicate prevention
     const normalizedContent = normalizeContent(content);
     const memoryKey = await generateMemoryKey(userId, personId, normalizedContent);
     
+    console.log('[MemoryCapture] - Memory key:', memoryKey.substring(0, 16) + '...');
+    
     // Check if memory already exists
     const exists = await memoryExists(memoryKey);
     if (exists) {
-      if (__DEV__) {
-        console.log('[MemoryCapture] Duplicate skipped:', content.substring(0, 50));
-      }
+      console.log('[MemoryCapture] Duplicate detected, skipping:', content.substring(0, 50));
       return false;
     }
     
+    console.log('[MemoryCapture] Inserting new memory into database...');
+    
     // Insert memory
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('memories')
       .insert({
         user_id: userId,
@@ -260,24 +264,28 @@ async function saveMemory(
         source_message: sourceMessage,
         confidence,
         memory_key: memoryKey,
-      });
+      })
+      .select('*')
+      .single();
     
     if (error) {
-      if (__DEV__) {
-        console.log('[MemoryCapture] Insert error:', error.message);
-      }
+      console.error('[MemoryCapture] Insert error:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
       return false;
     }
     
-    if (__DEV__) {
-      console.log('[MemoryCapture] Memory inserted:', content.substring(0, 50));
-    }
-    
+    console.log('[MemoryCapture] ✅ Memory saved successfully! ID:', data?.id);
     return true;
-  } catch (err) {
-    if (__DEV__) {
-      console.log('[MemoryCapture] Unexpected error saving memory:', err);
-    }
+  } catch (err: any) {
+    console.error('[MemoryCapture] Unexpected error saving memory:', {
+      message: err?.message || 'unknown',
+      name: err?.name || 'unknown',
+      stack: err?.stack?.substring(0, 200),
+    });
     return false;
   }
 }
@@ -290,6 +298,10 @@ async function isContinuityEnabled(
   personId: string
 ): Promise<boolean> {
   try {
+    console.log('[MemoryCapture] Checking continuity setting...');
+    console.log('[MemoryCapture] - User ID:', userId);
+    console.log('[MemoryCapture] - Person ID:', personId);
+    
     const { data, error } = await supabase
       .from('person_chat_summaries')
       .select('continuity_enabled')
@@ -297,16 +309,22 @@ async function isContinuityEnabled(
       .eq('person_id', personId)
       .maybeSingle();
     
-    if (error || !data) {
-      // Default to enabled if no record exists
+    if (error) {
+      console.log('[MemoryCapture] Error checking continuity:', error.message);
+      // Default to enabled if no record exists or error
       return true;
     }
     
-    return data.continuity_enabled ?? true;
-  } catch (err) {
-    if (__DEV__) {
-      console.log('[MemoryCapture] Error checking continuity setting:', err);
+    if (!data) {
+      console.log('[MemoryCapture] No continuity record found, defaulting to enabled');
+      return true;
     }
+    
+    const enabled = data.continuity_enabled ?? true;
+    console.log('[MemoryCapture] Continuity enabled:', enabled);
+    return enabled;
+  } catch (err) {
+    console.log('[MemoryCapture] Unexpected error checking continuity:', err);
     // Default to enabled on error
     return true;
   }
@@ -332,36 +350,61 @@ export async function captureMemoriesFromMessage(
 ): Promise<void> {
   // Wrap everything in try-catch to ensure no errors escape
   try {
-    if (__DEV__) {
-      console.log('[MemoryCapture] Starting extraction for message:', messageText.substring(0, 50));
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('[MemoryCapture] 🧠 STARTING MEMORY CAPTURE');
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('[MemoryCapture] User ID:', userId);
+    console.log('[MemoryCapture] Person ID:', personId);
+    console.log('[MemoryCapture] Person Name:', personName);
+    console.log('[MemoryCapture] Category:', category);
+    console.log('[MemoryCapture] Message:', messageText.substring(0, 100) + (messageText.length > 100 ? '...' : ''));
+    console.log('───────────────────────────────────────────────────────');
+    
+    // Validate inputs
+    if (!userId || !personId || !messageText || !personName) {
+      console.error('[MemoryCapture] ❌ Missing required parameters:', {
+        hasUserId: !!userId,
+        hasPersonId: !!personId,
+        hasMessageText: !!messageText,
+        hasPersonName: !!personName,
+      });
+      return;
     }
     
     // Check if continuity is enabled
     const continuityEnabled = await isContinuityEnabled(userId, personId);
     if (!continuityEnabled) {
-      if (__DEV__) {
-        console.log('[MemoryCapture] Continuity disabled, skipping memory capture');
-      }
+      console.log('[MemoryCapture] ⏸️  Continuity disabled, skipping memory capture');
+      console.log('═══════════════════════════════════════════════════════');
       return;
     }
     
     // Extract factual statements
+    console.log('[MemoryCapture] Extracting factual statements...');
     const facts = extractFactualStatements(messageText, personName);
     
     if (facts.length === 0) {
-      if (__DEV__) {
-        console.log('[MemoryCapture] No factual statements extracted from message');
-      }
+      console.log('[MemoryCapture] ℹ️  No factual statements extracted from message');
+      console.log('═══════════════════════════════════════════════════════');
       return;
     }
     
-    if (__DEV__) {
-      console.log('[MemoryCapture] Extracted', facts.length, 'factual statements');
-    }
+    console.log('[MemoryCapture] ✅ Extracted', facts.length, 'factual statement(s)');
+    facts.forEach((fact, index) => {
+      console.log(`[MemoryCapture]   ${index + 1}. ${fact.substring(0, 60)}${fact.length > 60 ? '...' : ''}`);
+    });
+    console.log('───────────────────────────────────────────────────────');
     
     // Save each fact
     let savedCount = 0;
-    for (const fact of facts) {
+    let skippedCount = 0;
+    let errorCount = 0;
+    
+    for (let i = 0; i < facts.length; i++) {
+      const fact = facts[i];
+      console.log(`[MemoryCapture] Processing fact ${i + 1}/${facts.length}...`);
+      
       const saved = await saveMemory(
         userId,
         personId,
@@ -373,16 +416,33 @@ export async function captureMemoriesFromMessage(
       
       if (saved) {
         savedCount++;
+      } else {
+        // Check if it was skipped (duplicate) or error
+        const normalizedContent = normalizeContent(fact);
+        const memoryKey = await generateMemoryKey(userId, personId, normalizedContent);
+        const exists = await memoryExists(memoryKey);
+        if (exists) {
+          skippedCount++;
+        } else {
+          errorCount++;
+        }
       }
     }
     
-    if (__DEV__) {
-      console.log('[MemoryCapture] Saved', savedCount, 'new memories out of', facts.length, 'extracted');
-    }
-  } catch (err) {
+    console.log('───────────────────────────────────────────────────────');
+    console.log('[MemoryCapture] 📊 SUMMARY:');
+    console.log('[MemoryCapture]   ✅ Saved:', savedCount);
+    console.log('[MemoryCapture]   ⏭️  Skipped (duplicates):', skippedCount);
+    console.log('[MemoryCapture]   ❌ Errors:', errorCount);
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('');
+  } catch (err: any) {
     // Silent failure - never crash the chat
-    if (__DEV__) {
-      console.log('[MemoryCapture] Error caught:', err);
-    }
+    console.error('[MemoryCapture] ❌ FATAL ERROR:', {
+      message: err?.message || 'unknown',
+      name: err?.name || 'unknown',
+      stack: err?.stack?.substring(0, 300),
+    });
+    console.log('═══════════════════════════════════════════════════════');
   }
 }

@@ -218,7 +218,9 @@ export default function MemoriesScreen() {
   // Fetch memories
   const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
-      console.warn('[Memories] Missing personId or userId');
+      console.warn('[Memories] ⚠️  Missing personId or userId');
+      console.warn('[Memories]   - personId:', personId || 'MISSING');
+      console.warn('[Memories]   - userId:', currentUser?.id || 'MISSING');
       if (isMountedRef.current) {
         setLoading(false);
         setError('Invalid parameters');
@@ -234,39 +236,76 @@ export default function MemoriesScreen() {
       }
       
       setError(null);
-      console.log('[Memories] Fetching memories for person:', personId, 'user:', currentUser.id);
+      
+      console.log('');
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('[Memories] 📖 LOADING MEMORIES');
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('[Memories] User ID:', currentUser.id);
+      console.log('[Memories] Person ID:', personId);
+      console.log('[Memories] Query filters:');
+      console.log('[Memories]   - user_id =', currentUser.id);
+      console.log('[Memories]   - person_id =', personId);
+      console.log('───────────────────────────────────────────────────────');
 
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError, count } = await supabase
         .from('memories')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('user_id', currentUser.id)
         .eq('person_id', personId)
         .order('created_at', { ascending: false });
 
+      console.log('[Memories] Query executed');
+      console.log('[Memories] Response:');
+      console.log('[Memories]   - Error:', fetchError ? fetchError.message : 'None');
+      console.log('[Memories]   - Row count:', count ?? data?.length ?? 0);
+      console.log('[Memories]   - Data length:', data?.length ?? 0);
+
       if (fetchError) {
-        console.log('[Memories] Error fetching memories:', {
+        console.error('[Memories] ❌ Error fetching memories:', {
           message: fetchError.message,
           code: fetchError.code,
+          details: fetchError.details,
+          hint: fetchError.hint,
         });
         if (isMountedRef.current) {
           setError('Failed to load memories');
         }
+        console.log('═══════════════════════════════════════════════════════');
         return;
       }
 
-      console.log('[Memories] Loaded memories:', data?.length || 0);
+      console.log('[Memories] ✅ Loaded', data?.length || 0, 'memories');
+      
+      if (data && data.length > 0) {
+        console.log('[Memories] Sample memories:');
+        data.slice(0, 3).forEach((mem, idx) => {
+          console.log(`[Memories]   ${idx + 1}. [${mem.category}] ${mem.content.substring(0, 50)}...`);
+        });
+      }
       
       if (isMountedRef.current && data !== null) {
         setMemories(data);
         const grouped = groupMemoriesByCategory(data);
         setGroupedMemories(grouped);
         console.log('[Memories] Grouped into', grouped.length, 'categories');
+        grouped.forEach((cat) => {
+          console.log(`[Memories]   - ${cat.category}: ${cat.memories.length} memories`);
+        });
       }
+      
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('');
     } catch (err: any) {
-      console.log('[Memories] Unexpected error:', err);
+      console.error('[Memories] ❌ Unexpected error:', {
+        message: err?.message || 'unknown',
+        name: err?.name || 'unknown',
+        stack: err?.stack?.substring(0, 200),
+      });
       if (isMountedRef.current) {
         setError('An unexpected error occurred');
       }
+      console.log('═══════════════════════════════════════════════════════');
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
