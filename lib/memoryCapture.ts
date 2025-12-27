@@ -83,10 +83,10 @@ async function memoryExists(memoryKey: string): Promise<boolean> {
 /**
  * Extract factual statements from user message
  * 
- * DETERMINISTIC RULES (v1):
- * - Save stable facts about the person
- * - DO NOT save: greetings, acknowledgements, emotions-only, ephemeral states
- * - SHOULD save: travel dates, birthdays, preferences, dislikes, medical info, relationships
+ * ENHANCED RULES (v2):
+ * - Capture more conversational patterns
+ * - Less strict matching
+ * - More categories of facts
  * 
  * Returns array of extracted facts
  */
@@ -96,9 +96,10 @@ function extractFactualStatements(
 ): string[] {
   const facts: string[] = [];
   const lowerText = messageText.toLowerCase();
+  const trimmedText = messageText.trim();
   
   // Skip if message is too short (likely greeting/acknowledgement)
-  if (messageText.trim().length < 10) {
+  if (trimmedText.length < 10) {
     return facts;
   }
   
@@ -109,67 +110,115 @@ function extractFactualStatements(
   ];
   
   for (const pattern of skipPatterns) {
-    if (pattern.test(messageText.trim())) {
+    if (pattern.test(trimmedText)) {
       return facts;
     }
   }
   
-  // RULE 1: Travel/dates
+  // RULE 1: Travel/dates (RELAXED)
   if (
-    /\b(travelled|traveled|went to|visited|trip to)\b/i.test(messageText) &&
-    /\b(january|february|march|april|may|june|july|august|september|october|november|december|\d{4})\b/i.test(messageText)
+    /\b(travelled|traveled|went to|visited|trip to|vacation|holiday)\b/i.test(messageText)
   ) {
-    facts.push(messageText.trim());
+    facts.push(trimmedText);
   }
   
-  // RULE 2: Birthday/anniversary
+  // RULE 2: Birthday/anniversary (RELAXED)
   if (
-    /\b(birthday|born|anniversary)\b/i.test(messageText) &&
-    /\b(january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2})\b/i.test(messageText)
+    /\b(birthday|born|anniversary|age|years old)\b/i.test(messageText)
   ) {
-    facts.push(messageText.trim());
+    facts.push(trimmedText);
   }
   
-  // RULE 3: Strong preferences/dislikes
+  // RULE 3: Strong preferences/dislikes (RELAXED)
   if (
-    /\b(hates|loves|allergic to|can't stand|favorite|prefers|dislikes)\b/i.test(messageText)
+    /\b(hates|loves|allergic to|can't stand|favorite|prefers|dislikes|really likes|really hates|enjoys|doesn't like)\b/i.test(messageText)
   ) {
-    facts.push(messageText.trim());
+    facts.push(trimmedText);
   }
   
   // RULE 4: Medical/health information
   if (
-    /\b(diagnosed|condition|illness|surgery|medication|treatment|doctor|hospital)\b/i.test(messageText)
+    /\b(diagnosed|condition|illness|surgery|medication|treatment|doctor|hospital|health|sick|disease|injury)\b/i.test(messageText)
   ) {
-    facts.push(messageText.trim());
+    facts.push(trimmedText);
   }
   
   // RULE 5: Relationship status/changes
   if (
-    /\b(married|divorced|engaged|dating|single|partner|spouse|ex-)\b/i.test(messageText)
+    /\b(married|divorced|engaged|dating|single|partner|spouse|ex-|boyfriend|girlfriend|husband|wife)\b/i.test(messageText)
   ) {
-    facts.push(messageText.trim());
+    facts.push(trimmedText);
   }
   
   // RULE 6: Job/career information
   if (
-    /\b(works at|job|career|employed|retired|quit|fired|promoted)\b/i.test(messageText)
+    /\b(works at|job|career|employed|retired|quit|fired|promoted|company|boss|coworker)\b/i.test(messageText)
   ) {
-    facts.push(messageText.trim());
+    facts.push(trimmedText);
   }
   
   // RULE 7: Location/residence
   if (
-    /\b(lives in|moved to|relocated|address|hometown)\b/i.test(messageText)
+    /\b(lives in|moved to|relocated|address|hometown|city|country|neighborhood)\b/i.test(messageText)
   ) {
-    facts.push(messageText.trim());
+    facts.push(trimmedText);
   }
   
   // RULE 8: Education
   if (
-    /\b(graduated|degree|university|college|school|studying|major)\b/i.test(messageText)
+    /\b(graduated|degree|university|college|school|studying|major|student|class)\b/i.test(messageText)
   ) {
-    facts.push(messageText.trim());
+    facts.push(trimmedText);
+  }
+  
+  // RULE 9: Family members (NEW)
+  if (
+    /\b(has a|have a|his|her|their)\s+(son|daughter|child|kid|baby|brother|sister|mother|father|parent|grandparent|aunt|uncle|cousin)\b/i.test(messageText)
+  ) {
+    facts.push(trimmedText);
+  }
+  
+  // RULE 10: Hobbies/interests (NEW)
+  if (
+    /\b(hobby|hobbies|plays|enjoys|interested in|passion|into|fan of)\b/i.test(messageText)
+  ) {
+    facts.push(trimmedText);
+  }
+  
+  // RULE 11: Important events (NEW)
+  if (
+    /\b(happened|occurred|event|incident|accident|celebration|funeral|wedding|graduation)\b/i.test(messageText)
+  ) {
+    facts.push(trimmedText);
+  }
+  
+  // RULE 12: Personality traits (NEW)
+  if (
+    /\b(is very|is really|is always|tends to be|known for being|personality|character|trait)\b/i.test(messageText)
+  ) {
+    facts.push(trimmedText);
+  }
+  
+  // RULE 13: Habits/routines (NEW)
+  if (
+    /\b(always|never|usually|often|habit|routine|every day|every week|regularly)\b/i.test(messageText) &&
+    trimmedText.length > 20
+  ) {
+    facts.push(trimmedText);
+  }
+  
+  // RULE 14: Problems/challenges (NEW)
+  if (
+    /\b(struggling with|problem|issue|challenge|difficulty|trouble|hard time)\b/i.test(messageText)
+  ) {
+    facts.push(trimmedText);
+  }
+  
+  // RULE 15: Achievements/milestones (NEW)
+  if (
+    /\b(achieved|accomplished|milestone|success|won|award|recognition|proud)\b/i.test(messageText)
+  ) {
+    facts.push(trimmedText);
   }
   
   return facts;
@@ -284,7 +333,7 @@ export async function captureMemoriesFromMessage(
   // Wrap everything in try-catch to ensure no errors escape
   try {
     if (__DEV__) {
-      console.log('[MemoryCapture] Extractor started');
+      console.log('[MemoryCapture] Starting extraction for message:', messageText.substring(0, 50));
     }
     
     // Check if continuity is enabled
@@ -301,7 +350,7 @@ export async function captureMemoriesFromMessage(
     
     if (facts.length === 0) {
       if (__DEV__) {
-        console.log('[MemoryCapture] No factual statements extracted');
+        console.log('[MemoryCapture] No factual statements extracted from message');
       }
       return;
     }
@@ -328,7 +377,7 @@ export async function captureMemoriesFromMessage(
     }
     
     if (__DEV__) {
-      console.log('[MemoryCapture] Saved', savedCount, 'new memories');
+      console.log('[MemoryCapture] Saved', savedCount, 'new memories out of', facts.length, 'extracted');
     }
   } catch (err) {
     // Silent failure - never crash the chat
