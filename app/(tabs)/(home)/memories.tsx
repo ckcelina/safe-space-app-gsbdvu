@@ -747,7 +747,7 @@ export default function MemoriesScreen() {
                   : 'Memory saving is currently paused. Turn it on to start saving new memories.'}
               </Text>
               
-              {/* Developer-only debug info */}
+              {/* Developer-only debug info - ONLY visible in __DEV__ */}
               {__DEV__ && (
                 <View style={[styles.debugContainer, { backgroundColor: theme.card, borderColor: theme.textSecondary + '40' }]}>
                   <Text style={[styles.debugTitle, { color: theme.primary }]}>
