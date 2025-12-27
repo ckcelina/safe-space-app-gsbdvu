@@ -421,49 +421,104 @@ async function getUserPersonalizationUpdates(supabase: any, userId: string, limi
   }
 }
 
-// ✅ NEW: Build personalization context string
-function buildPersonalizationContext(preferences: any, updates: any[]): string {
+// ✅ Build personalization context string (SAFE, OPTIONAL, NON-MEDICAL)
+// Combines user preferences + per-person context for AI tone/pacing/examples
+// NEVER diagnoses, labels, or classifies the user
+function buildPersonalizationContext(
+  preferences: any,
+  updates: any[],
+  personName: string,
+  relationshipType: string
+): string {
   const contextParts: string[] = [];
 
-  // Add base preferences if they exist
+  // ═══════════════════════════════════════════════════════════════════
+  // PART 1: USER PERSONALIZATION (from Settings)
+  // ═══════════════════════════════════════════════════════════════════
+  
   if (preferences) {
+    // Conversation style preference
     if (preferences.conversation_style) {
-      contextParts.push(`Prefers ${preferences.conversation_style.toLowerCase()} conversation style`);
+      contextParts.push(`User prefers ${preferences.conversation_style.toLowerCase()} conversation style`);
     }
+    
+    // Stress response preference
     if (preferences.stress_response) {
-      contextParts.push(`When stressed, finds ${preferences.stress_response.toLowerCase()} most helpful`);
+      contextParts.push(`When stressed, user finds ${preferences.stress_response.toLowerCase()} most helpful`);
     }
+    
+    // Emotional processing style
     if (preferences.processing_style) {
-      contextParts.push(`Processes emotions ${preferences.processing_style.toLowerCase()}`);
+      contextParts.push(`User processes emotions ${preferences.processing_style.toLowerCase()}`);
     }
+    
+    // Decision-making style
     if (preferences.decision_style) {
-      contextParts.push(`Decision-making: ${preferences.decision_style.toLowerCase()}`);
+      contextParts.push(`User's decision-making style: ${preferences.decision_style.toLowerCase()}`);
     }
-    if (preferences.cultural_context) {
-      contextParts.push(`Cultural context: ${clean(preferences.cultural_context)}`);
+    
+    // Cultural context (optional, user-written)
+    if (preferences.cultural_context && preferences.cultural_context.trim()) {
+      const cleanedContext = clean(preferences.cultural_context).substring(0, 200);
+      if (cleanedContext) {
+        contextParts.push(`Cultural context: ${cleanedContext}`);
+      }
     }
-    if (preferences.values_boundaries) {
-      contextParts.push(`Values/boundaries: ${clean(preferences.values_boundaries)}`);
+    
+    // Values/boundaries (optional, user-written)
+    if (preferences.values_boundaries && preferences.values_boundaries.trim()) {
+      const cleanedValues = clean(preferences.values_boundaries).substring(0, 200);
+      if (cleanedValues) {
+        contextParts.push(`Values/boundaries to respect: ${cleanedValues}`);
+      }
     }
-    if (preferences.recent_changes) {
-      contextParts.push(`Recent changes: ${clean(preferences.recent_changes)}`);
+    
+    // Recent changes (optional, user-written)
+    if (preferences.recent_changes && preferences.recent_changes.trim()) {
+      const cleanedChanges = clean(preferences.recent_changes).substring(0, 200);
+      if (cleanedChanges) {
+        contextParts.push(`Recent changes noted: ${cleanedChanges}`);
+      }
     }
   }
 
-  // Add recent updates if they exist
+  // Add recent updates if they exist (max 3)
   if (updates && updates.length > 0) {
-    updates.forEach((update, index) => {
-      let updateText = `Update ${index + 1}: ${update.title}`;
-      if (update.details) {
-        updateText += ` - ${clean(update.details)}`;
+    const recentUpdates = updates.slice(0, 3);
+    recentUpdates.forEach((update, index) => {
+      let updateText = `Recent update: ${clean(update.title)}`;
+      
+      if (update.details && update.details.trim()) {
+        const cleanedDetails = clean(update.details).substring(0, 150);
+        if (cleanedDetails) {
+          updateText += ` (${cleanedDetails})`;
+        }
       }
+      
       if (update.ai_preference) {
-        updateText += ` (Preference: ${update.ai_preference})`;
+        updateText += ` [User prefers: ${update.ai_preference}]`;
       }
+      
       contextParts.push(updateText);
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // PART 2: PER-PERSON CONTEXT (from existing app data)
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Add person name and relationship type if available
+  if (personName && personName.trim()) {
+    let personContext = `Conversation is about: ${personName}`;
+    
+    if (relationshipType && relationshipType.trim() && relationshipType !== 'Unknown') {
+      personContext += ` (${relationshipType.toLowerCase()} relationship)`;
+    }
+    
+    contextParts.push(personContext);
+  }
+
+  // Return combined context string
   return contextParts.join(". ");
 }
 
@@ -933,31 +988,61 @@ async function buildSystemPrompt(
     }
   }
 
-  // ✅ FETCH AND INCLUDE USER PERSONALIZATION DATA
+  // ═══════════════════════════════════════════════════════════════════
+  // PERSONALIZATION CONTEXT ASSEMBLY (SAFE, OPTIONAL, NON-MEDICAL)
+  // ═══════════════════════════════════════════════════════════════════
+  // Combines:
+  // 1) User preferences (from Settings)
+  // 2) Per-person context (name, relationship, memories already loaded)
+  // 
+  // This is ONLY used to adjust tone, pacing, examples, and emotional framing.
+  // It does NOT diagnose, label, or classify the user.
+  // If personalization data is empty, behavior remains EXACTLY the same.
+  // ═══════════════════════════════════════════════════════════════════
+  
   const preferences = await getUserPreferences(supabase, userId);
   const updates = await getUserPersonalizationUpdates(supabase, userId, 3);
   
-  if (preferences || (updates && updates.length > 0)) {
-    const personalizationContext = buildPersonalizationContext(preferences, updates);
-    
-    if (personalizationContext) {
-      basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📝 USER PERSONALIZATION (Optional Context):
+  // Build combined personalization context
+  const personalizationContext = buildPersonalizationContext(
+    preferences,
+    updates,
+    personName,
+    relationshipType
+  );
+  
+  // Only add personalization section if we have actual context
+  if (personalizationContext && personalizationContext.trim()) {
+    basePrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 PERSONALIZATION CONTEXT (Optional - Use Subtly):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ${personalizationContext}
 
-⚠️ USAGE RULES:
-- Use this ONLY to subtly adjust tone, pacing, emotional framing, and examples
-- Do NOT diagnose, label, or classify the user
-- Do NOT suggest treatment or name disorders
-- Do NOT say this data implies a condition
-- Do NOT mention "mental health profiling" or "brain wiring" explicitly
-- If no personalization data exists, behave exactly as you normally would
-- This is user-written self-reflection for personalization only
+⚠️ STRICT USAGE RULES:
+
+The AI may ONLY use this context to:
+✓ Adjust tone (gentler, calmer, more direct)
+✓ Adjust pacing (shorter vs reflective)
+✓ Adjust examples (family-safe, partner-safe, neutral)
+✓ Adjust emotional framing
+
+The AI must NEVER:
+✗ Mention personalization settings explicitly
+✗ Say "because of your personality…"
+✗ Diagnose or label the user
+✗ Suggest medical treatment
+✗ Change advice type based on assumptions
+✗ Infer or guess traits not explicitly stated
+✗ Override user intent
+
+PRIVACY & CONTROL:
+- This data is user-written self-reflection only
+- If personalization is cleared, this context disappears immediately
+- Changes must feel subtle, not obvious
+- AI should feel "more natural," not "different"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
-    }
   }
 
   basePrompt += `\n\nCore rules:
