@@ -33,9 +33,10 @@ import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { showErrorToast } from '@/utils/toast';
 import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
-import { upsertPersonContinuity } from '@/lib/memory/personSummary';
+import { upsertPersonContinuity, getPersonContinuity } from '@/lib/memory/personSummary';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
 import { invokeEdgeSafe, copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
+import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -424,22 +425,54 @@ export default function ChatScreen() {
         });
       }
 
+      // ═══════════════════════════════════════════════════════════════════
       // MEMORY CAPTURE: Fire-and-forget capture of factual statements
-      // This is imported from lib/memoryCapture.ts and runs asynchronously
-      // It will never block the chat flow or throw errors
-      import('@/lib/memoryCapture').then(({ captureMemoriesFromMessage }) => {
+      // ═══════════════════════════════════════════════════════════════════
+      // This runs IMMEDIATELY after user message is saved
+      // It NEVER blocks the chat flow or throws errors
+      // It respects the "Continue conversations" toggle
+      // ═══════════════════════════════════════════════════════════════════
+      
+      console.log('[Chat] 🧠 Triggering memory capture...');
+      
+      // Check continuity setting first
+      getPersonContinuity(userId, personId).then((continuityData) => {
+        const continuityEnabled = continuityData.continuity_enabled;
+        
+        console.log('[Chat] Memory capture - continuity enabled:', continuityEnabled);
+        
+        if (continuityEnabled) {
+          console.log('[Chat] Memory capture - calling captureMemoriesFromMessage');
+          // Call the memory capture function (fire-and-forget)
+          captureMemoriesFromMessage(
+            userId,
+            personId,
+            userMessageText,
+            personName,
+            currentSubject
+          ).catch((err) => {
+            // Silent failure - never crash the chat
+            if (__DEV__) {
+              console.log('[Chat] Memory capture failed (silent):', err?.message || 'unknown');
+            }
+          });
+        } else {
+          console.log('[Chat] Memory capture - skipped (continuity disabled)');
+        }
+      }).catch((err) => {
+        // If we can't check continuity, default to enabled
+        if (__DEV__) {
+          console.log('[Chat] Failed to check continuity, defaulting to enabled:', err);
+        }
         captureMemoriesFromMessage(
           userId,
           personId,
           userMessageText,
           personName,
           currentSubject
-        );
-      }).catch(() => {
-        // Silent failure - import error should never happen but catch just in case
-        if (__DEV__) {
-          console.log('[Chat] Memory capture import failed');
-        }
+        ).catch(() => {
+          // Silent failure
+        });
       });
 
       // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
