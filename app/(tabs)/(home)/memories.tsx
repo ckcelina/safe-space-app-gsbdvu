@@ -41,9 +41,9 @@ interface Memory {
   updated_at: string;
 }
 
-// Grouped memories by category
-interface MemoryCategory {
-  category: string;
+// Grouped memories by group key
+interface MemoryGroup {
+  groupKey: string;
   memories: Memory[];
 }
 
@@ -106,6 +106,32 @@ function formatDate(dateString: string): string {
   }
 }
 
+/**
+ * Determine the group key for a memory using the pattern:
+ * group_key || category || 'general'
+ * 
+ * In person_memories table, we don't have a group_key column,
+ * so we use: key (if it looks like a group) || category || 'general'
+ */
+function getMemoryGroupKey(memory: Memory): string {
+  // If key exists and contains a colon (e.g., "medical_history:cancer"),
+  // extract the prefix as the group key
+  if (memory.key && memory.key.includes(':')) {
+    const prefix = memory.key.split(':')[0];
+    if (prefix) {
+      return prefix;
+    }
+  }
+  
+  // Otherwise, use category if available
+  if (memory.category && memory.category.trim()) {
+    return memory.category.trim();
+  }
+  
+  // Default to 'general'
+  return 'general';
+}
+
 export default function MemoriesScreen() {
   const params = useLocalSearchParams<{
     personId?: string | string[];
@@ -120,7 +146,7 @@ export default function MemoriesScreen() {
   const { theme } = useThemeContext();
 
   const [memories, setMemories] = useState<Memory[]>([]);
-  const [groupedMemories, setGroupedMemories] = useState<MemoryCategory[]>([]);
+  const [groupedMemories, setGroupedMemories] = useState<MemoryGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -204,37 +230,48 @@ export default function MemoriesScreen() {
     }
   }, [personId, currentUser?.id]);
 
-  // Group memories by category
-  const groupMemoriesByCategory = useCallback((memoriesData: Memory[]): MemoryCategory[] => {
-    const categoryMap = new Map<string, Memory[]>();
+  /**
+   * Group memories by their group key (key prefix || category || 'general')
+   * and sort within each group by date
+   */
+  const groupMemoriesByKey = useCallback((memoriesData: Memory[]): MemoryGroup[] => {
+    const groupMap = new Map<string, Memory[]>();
     
     memoriesData.forEach((memory) => {
-      const category = memory.category || 'general';
-      if (!categoryMap.has(category)) {
-        categoryMap.set(category, []);
+      const groupKey = getMemoryGroupKey(memory);
+      if (!groupMap.has(groupKey)) {
+        groupMap.set(groupKey, []);
       }
-      categoryMap.get(category)!.push(memory);
+      groupMap.get(groupKey)!.push(memory);
     });
     
-    // Convert to array and sort by category name
-    const grouped = Array.from(categoryMap.entries()).map(([category, memories]) => ({
-      category,
-      memories: memories.sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      ),
+    // Convert to array and sort memories within each group by date (newest first)
+    const grouped = Array.from(groupMap.entries()).map(([groupKey, memories]) => ({
+      groupKey,
+      memories: memories.sort((a, b) => {
+        // Sort by updated_at first (if available), then created_at
+        const aDate = a.updated_at ? new Date(a.updated_at).getTime() : new Date(a.created_at).getTime();
+        const bDate = b.updated_at ? new Date(b.updated_at).getTime() : new Date(b.created_at).getTime();
+        return bDate - aDate; // Descending order (newest first)
+      }),
     }));
     
-    // Sort categories alphabetically, but keep general first
+    // Sort groups alphabetically, but keep 'general' last
     grouped.sort((a, b) => {
-      if (a.category === 'general') return -1;
-      if (b.category === 'general') return 1;
-      return a.category.localeCompare(b.category);
+      if (a.groupKey === 'general') return 1;
+      if (b.groupKey === 'general') return -1;
+      return a.groupKey.localeCompare(b.groupKey);
     });
     
     return grouped;
   }, []);
 
-  // Fetch memories - FIXED to use person_memories table
+  /**
+   * Fetch memories from Supabase
+   * Uses the query pattern specified in requirements:
+   * - Filter by user_id and person_id
+   * - Order by updated_at DESC NULLS LAST, then created_at DESC NULLS LAST
+   */
   const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
       if (__DEV__) {
@@ -270,22 +307,24 @@ export default function MemoriesScreen() {
         console.log('[Memories]   - user_id =', currentUser.id);
         console.log('[Memories]   - person_id =', personId);
         console.log('[Memories]   - table = person_memories');
+        console.log('[Memories]   - order = updated_at DESC NULLS LAST, created_at DESC NULLS LAST');
         console.log('───────────────────────────────────────────────────────');
       }
 
-      const { data, error: fetchError, count } = await supabase
+      // Query with proper ordering as specified in requirements
+      const { data, error: fetchError } = await supabase
         .from('person_memories')
-        .select('*', { count: 'exact' })
+        .select('*')
         .eq('user_id', currentUser.id)
         .eq('person_id', personId)
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false, nullsFirst: false });
 
       if (__DEV__) {
         console.log('[Memories] Query executed');
         console.log('[Memories] Response:');
         console.log('[Memories]   - Error:', fetchError ? fetchError.message : 'None');
-        console.log('[Memories]   - Row count:', count ?? data?.length ?? 0);
-        console.log('[Memories]   - Data length:', data?.length ?? 0);
+        console.log('[Memories]   - Row count:', data?.length ?? 0);
       }
 
       if (fetchError) {
@@ -310,19 +349,20 @@ export default function MemoriesScreen() {
         if (data && data.length > 0) {
           console.log('[Memories] Sample memories:');
           data.slice(0, 3).forEach((mem, idx) => {
-            console.log(`[Memories]   ${idx + 1}. [${mem.category}] ${mem.key}: ${mem.value}`);
+            const groupKey = getMemoryGroupKey(mem);
+            console.log(`[Memories]   ${idx + 1}. [${groupKey}] ${mem.value}`);
           });
         }
       }
       
       if (isMountedRef.current && data !== null) {
         setMemories(data);
-        const grouped = groupMemoriesByCategory(data);
+        const grouped = groupMemoriesByKey(data);
         setGroupedMemories(grouped);
         if (__DEV__) {
-          console.log('[Memories] Grouped into', grouped.length, 'categories');
-          grouped.forEach((cat) => {
-            console.log(`[Memories]   - ${cat.category}: ${cat.memories.length} memories`);
+          console.log('[Memories] Grouped into', grouped.length, 'groups');
+          grouped.forEach((group) => {
+            console.log(`[Memories]   - ${group.groupKey}: ${group.memories.length} memories`);
           });
         }
       }
@@ -349,7 +389,7 @@ export default function MemoriesScreen() {
         setRefreshing(false);
       }
     }
-  }, [personId, personName, currentUser?.id, groupMemoriesByCategory]);
+  }, [personId, personName, currentUser?.id, groupMemoriesByKey]);
 
   // Fetch on mount
   useEffect(() => {
@@ -382,13 +422,13 @@ export default function MemoriesScreen() {
   }, []);
 
   // Toggle section collapse
-  const toggleSection = useCallback((category: string) => {
+  const toggleSection = useCallback((groupKey: string) => {
     setCollapsedSections((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(category)) {
-        newSet.delete(category);
+      if (newSet.has(groupKey)) {
+        newSet.delete(groupKey);
       } else {
-        newSet.add(category);
+        newSet.add(groupKey);
       }
       return newSet;
     });
@@ -507,6 +547,12 @@ export default function MemoriesScreen() {
     );
   }, [currentUser?.id, fetchMemories]);
 
+  // Retry loading on error
+  const handleRetry = useCallback(() => {
+    setError(null);
+    fetchMemories(false);
+  }, [fetchMemories]);
+
   return (
     <KeyboardAvoider>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -561,6 +607,9 @@ export default function MemoriesScreen() {
               style={styles.bannerIcon}
             />
             <Text style={styles.errorBannerText}>{error}</Text>
+            <TouchableOpacity onPress={handleRetry} style={styles.retryButton} activeOpacity={0.7}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => setError(null)} style={styles.dismissButton} activeOpacity={0.7}>
               <IconSymbol
                 ios_icon_name="xmark"
@@ -628,7 +677,18 @@ export default function MemoriesScreen() {
             </View>
           </View>
 
-          {memories.length === 0 && !loading && !refreshing ? (
+          {/* Loading State */}
+          {loading && memories.length === 0 && !error && (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="large" color={theme.primary} />
+              <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+                Loading memories...
+              </Text>
+            </View>
+          )}
+
+          {/* Empty State */}
+          {!loading && !refreshing && memories.length === 0 && !error && (
             <View style={styles.emptyState}>
               <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
                 <Text style={styles.emptyEmoji}>🧠</Text>
@@ -640,29 +700,32 @@ export default function MemoriesScreen() {
                 As you chat, the AI will save important details here.
               </Text>
             </View>
-          ) : (
+          )}
+
+          {/* Memory Groups */}
+          {memories.length > 0 && (
             <>
-              {groupedMemories.map((categoryGroup) => {
-                const icon = getCategoryIcon(categoryGroup.category);
-                const isCollapsed = collapsedSections.has(categoryGroup.category);
-                const displayCategory = formatCategoryName(categoryGroup.category);
+              {groupedMemories.map((memoryGroup) => {
+                const icon = getCategoryIcon(memoryGroup.groupKey);
+                const isCollapsed = collapsedSections.has(memoryGroup.groupKey);
+                const displayName = formatCategoryName(memoryGroup.groupKey);
                 
                 return (
-                  <View key={categoryGroup.category} style={styles.categorySection}>
-                    {/* Category Header - Collapsible */}
+                  <View key={memoryGroup.groupKey} style={styles.categorySection}>
+                    {/* Group Header - Collapsible */}
                     <TouchableOpacity
                       style={styles.categoryHeaderButton}
-                      onPress={() => toggleSection(categoryGroup.category)}
+                      onPress={() => toggleSection(memoryGroup.groupKey)}
                       activeOpacity={0.7}
                     >
                       <View style={styles.categoryHeaderLeft}>
                         <Text style={styles.categoryEmoji}>{icon.emoji}</Text>
                         <Text style={[styles.categoryTitle, { color: theme.textPrimary }]}>
-                          {displayCategory}
+                          {displayName}
                         </Text>
                         <View style={[styles.countBadge, { backgroundColor: theme.primary + '20' }]}>
                           <Text style={[styles.countText, { color: theme.primary }]}>
-                            {categoryGroup.memories.length}
+                            {memoryGroup.memories.length}
                           </Text>
                         </View>
                       </View>
@@ -677,7 +740,7 @@ export default function MemoriesScreen() {
                     {/* Memory Items */}
                     {!isCollapsed && (
                       <View style={styles.memoriesContainer}>
-                        {categoryGroup.memories.map((memory) => (
+                        {memoryGroup.memories.map((memory) => (
                           <View
                             key={memory.id}
                             style={[
@@ -719,7 +782,7 @@ export default function MemoriesScreen() {
                                   {memory.value}
                                 </Text>
                                 <Text style={[styles.memoryDate, { color: theme.textSecondary }]}>
-                                  {formatDate(memory.created_at)}
+                                  {formatDate(memory.updated_at || memory.created_at)}
                                 </Text>
                               </View>
 
@@ -894,6 +957,18 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: '#FFFFFF',
   },
+  retryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  retryButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   dismissButton: {
     padding: 4,
     marginLeft: 8,
@@ -929,6 +1004,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.1,
     flex: 1,
+  },
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  loadingText: {
+    fontSize: 15,
+    fontWeight: '500',
+    marginTop: 16,
   },
   emptyState: {
     flex: 1,
