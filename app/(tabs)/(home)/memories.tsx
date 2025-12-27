@@ -215,7 +215,7 @@ export default function MemoriesScreen() {
     return grouped;
   }, []);
 
-  // Fetch memories
+  // Fetch memories - FIXED to use params instead of non-existent context
   const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
       console.warn('[Memories] ⚠️  Missing personId or userId');
@@ -243,6 +243,7 @@ export default function MemoriesScreen() {
       console.log('═══════════════════════════════════════════════════════');
       console.log('[Memories] User ID:', currentUser.id);
       console.log('[Memories] Person ID:', personId);
+      console.log('[Memories] Person Name:', personName);
       console.log('[Memories] Query filters:');
       console.log('[Memories]   - user_id =', currentUser.id);
       console.log('[Memories]   - person_id =', personId);
@@ -312,7 +313,7 @@ export default function MemoriesScreen() {
         setRefreshing(false);
       }
     }
-  }, [personId, currentUser?.id, groupMemoriesByCategory]);
+  }, [personId, personName, currentUser?.id, groupMemoriesByCategory]);
 
   // Fetch on mount
   useEffect(() => {
