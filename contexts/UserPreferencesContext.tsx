@@ -7,6 +7,7 @@ import { DEFAULT_TONE_ID } from '@/constants/AITones';
 interface UserPreferences {
   ai_tone_id: string;
   ai_science_mode: boolean;
+  therapist_persona_id?: string; // NEW: Therapist persona selection
   conversation_style?: string;
   stress_response?: string;
   processing_style?: string;
@@ -76,6 +77,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
         setPreferences({
           ai_tone_id: data.ai_tone_id || DEFAULT_TONE_ID,
           ai_science_mode: data.ai_science_mode ?? false,
+          therapist_persona_id: data.therapist_persona_id,
           conversation_style: data.conversation_style,
           stress_response: data.stress_response,
           processing_style: data.processing_style,
@@ -130,6 +132,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
             user_id: userId,
             ai_tone_id: patch.ai_tone_id ?? preferences.ai_tone_id,
             ai_science_mode: patch.ai_science_mode ?? preferences.ai_science_mode,
+            therapist_persona_id: patch.therapist_persona_id !== undefined ? patch.therapist_persona_id : preferences.therapist_persona_id,
             conversation_style: patch.conversation_style !== undefined ? patch.conversation_style : preferences.conversation_style,
             stress_response: patch.stress_response !== undefined ? patch.stress_response : preferences.stress_response,
             processing_style: patch.processing_style !== undefined ? patch.processing_style : preferences.processing_style,

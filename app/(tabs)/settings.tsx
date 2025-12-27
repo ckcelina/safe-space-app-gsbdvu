@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Switch,
   Linking,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,6 +30,7 @@ import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
 import { AI_TONES, getToneById } from '@/constants/AITones';
+import { THERAPIST_PERSONAS, getPersonaById } from '@/constants/TherapistPersonas';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -127,6 +129,11 @@ export default function SettingsScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
+  // Therapist Persona Modal State (NEW)
+  const [showPersonaModal, setShowPersonaModal] = useState(false);
+  const [selectedPersonaId, setSelectedPersonaId] = useState(preferences.therapist_persona_id || '');
+  const [isUpdatingPersona, setIsUpdatingPersona] = useState(false);
+
   // AI Preferences Modal State
   const [showAIPreferencesModal, setShowAIPreferencesModal] = useState(false);
   const [selectedToneId, setSelectedToneId] = useState(preferences.ai_tone_id);
@@ -173,6 +180,7 @@ export default function SettingsScreen() {
   useEffect(() => {
     setSelectedToneId(preferences.ai_tone_id);
     setScienceMode(preferences.ai_science_mode);
+    setSelectedPersonaId(preferences.therapist_persona_id || '');
   }, [preferences]);
 
   // Sync personalization preferences when they change
@@ -390,6 +398,33 @@ export default function SettingsScreen() {
       showErrorToast('Something went wrong. Please try again.');
     } finally {
       setIsUpdatingPassword(false);
+    }
+  };
+
+  // Therapist Persona Handlers (NEW)
+  const handleOpenPersonaModal = () => {
+    setShowPersonaModal(true);
+  };
+
+  const handleClosePersonaModal = () => {
+    setShowPersonaModal(false);
+    setSelectedPersonaId(preferences.therapist_persona_id || '');
+  };
+
+  const handleSavePersona = async () => {
+    setIsUpdatingPersona(true);
+
+    const result = await updatePreferences({
+      therapist_persona_id: selectedPersonaId || null,
+    });
+
+    setIsUpdatingPersona(false);
+
+    if (result.success) {
+      showSuccessToast('Therapist persona updated');
+      setShowPersonaModal(false);
+    } else {
+      showErrorToast(result.error || 'Failed to update persona');
     }
   };
 
@@ -720,6 +755,70 @@ export default function SettingsScreen() {
     );
   };
 
+  const renderPersonaCard = (personaId: string) => {
+    const persona = getPersonaById(personaId);
+    if (!persona) return null;
+
+    return (
+      <TouchableOpacity
+        key={persona.id}
+        style={[
+          styles.personaCard,
+          {
+            backgroundColor: selectedPersonaId === persona.id ? theme.primary + '15' : theme.background,
+            borderColor: selectedPersonaId === persona.id ? theme.primary : theme.textSecondary + '30',
+          },
+        ]}
+        onPress={() => setSelectedPersonaId(persona.id)}
+        activeOpacity={0.7}
+      >
+        <Image
+          source={persona.image}
+          style={styles.personaImage}
+          resizeMode="cover"
+        />
+        <View style={styles.personaCardContent}>
+          <View style={styles.personaCardHeader}>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.personaName,
+                  {
+                    color: selectedPersonaId === persona.id ? theme.primary : theme.textPrimary,
+                    fontWeight: selectedPersonaId === persona.id ? '700' : '600',
+                  },
+                ]}
+              >
+                {persona.name}
+              </Text>
+              <Text
+                style={[
+                  styles.personaLabel,
+                  {
+                    color: selectedPersonaId === persona.id ? theme.primary : theme.textSecondary,
+                  },
+                ]}
+              >
+                {persona.label}
+              </Text>
+            </View>
+            {selectedPersonaId === persona.id && (
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check_circle"
+                size={24}
+                color={theme.primary}
+              />
+            )}
+          </View>
+          <Text style={[styles.personaDescription, { color: theme.textSecondary }]}>
+            {persona.long_description}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   const renderOptionCard = (
     options: string[],
     selectedValue: string,
@@ -727,9 +826,9 @@ export default function SettingsScreen() {
   ) => {
     return (
       <View style={styles.optionCardsContainer}>
-        {options.map((option) => (
+        {options.map((option, index) => (
           <TouchableOpacity
-            key={option}
+            key={index}
             style={[
               styles.optionCard,
               {
@@ -775,6 +874,8 @@ export default function SettingsScreen() {
     preferences.cultural_context ||
     preferences.values_boundaries ||
     preferences.recent_changes;
+
+  const selectedPersona = getPersonaById(preferences.therapist_persona_id || '');
 
   return (
     <>
@@ -887,6 +988,36 @@ export default function SettingsScreen() {
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                   AI Style Preferences
                 </Text>
+
+                {/* Therapist Persona (NEW) */}
+                <TouchableOpacity
+                  style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)' }]}
+                  onPress={handleOpenPersonaModal}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="person.circle.fill"
+                      android_material_icon_name="account_circle"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
+                        Therapist Persona
+                      </Text>
+                      <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
+                        {selectedPersona ? selectedPersona.name : 'Not selected'}
+                      </Text>
+                    </View>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="arrow_forward"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)' }]}
@@ -1043,9 +1174,9 @@ export default function SettingsScreen() {
                 </Text>
 
                 <View style={styles.pillContainer}>
-                  {themes.map((themeOption) => (
+                  {themes.map((themeOption, index) => (
                     <TouchableOpacity
-                      key={themeOption.key}
+                      key={index}
                       style={[
                         styles.pill,
                         {
@@ -1424,6 +1555,78 @@ export default function SettingsScreen() {
                   activeOpacity={0.8}
                 >
                   {isUpdatingPassword ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalButtonText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Therapist Persona Modal (NEW) */}
+      <Modal
+        visible={showPersonaModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleClosePersonaModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <ScrollView
+            contentContainerStyle={styles.modalScrollContent}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <View style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}>
+              <View style={styles.modalIconContainer}>
+                <IconSymbol
+                  ios_icon_name="person.circle.fill"
+                  android_material_icon_name="account_circle"
+                  size={48}
+                  color={theme.primary}
+                />
+              </View>
+
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                Therapist Persona
+              </Text>
+
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+                Choose a therapist persona to guide the conversational style. This is purely for tone and pacing, not medical care.
+              </Text>
+
+              <ScrollView 
+                style={styles.personaScrollView}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                {THERAPIST_PERSONAS.map((persona) => renderPersonaCard(persona.id))}
+              </ScrollView>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                  onPress={handleClosePersonaModal}
+                  disabled={isUpdatingPersona}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
+                  onPress={handleSavePersona}
+                  disabled={isUpdatingPersona}
+                  activeOpacity={0.8}
+                >
+                  {isUpdatingPersona ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
                     <Text style={styles.modalButtonText}>Save</Text>
@@ -1939,7 +2142,7 @@ export default function SettingsScreen() {
               ) : (
                 updates.map((update, index) => (
                   <View
-                    key={update.id}
+                    key={index}
                     style={[
                       styles.updateCard,
                       {
@@ -2439,6 +2642,45 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     borderWidth: 1,
+  },
+  personaScrollView: {
+    maxHeight: SCREEN_HEIGHT * 0.5,
+    marginBottom: 16,
+  },
+  personaCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  personaImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginRight: 16,
+  },
+  personaCardContent: {
+    flex: 1,
+  },
+  personaCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  personaName: {
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  personaLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  personaDescription: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   aiPrefsScrollView: {
     maxHeight: SCREEN_HEIGHT * 0.5,
