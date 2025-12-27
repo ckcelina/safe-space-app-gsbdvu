@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Safe Space",
@@ -8,9 +9,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/natively-dark.png",
+      "image": "./assets/images/50700152-0497-4417-a1a6-a8569da19ed5.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#5B9FED"
     },
     "ios": {
       "supportsTablet": true,
