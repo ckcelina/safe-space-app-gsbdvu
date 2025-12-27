@@ -15,11 +15,40 @@ import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useUserPreferences } from '@/contexts/UserPreferencesContext';
-import { AI_TONES, getTonesByCategory } from '@/constants/AITones';
+import { getToneById } from '@/constants/AITones';
 import { IconSymbol } from '@/components/IconSymbol';
 import { showSuccessToast, showErrorToast } from '@/utils/toast';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Primary tones (visible by default)
+const PRIMARY_TONE_IDS = [
+  'warm_hug',           // Warm & Supportive
+  'balanced_blend',     // Balanced & Clear
+  'mirror_mode',        // Reflective
+  'calm_direct',        // Calm & Direct
+  'reality_check',      // Reality Check
+  'accountability_partner', // Goal Support
+];
+
+// Advanced tones (collapsed by default)
+const ADVANCED_TONE_IDS = [
+  'systems_thinker',
+  'attachment_aware',
+  'cognitive_clarity',
+  'conflict_mediator',
+  'tough_love',
+  'straight_shooter',
+  'executive_summary',
+  'no_nonsense',
+  'pattern_breaker',
+  'boundary_enforcer',
+  'detective',
+  'therapy_room',
+  'nurturing_parent',
+  'best_friend',
+  'soft_truth',
+];
 
 export default function AIPreferencesOnboardingScreen() {
   const { theme } = useThemeContext();
@@ -28,6 +57,7 @@ export default function AIPreferencesOnboardingScreen() {
   const [selectedToneId, setSelectedToneId] = useState(preferences.ai_tone_id);
   const [scienceMode, setScienceMode] = useState(preferences.ai_science_mode);
   const [isSaving, setIsSaving] = useState(false);
+  const [showAdvancedStyles, setShowAdvancedStyles] = useState(false);
 
   const handleContinue = async () => {
     setIsSaving(true);
@@ -51,9 +81,50 @@ export default function AIPreferencesOnboardingScreen() {
     router.replace('/(tabs)/(home)');
   };
 
-  const gentleTones = getTonesByCategory('gentle');
-  const balancedTones = getTonesByCategory('balanced');
-  const directTones = getTonesByCategory('direct');
+  const renderToneCard = (toneId: string) => {
+    const tone = getToneById(toneId);
+    if (!tone) return null;
+
+    return (
+      <TouchableOpacity
+        key={tone.toneId}
+        style={[
+          styles.toneCard,
+          {
+            backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
+            borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
+          },
+        ]}
+        onPress={() => setSelectedToneId(tone.toneId)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.toneCardHeader}>
+          <Text
+            style={[
+              styles.toneName,
+              {
+                color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
+                fontWeight: selectedToneId === tone.toneId ? '700' : '600',
+              },
+            ]}
+          >
+            {tone.displayName}
+          </Text>
+          {selectedToneId === tone.toneId && (
+            <IconSymbol
+              ios_icon_name="checkmark.circle.fill"
+              android_material_icon_name="check_circle"
+              size={20}
+              color={theme.primary}
+            />
+          )}
+        </View>
+        <Text style={[styles.toneDescription, { color: theme.textSecondary }]}>
+          {tone.shortDescription}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeSpaceScreen scrollable={true} keyboardAware={false} useGradient={true}>
@@ -82,137 +153,38 @@ export default function AIPreferencesOnboardingScreen() {
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled={true}
           >
-            {/* Gentle Tones */}
-            <Text style={[styles.categoryLabel, { color: theme.textPrimary }]}>
-              Gentle & Supportive
-            </Text>
-            {gentleTones.map((tone) => (
-              <TouchableOpacity
-                key={tone.toneId}
-                style={[
-                  styles.toneCard,
-                  {
-                    backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
-                    borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
-                  },
-                ]}
-                onPress={() => setSelectedToneId(tone.toneId)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.toneCardHeader}>
-                  <Text
-                    style={[
-                      styles.toneName,
-                      {
-                        color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
-                        fontWeight: selectedToneId === tone.toneId ? '700' : '600',
-                      },
-                    ]}
-                  >
-                    {tone.displayName}
-                  </Text>
-                  {selectedToneId === tone.toneId && (
-                    <IconSymbol
-                      ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check_circle"
-                      size={20}
-                      color={theme.primary}
-                    />
-                  )}
-                </View>
-                <Text style={[styles.toneDescription, { color: theme.textSecondary }]}>
-                  {tone.shortDescription}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {/* Primary Tones */}
+            {PRIMARY_TONE_IDS.map((toneId) => renderToneCard(toneId))}
 
-            {/* Balanced Tones */}
-            <Text style={[styles.categoryLabel, { color: theme.textPrimary, marginTop: 16 }]}>
-              Balanced & Clear
-            </Text>
-            {balancedTones.map((tone) => (
-              <TouchableOpacity
-                key={tone.toneId}
-                style={[
-                  styles.toneCard,
-                  {
-                    backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
-                    borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
-                  },
-                ]}
-                onPress={() => setSelectedToneId(tone.toneId)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.toneCardHeader}>
-                  <Text
-                    style={[
-                      styles.toneName,
-                      {
-                        color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
-                        fontWeight: selectedToneId === tone.toneId ? '700' : '600',
-                      },
-                    ]}
-                  >
-                    {tone.displayName}
-                  </Text>
-                  {selectedToneId === tone.toneId && (
-                    <IconSymbol
-                      ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check_circle"
-                      size={20}
-                      color={theme.primary}
-                    />
-                  )}
-                </View>
-                <Text style={[styles.toneDescription, { color: theme.textSecondary }]}>
-                  {tone.shortDescription}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {/* Advanced Styles Section */}
+            <TouchableOpacity
+              style={[
+                styles.advancedStylesToggle,
+                {
+                  backgroundColor: theme.background,
+                  borderColor: theme.textSecondary + '30',
+                },
+              ]}
+              onPress={() => setShowAdvancedStyles(!showAdvancedStyles)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.advancedStylesText, { color: theme.textPrimary }]}>
+                Advanced Styles
+              </Text>
+              <IconSymbol
+                ios_icon_name={showAdvancedStyles ? 'chevron.up' : 'chevron.down'}
+                android_material_icon_name={showAdvancedStyles ? 'expand_less' : 'expand_more'}
+                size={20}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
 
-            {/* Direct Tones */}
-            <Text style={[styles.categoryLabel, { color: theme.textPrimary, marginTop: 16 }]}>
-              Direct & Firm
-            </Text>
-            {directTones.map((tone) => (
-              <TouchableOpacity
-                key={tone.toneId}
-                style={[
-                  styles.toneCard,
-                  {
-                    backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
-                    borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
-                  },
-                ]}
-                onPress={() => setSelectedToneId(tone.toneId)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.toneCardHeader}>
-                  <Text
-                    style={[
-                      styles.toneName,
-                      {
-                        color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
-                        fontWeight: selectedToneId === tone.toneId ? '700' : '600',
-                      },
-                    ]}
-                  >
-                    {tone.displayName}
-                  </Text>
-                  {selectedToneId === tone.toneId && (
-                    <IconSymbol
-                      ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check_circle"
-                      size={20}
-                      color={theme.primary}
-                    />
-                  )}
-                </View>
-                <Text style={[styles.toneDescription, { color: theme.textSecondary }]}>
-                  {tone.shortDescription}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {/* Advanced Tones (conditionally rendered) */}
+            {showAdvancedStyles && (
+              <View style={styles.advancedStylesContainer}>
+                {ADVANCED_TONE_IDS.map((toneId) => renderToneCard(toneId))}
+              </View>
+            )}
           </ScrollView>
         </View>
 
@@ -296,12 +268,6 @@ const styles = StyleSheet.create({
   tonesScrollView: {
     maxHeight: 400,
   },
-  categoryLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-    marginTop: 8,
-  },
   toneCard: {
     borderRadius: 12,
     padding: 16,
@@ -321,6 +287,23 @@ const styles = StyleSheet.create({
   toneDescription: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  advancedStylesToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  advancedStylesText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  advancedStylesContainer: {
+    marginTop: 4,
   },
   toggleRow: {
     flexDirection: 'row',

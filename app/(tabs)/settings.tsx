@@ -28,9 +28,38 @@ import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
-import { AI_TONES, getToneById, getTonesByCategory } from '@/constants/AITones';
+import { AI_TONES, getToneById } from '@/constants/AITones';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Primary tones (visible by default)
+const PRIMARY_TONE_IDS = [
+  'warm_hug',           // Warm & Supportive
+  'balanced_blend',     // Balanced & Clear
+  'mirror_mode',        // Reflective
+  'calm_direct',        // Calm & Direct
+  'reality_check',      // Reality Check
+  'accountability_partner', // Goal Support
+];
+
+// Advanced tones (collapsed by default)
+const ADVANCED_TONE_IDS = [
+  'systems_thinker',
+  'attachment_aware',
+  'cognitive_clarity',
+  'conflict_mediator',
+  'tough_love',
+  'straight_shooter',
+  'executive_summary',
+  'no_nonsense',
+  'pattern_breaker',
+  'boundary_enforcer',
+  'detective',
+  'therapy_room',
+  'nurturing_parent',
+  'best_friend',
+  'soft_truth',
+];
 
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
@@ -54,6 +83,7 @@ export default function SettingsScreen() {
   const [selectedToneId, setSelectedToneId] = useState(preferences.ai_tone_id);
   const [scienceMode, setScienceMode] = useState(preferences.ai_science_mode);
   const [isUpdatingAIPrefs, setIsUpdatingAIPrefs] = useState(false);
+  const [showAdvancedStyles, setShowAdvancedStyles] = useState(false);
 
   useEffect(() => {
     setSelectedTheme(themeKey);
@@ -284,10 +314,12 @@ export default function SettingsScreen() {
   // AI Preferences Handlers
   const handleOpenAIPreferencesModal = () => {
     setShowAIPreferencesModal(true);
+    setShowAdvancedStyles(false); // Reset to collapsed when opening
   };
 
   const handleCloseAIPreferencesModal = () => {
     setShowAIPreferencesModal(false);
+    setShowAdvancedStyles(false);
     // Reset to current saved values
     setSelectedToneId(preferences.ai_tone_id);
     setScienceMode(preferences.ai_science_mode);
@@ -306,9 +338,55 @@ export default function SettingsScreen() {
     if (result.success) {
       showSuccessToast('AI preferences updated');
       setShowAIPreferencesModal(false);
+      setShowAdvancedStyles(false);
     } else {
       showErrorToast(result.error || 'Failed to update preferences');
     }
+  };
+
+  const renderToneCard = (toneId: string) => {
+    const tone = getToneById(toneId);
+    if (!tone) return null;
+
+    return (
+      <TouchableOpacity
+        key={tone.toneId}
+        style={[
+          styles.aiToneCard,
+          {
+            backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
+            borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
+          },
+        ]}
+        onPress={() => setSelectedToneId(tone.toneId)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.aiToneCardHeader}>
+          <Text
+            style={[
+              styles.aiToneName,
+              {
+                color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
+                fontWeight: selectedToneId === tone.toneId ? '700' : '600',
+              },
+            ]}
+          >
+            {tone.displayName}
+          </Text>
+          {selectedToneId === tone.toneId && (
+            <IconSymbol
+              ios_icon_name="checkmark.circle.fill"
+              android_material_icon_name="check_circle"
+              size={18}
+              color={theme.primary}
+            />
+          )}
+        </View>
+        <Text style={[styles.aiToneDescription, { color: theme.textSecondary }]}>
+          {tone.shortDescription}
+        </Text>
+      </TouchableOpacity>
+    );
   };
 
   return (
@@ -937,137 +1015,38 @@ export default function SettingsScreen() {
                   AI Tone
                 </Text>
                 
-                {/* Gentle Tones */}
-                <Text style={[styles.aiCategoryLabel, { color: theme.textSecondary }]}>
-                  Gentle & Supportive
-                </Text>
-                {getTonesByCategory('gentle').map((tone) => (
-                  <TouchableOpacity
-                    key={tone.toneId}
-                    style={[
-                      styles.aiToneCard,
-                      {
-                        backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
-                        borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
-                      },
-                    ]}
-                    onPress={() => setSelectedToneId(tone.toneId)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.aiToneCardHeader}>
-                      <Text
-                        style={[
-                          styles.aiToneName,
-                          {
-                            color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
-                            fontWeight: selectedToneId === tone.toneId ? '700' : '600',
-                          },
-                        ]}
-                      >
-                        {tone.displayName}
-                      </Text>
-                      {selectedToneId === tone.toneId && (
-                        <IconSymbol
-                          ios_icon_name="checkmark.circle.fill"
-                          android_material_icon_name="check_circle"
-                          size={18}
-                          color={theme.primary}
-                        />
-                      )}
-                    </View>
-                    <Text style={[styles.aiToneDescription, { color: theme.textSecondary }]}>
-                      {tone.shortDescription}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {/* Primary Tones */}
+                {PRIMARY_TONE_IDS.map((toneId) => renderToneCard(toneId))}
 
-                {/* Balanced Tones */}
-                <Text style={[styles.aiCategoryLabel, { color: theme.textSecondary, marginTop: 12 }]}>
-                  Balanced & Clear
-                </Text>
-                {getTonesByCategory('balanced').map((tone) => (
-                  <TouchableOpacity
-                    key={tone.toneId}
-                    style={[
-                      styles.aiToneCard,
-                      {
-                        backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
-                        borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
-                      },
-                    ]}
-                    onPress={() => setSelectedToneId(tone.toneId)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.aiToneCardHeader}>
-                      <Text
-                        style={[
-                          styles.aiToneName,
-                          {
-                            color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
-                            fontWeight: selectedToneId === tone.toneId ? '700' : '600',
-                          },
-                        ]}
-                      >
-                        {tone.displayName}
-                      </Text>
-                      {selectedToneId === tone.toneId && (
-                        <IconSymbol
-                          ios_icon_name="checkmark.circle.fill"
-                          android_material_icon_name="check_circle"
-                          size={18}
-                          color={theme.primary}
-                        />
-                      )}
-                    </View>
-                    <Text style={[styles.aiToneDescription, { color: theme.textSecondary }]}>
-                      {tone.shortDescription}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {/* Advanced Styles Section */}
+                <TouchableOpacity
+                  style={[
+                    styles.advancedStylesToggle,
+                    {
+                      backgroundColor: theme.background,
+                      borderColor: theme.textSecondary + '30',
+                    },
+                  ]}
+                  onPress={() => setShowAdvancedStyles(!showAdvancedStyles)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.advancedStylesText, { color: theme.textPrimary }]}>
+                    Advanced Styles
+                  </Text>
+                  <IconSymbol
+                    ios_icon_name={showAdvancedStyles ? 'chevron.up' : 'chevron.down'}
+                    android_material_icon_name={showAdvancedStyles ? 'expand_less' : 'expand_more'}
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
 
-                {/* Direct Tones */}
-                <Text style={[styles.aiCategoryLabel, { color: theme.textSecondary, marginTop: 12 }]}>
-                  Direct & Firm
-                </Text>
-                {getTonesByCategory('direct').map((tone) => (
-                  <TouchableOpacity
-                    key={tone.toneId}
-                    style={[
-                      styles.aiToneCard,
-                      {
-                        backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
-                        borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
-                      },
-                    ]}
-                    onPress={() => setSelectedToneId(tone.toneId)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.aiToneCardHeader}>
-                      <Text
-                        style={[
-                          styles.aiToneName,
-                          {
-                            color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
-                            fontWeight: selectedToneId === tone.toneId ? '700' : '600',
-                          },
-                        ]}
-                      >
-                        {tone.displayName}
-                      </Text>
-                      {selectedToneId === tone.toneId && (
-                        <IconSymbol
-                          ios_icon_name="checkmark.circle.fill"
-                          android_material_icon_name="check_circle"
-                          size={18}
-                          color={theme.primary}
-                        />
-                      )}
-                    </View>
-                    <Text style={[styles.aiToneDescription, { color: theme.textSecondary }]}>
-                      {tone.shortDescription}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {/* Advanced Tones (conditionally rendered) */}
+                {showAdvancedStyles && (
+                  <View style={styles.advancedStylesContainer}>
+                    {ADVANCED_TONE_IDS.map((toneId) => renderToneCard(toneId))}
+                  </View>
+                )}
 
                 {/* Science Mode Toggle */}
                 <View style={styles.aiScienceModeContainer}>
@@ -1387,12 +1366,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 12,
   },
-  aiCategoryLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 10,
-    marginTop: 8,
-  },
   aiToneCard: {
     borderRadius: 10,
     padding: 12,
@@ -1412,6 +1385,23 @@ const styles = StyleSheet.create({
   aiToneDescription: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  advancedStylesToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  advancedStylesText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  advancedStylesContainer: {
+    marginTop: 4,
   },
   aiScienceModeContainer: {
     marginTop: 16,
