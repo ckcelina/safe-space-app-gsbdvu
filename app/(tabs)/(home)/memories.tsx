@@ -27,23 +27,31 @@ import { getPersonContinuity, setContinuityEnabled } from '@/lib/memory/personCo
 import { useFocusEffect } from '@react-navigation/native';
 
 /**
- * HARDENED DEBUG UI FLAG
+ * CENTRALIZED DEBUG UI VISIBILITY GUARD
  * 
- * This flag ensures the "Developer Debug Info" section is NEVER visible in
- * TestFlight or App Store builds, even if __DEV__ or NODE_ENV is misconfigured.
+ * This constant controls whether the "Developer Debug Info" section is visible.
  * 
- * The flag evaluates to true ONLY when:
- * 1. __DEV__ is true (React Native development mode)
- * 2. AND process.env.EXPO_PUBLIC_DISABLE_DEBUG_UI is NOT set to 'true'
+ * BEHAVIOR:
+ * - Production builds (TestFlight/App Store): ALWAYS hidden (__DEV__ === false)
+ * - Expo Go / Dev builds: HIDDEN by default, visible ONLY when explicitly enabled
  * 
- * In production builds (TestFlight/App Store):
- * - __DEV__ is always false
- * - Therefore SHOW_DEBUG_UI will always be false
- * - The debug UI will never render
+ * TO ENABLE IN DEVELOPMENT:
+ * Add to your .env file (dev only):
+ *   EXPO_PUBLIC_SHOW_DEBUG_UI=true
  * 
- * This is a build-time constant, not runtime state.
+ * SAFETY GUARANTEES:
+ * 1. IS_PROD check ensures production builds NEVER show debug UI
+ * 2. DEV_DEBUG_ENABLED requires explicit opt-in via environment variable
+ * 3. SHOW_DEBUG_UI combines both checks for final decision
+ * 4. Additional safety check inside the debug component itself (double safety)
+ * 
+ * DEFAULT BEHAVIOR:
+ * - If EXPO_PUBLIC_SHOW_DEBUG_UI is not set → SHOW_DEBUG_UI = false (hidden)
+ * - Only shows when developer explicitly sets EXPO_PUBLIC_SHOW_DEBUG_UI=true
  */
-const SHOW_DEBUG_UI = __DEV__ && (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_DISABLE_DEBUG_UI !== 'true');
+const IS_PROD = !__DEV__;
+const DEV_DEBUG_ENABLED = __DEV__ && (process.env.EXPO_PUBLIC_SHOW_DEBUG_UI === 'true');
+const SHOW_DEBUG_UI = !IS_PROD && DEV_DEBUG_ENABLED;
 
 // Memory type from the person_memories table
 interface Memory {
@@ -149,6 +157,75 @@ function getMemoryGroupKey(memory: Memory): string {
   
   // Default to 'general'
   return 'general';
+}
+
+/**
+ * DEBUG CARD COMPONENT
+ * 
+ * This component renders the "Developer Debug Info" section.
+ * 
+ * DOUBLE SAFETY:
+ * 1. This component is only rendered when SHOW_DEBUG_UI === true (first check)
+ * 2. This component has an additional IS_PROD check (second check)
+ * 
+ * This ensures that even if the parent conditional is bypassed somehow,
+ * the component itself will return null in production builds.
+ */
+function DebugCard({ 
+  currentUser, 
+  personId, 
+  memories, 
+  supabaseError, 
+  theme 
+}: { 
+  currentUser: any; 
+  personId: string; 
+  memories: Memory[]; 
+  supabaseError: any; 
+  theme: any;
+}) {
+  // PRODUCTION SAFETY: Always return null in production builds
+  if (IS_PROD) {
+    return null;
+  }
+
+  // DEVELOPMENT ONLY: Render debug info
+  return (
+    <View style={[styles.debugContainer, { backgroundColor: theme.card, borderColor: theme.textSecondary + '40' }]}>
+      <Text style={[styles.debugTitle, { color: theme.primary }]}>
+        🔧 Developer Debug Info (DEV ONLY)
+      </Text>
+      <Text style={[styles.debugText, { color: theme.textSecondary }]}>
+        User ID: {currentUser?.id || 'N/A'}
+      </Text>
+      <Text style={[styles.debugText, { color: theme.textSecondary }]}>
+        Person ID: {personId || 'N/A'}
+      </Text>
+      <Text style={[styles.debugText, { color: theme.textSecondary }]}>
+        Memory Count: {memories.length}
+      </Text>
+      {supabaseError && (
+        <>
+          <Text style={[styles.debugText, { color: '#FF3B30', fontWeight: '600', marginTop: 8 }]}>
+            Supabase Error:
+          </Text>
+          <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
+            {supabaseError.message || JSON.stringify(supabaseError)}
+          </Text>
+          {supabaseError.code && (
+            <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
+              Code: {supabaseError.code}
+            </Text>
+          )}
+          {supabaseError.hint && (
+            <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
+              Hint: {supabaseError.hint}
+            </Text>
+          )}
+        </>
+      )}
+    </View>
+  );
 }
 
 export default function MemoriesScreen() {
@@ -767,58 +844,36 @@ export default function MemoriesScreen() {
               </Text>
               
               {/* 
-                HARDENED DEBUG UI SECTION
+                DEVELOPER DEBUG INFO SECTION
                 
                 This section is ONLY rendered when SHOW_DEBUG_UI === true.
                 
-                SHOW_DEBUG_UI is a build-time constant that evaluates to:
-                - true: ONLY in local development (__DEV__ === true)
-                - false: ALWAYS in TestFlight and App Store builds (__DEV__ === false)
+                VISIBILITY LOGIC:
+                - Production builds (TestFlight/App Store): ALWAYS hidden (IS_PROD === true)
+                - Expo Go / Dev builds: HIDDEN by default
+                - Only visible when EXPO_PUBLIC_SHOW_DEBUG_UI=true is explicitly set
                 
-                Even if __DEV__ or NODE_ENV is misconfigured, this section will
-                NOT render in production builds because:
-                1. The entire block is wrapped in a conditional
-                2. No debug components are imported unconditionally
-                3. No debug container exists outside the conditional
-                4. No leftover spacing or margins when hidden
+                SAFETY GUARANTEES:
+                1. Entire block wrapped in SHOW_DEBUG_UI conditional (first check)
+                2. DebugCard component has IS_PROD check (second check)
+                3. No debug components imported unconditionally
+                4. No debug container exists outside the conditional
+                5. No leftover spacing or margins when hidden
+                
+                TO ENABLE IN DEVELOPMENT:
+                Add to .env file:
+                  EXPO_PUBLIC_SHOW_DEBUG_UI=true
                 
                 This ensures user_id and person_id are NEVER exposed in production.
               */}
               {SHOW_DEBUG_UI && (
-                <View style={[styles.debugContainer, { backgroundColor: theme.card, borderColor: theme.textSecondary + '40' }]}>
-                  <Text style={[styles.debugTitle, { color: theme.primary }]}>
-                    🔧 Developer Debug Info (DEV ONLY)
-                  </Text>
-                  <Text style={[styles.debugText, { color: theme.textSecondary }]}>
-                    User ID: {currentUser?.id || 'N/A'}
-                  </Text>
-                  <Text style={[styles.debugText, { color: theme.textSecondary }]}>
-                    Person ID: {personId || 'N/A'}
-                  </Text>
-                  <Text style={[styles.debugText, { color: theme.textSecondary }]}>
-                    Memory Count: {memories.length}
-                  </Text>
-                  {supabaseError && (
-                    <>
-                      <Text style={[styles.debugText, { color: '#FF3B30', fontWeight: '600', marginTop: 8 }]}>
-                        Supabase Error:
-                      </Text>
-                      <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
-                        {supabaseError.message || JSON.stringify(supabaseError)}
-                      </Text>
-                      {supabaseError.code && (
-                        <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
-                          Code: {supabaseError.code}
-                        </Text>
-                      )}
-                      {supabaseError.hint && (
-                        <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
-                          Hint: {supabaseError.hint}
-                        </Text>
-                      )}
-                    </>
-                  )}
-                </View>
+                <DebugCard
+                  currentUser={currentUser}
+                  personId={personId}
+                  memories={memories}
+                  supabaseError={supabaseError}
+                  theme={theme}
+                />
               )}
             </View>
           )}
