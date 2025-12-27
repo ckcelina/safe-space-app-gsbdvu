@@ -46,7 +46,9 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
   // Reset state whenever modal becomes visible
   useEffect(() => {
     if (visible) {
-      console.log('[AddPersonSheet] Modal opened - resetting state');
+      if (__DEV__) {
+        console.log('[AddPersonSheet] Modal opened - resetting state');
+      }
       setName('');
       setRelationshipType('');
       setError('');
@@ -57,18 +59,21 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
   }, [visible]);
 
   /**
-   * FIXED: Handle person creation WITHOUT duplicate checking
-   * - Duplicate names are now ALLOWED (after DB migration removes unique constraint)
-   * - Each person is uniquely identified by UUID (person.id)
-   * - Generic error handling only
-   * - Uses .select().single() to return the inserted row
+   * FIXED: Handle person creation with duplicate key error handling
+   * - If error code 23505 (duplicate constraint), fetch existing person and use it
+   * - Uses theme primary color for styling
+   * - No console.error for expected duplicate case
    */
   const handleSave = async () => {
-    console.log('[AddPersonSheet] Save called with name:', name, 'relationship:', relationshipType);
+    if (__DEV__) {
+      console.log('[AddPersonSheet] Save called with name:', name, 'relationship:', relationshipType);
+    }
 
     // Validate name
     if (!name.trim()) {
-      console.log('[AddPersonSheet] Validation failed - name is empty');
+      if (__DEV__) {
+        console.log('[AddPersonSheet] Validation failed - name is empty');
+      }
       setError('Name is required');
       return;
     }
@@ -79,30 +84,37 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
     try {
       // Step 1: Resolve userId
       let resolvedUserId = userId;
-      console.log('[AddPersonSheet] Initial userId from props:', resolvedUserId);
+      if (__DEV__) {
+        console.log('[AddPersonSheet] Initial userId from props:', resolvedUserId);
+      }
 
       if (!resolvedUserId) {
-        console.log('[AddPersonSheet] No userId from props, fetching from supabase.auth.getUser()');
+        if (__DEV__) {
+          console.log('[AddPersonSheet] No userId from props, fetching from supabase.auth.getUser()');
+        }
         const { data: authData, error: authErr } = await supabase.auth.getUser();
         
-        if (authErr) {
-          console.error('[AddPersonSheet] Auth error when fetching user:', authErr);
+        if (authErr && __DEV__) {
+          console.log('[AddPersonSheet] Auth error when fetching user:', authErr);
         }
         
         resolvedUserId = authData?.user?.id;
-        console.log('[AddPersonSheet] Resolved userId from auth:', resolvedUserId);
+        if (__DEV__) {
+          console.log('[AddPersonSheet] Resolved userId from auth:', resolvedUserId);
+        }
       }
 
       // Step 2: Check if we have a valid userId
       if (!resolvedUserId) {
-        console.error('[AddPersonSheet] No resolvedUserId available after fallback');
+        if (__DEV__) {
+          console.log('[AddPersonSheet] No resolvedUserId available after fallback');
+        }
         showErrorToast('Not signed in. Please log in again.');
         setSaving(false);
         return;
       }
 
       // Step 3: Prepare payload
-      // Trim name and relationship_type, set to null if empty
       const trimmedName = name.trim();
       const trimmedRelationship = relationshipType.trim();
       
@@ -112,7 +124,9 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         relationship_type: trimmedRelationship || null,
       };
 
-      console.log('[AddPersonSheet] Inserting person with payload:', payload);
+      if (__DEV__) {
+        console.log('[AddPersonSheet] Inserting person with payload:', payload);
+      }
 
       // Step 4: Execute insert with .select().single() to return the inserted row
       const { data, error: insertError } = await supabase
@@ -123,26 +137,76 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
 
       // Step 5: Handle errors
       if (insertError) {
-        // Log technical error details silently for debugging
-        console.error('[AddPersonSheet] ===== SUPABASE INSERT ERROR =====');
-        console.error('[AddPersonSheet] Error code:', insertError.code);
-        console.error('[AddPersonSheet] Error message:', insertError.message);
-        console.error('[AddPersonSheet] Error details:', insertError.details);
-        console.error('[AddPersonSheet] Error hint:', insertError.hint);
-        console.error('[AddPersonSheet] Payload:', payload);
-        console.error('[AddPersonSheet] ================================');
+        // Check for duplicate key error (23505)
+        if (insertError.code === '23505') {
+          // This is an expected case - person with this name already exists
+          if (__DEV__) {
+            console.log('[AddPersonSheet] Duplicate person detected (23505), fetching existing person');
+          }
 
-        // Re-enable Save button and keep modal open
+          // Fetch the existing person with case-insensitive match
+          const { data: existingPersonData, error: existingPersonError } = await supabase
+            .from('persons')
+            .select('*')
+            .eq('user_id', resolvedUserId)
+            .ilike('name', trimmedName)
+            .limit(1)
+            .single();
+
+          if (existingPersonData) {
+            // Found the existing person - use it
+            if (__DEV__) {
+              console.log('[AddPersonSheet] Found existing person:', existingPersonData);
+            }
+
+            const existingPerson: Person = {
+              ...existingPersonData,
+              relationship_type: existingPersonData.relationship_type || null,
+            };
+
+            // Call the callback with the existing person
+            onPersonCreated(existingPerson);
+            
+            // Show friendly message
+            showSuccessToast('That person already exists — using the existing one.');
+            
+            // Clear inputs and close
+            setName('');
+            setRelationshipType('');
+            setError('');
+            setSaving(false);
+            onClose();
+            return;
+          } else {
+            // Couldn't find the existing person (shouldn't happen, but handle it)
+            if (__DEV__) {
+              console.log('[AddPersonSheet] Duplicate error but could not fetch existing person:', existingPersonError);
+            }
+            showErrorToast('Couldn\'t save. Please try again.');
+            setSaving(false);
+            return;
+          }
+        }
+
+        // For other errors, log and show generic message
+        if (__DEV__) {
+          console.log('[AddPersonSheet] Supabase insert error:', {
+            code: insertError.code,
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint,
+          });
+        }
+
         setSaving(false);
-
-        // Show generic user-friendly error message
-        // Do NOT show "already exists" message - duplicates are allowed
         showErrorToast('Couldn\'t save. Please try again.');
         return;
       }
 
       // Step 6: Success
-      console.log('[AddPersonSheet] Person created successfully:', data);
+      if (__DEV__) {
+        console.log('[AddPersonSheet] Person created successfully:', data);
+      }
       
       // Ensure the new person has the correct structure
       const newPerson: Person = {
@@ -150,7 +214,9 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         relationship_type: data.relationship_type || null,
       };
       
-      console.log('[AddPersonSheet] Calling onPersonCreated with new person:', newPerson);
+      if (__DEV__) {
+        console.log('[AddPersonSheet] Calling onPersonCreated with new person:', newPerson);
+      }
       showSuccessToast('Person added successfully!');
       
       // Clear inputs
@@ -165,12 +231,10 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       // Close the sheet
       onClose();
     } catch (error: any) {
-      // Log unexpected errors silently for debugging
-      console.error('[AddPersonSheet] ===== UNEXPECTED ERROR =====');
-      console.error('[AddPersonSheet] Error:', error);
-      console.error('[AddPersonSheet] Error message:', error?.message);
-      console.error('[AddPersonSheet] Error stack:', error?.stack);
-      console.error('[AddPersonSheet] ============================');
+      // Log unexpected errors for debugging
+      if (__DEV__) {
+        console.log('[AddPersonSheet] Unexpected error:', error?.message);
+      }
 
       // Re-enable Save button and keep modal open
       setSaving(false);
@@ -193,6 +257,9 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       scrollRef.current?.scrollTo({ y: 120, animated: true });
     });
   };
+
+  // Get primary color from theme with fallback
+  const primaryColor = theme?.colors?.primary ?? theme?.primary ?? '#007AFF';
 
   return (
     <Modal
@@ -243,7 +310,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
                   style={[
                     styles.inputContainer,
                     error ? styles.inputContainerError : null,
-                    nameFocused ? styles.inputContainerFocused : null,
+                    nameFocused ? { borderColor: primaryColor, backgroundColor: '#FFFFFF' } : null,
                   ]}
                 >
                   <TextInput
@@ -275,7 +342,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
                 <View
                   style={[
                     styles.inputContainer,
-                    relationshipFocused ? styles.inputContainerFocused : null,
+                    relationshipFocused ? { borderColor: primaryColor, backgroundColor: '#FFFFFF' } : null,
                   ]}
                 >
                   <TextInput
@@ -312,7 +379,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
                 onPress={handleSave}
                 style={[
                   styles.saveButton,
-                  { backgroundColor: theme.primary },
+                  { backgroundColor: primaryColor },
                   (!name.trim() || saving) && styles.saveButtonDisabled,
                 ]}
                 disabled={saving || !name.trim()}
@@ -395,10 +462,6 @@ const styles = StyleSheet.create({
   },
   inputContainerError: {
     borderColor: '#FF3B30',
-  },
-  inputContainerFocused: {
-    borderColor: '#007AFF',
-    backgroundColor: '#FFFFFF',
   },
   input: {
     fontSize: 16,
