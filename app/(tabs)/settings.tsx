@@ -34,12 +34,12 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Primary tones (visible by default)
 const PRIMARY_TONE_IDS = [
-  'warm_hug',           // Warm & Supportive
-  'balanced_blend',     // Balanced & Clear
-  'mirror_mode',        // Reflective
-  'calm_direct',        // Calm & Direct
-  'reality_check',      // Reality Check
-  'accountability_partner', // Goal Support
+  'warm_hug',
+  'balanced_blend',
+  'mirror_mode',
+  'calm_direct',
+  'reality_check',
+  'accountability_partner',
 ];
 
 // Advanced tones (collapsed by default)
@@ -59,6 +59,35 @@ const ADVANCED_TONE_IDS = [
   'nurturing_parent',
   'best_friend',
   'soft_truth',
+];
+
+// Personalization options
+const CONVERSATION_STYLES = [
+  'Calm & grounding',
+  'Direct & practical',
+  'Gentle & supportive',
+  'Curious & reflective',
+];
+
+const STRESS_RESPONSES = [
+  'Reassurance',
+  'Clear steps and structure',
+  'Space to think',
+  'Validation and empathy',
+];
+
+const PROCESSING_STYLES = [
+  'Internally first',
+  'Talking helps me process',
+  'Logic first, feelings later',
+  'Slowly over time',
+];
+
+const DECISION_STYLES = [
+  'Fast and decisive',
+  'I weigh pros/cons carefully',
+  'I need time and reflection',
+  'I prefer guidance and options',
 ];
 
 export default function SettingsScreen() {
@@ -85,6 +114,22 @@ export default function SettingsScreen() {
   const [isUpdatingAIPrefs, setIsUpdatingAIPrefs] = useState(false);
   const [showAdvancedStyles, setShowAdvancedStyles] = useState(false);
 
+  // Personalization Modal State
+  const [showPersonalizationModal, setShowPersonalizationModal] = useState(false);
+  const [showPersonalizationInfoModal, setShowPersonalizationInfoModal] = useState(false);
+  const [showClearPersonalizationModal, setShowClearPersonalizationModal] = useState(false);
+  const [isUpdatingPersonalization, setIsUpdatingPersonalization] = useState(false);
+  const [isClearingPersonalization, setIsClearingPersonalization] = useState(false);
+  
+  // Personalization form state
+  const [conversationStyle, setConversationStyle] = useState(preferences.conversation_style || '');
+  const [stressResponse, setStressResponse] = useState(preferences.stress_response || '');
+  const [processingStyle, setProcessingStyle] = useState(preferences.processing_style || '');
+  const [decisionStyle, setDecisionStyle] = useState(preferences.decision_style || '');
+  const [culturalContext, setCulturalContext] = useState(preferences.cultural_context || '');
+  const [valuesBoundaries, setValuesBoundaries] = useState(preferences.values_boundaries || '');
+  const [recentChanges, setRecentChanges] = useState(preferences.recent_changes || '');
+
   useEffect(() => {
     setSelectedTheme(themeKey);
   }, [themeKey]);
@@ -93,6 +138,17 @@ export default function SettingsScreen() {
   useEffect(() => {
     setSelectedToneId(preferences.ai_tone_id);
     setScienceMode(preferences.ai_science_mode);
+  }, [preferences]);
+
+  // Sync personalization preferences when they change
+  useEffect(() => {
+    setConversationStyle(preferences.conversation_style || '');
+    setStressResponse(preferences.stress_response || '');
+    setProcessingStyle(preferences.processing_style || '');
+    setDecisionStyle(preferences.decision_style || '');
+    setCulturalContext(preferences.cultural_context || '');
+    setValuesBoundaries(preferences.values_boundaries || '');
+    setRecentChanges(preferences.recent_changes || '');
   }, [preferences]);
 
   const themes: { key: ThemeKey; name: string }[] = [
@@ -114,14 +170,11 @@ export default function SettingsScreen() {
     try {
       console.log('[Settings] Starting sign out...');
       
-      // Call AuthContext signOut which handles Supabase signOut internally
       await signOut();
       
       console.log('[Settings] Sign out successful, navigating to onboarding');
       
-      // Use a small delay to ensure state is cleared
       setTimeout(() => {
-        // Navigate to onboarding and reset the navigation stack
         router.replace('/onboarding');
       }, 100);
     } catch (error) {
@@ -178,10 +231,8 @@ export default function SettingsScreen() {
         console.log('[Settings] Account deleted successfully');
         setShowDeleteModal(false);
         
-        // Sign out the user
         await signOut();
         
-        // Navigate to onboarding after a short delay
         setTimeout(() => {
           router.replace('/onboarding');
         }, 500);
@@ -255,14 +306,12 @@ export default function SettingsScreen() {
 
   const handleCloseChangePasswordModal = () => {
     setShowChangePasswordModal(false);
-    // Clear fields
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
   };
 
   const handleSavePassword = async () => {
-    // Validation
     if (!currentPassword || !newPassword || !confirmPassword) {
       showErrorToast('All fields are required');
       return;
@@ -283,7 +332,6 @@ export default function SettingsScreen() {
     try {
       console.log('[Settings] Updating password...');
       
-      // Update password using Supabase
       const { error } = await supabase.auth.updateUser({ 
         password: newPassword 
       });
@@ -298,7 +346,6 @@ export default function SettingsScreen() {
       console.log('[Settings] Password updated successfully');
       showSuccessToast('Password updated');
       
-      // Clear fields and close modal
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -314,13 +361,12 @@ export default function SettingsScreen() {
   // AI Preferences Handlers
   const handleOpenAIPreferencesModal = () => {
     setShowAIPreferencesModal(true);
-    setShowAdvancedStyles(false); // Reset to collapsed when opening
+    setShowAdvancedStyles(false);
   };
 
   const handleCloseAIPreferencesModal = () => {
     setShowAIPreferencesModal(false);
     setShowAdvancedStyles(false);
-    // Reset to current saved values
     setSelectedToneId(preferences.ai_tone_id);
     setScienceMode(preferences.ai_science_mode);
   };
@@ -342,6 +388,94 @@ export default function SettingsScreen() {
     } else {
       showErrorToast(result.error || 'Failed to update preferences');
     }
+  };
+
+  // Personalization Handlers
+  const handleOpenPersonalizationModal = () => {
+    setShowPersonalizationModal(true);
+  };
+
+  const handleClosePersonalizationModal = () => {
+    setShowPersonalizationModal(false);
+    // Reset to current saved values
+    setConversationStyle(preferences.conversation_style || '');
+    setStressResponse(preferences.stress_response || '');
+    setProcessingStyle(preferences.processing_style || '');
+    setDecisionStyle(preferences.decision_style || '');
+    setCulturalContext(preferences.cultural_context || '');
+    setValuesBoundaries(preferences.values_boundaries || '');
+    setRecentChanges(preferences.recent_changes || '');
+  };
+
+  const handleSavePersonalization = async () => {
+    setIsUpdatingPersonalization(true);
+
+    const result = await updatePreferences({
+      conversation_style: conversationStyle || null,
+      stress_response: stressResponse || null,
+      processing_style: processingStyle || null,
+      decision_style: decisionStyle || null,
+      cultural_context: culturalContext || null,
+      values_boundaries: valuesBoundaries || null,
+      recent_changes: recentChanges || null,
+    });
+
+    setIsUpdatingPersonalization(false);
+
+    if (result.success) {
+      showSuccessToast('Personalization saved');
+      setShowPersonalizationModal(false);
+    } else {
+      showErrorToast(result.error || 'Failed to save personalization');
+    }
+  };
+
+  const handleOpenClearPersonalizationModal = () => {
+    setShowClearPersonalizationModal(true);
+  };
+
+  const handleCloseClearPersonalizationModal = () => {
+    setShowClearPersonalizationModal(false);
+  };
+
+  const handleConfirmClearPersonalization = async () => {
+    setIsClearingPersonalization(true);
+
+    const result = await updatePreferences({
+      conversation_style: null,
+      stress_response: null,
+      processing_style: null,
+      decision_style: null,
+      cultural_context: null,
+      values_boundaries: null,
+      recent_changes: null,
+    });
+
+    setIsClearingPersonalization(false);
+
+    if (result.success) {
+      showSuccessToast('Personalization cleared');
+      setShowClearPersonalizationModal(false);
+      setShowPersonalizationModal(false);
+      // Reset local state
+      setConversationStyle('');
+      setStressResponse('');
+      setProcessingStyle('');
+      setDecisionStyle('');
+      setCulturalContext('');
+      setValuesBoundaries('');
+      setRecentChanges('');
+    } else {
+      showErrorToast(result.error || 'Failed to clear personalization');
+    }
+  };
+
+  const handleOpenPersonalizationInfoModal = () => {
+    setShowPersonalizationInfoModal(true);
+  };
+
+  const handleClosePersonalizationInfoModal = () => {
+    setShowPersonalizationInfoModal(false);
   };
 
   const renderToneCard = (toneId: string) => {
@@ -389,6 +523,62 @@ export default function SettingsScreen() {
     );
   };
 
+  const renderOptionCard = (
+    options: string[],
+    selectedValue: string,
+    onSelect: (value: string) => void
+  ) => {
+    return (
+      <View style={styles.optionCardsContainer}>
+        {options.map((option) => (
+          <TouchableOpacity
+            key={option}
+            style={[
+              styles.optionCard,
+              {
+                backgroundColor: selectedValue === option ? theme.primary + '15' : theme.background,
+                borderColor: selectedValue === option ? theme.primary : theme.textSecondary + '30',
+              },
+            ]}
+            onPress={() => onSelect(option)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.optionCardContent}>
+              <Text
+                style={[
+                  styles.optionCardText,
+                  {
+                    color: selectedValue === option ? theme.primary : theme.textPrimary,
+                    fontWeight: selectedValue === option ? '600' : '500',
+                  },
+                ]}
+              >
+                {option}
+              </Text>
+              {selectedValue === option && (
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check_circle"
+                  size={18}
+                  color={theme.primary}
+                />
+              )}
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
+  const hasPersonalizationData = 
+    preferences.conversation_style ||
+    preferences.stress_response ||
+    preferences.processing_style ||
+    preferences.decision_style ||
+    preferences.cultural_context ||
+    preferences.values_boundaries ||
+    preferences.recent_changes;
+
   return (
     <>
       <LinearGradient
@@ -433,7 +623,7 @@ export default function SettingsScreen() {
             <ScrollView
               contentContainerStyle={[
                 styles.scrollContent,
-                { paddingBottom: 60 + insets.bottom + 16 } // TAB_BAR_HEIGHT = 60
+                { paddingBottom: 60 + insets.bottom + 16 }
               ]}
               showsVerticalScrollIndicator={false}
             >
@@ -562,6 +752,57 @@ export default function SettingsScreen() {
                     ios_backgroundColor={theme.textSecondary + '40'}
                   />
                 </View>
+              </View>
+
+              {/* Card 2.6: Personalization (Optional) */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <View style={styles.cardTitleRow}>
+                  <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                    Personalization (Optional)
+                  </Text>
+                  <TouchableOpacity
+                    onPress={handleOpenPersonalizationInfoModal}
+                    activeOpacity={0.7}
+                    style={styles.whyWeAskButton}
+                  >
+                    <Text style={[styles.whyWeAskText, { color: theme.primary }]}>
+                      Why we ask
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={[styles.cardDescription, { color: theme.textSecondary }]}>
+                  Share what helps conversations feel natural for you. You can change or remove this anytime.
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.row, { borderBottomWidth: 0, marginTop: 8 }]}
+                  onPress={handleOpenPersonalizationModal}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="person.fill"
+                      android_material_icon_name="person"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
+                        Personalization settings
+                      </Text>
+                      <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
+                        {hasPersonalizationData ? 'Configured' : 'Not set'}
+                      </Text>
+                    </View>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="arrow_forward"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
               </View>
 
               {/* Card 3: Appearance */}
@@ -868,7 +1109,6 @@ export default function SettingsScreen() {
                 Update your password to keep your account secure.
               </Text>
 
-              {/* Current Password Input */}
               <View style={styles.inputContainer}>
                 <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                   Current password
@@ -892,7 +1132,6 @@ export default function SettingsScreen() {
                 />
               </View>
 
-              {/* New Password Input */}
               <View style={styles.inputContainer}>
                 <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                   New password
@@ -916,7 +1155,6 @@ export default function SettingsScreen() {
                 />
               </View>
 
-              {/* Confirm New Password Input */}
               <View style={styles.inputContainer}>
                 <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                   Confirm new password
@@ -940,7 +1178,6 @@ export default function SettingsScreen() {
                 />
               </View>
 
-              {/* Buttons */}
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
@@ -1005,7 +1242,6 @@ export default function SettingsScreen() {
                 Choose how Safe Space communicates with you
               </Text>
 
-              {/* Tone Selection */}
               <ScrollView 
                 style={styles.aiPrefsScrollView}
                 showsVerticalScrollIndicator={true}
@@ -1015,10 +1251,8 @@ export default function SettingsScreen() {
                   AI Tone
                 </Text>
                 
-                {/* Primary Tones */}
                 {PRIMARY_TONE_IDS.map((toneId) => renderToneCard(toneId))}
 
-                {/* Advanced Styles Section */}
                 <TouchableOpacity
                   style={[
                     styles.advancedStylesToggle,
@@ -1041,14 +1275,12 @@ export default function SettingsScreen() {
                   />
                 </TouchableOpacity>
 
-                {/* Advanced Tones (conditionally rendered) */}
                 {showAdvancedStyles && (
                   <View style={styles.advancedStylesContainer}>
                     {ADVANCED_TONE_IDS.map((toneId) => renderToneCard(toneId))}
                   </View>
                 )}
 
-                {/* Science Mode Toggle */}
                 <View style={styles.aiScienceModeContainer}>
                   <Text style={[styles.aiPrefsSectionTitle, { color: theme.textPrimary }]}>
                     Science & Resources
@@ -1070,7 +1302,6 @@ export default function SettingsScreen() {
                 </View>
               </ScrollView>
 
-              {/* Buttons */}
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
@@ -1095,6 +1326,310 @@ export default function SettingsScreen() {
                     <Text style={styles.modalButtonText}>Save</Text>
                   )}
                 </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Personalization Info Modal */}
+      <Modal
+        visible={showPersonalizationInfoModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleClosePersonalizationInfoModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+            <View style={styles.modalIconContainer}>
+              <IconSymbol
+                ios_icon_name="info.circle.fill"
+                android_material_icon_name="info"
+                size={48}
+                color={theme.primary}
+              />
+            </View>
+
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              Why Personalization?
+            </Text>
+
+            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+              This helps the AI match your preferred tone, pacing, and examples. It does not diagnose or label you. You&apos;re always in control, and you can clear this anytime.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.primary }]}
+              onPress={handleClosePersonalizationInfoModal}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modalButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Clear Personalization Confirmation Modal */}
+      <Modal
+        visible={showClearPersonalizationModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseClearPersonalizationModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+            <View style={styles.modalIconContainer}>
+              <IconSymbol
+                ios_icon_name="exclamationmark.triangle.fill"
+                android_material_icon_name="warning"
+                size={48}
+                color="#FF9500"
+              />
+            </View>
+
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              Clear personalization?
+            </Text>
+
+            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+              This removes the personalization details from your account. The AI will go back to default behavior.
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                onPress={handleCloseClearPersonalizationModal}
+                disabled={isClearingPersonalization}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButtonHalf, { backgroundColor: '#FF9500' }]}
+                onPress={handleConfirmClearPersonalization}
+                disabled={isClearingPersonalization}
+                activeOpacity={0.8}
+              >
+                {isClearingPersonalization ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalButtonText}>Clear</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Personalization Modal */}
+      <Modal
+        visible={showPersonalizationModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleClosePersonalizationModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <ScrollView
+            contentContainerStyle={styles.modalScrollContent}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <View style={[styles.personalizationModalContent, { backgroundColor: '#FFFFFF' }]}>
+              <View style={styles.modalIconContainer}>
+                <IconSymbol
+                  ios_icon_name="person.fill"
+                  android_material_icon_name="person"
+                  size={48}
+                  color={theme.primary}
+                />
+              </View>
+
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                Personalization (Optional)
+              </Text>
+
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+                Share what helps conversations feel natural for you. You can change or remove this anytime.
+              </Text>
+
+              <ScrollView 
+                style={styles.personalizationScrollView}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                {/* Preferred conversation style */}
+                <View style={styles.personalizationSection}>
+                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                    Preferred conversation style
+                  </Text>
+                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                    Choose the tone that feels best to you.
+                  </Text>
+                  {renderOptionCard(CONVERSATION_STYLES, conversationStyle, setConversationStyle)}
+                </View>
+
+                {/* When you're stressed, what helps most? */}
+                <View style={styles.personalizationSection}>
+                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                    When you&apos;re stressed, what helps most?
+                  </Text>
+                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                    This helps the AI respond in a way that feels more useful.
+                  </Text>
+                  {renderOptionCard(STRESS_RESPONSES, stressResponse, setStressResponse)}
+                </View>
+
+                {/* How do you prefer to process feelings? */}
+                <View style={styles.personalizationSection}>
+                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                    How do you prefer to process feelings?
+                  </Text>
+                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                    Everyone processes differently — pick what fits you best.
+                  </Text>
+                  {renderOptionCard(PROCESSING_STYLES, processingStyle, setProcessingStyle)}
+                </View>
+
+                {/* Decision-making style */}
+                <View style={styles.personalizationSection}>
+                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                    Decision-making style
+                  </Text>
+                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                    How do you usually prefer to decide?
+                  </Text>
+                  {renderOptionCard(DECISION_STYLES, decisionStyle, setDecisionStyle)}
+                </View>
+
+                {/* Cultural context (optional) */}
+                <View style={styles.personalizationSection}>
+                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                    Cultural context (optional)
+                  </Text>
+                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                    Share anything that helps the AI understand your context.
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.multilineTextInput,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.textPrimary,
+                        borderColor: theme.textSecondary + '30',
+                      },
+                    ]}
+                    placeholder="Optional"
+                    placeholderTextColor={theme.textSecondary}
+                    multiline
+                    numberOfLines={3}
+                    value={culturalContext}
+                    onChangeText={setCulturalContext}
+                    editable={!isUpdatingPersonalization}
+                  />
+                </View>
+
+                {/* Values or boundaries (optional) */}
+                <View style={styles.personalizationSection}>
+                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                    Values or boundaries (optional)
+                  </Text>
+                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                    Anything the AI should respect while responding?
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.multilineTextInput,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.textPrimary,
+                        borderColor: theme.textSecondary + '30',
+                      },
+                    ]}
+                    placeholder="Optional"
+                    placeholderTextColor={theme.textSecondary}
+                    multiline
+                    numberOfLines={3}
+                    value={valuesBoundaries}
+                    onChangeText={setValuesBoundaries}
+                    editable={!isUpdatingPersonalization}
+                  />
+                </View>
+
+                {/* Recent changes you've noticed (optional) */}
+                <View style={styles.personalizationSection}>
+                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                    Recent changes you&apos;ve noticed (optional)
+                  </Text>
+                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                    If something feels different lately, you can note it here.
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.multilineTextInput,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.textPrimary,
+                        borderColor: theme.textSecondary + '30',
+                      },
+                    ]}
+                    placeholder="Optional"
+                    placeholderTextColor={theme.textSecondary}
+                    multiline
+                    numberOfLines={3}
+                    value={recentChanges}
+                    onChangeText={setRecentChanges}
+                    editable={!isUpdatingPersonalization}
+                  />
+                </View>
+
+                {/* Privacy copy */}
+                <Text style={[styles.personalizationPrivacyText, { color: theme.textSecondary }]}>
+                  Personalization is optional. You can edit or clear it anytime.
+                </Text>
+              </ScrollView>
+
+              {/* Buttons */}
+              <View style={styles.personalizationButtonsContainer}>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.primary, marginBottom: 12 }]}
+                  onPress={handleSavePersonalization}
+                  disabled={isUpdatingPersonalization}
+                  activeOpacity={0.8}
+                >
+                  {isUpdatingPersonalization ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalButtonText}>Save changes</Text>
+                  )}
+                </TouchableOpacity>
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                    onPress={handleClosePersonalizationModal}
+                    disabled={isUpdatingPersonalization}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalButtonHalf, { backgroundColor: '#FF9500' }]}
+                    onPress={handleOpenClearPersonalizationModal}
+                    disabled={isUpdatingPersonalization}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.modalButtonText}>Clear data</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </ScrollView>
@@ -1166,6 +1701,25 @@ const styles = StyleSheet.create({
     fontSize: Math.min(SCREEN_WIDTH * 0.05, 20),
     fontWeight: '700',
     marginBottom: '5%',
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  whyWeAskButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  whyWeAskText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cardDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
   },
   row: {
     flexDirection: 'row',
@@ -1285,6 +1839,15 @@ const styles = StyleSheet.create({
     padding: '8%',
     width: '100%',
     maxWidth: 400,
+    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
+    elevation: 5,
+  },
+  personalizationModalContent: {
+    borderRadius: 20,
+    padding: '6%',
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: SCREEN_HEIGHT * 0.9,
     boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
     elevation: 5,
   },
@@ -1416,5 +1979,57 @@ const styles = StyleSheet.create({
   aiScienceModeText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  personalizationScrollView: {
+    maxHeight: SCREEN_HEIGHT * 0.55,
+    marginBottom: 16,
+  },
+  personalizationSection: {
+    marginBottom: 24,
+  },
+  personalizationFieldLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  personalizationFieldHelper: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  optionCardsContainer: {
+    gap: 8,
+  },
+  optionCard: {
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1.5,
+  },
+  optionCardContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  optionCardText: {
+    fontSize: 14,
+    flex: 1,
+  },
+  multilineTextInput: {
+    padding: 12,
+    borderRadius: 10,
+    fontSize: 14,
+    borderWidth: 1,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  personalizationPrivacyText: {
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  personalizationButtonsContainer: {
+    marginTop: 8,
   },
 });

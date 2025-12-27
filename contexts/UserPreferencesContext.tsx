@@ -7,6 +7,13 @@ import { DEFAULT_TONE_ID } from '@/constants/AITones';
 interface UserPreferences {
   ai_tone_id: string;
   ai_science_mode: boolean;
+  conversation_style?: string;
+  stress_response?: string;
+  processing_style?: string;
+  decision_style?: string;
+  cultural_context?: string;
+  values_boundaries?: string;
+  recent_changes?: string;
 }
 
 interface UserPreferencesContextType {
@@ -48,7 +55,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
       // Race between fetch and timeout
       const fetchPromise = supabase
         .from('user_preferences')
-        .select('ai_tone_id, ai_science_mode')
+        .select('*')
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -69,6 +76,13 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
         setPreferences({
           ai_tone_id: data.ai_tone_id || DEFAULT_TONE_ID,
           ai_science_mode: data.ai_science_mode ?? false,
+          conversation_style: data.conversation_style,
+          stress_response: data.stress_response,
+          processing_style: data.processing_style,
+          decision_style: data.decision_style,
+          cultural_context: data.cultural_context,
+          values_boundaries: data.values_boundaries,
+          recent_changes: data.recent_changes,
         });
       } else {
         console.log('[UserPreferences] No preferences found, using defaults');
@@ -116,6 +130,13 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
             user_id: userId,
             ai_tone_id: patch.ai_tone_id ?? preferences.ai_tone_id,
             ai_science_mode: patch.ai_science_mode ?? preferences.ai_science_mode,
+            conversation_style: patch.conversation_style !== undefined ? patch.conversation_style : preferences.conversation_style,
+            stress_response: patch.stress_response !== undefined ? patch.stress_response : preferences.stress_response,
+            processing_style: patch.processing_style !== undefined ? patch.processing_style : preferences.processing_style,
+            decision_style: patch.decision_style !== undefined ? patch.decision_style : preferences.decision_style,
+            cultural_context: patch.cultural_context !== undefined ? patch.cultural_context : preferences.cultural_context,
+            values_boundaries: patch.values_boundaries !== undefined ? patch.values_boundaries : preferences.values_boundaries,
+            recent_changes: patch.recent_changes !== undefined ? patch.recent_changes : preferences.recent_changes,
           },
           {
             onConflict: 'user_id',
