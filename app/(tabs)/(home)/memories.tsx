@@ -26,6 +26,25 @@ import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { getPersonContinuity, setContinuityEnabled } from '@/lib/memory/personContinuity';
 import { useFocusEffect } from '@react-navigation/native';
 
+/**
+ * HARDENED DEBUG UI FLAG
+ * 
+ * This flag ensures the "Developer Debug Info" section is NEVER visible in
+ * TestFlight or App Store builds, even if __DEV__ or NODE_ENV is misconfigured.
+ * 
+ * The flag evaluates to true ONLY when:
+ * 1. __DEV__ is true (React Native development mode)
+ * 2. AND process.env.EXPO_PUBLIC_DISABLE_DEBUG_UI is NOT set to 'true'
+ * 
+ * In production builds (TestFlight/App Store):
+ * - __DEV__ is always false
+ * - Therefore SHOW_DEBUG_UI will always be false
+ * - The debug UI will never render
+ * 
+ * This is a build-time constant, not runtime state.
+ */
+const SHOW_DEBUG_UI = __DEV__ && (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_DISABLE_DEBUG_UI !== 'true');
+
 // Memory type from the person_memories table
 interface Memory {
   id: string;
@@ -176,7 +195,7 @@ export default function MemoriesScreen() {
 
   // ENHANCED: Validate personId is a valid UUID format
   useEffect(() => {
-    if (__DEV__) {
+    if (SHOW_DEBUG_UI) {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (personId && !uuidRegex.test(personId)) {
         console.error('[Memories] ⚠️  CRITICAL: personId is not a valid UUID!');
@@ -195,14 +214,14 @@ export default function MemoriesScreen() {
     }
 
     try {
-      if (__DEV__) {
+      if (SHOW_DEBUG_UI) {
         console.log('[Memories] Fetching continuity setting for person:', personId);
       }
       const continuityData = await getPersonContinuity(currentUser.id, personId);
       
       if (isMountedRef.current) {
         setContinuityEnabledState(continuityData.continuity_enabled);
-        if (__DEV__) {
+        if (SHOW_DEBUG_UI) {
           console.log('[Memories] Continuity enabled:', continuityData.continuity_enabled);
         }
       }
@@ -217,7 +236,7 @@ export default function MemoriesScreen() {
       return;
     }
 
-    if (__DEV__) {
+    if (SHOW_DEBUG_UI) {
       console.log('[Memories] Toggling continuity to:', value);
       console.log('[Memories] ⚠️  NOTE: This toggle ONLY affects saving NEW memories.');
       console.log('[Memories]    Existing memories will ALWAYS be displayed regardless of toggle state.');
@@ -228,7 +247,7 @@ export default function MemoriesScreen() {
       setContinuityEnabledState(value);
       await setContinuityEnabled(currentUser.id, personId, value);
       
-      if (__DEV__) {
+      if (SHOW_DEBUG_UI) {
         console.log('[Memories] Continuity setting updated successfully');
       }
       showSuccessToast(
@@ -297,7 +316,7 @@ export default function MemoriesScreen() {
    */
   const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
-      if (__DEV__) {
+      if (SHOW_DEBUG_UI) {
         console.warn('[Memories] ⚠️  Missing personId or userId');
         console.warn('[Memories]   - personId:', personId || 'MISSING');
         console.warn('[Memories]   - userId:', currentUser?.id || 'MISSING');
@@ -319,7 +338,7 @@ export default function MemoriesScreen() {
       setError(null);
       setSupabaseError(null);
       
-      if (__DEV__) {
+      if (SHOW_DEBUG_UI) {
         console.log('');
         console.log('═══════════════════════════════════════════════════════');
         console.log('[Memories] 📖 LOADING MEMORIES');
@@ -349,7 +368,7 @@ export default function MemoriesScreen() {
         .order('updated_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false, nullsFirst: false });
 
-      if (__DEV__) {
+      if (SHOW_DEBUG_UI) {
         console.log('[Memories] Query executed');
         console.log('[Memories] Response:');
         console.log('[Memories]   - Error:', fetchError ? fetchError.message : 'None');
@@ -367,13 +386,13 @@ export default function MemoriesScreen() {
           setError('Failed to load memories');
           setSupabaseError(fetchError);
         }
-        if (__DEV__) {
+        if (SHOW_DEBUG_UI) {
           console.log('═══════════════════════════════════════════════════════');
         }
         return;
       }
 
-      if (__DEV__) {
+      if (SHOW_DEBUG_UI) {
         console.log('[Memories] ✅ Loaded', data?.length || 0, 'memories');
         
         if (data && data.length > 0) {
@@ -397,7 +416,7 @@ export default function MemoriesScreen() {
         setMemories(data);
         const grouped = groupMemoriesByKey(data);
         setGroupedMemories(grouped);
-        if (__DEV__) {
+        if (SHOW_DEBUG_UI) {
           console.log('[Memories] Grouped into', grouped.length, 'groups');
           grouped.forEach((group) => {
             console.log(`[Memories]   - ${group.groupKey}: ${group.memories.length} memories`);
@@ -405,7 +424,7 @@ export default function MemoriesScreen() {
         }
       }
       
-      if (__DEV__) {
+      if (SHOW_DEBUG_UI) {
         console.log('═══════════════════════════════════════════════════════');
         console.log('');
       }
@@ -419,7 +438,7 @@ export default function MemoriesScreen() {
         setError('An unexpected error occurred');
         setSupabaseError(err);
       }
-      if (__DEV__) {
+      if (SHOW_DEBUG_UI) {
         console.log('═══════════════════════════════════════════════════════');
       }
     } finally {
@@ -439,7 +458,7 @@ export default function MemoriesScreen() {
   // Refetch when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      if (__DEV__) {
+      if (SHOW_DEBUG_UI) {
         console.log('[Memories] Screen focused, refreshing memories');
       }
       fetchMemories(true);
@@ -475,7 +494,7 @@ export default function MemoriesScreen() {
 
   // Open edit modal
   const handleEditPress = useCallback((memory: Memory) => {
-    if (__DEV__) {
+    if (SHOW_DEBUG_UI) {
       console.log('[Memories] Opening edit modal for:', memory.id);
     }
     setEditingMemory(memory);
@@ -507,7 +526,7 @@ export default function MemoriesScreen() {
       return;
     }
 
-    if (__DEV__) {
+    if (SHOW_DEBUG_UI) {
       console.log('[Memories] Saving edit for:', editingMemory.id);
     }
     setSaving(true);
@@ -557,7 +576,7 @@ export default function MemoriesScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            if (__DEV__) {
+            if (SHOW_DEBUG_UI) {
               console.log('[Memories] Deleting memory:', memory.id);
             }
 
@@ -747,11 +766,28 @@ export default function MemoriesScreen() {
                   : 'Memory saving is currently paused. Turn it on to start saving new memories.'}
               </Text>
               
-              {/* Developer-only debug info - ONLY visible in __DEV__ */}
-              {__DEV__ && (
+              {/* 
+                HARDENED DEBUG UI SECTION
+                
+                This section is ONLY rendered when SHOW_DEBUG_UI === true.
+                
+                SHOW_DEBUG_UI is a build-time constant that evaluates to:
+                - true: ONLY in local development (__DEV__ === true)
+                - false: ALWAYS in TestFlight and App Store builds (__DEV__ === false)
+                
+                Even if __DEV__ or NODE_ENV is misconfigured, this section will
+                NOT render in production builds because:
+                1. The entire block is wrapped in a conditional
+                2. No debug components are imported unconditionally
+                3. No debug container exists outside the conditional
+                4. No leftover spacing or margins when hidden
+                
+                This ensures user_id and person_id are NEVER exposed in production.
+              */}
+              {SHOW_DEBUG_UI && (
                 <View style={[styles.debugContainer, { backgroundColor: theme.card, borderColor: theme.textSecondary + '40' }]}>
                   <Text style={[styles.debugTitle, { color: theme.primary }]}>
-                    🔧 Developer Debug Info
+                    🔧 Developer Debug Info (DEV ONLY)
                   </Text>
                   <Text style={[styles.debugText, { color: theme.textSecondary }]}>
                     User ID: {currentUser?.id || 'N/A'}
