@@ -150,6 +150,7 @@ export default function MemoriesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supabaseError, setSupabaseError] = useState<any>(null);
 
   // Collapsible sections state
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
@@ -316,6 +317,7 @@ export default function MemoriesScreen() {
       }
       
       setError(null);
+      setSupabaseError(null);
       
       if (__DEV__) {
         console.log('');
@@ -363,6 +365,7 @@ export default function MemoriesScreen() {
         });
         if (isMountedRef.current) {
           setError('Failed to load memories');
+          setSupabaseError(fetchError);
         }
         if (__DEV__) {
           console.log('═══════════════════════════════════════════════════════');
@@ -414,6 +417,7 @@ export default function MemoriesScreen() {
       });
       if (isMountedRef.current) {
         setError('An unexpected error occurred');
+        setSupabaseError(err);
       }
       if (__DEV__) {
         console.log('═══════════════════════════════════════════════════════');
@@ -585,6 +589,7 @@ export default function MemoriesScreen() {
   // Retry loading on error
   const handleRetry = useCallback(() => {
     setError(null);
+    setSupabaseError(null);
     fetchMemories(false);
   }, [fetchMemories]);
 
@@ -741,6 +746,44 @@ export default function MemoriesScreen() {
                   ? 'As you chat, the AI will save important details here.'
                   : 'Memory saving is currently paused. Turn it on to start saving new memories.'}
               </Text>
+              
+              {/* Developer-only debug info */}
+              {__DEV__ && (
+                <View style={[styles.debugContainer, { backgroundColor: theme.card, borderColor: theme.textSecondary + '40' }]}>
+                  <Text style={[styles.debugTitle, { color: theme.primary }]}>
+                    🔧 Developer Debug Info
+                  </Text>
+                  <Text style={[styles.debugText, { color: theme.textSecondary }]}>
+                    User ID: {currentUser?.id || 'N/A'}
+                  </Text>
+                  <Text style={[styles.debugText, { color: theme.textSecondary }]}>
+                    Person ID: {personId || 'N/A'}
+                  </Text>
+                  <Text style={[styles.debugText, { color: theme.textSecondary }]}>
+                    Memory Count: {memories.length}
+                  </Text>
+                  {supabaseError && (
+                    <>
+                      <Text style={[styles.debugText, { color: '#FF3B30', fontWeight: '600', marginTop: 8 }]}>
+                        Supabase Error:
+                      </Text>
+                      <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
+                        {supabaseError.message || JSON.stringify(supabaseError)}
+                      </Text>
+                      {supabaseError.code && (
+                        <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
+                          Code: {supabaseError.code}
+                        </Text>
+                      )}
+                      {supabaseError.hint && (
+                        <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
+                          Hint: {supabaseError.hint}
+                        </Text>
+                      )}
+                    </>
+                  )}
+                </View>
+              )}
             </View>
           )}
 
@@ -1109,6 +1152,26 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  debugContainer: {
+    marginTop: 24,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    width: '100%',
+    maxWidth: 400,
+  },
+  debugTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  debugText: {
+    fontSize: 12,
+    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' }),
+    marginBottom: 4,
+    lineHeight: 18,
   },
   categorySection: {
     marginBottom: 24,
