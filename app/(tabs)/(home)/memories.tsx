@@ -26,17 +26,19 @@ import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { getPersonContinuity, setContinuityEnabled } from '@/lib/memory/personContinuity';
 import { useFocusEffect } from '@react-navigation/native';
 
-// Memory type from the memories table
+// Memory type from the person_memories table
 interface Memory {
   id: string;
   user_id: string;
   person_id: string;
   category: string;
-  content: string;
-  source_message: string | null;
+  key: string;
+  value: string;
+  importance: number | null;
   confidence: number | null;
-  memory_key: string | null;
+  last_mentioned_at: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 // Grouped memories by category
@@ -47,31 +49,40 @@ interface MemoryCategory {
 
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, { ios: string; android: string; emoji: string }> = {
-  'Health': { ios: 'heart.text.square.fill', android: 'medical_services', emoji: '🩺' },
-  'Family': { ios: 'person.3.fill', android: 'family_restroom', emoji: '👨‍👩‍👧' },
-  'Mental Health': { ios: 'brain.head.profile', android: 'psychology', emoji: '🧠' },
-  'Timeline': { ios: 'clock.fill', android: 'schedule', emoji: '⏳' },
-  'Relationships': { ios: 'heart.fill', android: 'favorite', emoji: '❤️' },
-  'Loss & Grief': { ios: 'heart.slash.fill', android: 'heart_broken', emoji: '💔' },
-  'Identity': { ios: 'person.fill', android: 'person', emoji: '👤' },
-  'Preferences': { ios: 'star.fill', android: 'star', emoji: '⭐' },
-  'Boundaries': { ios: 'hand.raised.fill', android: 'back_hand', emoji: '✋' },
-  'Patterns': { ios: 'arrow.triangle.2.circlepath', android: 'sync', emoji: '🔄' },
-  'Goals': { ios: 'flag.fill', android: 'flag', emoji: '🎯' },
-  'Context': { ios: 'info.circle.fill', android: 'info', emoji: 'ℹ️' },
-  'Personal Details': { ios: 'person.text.rectangle.fill', android: 'badge', emoji: '📋' },
-  'Work & Career': { ios: 'briefcase.fill', android: 'work', emoji: '💼' },
-  'Interests & Hobbies': { ios: 'gamecontroller.fill', android: 'sports_esports', emoji: '🎮' },
-  'Communication': { ios: 'bubble.left.and.bubble.right.fill', android: 'chat', emoji: '💬' },
-  'General': { ios: 'square.grid.2x2.fill', android: 'apps', emoji: '📦' },
-  'History': { ios: 'book.fill', android: 'history', emoji: '📖' },
-  'Location': { ios: 'location.fill', android: 'location_on', emoji: '📍' },
-  'Friends': { ios: 'person.2.fill', android: 'group', emoji: '👥' },
+  'health': { ios: 'heart.text.square.fill', android: 'medical_services', emoji: '🩺' },
+  'family': { ios: 'person.3.fill', android: 'family_restroom', emoji: '👨‍👩‍👧' },
+  'mental_health': { ios: 'brain.head.profile', android: 'psychology', emoji: '🧠' },
+  'timeline': { ios: 'clock.fill', android: 'schedule', emoji: '⏳' },
+  'relationships': { ios: 'heart.fill', android: 'favorite', emoji: '❤️' },
+  'loss_grief': { ios: 'heart.slash.fill', android: 'heart_broken', emoji: '💔' },
+  'identity': { ios: 'person.fill', android: 'person', emoji: '👤' },
+  'preferences': { ios: 'star.fill', android: 'star', emoji: '⭐' },
+  'boundaries': { ios: 'hand.raised.fill', android: 'back_hand', emoji: '✋' },
+  'patterns': { ios: 'arrow.triangle.2.circlepath', android: 'sync', emoji: '🔄' },
+  'goals': { ios: 'flag.fill', android: 'flag', emoji: '🎯' },
+  'context': { ios: 'info.circle.fill', android: 'info', emoji: 'ℹ️' },
+  'personal_details': { ios: 'person.text.rectangle.fill', android: 'badge', emoji: '📋' },
+  'work_career': { ios: 'briefcase.fill', android: 'work', emoji: '💼' },
+  'interests_hobbies': { ios: 'gamecontroller.fill', android: 'sports_esports', emoji: '🎮' },
+  'communication': { ios: 'bubble.left.and.bubble.right.fill', android: 'chat', emoji: '💬' },
+  'general': { ios: 'square.grid.2x2.fill', android: 'apps', emoji: '📦' },
+  'history': { ios: 'book.fill', android: 'history', emoji: '📖' },
+  'location': { ios: 'location.fill', android: 'location_on', emoji: '📍' },
+  'friends': { ios: 'person.2.fill', android: 'group', emoji: '👥' },
 };
 
 // Get icon for category
 function getCategoryIcon(category: string): { ios: string; android: string; emoji: string } {
-  return CATEGORY_ICONS[category] || { ios: 'square.fill', android: 'square', emoji: '📦' };
+  const normalizedCategory = category.toLowerCase().replace(/\s+/g, '_');
+  return CATEGORY_ICONS[normalizedCategory] || { ios: 'square.fill', android: 'square', emoji: '📦' };
+}
+
+// Format category name for display
+function formatCategoryName(category: string): string {
+  return category
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }
 
 // Format date for display
@@ -143,12 +154,16 @@ export default function MemoriesScreen() {
     }
 
     try {
-      console.log('[Memories] Fetching continuity setting for person:', personId);
+      if (__DEV__) {
+        console.log('[Memories] Fetching continuity setting for person:', personId);
+      }
       const continuityData = await getPersonContinuity(currentUser.id, personId);
       
       if (isMountedRef.current) {
         setContinuityEnabledState(continuityData.continuity_enabled);
-        console.log('[Memories] Continuity enabled:', continuityData.continuity_enabled);
+        if (__DEV__) {
+          console.log('[Memories] Continuity enabled:', continuityData.continuity_enabled);
+        }
       }
     } catch (err) {
       console.error('[Memories] Error fetching continuity setting:', err);
@@ -161,14 +176,18 @@ export default function MemoriesScreen() {
       return;
     }
 
-    console.log('[Memories] Toggling continuity to:', value);
+    if (__DEV__) {
+      console.log('[Memories] Toggling continuity to:', value);
+    }
     setContinuityLoading(true);
 
     try {
       setContinuityEnabledState(value);
       await setContinuityEnabled(currentUser.id, personId, value);
       
-      console.log('[Memories] Continuity setting updated successfully');
+      if (__DEV__) {
+        console.log('[Memories] Continuity setting updated successfully');
+      }
       showSuccessToast(
         value 
           ? 'Conversation continuity enabled' 
@@ -190,7 +209,7 @@ export default function MemoriesScreen() {
     const categoryMap = new Map<string, Memory[]>();
     
     memoriesData.forEach((memory) => {
-      const category = memory.category || 'General';
+      const category = memory.category || 'general';
       if (!categoryMap.has(category)) {
         categoryMap.set(category, []);
       }
@@ -205,22 +224,24 @@ export default function MemoriesScreen() {
       ),
     }));
     
-    // Sort categories alphabetically, but keep General first
+    // Sort categories alphabetically, but keep general first
     grouped.sort((a, b) => {
-      if (a.category === 'General') return -1;
-      if (b.category === 'General') return 1;
+      if (a.category === 'general') return -1;
+      if (b.category === 'general') return 1;
       return a.category.localeCompare(b.category);
     });
     
     return grouped;
   }, []);
 
-  // Fetch memories - FIXED to use params instead of non-existent context
+  // Fetch memories - FIXED to use person_memories table
   const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
-      console.warn('[Memories] ⚠️  Missing personId or userId');
-      console.warn('[Memories]   - personId:', personId || 'MISSING');
-      console.warn('[Memories]   - userId:', currentUser?.id || 'MISSING');
+      if (__DEV__) {
+        console.warn('[Memories] ⚠️  Missing personId or userId');
+        console.warn('[Memories]   - personId:', personId || 'MISSING');
+        console.warn('[Memories]   - userId:', currentUser?.id || 'MISSING');
+      }
       if (isMountedRef.current) {
         setLoading(false);
         setError('Invalid parameters');
@@ -237,30 +258,35 @@ export default function MemoriesScreen() {
       
       setError(null);
       
-      console.log('');
-      console.log('═══════════════════════════════════════════════════════');
-      console.log('[Memories] 📖 LOADING MEMORIES');
-      console.log('═══════════════════════════════════════════════════════');
-      console.log('[Memories] User ID:', currentUser.id);
-      console.log('[Memories] Person ID:', personId);
-      console.log('[Memories] Person Name:', personName);
-      console.log('[Memories] Query filters:');
-      console.log('[Memories]   - user_id =', currentUser.id);
-      console.log('[Memories]   - person_id =', personId);
-      console.log('───────────────────────────────────────────────────────');
+      if (__DEV__) {
+        console.log('');
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('[Memories] 📖 LOADING MEMORIES');
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('[Memories] User ID:', currentUser.id);
+        console.log('[Memories] Person ID:', personId);
+        console.log('[Memories] Person Name:', personName);
+        console.log('[Memories] Query filters:');
+        console.log('[Memories]   - user_id =', currentUser.id);
+        console.log('[Memories]   - person_id =', personId);
+        console.log('[Memories]   - table = person_memories');
+        console.log('───────────────────────────────────────────────────────');
+      }
 
       const { data, error: fetchError, count } = await supabase
-        .from('memories')
+        .from('person_memories')
         .select('*', { count: 'exact' })
         .eq('user_id', currentUser.id)
         .eq('person_id', personId)
         .order('created_at', { ascending: false });
 
-      console.log('[Memories] Query executed');
-      console.log('[Memories] Response:');
-      console.log('[Memories]   - Error:', fetchError ? fetchError.message : 'None');
-      console.log('[Memories]   - Row count:', count ?? data?.length ?? 0);
-      console.log('[Memories]   - Data length:', data?.length ?? 0);
+      if (__DEV__) {
+        console.log('[Memories] Query executed');
+        console.log('[Memories] Response:');
+        console.log('[Memories]   - Error:', fetchError ? fetchError.message : 'None');
+        console.log('[Memories]   - Row count:', count ?? data?.length ?? 0);
+        console.log('[Memories]   - Data length:', data?.length ?? 0);
+      }
 
       if (fetchError) {
         console.error('[Memories] ❌ Error fetching memories:', {
@@ -272,31 +298,39 @@ export default function MemoriesScreen() {
         if (isMountedRef.current) {
           setError('Failed to load memories');
         }
-        console.log('═══════════════════════════════════════════════════════');
+        if (__DEV__) {
+          console.log('═══════════════════════════════════════════════════════');
+        }
         return;
       }
 
-      console.log('[Memories] ✅ Loaded', data?.length || 0, 'memories');
-      
-      if (data && data.length > 0) {
-        console.log('[Memories] Sample memories:');
-        data.slice(0, 3).forEach((mem, idx) => {
-          console.log(`[Memories]   ${idx + 1}. [${mem.category}] ${mem.content.substring(0, 50)}...`);
-        });
+      if (__DEV__) {
+        console.log('[Memories] ✅ Loaded', data?.length || 0, 'memories');
+        
+        if (data && data.length > 0) {
+          console.log('[Memories] Sample memories:');
+          data.slice(0, 3).forEach((mem, idx) => {
+            console.log(`[Memories]   ${idx + 1}. [${mem.category}] ${mem.key}: ${mem.value}`);
+          });
+        }
       }
       
       if (isMountedRef.current && data !== null) {
         setMemories(data);
         const grouped = groupMemoriesByCategory(data);
         setGroupedMemories(grouped);
-        console.log('[Memories] Grouped into', grouped.length, 'categories');
-        grouped.forEach((cat) => {
-          console.log(`[Memories]   - ${cat.category}: ${cat.memories.length} memories`);
-        });
+        if (__DEV__) {
+          console.log('[Memories] Grouped into', grouped.length, 'categories');
+          grouped.forEach((cat) => {
+            console.log(`[Memories]   - ${cat.category}: ${cat.memories.length} memories`);
+          });
+        }
       }
       
-      console.log('═══════════════════════════════════════════════════════');
-      console.log('');
+      if (__DEV__) {
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('');
+      }
     } catch (err: any) {
       console.error('[Memories] ❌ Unexpected error:', {
         message: err?.message || 'unknown',
@@ -306,7 +340,9 @@ export default function MemoriesScreen() {
       if (isMountedRef.current) {
         setError('An unexpected error occurred');
       }
-      console.log('═══════════════════════════════════════════════════════');
+      if (__DEV__) {
+        console.log('═══════════════════════════════════════════════════════');
+      }
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
@@ -324,7 +360,9 @@ export default function MemoriesScreen() {
   // Refetch when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('[Memories] Screen focused, refreshing memories');
+      if (__DEV__) {
+        console.log('[Memories] Screen focused, refreshing memories');
+      }
       fetchMemories(true);
     }, [fetchMemories])
   );
@@ -358,9 +396,11 @@ export default function MemoriesScreen() {
 
   // Open edit modal
   const handleEditPress = useCallback((memory: Memory) => {
-    console.log('[Memories] Opening edit modal for:', memory.id);
+    if (__DEV__) {
+      console.log('[Memories] Opening edit modal for:', memory.id);
+    }
     setEditingMemory(memory);
-    setEditValue(memory.content);
+    setEditValue(memory.value);
     setEditModalVisible(true);
   }, []);
 
@@ -383,19 +423,22 @@ export default function MemoriesScreen() {
       return;
     }
 
-    if (newValue === editingMemory.content) {
+    if (newValue === editingMemory.value) {
       handleCloseEditModal();
       return;
     }
 
-    console.log('[Memories] Saving edit for:', editingMemory.id);
+    if (__DEV__) {
+      console.log('[Memories] Saving edit for:', editingMemory.id);
+    }
     setSaving(true);
 
     try {
       const { error: updateError } = await supabase
-        .from('memories')
+        .from('person_memories')
         .update({
-          content: newValue,
+          value: newValue,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', editingMemory.id)
         .eq('user_id', currentUser.id);
@@ -435,11 +478,13 @@ export default function MemoriesScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            console.log('[Memories] Deleting memory:', memory.id);
+            if (__DEV__) {
+              console.log('[Memories] Deleting memory:', memory.id);
+            }
 
             try {
               const { error: deleteError } = await supabase
-                .from('memories')
+                .from('person_memories')
                 .delete()
                 .eq('id', memory.id)
                 .eq('user_id', currentUser.id);
@@ -600,6 +645,7 @@ export default function MemoriesScreen() {
               {groupedMemories.map((categoryGroup) => {
                 const icon = getCategoryIcon(categoryGroup.category);
                 const isCollapsed = collapsedSections.has(categoryGroup.category);
+                const displayCategory = formatCategoryName(categoryGroup.category);
                 
                 return (
                   <View key={categoryGroup.category} style={styles.categorySection}>
@@ -612,7 +658,7 @@ export default function MemoriesScreen() {
                       <View style={styles.categoryHeaderLeft}>
                         <Text style={styles.categoryEmoji}>{icon.emoji}</Text>
                         <Text style={[styles.categoryTitle, { color: theme.textPrimary }]}>
-                          {categoryGroup.category}
+                          {displayCategory}
                         </Text>
                         <View style={[styles.countBadge, { backgroundColor: theme.primary + '20' }]}>
                           <Text style={[styles.countText, { color: theme.primary }]}>
@@ -670,7 +716,7 @@ export default function MemoriesScreen() {
                               {/* Center: Content & Date */}
                               <View style={styles.memoryTextContainer}>
                                 <Text style={[styles.memoryContent, { color: theme.textPrimary }]} numberOfLines={3}>
-                                  {memory.content}
+                                  {memory.value}
                                 </Text>
                                 <Text style={[styles.memoryDate, { color: theme.textSecondary }]}>
                                   {formatDate(memory.created_at)}
