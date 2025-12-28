@@ -337,9 +337,9 @@ function RootLayoutInner() {
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <SafeAreaProvider>
-        <WidgetProvider>
+    <WidgetProvider>
+      <ErrorBoundary>
+        <SafeAreaProvider>
           <AppThemeProvider>
             <AuthProvider>
               <UserPreferencesProvider>
@@ -347,8 +347,8 @@ export default function RootLayout() {
               </UserPreferencesProvider>
             </AuthProvider>
           </AppThemeProvider>
-        </WidgetProvider>
-      </SafeAreaProvider>
-    </ErrorBoundary>
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    </WidgetProvider>
   );
 }
