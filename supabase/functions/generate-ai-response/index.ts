@@ -349,7 +349,244 @@ function detectCondition(message: string): string | null {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// NEW: EMOTIONAL CONTINUITY EXTRACTION
+// NEW: ADAPTIVE RESPONSE LENGTH & EMOTIONAL PACING
+// ═══════════════════════════════════════════════════════════════════
+// Analyzes user input to determine appropriate response length and pacing
+// Prevents overwhelming users with excessive text or emotional intensity
+// ═══════════════════════════════════════════════════════════════════
+
+interface ResponseLengthGuidance {
+  targetWords: number;
+  maxQuestions: number;
+  pacing: 'slow' | 'steady' | 'rapid';
+  emotionalIntensity: 'low' | 'medium' | 'high';
+  reasoning: string;
+}
+
+/**
+ * Analyze user input to determine appropriate response length and pacing
+ * 
+ * RULES:
+ * - Short user input → short response
+ * - Emotional user input → slow down, don't expand
+ * - Avoid multi-paragraph responses unless user asks for depth
+ * - Max 1 question per response unless clarification required
+ */
+function analyzeUserInputForResponseGuidance(userMessage: string): ResponseLengthGuidance {
+  const wordCount = userMessage.trim().split(/\s+/).length;
+  const lowerMessage = userMessage.toLowerCase();
+  
+  // Detect emotional intensity
+  const highEmotionKeywords = [
+    'overwhelmed', 'can\'t handle', 'breaking down', 'falling apart',
+    'too much', 'drowning', 'suffocating', 'panic', 'terrified',
+    'devastated', 'destroyed', 'shattered', 'hopeless', 'desperate'
+  ];
+  
+  const mediumEmotionKeywords = [
+    'anxious', 'worried', 'scared', 'sad', 'hurt', 'angry',
+    'frustrated', 'confused', 'lost', 'stuck', 'exhausted',
+    'stressed', 'upset', 'disappointed', 'lonely'
+  ];
+  
+  const hasHighEmotion = highEmotionKeywords.some(keyword => lowerMessage.includes(keyword));
+  const hasMediumEmotion = mediumEmotionKeywords.some(keyword => lowerMessage.includes(keyword));
+  
+  // Detect if user is asking for depth
+  const askingForDepth = 
+    lowerMessage.includes('explain') ||
+    lowerMessage.includes('tell me more') ||
+    lowerMessage.includes('help me understand') ||
+    lowerMessage.includes('why') ||
+    lowerMessage.includes('how does');
+  
+  // Detect if user is asking multiple questions (needs clarification)
+  const questionCount = (userMessage.match(/\?/g) || []).length;
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // DECISION LOGIC
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // CASE 1: Very short input (1-5 words) → Very short response
+  if (wordCount <= 5) {
+    return {
+      targetWords: 30,
+      maxQuestions: 1,
+      pacing: 'steady',
+      emotionalIntensity: 'low',
+      reasoning: 'User input is very short - matching with brief response'
+    };
+  }
+  
+  // CASE 2: Short input (6-15 words) → Short response
+  if (wordCount <= 15) {
+    return {
+      targetWords: 50,
+      maxQuestions: 1,
+      pacing: 'steady',
+      emotionalIntensity: hasMediumEmotion ? 'medium' : 'low',
+      reasoning: 'User input is short - keeping response concise'
+    };
+  }
+  
+  // CASE 3: High emotional intensity → Slow down, don't expand
+  if (hasHighEmotion) {
+    return {
+      targetWords: 60,
+      maxQuestions: 1,
+      pacing: 'slow',
+      emotionalIntensity: 'high',
+      reasoning: 'High emotional intensity detected - slowing down and staying brief'
+    };
+  }
+  
+  // CASE 4: Medium emotional intensity → Moderate response
+  if (hasMediumEmotion) {
+    return {
+      targetWords: 80,
+      maxQuestions: 1,
+      pacing: 'steady',
+      emotionalIntensity: 'medium',
+      reasoning: 'Medium emotional intensity - balanced response'
+    };
+  }
+  
+  // CASE 5: User asking for depth → Allow longer response
+  if (askingForDepth) {
+    return {
+      targetWords: 150,
+      maxQuestions: 1,
+      pacing: 'steady',
+      emotionalIntensity: 'low',
+      reasoning: 'User explicitly asking for depth - providing detailed response'
+    };
+  }
+  
+  // CASE 6: User asking multiple questions → Allow 2-3 questions for clarification
+  if (questionCount >= 2) {
+    return {
+      targetWords: 100,
+      maxQuestions: 3,
+      pacing: 'steady',
+      emotionalIntensity: 'low',
+      reasoning: 'User asking multiple questions - clarification needed'
+    };
+  }
+  
+  // CASE 7: Medium-length input (16-40 words) → Balanced response
+  if (wordCount <= 40) {
+    return {
+      targetWords: 100,
+      maxQuestions: 1,
+      pacing: 'steady',
+      emotionalIntensity: 'low',
+      reasoning: 'Medium-length input - balanced response'
+    };
+  }
+  
+  // CASE 8: Long input (40+ words) → Thoughtful but not excessive response
+  return {
+    targetWords: 120,
+    maxQuestions: 1,
+    pacing: 'steady',
+    emotionalIntensity: 'low',
+    reasoning: 'Long input - thoughtful response without overwhelming'
+  };
+}
+
+/**
+ * Build response guidance instructions for the AI
+ */
+function buildResponseGuidanceInstructions(guidance: ResponseLengthGuidance): string {
+  let instructions = `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚖️ RESPONSE LENGTH & PACING GUIDANCE (CRITICAL - FOLLOW STRICTLY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ANALYSIS: ${guidance.reasoning}
+
+RESPONSE REQUIREMENTS:
+- Target length: ~${guidance.targetWords} words (±20%)
+- Maximum questions: ${guidance.maxQuestions}
+- Pacing: ${guidance.pacing}
+- Emotional intensity: ${guidance.emotionalIntensity}
+
+`;
+
+  // Add pacing-specific instructions
+  if (guidance.pacing === 'slow') {
+    instructions += `PACING INSTRUCTIONS (SLOW):
+- Use shorter, calmer sentences
+- Pause between thoughts with line breaks
+- Prioritize emotional grounding over information
+- Speak slowly and gently
+- Example: "That sounds really hard. [pause] Let's take this one step at a time."
+
+`;
+  } else if (guidance.pacing === 'rapid') {
+    instructions += `PACING INSTRUCTIONS (RAPID):
+- Be direct and efficient
+- Get to the point quickly
+- Use clear, concise language
+- Avoid unnecessary elaboration
+
+`;
+  } else {
+    instructions += `PACING INSTRUCTIONS (STEADY):
+- Maintain a balanced, natural pace
+- Mix shorter and longer sentences
+- Be neither rushed nor overly slow
+
+`;
+  }
+
+  // Add emotional intensity instructions
+  if (guidance.emotionalIntensity === 'high') {
+    instructions += `EMOTIONAL INTENSITY INSTRUCTIONS (HIGH):
+⚠️ CRITICAL: User is experiencing high emotional distress
+- DO NOT expand or elaborate excessively
+- DO NOT ask multiple questions
+- DO NOT offer complex advice right now
+- FOCUS on validation and grounding
+- Keep response BRIEF and CALMING
+- Example: "I hear you. That's a lot to carry. What do you need most right now?"
+
+`;
+  } else if (guidance.emotionalIntensity === 'medium') {
+    instructions += `EMOTIONAL INTENSITY INSTRUCTIONS (MEDIUM):
+- Balance validation with gentle guidance
+- Avoid overwhelming with too much information
+- Keep response focused and supportive
+
+`;
+  }
+
+  // Add question limit instructions
+  instructions += `QUESTION LIMIT:
+- Maximum ${guidance.maxQuestions} question(s) in this response
+- Only ask questions that truly help clarify or support
+- Avoid interrogating or overwhelming the user
+- If you must ask multiple questions, make them brief and focused
+
+`;
+
+  // Add safeguards
+  instructions += `SAFEGUARDS (ALWAYS APPLY):
+✓ Avoid stacked validations (no "That makes sense" repeated)
+✓ Avoid multi-paragraph responses unless user explicitly asks for depth
+✓ Keep responses calm, not verbose
+✓ User should never feel talked at
+✓ Maintain your distinct therapist style while respecting these constraints
+
+⚠️ THESE INSTRUCTIONS OVERRIDE DEFAULT PERSONA WORD COUNTS
+Your persona style remains intact, but response length MUST adapt to user input.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+  return instructions;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EMOTIONAL CONTINUITY EXTRACTION
 // ═══════════════════════════════════════════════════════════════════
 // Extract emotional themes from the current conversation thread
 // This is NOT stored in the database - it's ephemeral and conversation-specific
@@ -971,7 +1208,8 @@ async function buildSystemPrompt(
   currentSubject?: string,
   aiToneId?: string,
   aiScienceMode?: boolean,
-  continuity_enabled_request?: boolean
+  continuity_enabled_request?: boolean,
+  responseGuidance?: ResponseLengthGuidance
 ): Promise<string> {
   const askingForAdvice = isAskingForAdvice(lastUserMessage);
   const wantsLearning = wantsToLearn(lastUserMessage);
@@ -1064,7 +1302,18 @@ ${personaStyle.signoff_style === 'none' ? '- No specific closing style - end nat
   basePrompt += `\n\nYou're talking about ${personName} (${relationshipType}).`;
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: ADD EMOTIONAL CONTINUITY CONTEXT
+  // ADD ADAPTIVE RESPONSE LENGTH & PACING GUIDANCE
+  // ═══════════════════════════════════════════════════════════════════
+  // This ensures therapists never overwhelm users with excessive text
+  // or emotional intensity by adapting to user input
+  // ═══════════════════════════════════════════════════════════════════
+  
+  if (responseGuidance) {
+    basePrompt += buildResponseGuidanceInstructions(responseGuidance);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ADD EMOTIONAL CONTINUITY CONTEXT
   // ═══════════════════════════════════════════════════════════════════
   // This allows the AI to subtly reference emotional themes from the
   // current conversation thread WITHOUT exposing memory content
@@ -1360,6 +1609,12 @@ serve(async (req) => {
     const lastUserMessage =
       messages.filter((m: any) => m?.role === "user").pop()?.content || "";
 
+    // ═══════════════════════════════════════════════════════════════════
+    // ANALYZE USER INPUT FOR ADAPTIVE RESPONSE LENGTH & PACING
+    // ═══════════════════════════════════════════════════════════════════
+    const responseGuidance = analyzeUserInputForResponseGuidance(lastUserMessage);
+    console.log(`[Edge][Chat][${requestId}] Response guidance:`, responseGuidance);
+
     const systemPrompt = await buildSystemPrompt(
       supabase,
       userId,
@@ -1371,7 +1626,8 @@ serve(async (req) => {
       currentSubject,
       aiToneId,
       aiScienceMode,
-      continuity_enabled_request
+      continuity_enabled_request,
+      responseGuidance
     );
 
     const systemMessage = { role: "system" as const, content: systemPrompt };
@@ -1381,19 +1637,28 @@ serve(async (req) => {
       content: msg.content
     }));
 
-    // ✅ Calculate max_tokens based on persona style
-    // Default to 300 tokens, but adjust based on persona's max_words
+    // ✅ Calculate max_tokens based on response guidance (overrides persona style)
+    // Response guidance adapts to user input to prevent overwhelming
     let maxTokens = 300;
-    const preferences = await getUserPreferences(supabase, userId);
-    if (preferences?.therapist_persona_id) {
-      const personaStyle = getPersonaStyleMetadata(preferences.therapist_persona_id);
-      if (personaStyle?.max_words) {
-        // Rough conversion: 1 token ≈ 0.75 words, so max_words / 0.75 = max_tokens
-        // Add 20% buffer for formatting and safety
-        maxTokens = Math.ceil((personaStyle.max_words / 0.75) * 1.2);
-        // Cap at reasonable limits
-        maxTokens = Math.min(Math.max(maxTokens, 150), 600);
-        console.log(`[Edge][Chat][${requestId}] Adjusted max_tokens to ${maxTokens} for persona ${preferences.therapist_persona_id}`);
+    
+    if (responseGuidance) {
+      // Convert target words to tokens with buffer
+      // Rough conversion: 1 token ≈ 0.75 words, so target_words / 0.75 = tokens
+      // Add 30% buffer for formatting and natural variation
+      maxTokens = Math.ceil((responseGuidance.targetWords / 0.75) * 1.3);
+      // Cap at reasonable limits (min 100, max 400)
+      maxTokens = Math.min(Math.max(maxTokens, 100), 400);
+      console.log(`[Edge][Chat][${requestId}] Adaptive max_tokens: ${maxTokens} (target: ${responseGuidance.targetWords} words, reason: ${responseGuidance.reasoning})`);
+    } else {
+      // Fallback to persona style if no response guidance
+      const preferences = await getUserPreferences(supabase, userId);
+      if (preferences?.therapist_persona_id) {
+        const personaStyle = getPersonaStyleMetadata(preferences.therapist_persona_id);
+        if (personaStyle?.max_words) {
+          maxTokens = Math.ceil((personaStyle.max_words / 0.75) * 1.2);
+          maxTokens = Math.min(Math.max(maxTokens, 150), 600);
+          console.log(`[Edge][Chat][${requestId}] Persona-based max_tokens: ${maxTokens} for ${preferences.therapist_persona_id}`);
+        }
       }
     }
 
