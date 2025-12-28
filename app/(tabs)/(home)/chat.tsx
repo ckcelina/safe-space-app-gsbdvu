@@ -652,7 +652,9 @@ export default function ChatScreen() {
         const errorMessage = result.error?.message || 'Unknown error';
         const errorStatus = result.error?.status;
 
+        // ═══════════════════════════════════════════════════════════════════
         // PRODUCTION SAFETY: Only log detailed errors in __DEV__ mode
+        // ═══════════════════════════════════════════════════════════════════
         if (__DEV__) {
           console.error('[Chat] Edge Function failed:', {
             code: errorCode,
@@ -683,99 +685,137 @@ export default function ChatScreen() {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           }
         }
+        // In production (__DEV__ === false), do NOT console.error at all
 
         if (isMountedRef.current) {
           setIsTyping(false);
           
+          // ═══════════════════════════════════════════════════════════════════
           // STEP 4: Handle different error types gracefully
+          // ═══════════════════════════════════════════════════════════════════
           
-          // Check if this is an AbortError/Timeout
-          if (errorCode === 'TIMEOUT' || errorCode === 'EDGE_ABORTED') {
-            // Check if user navigated away or app was backgrounded
-            const wasBackgrounded = appStateRef.current !== 'active';
-            const wasUnmounted = !isMountedRef.current;
-            
-            if (wasBackgrounded || wasUnmounted) {
-              // Silently ignore - user is no longer in the chat
-              if (__DEV__) {
-                console.log('[Chat] AbortError/Timeout ignored - user navigated away or app backgrounded');
-              }
-              return;
-            }
-            
-            // User is still in chat - show lightweight retry message
+          // Handle EDGE_ABORTED or EDGE_TIMEOUT - NO fallback message
+          if (errorCode === 'EDGE_ABORTED' || errorCode === 'EDGE_TIMEOUT') {
             if (__DEV__) {
-              console.log('[Chat] AbortError/Timeout - showing retry message');
+              console.log('[Chat] Abort/Timeout detected - showing clean error, no fallback message');
             }
-            
-            // Mark the user message as failed (client-side only)
-            setAllMessages((prev) => 
-              prev.map((msg) => 
-                msg.id === insertedMessage.id 
-                  ? { ...msg, failed_to_send: true, retry_content: userMessageText }
-                  : msg
-              )
-            );
             
             // Show non-blocking error message
-            setError('Connection interrupted. Your message is saved - tap to retry.');
+            setError('Connection interrupted. Please try again.');
+            
+            // Do NOT insert fallback assistant message
+            // Chat state remains stable (input cleared, user message remains)
             return;
           }
           
-          // Handle EDGE_UNAVAILABLE / EDGE_TIMEOUT
-          if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'FUNCTIONS_HTTP_ERROR') {
+          // ═══════════════════════════════════════════════════════════════════
+          // FALLBACK MESSAGE: Only for EDGE_AUTH, EDGE_UNKNOWN, EDGE_UNAVAILABLE
+          // ═══════════════════════════════════════════════════════════════════
+          
+          // Handle EDGE_AUTH
+          if (errorCode === 'EDGE_AUTH') {
             if (__DEV__) {
-              console.log('[Chat] Edge unavailable - marking message as failed');
+              console.log('[Chat] Auth error - inserting fallback message');
             }
             
-            // Mark the user message as failed (client-side only)
-            setAllMessages((prev) => 
-              prev.map((msg) => 
-                msg.id === insertedMessage.id 
-                  ? { ...msg, failed_to_send: true, retry_content: userMessageText }
-                  : msg
-              )
-            );
+            const fallbackMessage = "I'm having trouble connecting right now. Please try logging out and back in.";
             
-            // Show retry action
-            setError('Unable to reach AI. Your message is saved - tap to retry.');
-            return;
-          }
-          
-          // Handle auth errors
-          if (errorCode === 'EDGE_AUTH') {
+            const { data: fallbackInserted } = await supabase
+              .from('messages')
+              .insert({
+                user_id: userId,
+                person_id: personId,
+                role: 'assistant',
+                content: fallbackMessage,
+                subject: currentSubject,
+                created_at: new Date().toISOString(),
+              })
+              .select('*')
+              .single();
+
+            if (fallbackInserted) {
+              const fallbackWithMeta: ExtendedMessage = {
+                ...fallbackInserted,
+                therapist_name: therapistMeta.name,
+                therapist_avatar_source: therapistMeta.avatarSource,
+              };
+              setAllMessages((prev) => [...prev, fallbackWithMeta]);
+            }
+            
             setError('Authentication issue. Please try logging out and back in.');
             return;
           }
           
-          // Generic fallback for other errors
-          let fallbackMessage = "I'm having trouble responding right now. Please try again.";
-          
-          if (errorCode === 'MAX_RETRIES_EXCEEDED') {
-            fallbackMessage = "I'm having persistent connection issues. Please check your network and try again.";
+          // Handle EDGE_UNAVAILABLE
+          if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'FUNCTIONS_HTTP_ERROR') {
+            if (__DEV__) {
+              console.log('[Chat] Service unavailable - inserting fallback message');
+            }
+            
+            const fallbackMessage = "I'm having trouble responding right now. Please try again in a moment.";
+            
+            const { data: fallbackInserted } = await supabase
+              .from('messages')
+              .insert({
+                user_id: userId,
+                person_id: personId,
+                role: 'assistant',
+                content: fallbackMessage,
+                subject: currentSubject,
+                created_at: new Date().toISOString(),
+              })
+              .select('*')
+              .single();
+
+            if (fallbackInserted) {
+              const fallbackWithMeta: ExtendedMessage = {
+                ...fallbackInserted,
+                therapist_name: therapistMeta.name,
+                therapist_avatar_source: therapistMeta.avatarSource,
+              };
+              setAllMessages((prev) => [...prev, fallbackWithMeta]);
+            }
+            
+            setError('Service temporarily unavailable. Please try again.');
+            return;
           }
           
-          // Insert fallback AI message
-          const { data: fallbackInserted } = await supabase
-            .from('messages')
-            .insert({
-              user_id: userId,
-              person_id: personId,
-              role: 'assistant',
-              content: fallbackMessage,
-              subject: currentSubject,
-              created_at: new Date().toISOString(),
-            })
-            .select('*')
-            .single();
+          // Handle EDGE_UNKNOWN and other errors
+          if (errorCode === 'EDGE_UNKNOWN' || errorCode === 'UNEXPECTED_ERROR' || errorCode === 'MAX_RETRIES_EXCEEDED') {
+            if (__DEV__) {
+              console.log('[Chat] Unknown/unexpected error - inserting fallback message');
+            }
+            
+            let fallbackMessage = "I'm having trouble responding right now. Please try again.";
+            
+            if (errorCode === 'MAX_RETRIES_EXCEEDED') {
+              fallbackMessage = "I'm having persistent connection issues. Please check your network and try again.";
+            }
+            
+            const { data: fallbackInserted } = await supabase
+              .from('messages')
+              .insert({
+                user_id: userId,
+                person_id: personId,
+                role: 'assistant',
+                content: fallbackMessage,
+                subject: currentSubject,
+                created_at: new Date().toISOString(),
+              })
+              .select('*')
+              .single();
 
-          if (fallbackInserted) {
-            const fallbackWithMeta: ExtendedMessage = {
-              ...fallbackInserted,
-              therapist_name: therapistMeta.name,
-              therapist_avatar_source: therapistMeta.avatarSource,
-            };
-            setAllMessages((prev) => [...prev, fallbackWithMeta]);
+            if (fallbackInserted) {
+              const fallbackWithMeta: ExtendedMessage = {
+                ...fallbackInserted,
+                therapist_name: therapistMeta.name,
+                therapist_avatar_source: therapistMeta.avatarSource,
+              };
+              setAllMessages((prev) => [...prev, fallbackWithMeta]);
+            }
+            
+            setError('An error occurred. Please try again.');
+            return;
           }
         }
 
@@ -985,6 +1025,12 @@ export default function ChatScreen() {
 
   // Handle error banner tap for retry
   const handleErrorBannerTap = useCallback(() => {
+    // For abort/timeout errors, just dismiss
+    if (error && error.includes('Connection interrupted')) {
+      setError(null);
+      return;
+    }
+    
     // Find the most recent failed message
     const failedMessage = allMessages
       .filter((msg) => msg.failed_to_send && msg.retry_content)
@@ -997,7 +1043,7 @@ export default function ChatScreen() {
       // No failed message to retry, just dismiss error
       setError(null);
     }
-  }, [allMessages, retryFailedMessage]);
+  }, [allMessages, retryFailedMessage, error]);
 
   // Render individual message item
   const renderMessageItem = useCallback(({ item, index }: ListRenderItemInfo<ExtendedMessage>) => {
