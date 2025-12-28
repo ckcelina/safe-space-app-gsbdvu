@@ -303,16 +303,273 @@ const CONDITION_INFO: any = {
   }
 };
 
-// Helper function to detect if user is asking for advice
-function isAskingForAdvice(message: string): boolean {
+// ═══════════════════════════════════════════════════════════════════
+// VENTING DETECTION & EMOTIONAL INTELLIGENCE
+// ═══════════════════════════════════════════════════════════════════
+// Detects when the user is venting vs. actively seeking advice
+// When venting: AI responds with acknowledgment, not solutions
+// Respects emotional pauses and doesn't rush to fill silence
+// ═══════════════════════════════════════════════════════════════════
+
+interface VentingAnalysis {
+  isVenting: boolean;
+  isAskingForAdvice: boolean;
+  emotionalIntensity: 'low' | 'medium' | 'high';
+  needsSpace: boolean;
+  reasoning: string;
+}
+
+/**
+ * Analyze user message to detect venting vs. advice-seeking
+ * 
+ * VENTING INDICATORS:
+ * - Emotional expression without questions
+ * - Statements of frustration, overwhelm, or distress
+ * - Narrative storytelling about difficult experiences
+ * - Repetitive emotional themes
+ * - No explicit request for solutions
+ * 
+ * ADVICE-SEEKING INDICATORS:
+ * - Direct questions about what to do
+ * - Explicit requests for suggestions or guidance
+ * - "Should I..." or "How can I..." phrasing
+ * - Asking for opinions or perspectives
+ */
+function analyzeVentingVsAdviceSeeking(message: string): VentingAnalysis {
+  const lowerMessage = (message || "").toLowerCase();
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // ADVICE-SEEKING DETECTION
+  // ═══════════════════════════════════════════════════════════════════
   const adviceKeywords = [
     "what should i do", "what can i do", "advice", "help me",
     "suggestion", "what do you think", "how should i", "how can i",
     "what would you do", "need advice", "looking for advice",
-    "any suggestions", "what's your advice", "guide me", "tell me what to do"
+    "any suggestions", "what's your advice", "guide me", "tell me what to do",
+    "what would you recommend", "what's the best way", "how do i handle"
   ];
-  const lowerMessage = (message || "").toLowerCase();
-  return adviceKeywords.some(keyword => lowerMessage.includes(keyword));
+  
+  const isAskingForAdvice = adviceKeywords.some(keyword => lowerMessage.includes(keyword));
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // VENTING DETECTION
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Venting indicators: emotional expression without seeking solutions
+  const ventingIndicators = [
+    // Frustration expressions
+    "i'm so tired of", "i can't stand", "i hate that", "i'm sick of",
+    "this is ridiculous", "this is insane", "i can't believe",
+    
+    // Overwhelm expressions
+    "i'm so overwhelmed", "i can't handle", "it's too much", "i'm drowning",
+    "i can't take it anymore", "i'm at my limit", "i'm breaking down",
+    
+    // Emotional release
+    "i just need to", "i need to vent", "i need to get this out",
+    "i just have to say", "i'm just so", "i feel like",
+    
+    // Narrative storytelling (past tense, descriptive)
+    "and then they", "and then he", "and then she", "so then",
+    "after that", "the other day", "yesterday", "last week",
+    
+    // Emotional statements without questions
+    "i'm just", "i feel", "i'm feeling", "it's like", "it feels like"
+  ];
+  
+  const ventingIndicatorCount = ventingIndicators.filter(indicator => 
+    lowerMessage.includes(indicator)
+  ).length;
+  
+  // Check for questions (advice-seeking often includes questions)
+  const hasQuestionMark = message.includes('?');
+  const questionWords = ['what', 'how', 'why', 'when', 'where', 'who', 'should', 'could', 'would'];
+  const hasQuestionWord = questionWords.some(word => 
+    lowerMessage.split(/\s+/).includes(word)
+  );
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // EMOTIONAL INTENSITY DETECTION
+  // ═══════════════════════════════════════════════════════════════════
+  const highIntensityKeywords = [
+    'overwhelmed', 'can\'t handle', 'breaking down', 'falling apart',
+    'too much', 'drowning', 'suffocating', 'panic', 'terrified',
+    'devastated', 'destroyed', 'shattered', 'hopeless', 'desperate',
+    'can\'t take it', 'at my limit', 'losing it'
+  ];
+  
+  const mediumIntensityKeywords = [
+    'anxious', 'worried', 'scared', 'sad', 'hurt', 'angry',
+    'frustrated', 'confused', 'lost', 'stuck', 'exhausted',
+    'stressed', 'upset', 'disappointed', 'lonely', 'tired of'
+  ];
+  
+  const hasHighIntensity = highIntensityKeywords.some(keyword => lowerMessage.includes(keyword));
+  const hasMediumIntensity = mediumIntensityKeywords.some(keyword => lowerMessage.includes(keyword));
+  
+  let emotionalIntensity: 'low' | 'medium' | 'high' = 'low';
+  if (hasHighIntensity) {
+    emotionalIntensity = 'high';
+  } else if (hasMediumIntensity) {
+    emotionalIntensity = 'medium';
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // DECISION LOGIC
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // If explicitly asking for advice, not venting
+  if (isAskingForAdvice) {
+    return {
+      isVenting: false,
+      isAskingForAdvice: true,
+      emotionalIntensity,
+      needsSpace: false,
+      reasoning: 'User is explicitly asking for advice or guidance'
+    };
+  }
+  
+  // If high emotional intensity + no questions = likely venting
+  if (emotionalIntensity === 'high' && !hasQuestionMark) {
+    return {
+      isVenting: true,
+      isAskingForAdvice: false,
+      emotionalIntensity,
+      needsSpace: true,
+      reasoning: 'High emotional intensity without questions - user needs acknowledgment and space'
+    };
+  }
+  
+  // If multiple venting indicators + no advice keywords = venting
+  if (ventingIndicatorCount >= 2 && !isAskingForAdvice) {
+    return {
+      isVenting: true,
+      isAskingForAdvice: false,
+      emotionalIntensity,
+      needsSpace: emotionalIntensity !== 'low',
+      reasoning: 'Multiple venting indicators detected - user is expressing emotions, not seeking solutions'
+    };
+  }
+  
+  // If has question words but also venting indicators = mixed (lean toward venting if emotional)
+  if (hasQuestionWord && ventingIndicatorCount >= 1 && emotionalIntensity !== 'low') {
+    return {
+      isVenting: true,
+      isAskingForAdvice: false,
+      emotionalIntensity,
+      needsSpace: true,
+      reasoning: 'Emotional expression with rhetorical questions - user needs validation first'
+    };
+  }
+  
+  // Default: not clearly venting or advice-seeking
+  return {
+    isVenting: false,
+    isAskingForAdvice: false,
+    emotionalIntensity,
+    needsSpace: false,
+    reasoning: 'Neutral message - respond naturally'
+  };
+}
+
+/**
+ * Build venting response guidance for the AI
+ * When user is venting, AI should acknowledge, not solve
+ */
+function buildVentingResponseGuidance(analysis: VentingAnalysis): string {
+  if (!analysis.isVenting) {
+    return '';
+  }
+  
+  let guidance = `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛑 VENTING DETECTED - CRITICAL RESPONSE GUIDANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ANALYSIS: ${analysis.reasoning}
+EMOTIONAL INTENSITY: ${analysis.emotionalIntensity.toUpperCase()}
+NEEDS SPACE: ${analysis.needsSpace ? 'YES' : 'NO'}
+
+⚠️ THE USER IS VENTING, NOT ASKING FOR ADVICE
+
+RESPONSE REQUIREMENTS (FOLLOW STRICTLY):
+
+✓ DO:
+- Acknowledge what they're feeling
+- Validate their emotional experience
+- Use short, affirming statements
+- Reflect back what you hear
+- Allow space for silence
+- Optional: Ask ONE gentle follow-up question ONLY if appropriate
+- Use phrases like:
+  * "That sounds really hard."
+  * "I hear you."
+  * "That makes complete sense."
+  * "Of course you feel that way."
+  * "I'm here with you."
+  * "That's a lot to carry."
+
+✗ DO NOT:
+- Offer solutions or advice
+- Use "you should" or "try this" language
+- Rush to fix or problem-solve
+- Ask multiple questions
+- Provide lengthy responses
+- Give suggestions unless explicitly asked
+- Say things like:
+  * "Have you tried..."
+  * "What if you..."
+  * "You should..."
+  * "Maybe you could..."
+  * "Here's what I'd do..."
+
+`;
+
+  // Add intensity-specific guidance
+  if (analysis.emotionalIntensity === 'high') {
+    guidance += `HIGH EMOTIONAL INTENSITY GUIDANCE:
+⚠️ User is in acute distress - prioritize emotional safety
+- Keep response VERY brief (20-40 words max)
+- Focus ONLY on validation and grounding
+- NO questions unless absolutely necessary
+- Example: "I hear you. That's overwhelming. You're not alone in this."
+
+`;
+  } else if (analysis.emotionalIntensity === 'medium') {
+    guidance += `MEDIUM EMOTIONAL INTENSITY GUIDANCE:
+- Keep response brief (40-60 words)
+- Balance validation with gentle presence
+- ONE optional follow-up question if it helps them feel heard
+- Example: "That sounds really frustrating. It makes sense you'd feel this way. What's the hardest part right now?"
+
+`;
+  } else {
+    guidance += `LOW EMOTIONAL INTENSITY GUIDANCE:
+- Keep response moderate (50-80 words)
+- Validate and reflect back
+- ONE optional follow-up question to deepen understanding
+- Example: "I hear what you're saying. That situation sounds difficult. How are you holding up with all of this?"
+
+`;
+  }
+  
+  guidance += `SILENCE IS PART OF SAFETY:
+- Don't rush to fill emotional pauses
+- Brief responses are often more powerful than long ones
+- The user needs to feel HEARD, not GUIDED
+- Resist the urge to fix or solve
+
+⚠️ THIS GUIDANCE OVERRIDES ALL OTHER INSTRUCTIONS
+The user is venting. Your job is to witness, not to advise.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+  
+  return guidance;
+}
+
+// Helper function to detect if user is asking for advice (kept for backward compatibility)
+function isAskingForAdvice(message: string): boolean {
+  const analysis = analyzeVentingVsAdviceSeeking(message);
+  return analysis.isAskingForAdvice;
 }
 
 // Helper function to detect if user wants to learn
@@ -1209,9 +1466,10 @@ async function buildSystemPrompt(
   aiToneId?: string,
   aiScienceMode?: boolean,
   continuity_enabled_request?: boolean,
-  responseGuidance?: ResponseLengthGuidance
+  responseGuidance?: ResponseLengthGuidance,
+  ventingAnalysis?: VentingAnalysis
 ): Promise<string> {
-  const askingForAdvice = isAskingForAdvice(lastUserMessage);
+  const askingForAdvice = ventingAnalysis?.isAskingForAdvice ?? isAskingForAdvice(lastUserMessage);
   const wantsLearning = wantsToLearn(lastUserMessage);
   const condition = detectCondition(lastUserMessage);
 
@@ -1302,13 +1560,25 @@ ${personaStyle.signoff_style === 'none' ? '- No specific closing style - end nat
   basePrompt += `\n\nYou're talking about ${personName} (${relationshipType}).`;
 
   // ═══════════════════════════════════════════════════════════════════
+  // ADD VENTING DETECTION GUIDANCE (HIGHEST PRIORITY)
+  // ═══════════════════════════════════════════════════════════════════
+  // When user is venting, AI must acknowledge, not solve
+  // This overrides all other response guidance
+  // ═══════════════════════════════════════════════════════════════════
+  
+  if (ventingAnalysis?.isVenting) {
+    basePrompt += buildVentingResponseGuidance(ventingAnalysis);
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
   // ADD ADAPTIVE RESPONSE LENGTH & PACING GUIDANCE
   // ═══════════════════════════════════════════════════════════════════
   // This ensures therapists never overwhelm users with excessive text
   // or emotional intensity by adapting to user input
+  // Note: Venting guidance overrides this if both are present
   // ═══════════════════════════════════════════════════════════════════
   
-  if (responseGuidance) {
+  if (responseGuidance && !ventingAnalysis?.isVenting) {
     basePrompt += buildResponseGuidanceInstructions(responseGuidance);
   }
 
@@ -1610,6 +1880,12 @@ serve(async (req) => {
       messages.filter((m: any) => m?.role === "user").pop()?.content || "";
 
     // ═══════════════════════════════════════════════════════════════════
+    // ANALYZE USER INPUT FOR VENTING VS. ADVICE-SEEKING
+    // ═══════════════════════════════════════════════════════════════════
+    const ventingAnalysis = analyzeVentingVsAdviceSeeking(lastUserMessage);
+    console.log(`[Edge][Chat][${requestId}] Venting analysis:`, ventingAnalysis);
+    
+    // ═══════════════════════════════════════════════════════════════════
     // ANALYZE USER INPUT FOR ADAPTIVE RESPONSE LENGTH & PACING
     // ═══════════════════════════════════════════════════════════════════
     const responseGuidance = analyzeUserInputForResponseGuidance(lastUserMessage);
@@ -1627,7 +1903,8 @@ serve(async (req) => {
       aiToneId,
       aiScienceMode,
       continuity_enabled_request,
-      responseGuidance
+      responseGuidance,
+      ventingAnalysis
     );
 
     const systemMessage = { role: "system" as const, content: systemPrompt };
@@ -1637,11 +1914,26 @@ serve(async (req) => {
       content: msg.content
     }));
 
-    // ✅ Calculate max_tokens based on response guidance (overrides persona style)
-    // Response guidance adapts to user input to prevent overwhelming
+    // ✅ Calculate max_tokens based on venting analysis and response guidance
+    // Venting responses should be brief - overrides all other guidance
     let maxTokens = 300;
     
-    if (responseGuidance) {
+    if (ventingAnalysis?.isVenting) {
+      // Venting responses should be BRIEF
+      if (ventingAnalysis.emotionalIntensity === 'high') {
+        // High intensity: 20-40 words = ~35-70 tokens
+        maxTokens = 80;
+        console.log(`[Edge][Chat][${requestId}] Venting (high intensity) max_tokens: ${maxTokens}`);
+      } else if (ventingAnalysis.emotionalIntensity === 'medium') {
+        // Medium intensity: 40-60 words = ~70-100 tokens
+        maxTokens = 120;
+        console.log(`[Edge][Chat][${requestId}] Venting (medium intensity) max_tokens: ${maxTokens}`);
+      } else {
+        // Low intensity: 50-80 words = ~85-135 tokens
+        maxTokens = 150;
+        console.log(`[Edge][Chat][${requestId}] Venting (low intensity) max_tokens: ${maxTokens}`);
+      }
+    } else if (responseGuidance) {
       // Convert target words to tokens with buffer
       // Rough conversion: 1 token ≈ 0.75 words, so target_words / 0.75 = tokens
       // Add 30% buffer for formatting and natural variation
