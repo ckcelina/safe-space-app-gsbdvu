@@ -190,7 +190,7 @@ export default function ChatScreen() {
   const lastProcessedUserMessageIdRef = useRef<string | null>(null);
   const isGeneratingRef = useRef(false);
 
-  // FlatList ref for inverted list
+  // FlatList ref for scrolling
   const flatListRef = useRef<FlatList>(null);
 
   // Dev-only debug state - ONLY stored in __DEV__ mode
@@ -404,11 +404,6 @@ export default function ChatScreen() {
       return msgSubject === currentSubject;
     });
   }, [allMessages, currentSubject]);
-
-  // REVERSED messages for inverted FlatList
-  const reversedMessages = React.useMemo(() => {
-    return [...displayedMessages].reverse();
-  }, [displayedMessages]);
 
   const handleRetry = useCallback(() => {
     loadMessages();
@@ -757,6 +752,11 @@ export default function ChatScreen() {
                 therapist_avatar_source: therapistMeta.avatarSource,
               };
               setAllMessages((prev) => [...prev, fallbackWithMeta]);
+              
+              // Auto-scroll to show the new message
+              setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+              }, 100);
             }
             
             setError('Authentication issue. Please try logging out and back in.');
@@ -791,6 +791,11 @@ export default function ChatScreen() {
                 therapist_avatar_source: therapistMeta.avatarSource,
               };
               setAllMessages((prev) => [...prev, fallbackWithMeta]);
+              
+              // Auto-scroll to show the new message
+              setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+              }, 100);
             }
             
             setError('Service temporarily unavailable. Please try again.');
@@ -829,6 +834,11 @@ export default function ChatScreen() {
                 therapist_avatar_source: therapistMeta.avatarSource,
               };
               setAllMessages((prev) => [...prev, fallbackWithMeta]);
+              
+              // Auto-scroll to show the new message
+              setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+              }, 100);
             }
             
             setError('An error occurred. Please try again.');
@@ -891,6 +901,11 @@ export default function ChatScreen() {
       if (isMountedRef.current) {
         setAllMessages((prev) => [...prev, aiMessageWithMeta]);
         setIsTyping(false);
+        
+        // Auto-scroll to show the new AI message
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
       }
       console.log('[Chat] sendMessage: Complete');
 
@@ -1068,8 +1083,8 @@ export default function ChatScreen() {
 
   // Render individual message item
   const renderMessageItem = useCallback(({ item, index }: ListRenderItemInfo<ExtendedMessage>) => {
-    // Animate only the most recent AI message (first in reversed list)
-    const shouldAnimate = item.role === 'assistant' && index === 0;
+    // Animate only the most recent AI message (last in non-inverted list)
+    const shouldAnimate = item.role === 'assistant' && index === displayedMessages.length - 1;
     
     // Check if this message failed to send
     const isFailed = item.failed_to_send === true;
@@ -1103,7 +1118,7 @@ export default function ChatScreen() {
         )}
       </View>
     );
-  }, [preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
+  }, [displayedMessages.length, preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
 
   // Key extractor for FlatList
   const keyExtractor = useCallback((item: ExtendedMessage) => item.id, []);
@@ -1144,7 +1159,7 @@ export default function ChatScreen() {
     );
   }, [loading, theme, personName, currentSubject, allMessages.length, error, handleRetry]);
 
-  // Footer component (typing indicator at top of inverted list)
+  // Footer component (typing indicator at bottom of non-inverted list)
   const renderListFooter = useCallback(() => {
     if (!isTyping) return null;
     
@@ -1321,16 +1336,13 @@ export default function ChatScreen() {
             </TouchableOpacity>
           )}
 
-          {/* INVERTED FlatList for chat messages */}
+          {/* NON-INVERTED FlatList for chat messages - messages start at top */}
           <FlatList
             ref={flatListRef}
-            data={reversedMessages}
+            data={displayedMessages}
             renderItem={renderMessageItem}
             keyExtractor={keyExtractor}
-            inverted={true}
-            maintainVisibleContentPosition={{
-              minIndexForVisible: 1,
-            }}
+            inverted={false}
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -1606,6 +1618,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   messagesContent: {
+    flexGrow: 1,
+    justifyContent: 'flex-start',
     paddingHorizontal: '5%',
     paddingVertical: 16,
   },
@@ -1615,7 +1629,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 60,
     paddingHorizontal: '10%',
-    transform: [{ scaleY: -1 }], // Flip back for inverted list
   },
   emptyIconContainer: {
     width: 80,
