@@ -1,7 +1,9 @@
 
 export { ChatBubble } from './ChatBubble';
+export { AnimatedChatBubble } from './AnimatedChatBubble';
 export { AIHeaderRow } from './AIHeaderRow';
 export { TypingIndicator } from './TypingIndicator';
+export { AnimatedTypingIndicator } from './AnimatedTypingIndicator';
 export { LoadingOverlay } from './LoadingOverlay';
 export { PersonCard } from './PersonCard';
 export { SafeSpaceButton } from './SafeSpaceButton';

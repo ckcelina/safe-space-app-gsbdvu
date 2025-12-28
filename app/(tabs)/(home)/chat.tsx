@@ -26,8 +26,8 @@ import { useUserPreferences } from '@/contexts/UserPreferencesContext';
 import { supabase } from '@/lib/supabase';
 import { Message } from '@/types/database.types';
 import { IconSymbol } from '@/components/IconSymbol';
-import { ChatBubble } from '@/components/ui/ChatBubble';
-import { TypingIndicator } from '@/components/ui/TypingIndicator';
+import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
+import { AnimatedTypingIndicator } from '@/components/ui/AnimatedTypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
@@ -825,18 +825,22 @@ export default function ChatScreen() {
   }, [debugInfo]);
 
   // Render individual message item
-  const renderMessageItem = useCallback(({ item }: ListRenderItemInfo<ExtendedMessage>) => {
+  const renderMessageItem = useCallback(({ item, index }: ListRenderItemInfo<ExtendedMessage>) => {
+    // Animate only the most recent AI message (first in reversed list)
+    const shouldAnimate = item.role === 'assistant' && index === 0;
+    
     return (
-      <ChatBubble
+      <AnimatedChatBubble
         message={item.content}
         isUser={item.role === 'user'}
         timestamp={item.created_at}
-        animate={false}
+        animate={shouldAnimate}
         therapistName={item.therapist_name}
         therapistAvatarSource={item.therapist_avatar_source}
+        therapistPersonaId={preferences.therapist_persona_id}
       />
     );
-  }, []);
+  }, [preferences.therapist_persona_id]);
 
   // Key extractor for FlatList
   const keyExtractor = useCallback((item: ExtendedMessage) => item.id, []);
@@ -880,8 +884,16 @@ export default function ChatScreen() {
   // Footer component (typing indicator at top of inverted list)
   const renderListFooter = useCallback(() => {
     if (!isTyping) return null;
-    return <TypingIndicator />;
-  }, [isTyping]);
+    
+    const therapistMeta = getCurrentTherapistMetadata();
+    
+    return (
+      <AnimatedTypingIndicator 
+        therapistAvatarSource={therapistMeta.avatarSource}
+        therapistPersonaId={preferences.therapist_persona_id}
+      />
+    );
+  }, [isTyping, getCurrentTherapistMetadata, preferences.therapist_persona_id]);
 
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
