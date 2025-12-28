@@ -15,10 +15,13 @@ const IS_DEV = Deno.env.get("DEV_MODE") === "true";
 const OPENAI_TIMEOUT_MS = 18000; // 18 seconds (leave 2s buffer for processing)
 const TOTAL_FUNCTION_TIMEOUT_MS = 20000; // 20 seconds total
 
+// ═══════════════════════════════════════════════════════════════════
+// CORS HEADERS - APPLIED TO ALL RESPONSES
+// ═══════════════════════════════════════════════════════════════════
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
 };
 
 // ========== THERAPIST PERSONA DEFINITIONS ==========
@@ -2277,7 +2280,7 @@ PRIVACY & CONTROL:
   return basePrompt;
 }
 
-// Helper to create error response
+// Helper to create error response with CORS headers
 function createErrorResponse(
   code: string,
   message: string,
@@ -2320,6 +2323,16 @@ serve(async (req) => {
   const timestamp = Date.now();
   const functionStartTime = Date.now();
 
+  // ═══════════════════════════════════════════════════════════════════
+  // CORS PREFLIGHT HANDLING (CRITICAL FOR WEB PREVIEW)
+  // ═══════════════════════════════════════════════════════════════════
+  if (req.method === "OPTIONS") {
+    return new Response(null, { 
+      status: 204, 
+      headers: corsHeaders 
+    });
+  }
+
   // Set up function-level timeout
   const functionTimeoutController = new AbortController();
   const functionTimeoutId = setTimeout(() => {
@@ -2328,12 +2341,6 @@ serve(async (req) => {
   }, TOTAL_FUNCTION_TIMEOUT_MS);
 
   try {
-    // Handle CORS preflight
-    if (req.method === "OPTIONS") {
-      clearTimeout(functionTimeoutId);
-      return new Response(null, { status: 204, headers: corsHeaders });
-    }
-
     // Validate HTTP method
     if (req.method !== "POST") {
       clearTimeout(functionTimeoutId);
