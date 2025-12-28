@@ -35,7 +35,7 @@ export type InvokeEdgeSafeResult<T = any> = {
 // Configuration for retry logic
 const MAX_RETRIES = 2;
 const RETRY_DELAYS = [250, 800]; // ms - exponential backoff
-const TIMEOUT_MS = 20000; // 20 seconds
+const TIMEOUT_MS = 45000; // 45 seconds (increased from 20s for mobile networks + cold starts)
 const TRANSIENT_STATUS_CODES = [502, 503, 504];
 
 function safeJsonParse(text: string) {
@@ -78,10 +78,13 @@ export async function copyDebugToClipboard(text: any): Promise<boolean> {
  * Features:
  * - Never throws - always returns { ok, data?, error? }
  * - Retries transient failures (502/503/504) up to 2 times with backoff
- * - Implements 20s timeout to prevent hanging
+ * - Implements 45s timeout to prevent hanging (increased from 20s)
+ * - Retries timeout errors once before giving up
  * - Extracts detailed error information for debugging
  * - Handles all error types: FunctionsHttpError, network errors, timeouts
- * - DEV-ONLY: Logs compact diagnostic line on failure
+ * - DEV-ONLY: Logs compact diagnostic line on failure with project ref and AbortController status
+ * - Web-compatible: Uses ReturnType<typeof setTimeout> for timeout typing
+ * - Conditionally uses AbortController only if available
  * 
  * @param functionName - Name of the Edge Function to invoke
  * @param payload - Request body to send
@@ -95,29 +98,47 @@ export async function invokeEdgeSafe<T = any>(
   const startTime = Date.now();
 
   while (attempt <= MAX_RETRIES) {
+    // Web-compatible timeout typing
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let controller: AbortController | null = null;
+    let signal: AbortSignal | undefined = undefined;
+
+    // Only use AbortController if it exists (web/RN compatibility)
+    const hasAbortController = typeof AbortController !== 'undefined';
+    if (hasAbortController) {
+      controller = new AbortController();
+      signal = controller.signal;
+    }
 
     try {
-      // Create AbortController for timeout
-      controller = new AbortController();
-      timeoutId = setTimeout(() => {
-        if (__DEV__) {
-          console.log(`[invokeEdgeSafe] Timeout reached for ${functionName} (attempt ${attempt + 1})`);
-        }
-        controller?.abort();
-      }, TIMEOUT_MS);
-
+      // DEV-ONLY: Log invocation with project ref and AbortController status
       if (__DEV__) {
-        console.log(`[invokeEdgeSafe] Invoking ${functionName} (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+        const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : 'unknown';
+        console.log(`[Edge] invoke ${functionName} attempt ${attempt + 1} project ${projectRef} AbortController=${hasAbortController}`);
       }
 
-      // Call the Edge Function with timeout signal
-      const { data, error } = await supabase.functions.invoke(functionName, {
+      // Set up timeout
+      if (controller) {
+        timeoutId = setTimeout(() => {
+          if (__DEV__) {
+            console.log(`[invokeEdgeSafe] Timeout reached for ${functionName} (attempt ${attempt + 1})`);
+          }
+          controller?.abort();
+        }, TIMEOUT_MS);
+      }
+
+      // Call the Edge Function with timeout signal (if available)
+      const invokeOptions: any = {
         body: payload,
-        // @ts-expect-error - signal is supported but not in types
-        signal: controller.signal,
-      });
+      };
+      
+      // Only add signal if AbortController is available
+      if (signal) {
+        invokeOptions.signal = signal;
+      }
+
+      const { data, error } = await supabase.functions.invoke(functionName, invokeOptions);
 
       // Clear timeout on completion
       if (timeoutId) {
@@ -160,6 +181,8 @@ export async function invokeEdgeSafe<T = any>(
         let errorCode = (error as any)?.name || 'EDGE_FUNCTION_ERROR';
         if (status === 401 || status === 403) {
           errorCode = 'EDGE_AUTH';
+        } else if (status && TRANSIENT_STATUS_CODES.includes(status)) {
+          errorCode = 'EDGE_UNAVAILABLE';
         }
 
         // Non-transient error or max retries reached - return error
@@ -231,9 +254,13 @@ export async function invokeEdgeSafe<T = any>(
 
       const duration = Date.now() - startTime;
 
-      // Handle AbortError (timeout) - SILENT, no console.error even in dev
+      // Handle AbortError (timeout) - RETRY ONCE before giving up
       if (e.name === 'AbortError') {
-        // Retry timeout errors
+        if (__DEV__) {
+          console.log(`[Edge] code=EDGE_ABORTED status=N/A duration_ms=${duration}`);
+        }
+
+        // Retry timeout errors once
         if (attempt < MAX_RETRIES) {
           const delay = RETRY_DELAYS[attempt];
           if (__DEV__) {
@@ -315,6 +342,8 @@ export async function invokeEdgeSafe<T = any>(
         let errorCode = 'FUNCTIONS_HTTP_ERROR';
         if (status === 401 || status === 403) {
           errorCode = 'EDGE_AUTH';
+        } else if (TRANSIENT_STATUS_CODES.includes(status)) {
+          errorCode = 'EDGE_UNAVAILABLE';
         }
 
         // Non-transient error or max retries reached
@@ -334,7 +363,7 @@ export async function invokeEdgeSafe<T = any>(
         };
       }
 
-      // Handle other unexpected errors
+      // Handle other unexpected errors (network errors, etc.)
       if (__DEV__) {
         console.log(`[invokeEdgeSafe] Unexpected error for ${functionName} (attempt ${attempt + 1}):`, {
           name: e?.name,
@@ -346,7 +375,24 @@ export async function invokeEdgeSafe<T = any>(
         console.log(`[Edge] code=UNEXPECTED_ERROR status=none duration_ms=${duration}`);
       }
 
-      // Don't retry unexpected errors
+      // Check if this is a network error that should be retried
+      const isNetworkError =
+        e.message?.includes('Failed to fetch') ||
+        e.message?.includes('Network request failed') ||
+        e.message?.includes('Network error') ||
+        e.code === 'FunctionsFetchError';
+
+      if (isNetworkError && attempt < MAX_RETRIES) {
+        const delay = RETRY_DELAYS[attempt];
+        if (__DEV__) {
+          console.log(`[invokeEdgeSafe] Network error, retrying in ${delay}ms...`);
+        }
+        await new Promise(resolve => setTimeout(resolve, delay));
+        attempt++;
+        continue;
+      }
+
+      // Don't retry other unexpected errors
       return {
         ok: false,
         error: {
