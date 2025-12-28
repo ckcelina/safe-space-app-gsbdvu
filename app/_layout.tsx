@@ -339,15 +339,15 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <AppThemeProvider>
-          <AuthProvider>
-            <UserPreferencesProvider>
-              <WidgetProvider>
+        <WidgetProvider>
+          <AppThemeProvider>
+            <AuthProvider>
+              <UserPreferencesProvider>
                 <RootLayoutInner />
-              </WidgetProvider>
-            </UserPreferencesProvider>
-          </AuthProvider>
-        </AppThemeProvider>
+              </UserPreferencesProvider>
+            </AuthProvider>
+          </AppThemeProvider>
+        </WidgetProvider>
       </SafeAreaProvider>
     </ErrorBoundary>
   );
