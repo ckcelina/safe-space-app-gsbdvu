@@ -83,7 +83,12 @@ export function AnimatedChatBubble({
   // Animation values
   const fadeAnim = useRef(new Animated.Value(animate && !isReducedMotion ? 0 : 1)).current;
   const slideAnim = useRef(new Animated.Value(animate && !isReducedMotion ? 10 : 0)).current;
+  
+  // NEW: Subtle glow effect for completion cue
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const glowAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     // Only animate AI messages, and only if reduced motion is disabled
@@ -107,15 +112,43 @@ export function AnimatedChatBubble({
       ]);
       
       animationRef.current = animation;
-      animation.start();
+      animation.start(() => {
+        // After entrance animation completes, trigger subtle completion glow
+        if (!isReducedMotion) {
+          const glowAnimation = Animated.sequence([
+            // Gentle fade in
+            Animated.timing(glowAnim, {
+              toValue: 1,
+              duration: 400,
+              easing: Easing.bezier(0.4, 0, 0.2, 1),
+              useNativeDriver: true,
+            }),
+            // Hold briefly
+            Animated.delay(200),
+            // Gentle fade out
+            Animated.timing(glowAnim, {
+              toValue: 0,
+              duration: 600,
+              easing: Easing.bezier(0.4, 0, 0.2, 1),
+              useNativeDriver: true,
+            }),
+          ]);
+          
+          glowAnimationRef.current = glowAnimation;
+          glowAnimation.start();
+        }
+      });
     }
 
     return () => {
       if (animationRef.current) {
         animationRef.current.stop();
       }
+      if (glowAnimationRef.current) {
+        glowAnimationRef.current.stop();
+      }
     };
-  }, [fadeAnim, slideAnim, animate, isUser, isReducedMotion, therapistPersonaId]);
+  }, [fadeAnim, slideAnim, glowAnim, animate, isUser, isReducedMotion, therapistPersonaId]);
 
   const formatTimestamp = (ts?: string) => {
     if (!ts) return '';
@@ -208,6 +241,12 @@ export function AnimatedChatBubble({
     return parts;
   };
 
+  // Calculate glow opacity (very subtle)
+  const glowOpacity = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.15], // Very subtle glow
+  });
+
   return (
     <Animated.View
       style={[
@@ -254,18 +293,35 @@ export function AnimatedChatBubble({
               <Text style={[styles.userText, { color: theme.buttonText }]}>{message}</Text>
             </LinearGradient>
           ) : (
-            <View
-              style={[
-                styles.bubble,
-                styles.aiBubble,
-                {
-                  backgroundColor: theme.card,
-                },
-              ]}
-            >
-              <Text style={[styles.aiText, { color: theme.textPrimary }]}>
-                {renderMessageText(message)}
-              </Text>
+            <View style={styles.aiBubbleWrapper}>
+              {/* Subtle glow layer - only for AI messages with animation */}
+              {animate && !isReducedMotion && (
+                <Animated.View
+                  style={[
+                    styles.glowLayer,
+                    {
+                      backgroundColor: theme.primary,
+                      opacity: glowOpacity,
+                    },
+                  ]}
+                  pointerEvents="none"
+                />
+              )}
+              
+              {/* Main bubble */}
+              <View
+                style={[
+                  styles.bubble,
+                  styles.aiBubble,
+                  {
+                    backgroundColor: theme.card,
+                  },
+                ]}
+              >
+                <Text style={[styles.aiText, { color: theme.textPrimary }]}>
+                  {renderMessageText(message)}
+                </Text>
+              </View>
             </View>
           )}
 
@@ -313,6 +369,18 @@ const styles = StyleSheet.create({
   },
   bubbleContainer: {
     maxWidth: '75%',
+  },
+  aiBubbleWrapper: {
+    position: 'relative',
+  },
+  glowLayer: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 20,
+    zIndex: -1,
   },
   bubble: {
     paddingHorizontal: 14,
