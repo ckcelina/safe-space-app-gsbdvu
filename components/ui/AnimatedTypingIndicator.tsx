@@ -1,13 +1,15 @@
 
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing, Image, ImageSourcePropType } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Image, ImageSourcePropType } from 'react-native';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { getPersonaById } from '@/constants/TherapistPersonas';
 
 interface AnimatedTypingIndicatorProps {
   therapistAvatarSource?: ImageSourcePropType;
   therapistPersonaId?: string;
+  therapistName?: string;
 }
 
 /**
@@ -37,6 +39,7 @@ function getPulseParamsForPersona(personaId?: string): { duration: number; scale
 export function AnimatedTypingIndicator({ 
   therapistAvatarSource,
   therapistPersonaId,
+  therapistName,
 }: AnimatedTypingIndicatorProps) {
   const { theme } = useThemeContext();
   const isReducedMotion = useReducedMotion();
@@ -51,6 +54,20 @@ export function AnimatedTypingIndicator({
   
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const pulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  // Get therapist name from persona if not provided
+  const displayName = React.useMemo(() => {
+    if (therapistName) {
+      return therapistName;
+    }
+    
+    if (therapistPersonaId) {
+      const persona = getPersonaById(therapistPersonaId);
+      return persona?.name;
+    }
+    
+    return undefined;
+  }, [therapistName, therapistPersonaId]);
 
   useEffect(() => {
     if (isReducedMotion) {
@@ -154,36 +171,44 @@ export function AnimatedTypingIndicator({
         )}
       </Animated.View>
 
-      {/* Typing dots */}
-      <View style={[styles.bubble, { backgroundColor: theme.card }]}>
-        <View style={styles.dotsContainer}>
-          <Animated.View
-            style={[
-              styles.dot,
-              {
-                backgroundColor: theme.textSecondary,
-                transform: [{ translateY: isReducedMotion ? 0 : dot1Anim }],
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.dot,
-              {
-                backgroundColor: theme.textSecondary,
-                transform: [{ translateY: isReducedMotion ? 0 : dot2Anim }],
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.dot,
-              {
-                backgroundColor: theme.textSecondary,
-                transform: [{ translateY: isReducedMotion ? 0 : dot3Anim }],
-              },
-            ]}
-          />
+      {/* Typing content: label + dots */}
+      <View style={styles.contentContainer}>
+        {/* Typing label */}
+        <Text style={[styles.typingLabel, { color: theme.textSecondary }]}>
+          {displayName ? `${displayName} is typing…` : 'Typing…'}
+        </Text>
+
+        {/* Typing dots bubble */}
+        <View style={[styles.bubble, { backgroundColor: theme.card }]}>
+          <View style={styles.dotsContainer}>
+            <Animated.View
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: theme.textSecondary,
+                  transform: [{ translateY: isReducedMotion ? 0 : dot1Anim }],
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: theme.textSecondary,
+                  transform: [{ translateY: isReducedMotion ? 0 : dot2Anim }],
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: theme.textSecondary,
+                  transform: [{ translateY: isReducedMotion ? 0 : dot3Anim }],
+                },
+              ]}
+            />
+          </View>
         </View>
       </View>
     </View>
@@ -213,6 +238,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)',
     elevation: 1,
+  },
+  contentContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  typingLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 4,
+    marginLeft: 2,
   },
   bubble: {
     padding: 12,

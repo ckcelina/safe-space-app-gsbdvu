@@ -1169,6 +1169,7 @@ export default function ChatScreen() {
       <AnimatedTypingIndicator 
         therapistAvatarSource={therapistMeta.avatarSource}
         therapistPersonaId={preferences.therapist_persona_id}
+        therapistName={therapistMeta.name}
       />
     );
   }, [isTyping, getCurrentTherapistMetadata, preferences.therapist_persona_id]);
