@@ -29,39 +29,9 @@ import { deleteUserAccount } from '@/utils/accountDeletion';
 import { openSupportEmail } from '@/utils/supportHelpers';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabase';
-import { AI_TONES, getToneById } from '@/constants/AITones';
 import { THERAPIST_PERSONAS, getPersonaById } from '@/constants/TherapistPersonas';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Primary tones (visible by default)
-const PRIMARY_TONE_IDS = [
-  'warm_hug',
-  'balanced_blend',
-  'mirror_mode',
-  'calm_direct',
-  'reality_check',
-  'accountability_partner',
-];
-
-// Advanced tones (collapsed by default)
-const ADVANCED_TONE_IDS = [
-  'systems_thinker',
-  'attachment_aware',
-  'cognitive_clarity',
-  'conflict_mediator',
-  'tough_love',
-  'straight_shooter',
-  'executive_summary',
-  'no_nonsense',
-  'pattern_breaker',
-  'boundary_enforcer',
-  'detective',
-  'therapy_room',
-  'nurturing_parent',
-  'best_friend',
-  'soft_truth',
-];
 
 // Personalization options
 const CONVERSATION_STYLES = [
@@ -129,17 +99,10 @@ export default function SettingsScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
-  // Therapist Persona Modal State (NEW)
+  // Therapist Persona Modal State
   const [showPersonaModal, setShowPersonaModal] = useState(false);
   const [selectedPersonaId, setSelectedPersonaId] = useState(preferences.therapist_persona_id || '');
   const [isUpdatingPersona, setIsUpdatingPersona] = useState(false);
-
-  // AI Preferences Modal State
-  const [showAIPreferencesModal, setShowAIPreferencesModal] = useState(false);
-  const [selectedToneId, setSelectedToneId] = useState(preferences.ai_tone_id);
-  const [scienceMode, setScienceMode] = useState(preferences.ai_science_mode);
-  const [isUpdatingAIPrefs, setIsUpdatingAIPrefs] = useState(false);
-  const [showAdvancedStyles, setShowAdvancedStyles] = useState(false);
 
   // Personalization Modal State
   const [showPersonalizationModal, setShowPersonalizationModal] = useState(false);
@@ -176,10 +139,8 @@ export default function SettingsScreen() {
     setSelectedTheme(themeKey);
   }, [themeKey]);
 
-  // Sync AI preferences when they change
+  // Sync preferences when they change
   useEffect(() => {
-    setSelectedToneId(preferences.ai_tone_id);
-    setScienceMode(preferences.ai_science_mode);
     setSelectedPersonaId(preferences.therapist_persona_id || '');
   }, [preferences]);
 
@@ -401,7 +362,7 @@ export default function SettingsScreen() {
     }
   };
 
-  // Therapist Persona Handlers (NEW)
+  // Therapist Persona Handlers
   const handleOpenPersonaModal = () => {
     setShowPersonaModal(true);
   };
@@ -421,42 +382,10 @@ export default function SettingsScreen() {
     setIsUpdatingPersona(false);
 
     if (result.success) {
-      showSuccessToast('Therapist persona updated');
+      showSuccessToast('Therapist updated');
       setShowPersonaModal(false);
     } else {
-      showErrorToast(result.error || 'Failed to update persona');
-    }
-  };
-
-  // AI Preferences Handlers
-  const handleOpenAIPreferencesModal = () => {
-    setShowAIPreferencesModal(true);
-    setShowAdvancedStyles(false);
-  };
-
-  const handleCloseAIPreferencesModal = () => {
-    setShowAIPreferencesModal(false);
-    setShowAdvancedStyles(false);
-    setSelectedToneId(preferences.ai_tone_id);
-    setScienceMode(preferences.ai_science_mode);
-  };
-
-  const handleSaveAIPreferences = async () => {
-    setIsUpdatingAIPrefs(true);
-
-    const result = await updatePreferences({
-      ai_tone_id: selectedToneId,
-      ai_science_mode: scienceMode,
-    });
-
-    setIsUpdatingAIPrefs(false);
-
-    if (result.success) {
-      showSuccessToast('AI preferences updated');
-      setShowAIPreferencesModal(false);
-      setShowAdvancedStyles(false);
-    } else {
-      showErrorToast(result.error || 'Failed to update preferences');
+      showErrorToast(result.error || 'Failed to update therapist');
     }
   };
 
@@ -710,51 +639,6 @@ export default function SettingsScreen() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const renderToneCard = (toneId: string) => {
-    const tone = getToneById(toneId);
-    if (!tone) return null;
-
-    return (
-      <TouchableOpacity
-        key={tone.toneId}
-        style={[
-          styles.aiToneCard,
-          {
-            backgroundColor: selectedToneId === tone.toneId ? theme.primary + '15' : theme.background,
-            borderColor: selectedToneId === tone.toneId ? theme.primary : theme.textSecondary + '30',
-          },
-        ]}
-        onPress={() => setSelectedToneId(tone.toneId)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.aiToneCardHeader}>
-          <Text
-            style={[
-              styles.aiToneName,
-              {
-                color: selectedToneId === tone.toneId ? theme.primary : theme.textPrimary,
-                fontWeight: selectedToneId === tone.toneId ? '700' : '600',
-              },
-            ]}
-          >
-            {tone.displayName}
-          </Text>
-          {selectedToneId === tone.toneId && (
-            <IconSymbol
-              ios_icon_name="checkmark.circle.fill"
-              android_material_icon_name="check_circle"
-              size={18}
-              color={theme.primary}
-            />
-          )}
-        </View>
-        <Text style={[styles.aiToneDescription, { color: theme.textSecondary }]}>
-          {tone.shortDescription}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-
   const renderPersonaCard = (personaId: string) => {
     const persona = getPersonaById(personaId);
     if (!persona) return null;
@@ -812,7 +696,7 @@ export default function SettingsScreen() {
             )}
           </View>
           <Text style={[styles.personaDescription, { color: theme.textSecondary }]}>
-            {persona.long_description}
+            {persona.short_description}
           </Text>
         </View>
       </TouchableOpacity>
@@ -983,15 +867,19 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Card 2.5: AI Style Preferences */}
+              {/* Card 2.5: Therapists (Optional) - RENAMED FROM "AI Style Preferences" */}
               <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                  AI Style Preferences
+                  Therapists (Optional)
                 </Text>
 
-                {/* Therapist Persona (NEW) */}
+                <Text style={[styles.cardDescription, { color: theme.textSecondary }]}>
+                  Pick a therapist style that feels right. You can change this anytime.
+                </Text>
+
+                {/* Therapist Persona Selection */}
                 <TouchableOpacity
-                  style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)' }]}
+                  style={[styles.row, { borderBottomWidth: 0, marginTop: 8 }]}
                   onPress={handleOpenPersonaModal}
                   activeOpacity={0.7}
                 >
@@ -1004,10 +892,10 @@ export default function SettingsScreen() {
                     />
                     <View style={{ marginLeft: 12, flex: 1 }}>
                       <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
-                        Therapist Persona
+                        Therapist
                       </Text>
                       <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
-                        {selectedPersona ? selectedPersona.name : 'Not selected'}
+                        {selectedPersona ? `${selectedPersona.name} — ${selectedPersona.label}` : 'Not selected'}
                       </Text>
                     </View>
                   </View>
@@ -1018,68 +906,6 @@ export default function SettingsScreen() {
                     color={theme.textSecondary}
                   />
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)' }]}
-                  onPress={handleOpenAIPreferencesModal}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.rowLeft}>
-                    <IconSymbol
-                      ios_icon_name="wand.and.stars"
-                      android_material_icon_name="auto_awesome"
-                      size={20}
-                      color={theme.primary}
-                    />
-                    <View style={{ marginLeft: 12, flex: 1 }}>
-                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
-                        AI Tone
-                      </Text>
-                      <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
-                        {getToneById(preferences.ai_tone_id)?.displayName || 'Balanced Blend'}
-                      </Text>
-                    </View>
-                  </View>
-                  <IconSymbol
-                    ios_icon_name="chevron.right"
-                    android_material_icon_name="arrow_forward"
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                </TouchableOpacity>
-
-                <View style={[styles.row, { borderBottomWidth: 0, paddingVertical: 16 }]}>
-                  <View style={styles.rowLeft}>
-                    <IconSymbol
-                      ios_icon_name="book.fill"
-                      android_material_icon_name="menu_book"
-                      size={20}
-                      color={theme.primary}
-                    />
-                    <View style={{ marginLeft: 12, flex: 1 }}>
-                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
-                        Science & Resources Mode
-                      </Text>
-                      <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
-                        Include psychology insights
-                      </Text>
-                    </View>
-                  </View>
-                  <Switch
-                    value={preferences.ai_science_mode}
-                    onValueChange={async (value) => {
-                      const result = await updatePreferences({ ai_science_mode: value });
-                      if (result.success) {
-                        showSuccessToast(value ? 'Science mode enabled' : 'Science mode disabled');
-                      } else {
-                        showErrorToast('Failed to update');
-                      }
-                    }}
-                    trackColor={{ false: theme.textSecondary + '40', true: theme.primary + '60' }}
-                    thumbColor={preferences.ai_science_mode ? theme.primary : '#f4f3f4'}
-                    ios_backgroundColor={theme.textSecondary + '40'}
-                  />
-                </View>
               </View>
 
               {/* Card 2.6: Personalization (Optional) */}
@@ -1566,7 +1392,7 @@ export default function SettingsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Therapist Persona Modal (NEW) */}
+      {/* Therapist Persona Modal */}
       <Modal
         visible={showPersonaModal}
         transparent={true}
@@ -1593,11 +1419,11 @@ export default function SettingsScreen() {
               </View>
 
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                Therapist Persona
+                Choose Your Therapist
               </Text>
 
               <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-                Choose a therapist persona to guide the conversational style. This is purely for tone and pacing, not medical care.
+                Pick a therapist style that feels right. You can change this anytime.
               </Text>
 
               <ScrollView 
@@ -1627,130 +1453,6 @@ export default function SettingsScreen() {
                   activeOpacity={0.8}
                 >
                   {isUpdatingPersona ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.modalButtonText}>Save</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* AI Preferences Modal */}
-      <Modal
-        visible={showAIPreferencesModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleCloseAIPreferencesModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <ScrollView
-            contentContainerStyle={styles.modalScrollContent}
-            keyboardShouldPersistTaps="handled"
-            bounces={false}
-          >
-            <View style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}>
-              <View style={styles.modalIconContainer}>
-                <IconSymbol
-                  ios_icon_name="wand.and.stars"
-                  android_material_icon_name="auto_awesome"
-                  size={48}
-                  color={theme.primary}
-                />
-              </View>
-
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                AI Style Preferences
-              </Text>
-
-              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-                Choose how Safe Space communicates with you
-              </Text>
-
-              <ScrollView 
-                style={styles.aiPrefsScrollView}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
-              >
-                <Text style={[styles.aiPrefsSectionTitle, { color: theme.textPrimary }]}>
-                  AI Tone
-                </Text>
-                
-                {PRIMARY_TONE_IDS.map((toneId) => renderToneCard(toneId))}
-
-                <TouchableOpacity
-                  style={[
-                    styles.advancedStylesToggle,
-                    {
-                      backgroundColor: theme.background,
-                      borderColor: theme.textSecondary + '30',
-                    },
-                  ]}
-                  onPress={() => setShowAdvancedStyles(!showAdvancedStyles)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.advancedStylesText, { color: theme.textPrimary }]}>
-                    Advanced Styles
-                  </Text>
-                  <IconSymbol
-                    ios_icon_name={showAdvancedStyles ? 'chevron.up' : 'chevron.down'}
-                    android_material_icon_name={showAdvancedStyles ? 'expand_less' : 'expand_more'}
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                </TouchableOpacity>
-
-                {showAdvancedStyles && (
-                  <View style={styles.advancedStylesContainer}>
-                    {ADVANCED_TONE_IDS.map((toneId) => renderToneCard(toneId))}
-                  </View>
-                )}
-
-                <View style={styles.aiScienceModeContainer}>
-                  <Text style={[styles.aiPrefsSectionTitle, { color: theme.textPrimary }]}>
-                    Science & Resources
-                  </Text>
-                  <View style={styles.aiScienceModeRow}>
-                    <View style={{ flex: 1, marginRight: 12 }}>
-                      <Text style={[styles.aiScienceModeText, { color: theme.textPrimary }]}>
-                        Include psychology insights and suggested reading
-                      </Text>
-                    </View>
-                    <Switch
-                      value={scienceMode}
-                      onValueChange={setScienceMode}
-                      trackColor={{ false: theme.textSecondary + '40', true: theme.primary + '60' }}
-                      thumbColor={scienceMode ? theme.primary : '#f4f3f4'}
-                      ios_backgroundColor={theme.textSecondary + '40'}
-                    />
-                  </View>
-                </View>
-              </ScrollView>
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
-                  onPress={handleCloseAIPreferencesModal}
-                  disabled={isUpdatingAIPrefs}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
-                  onPress={handleSaveAIPreferences}
-                  disabled={isUpdatingAIPrefs}
-                  activeOpacity={0.8}
-                >
-                  {isUpdatingAIPrefs ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
                     <Text style={styles.modalButtonText}>Save</Text>
@@ -2679,67 +2381,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   personaDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  aiPrefsScrollView: {
-    maxHeight: SCREEN_HEIGHT * 0.5,
-    marginBottom: 16,
-  },
-  aiPrefsSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 12,
-    marginBottom: 12,
-  },
-  aiToneCard: {
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1.5,
-  },
-  aiToneCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  aiToneName: {
-    fontSize: 15,
-    flex: 1,
-  },
-  aiToneDescription: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  advancedStylesToggle: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    marginTop: 8,
-    marginBottom: 10,
-  },
-  advancedStylesText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  advancedStylesContainer: {
-    marginTop: 4,
-  },
-  aiScienceModeContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.08)',
-  },
-  aiScienceModeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  aiScienceModeText: {
     fontSize: 14,
     lineHeight: 20,
   },
