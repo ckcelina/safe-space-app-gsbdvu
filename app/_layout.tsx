@@ -336,6 +336,7 @@ function RootLayoutInner() {
 }
 
 export default function RootLayout() {
+  // WidgetProvider must wrap the entire app tree so hooks always have context
   return (
     <WidgetProvider>
       <ErrorBoundary>
