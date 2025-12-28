@@ -448,7 +448,7 @@ export default function ChatScreen() {
     setTimeout(() => {
       sendMessage();
     }, 100);
-  }, [authUser?.id, personId]);
+  }, [authUser?.id, personId, sendMessage]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
