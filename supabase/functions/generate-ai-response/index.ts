@@ -968,6 +968,206 @@ Focus on the FEELING, not the facts.
   return context;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// NEW: CONVERSATION SLOWDOWN DETECTION & GENTLE CLOSINGS
+// ═══════════════════════════════════════════════════════════════════
+// Detects when a conversation is naturally winding down
+// Appends a gentle closing sentence to prevent abrupt endings
+// Only triggers when appropriate - not on every message
+// ═══════════════════════════════════════════════════════════════════
+
+interface ConversationSlowdownAnalysis {
+  isWindingDown: boolean;
+  shouldAddClosing: boolean;
+  reasoning: string;
+  closingSentence: string | null;
+}
+
+/**
+ * Analyze conversation to detect if it's naturally slowing down
+ * 
+ * WINDING DOWN INDICATORS:
+ * - Short user messages (1-5 words) like "ok", "thanks", "yeah"
+ * - Acknowledgment phrases without follow-up questions
+ * - Decreasing message length over recent messages
+ * - User expressing closure ("I feel better", "that helps")
+ * - No new topics introduced
+ * 
+ * DO NOT TRIGGER ON:
+ * - Active conversations with questions
+ * - Emotional intensity (user needs space, not closure)
+ * - First few messages of a conversation
+ * - User asking for advice or guidance
+ */
+function analyzeConversationSlowdown(
+  messages: any[],
+  lastUserMessage: string,
+  ventingAnalysis: VentingAnalysis
+): ConversationSlowdownAnalysis {
+  const lowerMessage = lastUserMessage.toLowerCase().trim();
+  const wordCount = lastUserMessage.trim().split(/\s+/).length;
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // EXCLUSION CRITERIA (DO NOT ADD CLOSING)
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Don't add closing if conversation is too short (less than 4 messages)
+  if (messages.length < 4) {
+    return {
+      isWindingDown: false,
+      shouldAddClosing: false,
+      reasoning: 'Conversation too short - not appropriate for closing',
+      closingSentence: null
+    };
+  }
+  
+  // Don't add closing if user is venting or in high emotional distress
+  if (ventingAnalysis.isVenting || ventingAnalysis.emotionalIntensity === 'high') {
+    return {
+      isWindingDown: false,
+      shouldAddClosing: false,
+      reasoning: 'User is venting or in distress - needs space, not closure',
+      closingSentence: null
+    };
+  }
+  
+  // Don't add closing if user is asking for advice
+  if (ventingAnalysis.isAskingForAdvice) {
+    return {
+      isWindingDown: false,
+      shouldAddClosing: false,
+      reasoning: 'User is actively seeking advice - conversation is ongoing',
+      closingSentence: null
+    };
+  }
+  
+  // Don't add closing if user is asking questions
+  if (lastUserMessage.includes('?')) {
+    return {
+      isWindingDown: false,
+      shouldAddClosing: false,
+      reasoning: 'User is asking questions - conversation is active',
+      closingSentence: null
+    };
+  }
+  
+  // Don't add closing if user is introducing new topics
+  const newTopicKeywords = [
+    'also', 'another thing', 'by the way', 'speaking of',
+    'i wanted to ask', 'can we talk about', 'what about'
+  ];
+  if (newTopicKeywords.some(keyword => lowerMessage.includes(keyword))) {
+    return {
+      isWindingDown: false,
+      shouldAddClosing: false,
+      reasoning: 'User is introducing new topics - conversation is expanding',
+      closingSentence: null
+    };
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // WINDING DOWN DETECTION
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Check for short acknowledgment messages
+  const shortAcknowledgments = [
+    'ok', 'okay', 'thanks', 'thank you', 'got it', 'yeah', 'yep',
+    'sure', 'alright', 'cool', 'good', 'nice', 'appreciate it',
+    'that helps', 'makes sense', 'i see', 'understood'
+  ];
+  
+  const isShortAcknowledgment = wordCount <= 5 && 
+    shortAcknowledgments.some(phrase => lowerMessage.includes(phrase));
+  
+  // Check for closure expressions
+  const closureExpressions = [
+    'i feel better', 'that helps', 'i appreciate', 'thank you',
+    'that makes sense', 'i understand now', 'that\'s helpful',
+    'i\'ll think about', 'i\'ll try', 'good to know'
+  ];
+  
+  const hasClosureExpression = closureExpressions.some(phrase => 
+    lowerMessage.includes(phrase)
+  );
+  
+  // Check for decreasing message length trend
+  const recentUserMessages = messages
+    .filter(m => m.role === 'user')
+    .slice(-3)
+    .map(m => (m.content || '').trim().split(/\s+/).length);
+  
+  const isDecreasingLength = recentUserMessages.length >= 2 &&
+    recentUserMessages[recentUserMessages.length - 1] < recentUserMessages[0];
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // DECISION LOGIC
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // CASE 1: Short acknowledgment (strongest signal)
+  if (isShortAcknowledgment) {
+    return {
+      isWindingDown: true,
+      shouldAddClosing: true,
+      reasoning: 'User sent short acknowledgment - conversation naturally closing',
+      closingSentence: "I'm here whenever you want to continue."
+    };
+  }
+  
+  // CASE 2: Closure expression (clear signal)
+  if (hasClosureExpression) {
+    return {
+      isWindingDown: true,
+      shouldAddClosing: true,
+      reasoning: 'User expressed closure or satisfaction - appropriate to offer gentle closing',
+      closingSentence: "I'm here whenever you need."
+    };
+  }
+  
+  // CASE 3: Decreasing message length + short message (moderate signal)
+  if (isDecreasingLength && wordCount <= 10) {
+    return {
+      isWindingDown: true,
+      shouldAddClosing: true,
+      reasoning: 'Message length decreasing and current message is short - conversation slowing',
+      closingSentence: "I'm here if you want to talk more."
+    };
+  }
+  
+  // Default: conversation is still active
+  return {
+    isWindingDown: false,
+    shouldAddClosing: false,
+    reasoning: 'Conversation is still active - no closing needed',
+    closingSentence: null
+  };
+}
+
+/**
+ * Apply gentle closing sentence to AI response if appropriate
+ * Only adds closing if conversation is naturally winding down
+ * Closing is subtle and non-pressuring
+ */
+function applyGentleClosing(
+  aiResponse: string,
+  slowdownAnalysis: ConversationSlowdownAnalysis
+): string {
+  if (!slowdownAnalysis.shouldAddClosing || !slowdownAnalysis.closingSentence) {
+    return aiResponse;
+  }
+  
+  // Add closing sentence with appropriate spacing
+  // Ensure it feels natural and not forced
+  const trimmedResponse = aiResponse.trim();
+  
+  // If response already ends with a question, don't add closing
+  if (trimmedResponse.endsWith('?')) {
+    return aiResponse;
+  }
+  
+  // Add closing with gentle spacing
+  return `${trimmedResponse}\n\n${slowdownAnalysis.closingSentence}`;
+}
+
 // Fetch person continuity data (and DB-level continuity_enabled) from Supabase
 async function getPersonContinuity(
   supabase: any,
@@ -1684,7 +1884,10 @@ PRIVACY & CONTROL:
 - Validate feelings first.
 - Ask gentle follow-up questions.
 - Never diagnose.
-- Don't invent facts beyond the supplied context.`;
+- Don't invent facts beyond the supplied context.
+- Avoid absolute statements or certainty language.
+- Use tentative phrasing: "You might notice...", "It could be helpful to explore...", "What feels right to you?"
+- Support reflection, don't define the user.`;
 
   if (askingForAdvice) {
     basePrompt += `\n\nThe user is asking for advice: validate briefly, give 1–2 actionable suggestions, then a gentle question.`;
@@ -1891,6 +2094,16 @@ serve(async (req) => {
     const responseGuidance = analyzeUserInputForResponseGuidance(lastUserMessage);
     console.log(`[Edge][Chat][${requestId}] Response guidance:`, responseGuidance);
 
+    // ═══════════════════════════════════════════════════════════════════
+    // ANALYZE CONVERSATION FOR SLOWDOWN (GENTLE CLOSING)
+    // ═══════════════════════════════════════════════════════════════════
+    const slowdownAnalysis = analyzeConversationSlowdown(
+      messages,
+      lastUserMessage,
+      ventingAnalysis
+    );
+    console.log(`[Edge][Chat][${requestId}] Slowdown analysis:`, slowdownAnalysis);
+
     const systemPrompt = await buildSystemPrompt(
       supabase,
       userId,
@@ -2048,6 +2261,11 @@ serve(async (req) => {
       data?.choices?.[0]?.message?.content ??
       "I'm here with you. Tell me more about what's on your mind.";
 
+    // ═══════════════════════════════════════════════════════════════════
+    // APPLY GENTLE CLOSING SENTENCE IF APPROPRIATE
+    // ═══════════════════════════════════════════════════════════════════
+    reply = applyGentleClosing(reply, slowdownAnalysis);
+
     if (IS_DEV && aiToneId && !reply.includes(`(tone: ${aiToneId})`)) {
       reply += `\n\n(tone: ${aiToneId})`;
     }
@@ -2122,179 +2340,3 @@ serve(async (req) => {
     );
   }
 });
-</write file>
-
-Now let me create a summary document explaining the implementation:
-
-<write file="EMOTIONAL_CONTINUITY_IMPLEMENTATION.md">
-# Emotional Continuity Implementation
-
-## Overview
-
-This implementation improves emotional continuity in conversations by allowing the AI to subtly reference emotional themes from the **current conversation thread**, without changing memory logic or saving additional data.
-
-## Key Features
-
-### 1. **Emotional Theme Extraction**
-- Extracts emotional themes from recent messages (last 6-8 messages)
-- Detects feelings like: heavy, anxious, frustrated, sad, confused, hurt, overwhelmed, stuck, hopeful, relieved
-- Captures brief context snippets for each detected emotion
-- Deduplicates and keeps only the 3 most recent unique themes
-
-### 2. **Ephemeral Context (No Storage)**
-- Emotional themes are extracted on-the-fly during each AI request
-- **Nothing is saved to the database**
-- Themes are only used for the current response generation
-- Completely separate from the existing memory system
-
-### 3. **AI Prompt Enhancement**
-- Adds an "Emotional Continuity" section to the AI system prompt
-- Provides clear usage rules for the AI:
-  - ✓ Can reference emotional themes subtly
-  - ✓ Can use phrases like "Earlier you mentioned this felt heavy"
-  - ✗ Cannot mention specific facts or dates
-  - ✗ Cannot say "I remember you said..." (implies storage)
-  - ✗ Cannot reference other sessions
-
-### 4. **Privacy & Compliance**
-- No new data storage
-- No memory content exposed to users
-- No explicit summarization of past conversations
-- Focuses on emotional continuity, not memory recall
-- Apple compliance preserved
-
-## Implementation Details
-
-### New Functions
-
-#### `extractEmotionalThemes(messages: any[]): EmotionalTheme[]`
-- Scans recent user messages for emotional keywords
-- Returns up to 3 unique emotional themes
-- Each theme includes: feeling name and brief context snippet
-
-#### `buildEmotionalContinuityContext(messages: any[]): string`
-- Builds the AI prompt section for emotional continuity
-- Includes clear usage rules for the AI
-- Returns empty string if no themes detected
-
-### Modified Functions
-
-#### `buildSystemPrompt(...)`
-- Now accepts `messages` parameter
-- Calls `buildEmotionalContinuityContext()` to add emotional context
-- Inserts emotional continuity section after therapist persona and before conversation continuity
-
-## Example Usage
-
-### Before (No Emotional Continuity)
-```
-User: "I'm feeling really overwhelmed by everything."
-AI: "What's making you feel that way?"
-
-[Later in conversation]
-User: "I just don't know what to do anymore."
-AI: "Can you tell me more about what's going on?"
-```
-
-### After (With Emotional Continuity)
-```
-User: "I'm feeling really overwhelmed by everything."
-AI: "What's making you feel that way?"
-
-[Later in conversation]
-User: "I just don't know what to do anymore."
-AI: "I hear that same overwhelm coming through. This sounds connected to what you shared before."
-```
-
-## Acceptable Phrasing Examples
-
-The AI can now use phrases like:
-- "Earlier you mentioned this felt heavy."
-- "This sounds connected to what you shared before."
-- "I hear that same frustration coming through."
-- "It seems like this is still weighing on you."
-- "That feeling of being stuck is showing up again."
-
-## What the AI Cannot Do
-
-The AI must NOT:
-- Mention specific facts, dates, or stored details
-- Say "I remember you said..." (implies memory storage)
-- Reference conversations from other sessions
-- Expose any technical memory system details
-- Summarize past conversations explicitly
-
-## Testing
-
-### Manual Testing
-1. Start a conversation and express an emotion (e.g., "I feel overwhelmed")
-2. Continue the conversation with several messages
-3. Express a related concern later
-4. Verify the AI subtly references the earlier emotional theme
-
-### Expected Behavior
-- AI should naturally reference emotional themes when relevant
-- References should feel human and conversational
-- No technical jargon or memory system exposure
-- No privacy concerns
-
-## Acceptance Criteria
-
-✅ Conversations feel coherent across messages
-✅ No privacy concerns
-✅ No new data storage
-✅ Apple compliance preserved
-✅ Emotional continuity, not memory recall
-✅ Subtle and natural phrasing
-
-## Technical Notes
-
-### Performance
-- Emotional theme extraction is lightweight (simple keyword matching)
-- No additional API calls required
-- No database queries added
-- Minimal impact on response time
-
-### Scalability
-- Works with any conversation length
-- Only processes last 6-8 messages
-- Deduplicates themes to avoid overload
-- Caps at 3 themes maximum
-
-### Compatibility
-- Works with all existing features
-- Compatible with therapist personas
-- Compatible with AI tones
-- Compatible with memory system (separate concerns)
-- Compatible with continuity toggle
-
-## Deployment
-
-### Edge Function
-The changes are in `supabase/functions/generate-ai-response/index.ts`:
-1. Deploy the updated Edge Function
-2. No database migrations required
-3. No client-side changes required
-4. Works immediately after deployment
-
-### Rollback
-If needed, simply redeploy the previous version of the Edge Function. No data cleanup required since nothing is stored.
-
-## Future Enhancements
-
-Potential improvements (not implemented):
-- Add more emotional keywords for better detection
-- Support for emotional intensity levels
-- Detect emotional shifts (e.g., from sad to hopeful)
-- Multi-language emotional keyword support
-
-## Summary
-
-This implementation provides emotional continuity without:
-- Changing memory storage logic
-- Exposing memory content to users
-- Summarizing past conversations explicitly
-- Raising privacy concerns
-- Requiring new data storage
-
-The AI can now subtly reference emotional themes from the current conversation, making conversations feel more coherent and human.
