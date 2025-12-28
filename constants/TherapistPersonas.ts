@@ -102,6 +102,7 @@ export const THERAPIST_PERSONAS: TherapistPersona[] = [
     metaphor_use: 'none',
     signoff_style: 'none',
     opening_style: "Okay. Here's the clean version:",
+    closing_style: "That's the situation.",
   },
   {
     id: 'maya',
@@ -143,6 +144,7 @@ export const THERAPIST_PERSONAS: TherapistPersona[] = [
     metaphor_use: 'often',
     signoff_style: 'none',
     opening_style: "Something in what you said feels important.",
+    closing_style: "What does that bring up for you?",
   },
   {
     id: 'ruth',
@@ -205,6 +207,7 @@ export const THERAPIST_PERSONAS: TherapistPersona[] = [
     metaphor_use: 'light',
     signoff_style: 'none',
     opening_style: "Can I get curious with you for a second?",
+    closing_style: "What else are you noticing?",
   },
   {
     id: 'ken',
@@ -225,6 +228,7 @@ export const THERAPIST_PERSONAS: TherapistPersona[] = [
     metaphor_use: 'none',
     signoff_style: 'none',
     opening_style: "Let's break this down logically:",
+    closing_style: "Does that framework help?",
   },
 ];
 

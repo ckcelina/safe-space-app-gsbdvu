@@ -75,6 +75,7 @@ const THERAPIST_PERSONAS: Record<string, TherapistPersonaStyle> = {
     metaphor_use: 'none',
     signoff_style: 'none',
     opening_style: "Okay. Here's the clean version:",
+    closing_style: "That's the situation.",
   },
   maya: {
     name: "Maya",
@@ -106,6 +107,7 @@ const THERAPIST_PERSONAS: Record<string, TherapistPersonaStyle> = {
     metaphor_use: 'often',
     signoff_style: 'none',
     opening_style: "Something in what you said feels important.",
+    closing_style: "What does that bring up for you?",
   },
   ruth: {
     name: "Ruth",
@@ -153,6 +155,7 @@ const THERAPIST_PERSONAS: Record<string, TherapistPersonaStyle> = {
     metaphor_use: 'light',
     signoff_style: 'none',
     opening_style: "Can I get curious with you for a second?",
+    closing_style: "What else are you noticing?",
   },
   ken: {
     name: "Ken",
@@ -168,6 +171,7 @@ const THERAPIST_PERSONAS: Record<string, TherapistPersonaStyle> = {
     metaphor_use: 'none',
     signoff_style: 'none',
     opening_style: "Let's break this down logically:",
+    closing_style: "Does that framework help?",
   },
 };
 
@@ -1143,6 +1147,70 @@ function analyzeConversationSlowdown(
 }
 
 /**
+ * Apply persona-specific closing style to AI response
+ * Each therapist has a unique way of closing responses that reflects their personality
+ * Only applies when appropriate - not forced on every message
+ */
+function applyPersonaClosing(
+  aiResponse: string,
+  personaStyle: TherapistPersonaStyle | null,
+  slowdownAnalysis: ConversationSlowdownAnalysis,
+  ventingAnalysis: VentingAnalysis
+): string {
+  const trimmedResponse = aiResponse.trim();
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // EXCLUSION CRITERIA (DO NOT ADD CLOSING)
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Don't add closing if response already ends with a question
+  if (trimmedResponse.endsWith('?')) {
+    return aiResponse;
+  }
+  
+  // Don't add closing if user is venting or in high emotional distress
+  if (ventingAnalysis.isVenting || ventingAnalysis.emotionalIntensity === 'high') {
+    return aiResponse;
+  }
+  
+  // Don't add closing if user is asking for advice (conversation is active)
+  if (ventingAnalysis.isAskingForAdvice) {
+    return aiResponse;
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // DETERMINE WHICH CLOSING TO USE
+  // ═══════════════════════════════════════════════════════════════════
+  
+  let closingToUse: string | null = null;
+  
+  // PRIORITY 1: Use persona-specific closing if available and appropriate
+  // Only use persona closing when conversation feels complete or naturally pausing
+  if (personaStyle?.closing_style && slowdownAnalysis.isWindingDown) {
+    closingToUse = personaStyle.closing_style;
+  }
+  
+  // PRIORITY 2: Use generic gentle closing if conversation is winding down
+  // but persona doesn't have a specific closing style
+  else if (slowdownAnalysis.shouldAddClosing && slowdownAnalysis.closingSentence) {
+    closingToUse = slowdownAnalysis.closingSentence;
+  }
+  
+  // If no closing is appropriate, return original response
+  if (!closingToUse) {
+    return aiResponse;
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // APPLY CLOSING WITH NATURAL SPACING
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Add closing with gentle spacing
+  return `${trimmedResponse}\n\n${closingToUse}`;
+}
+
+/**
+ * DEPRECATED: Use applyPersonaClosing instead
  * Apply gentle closing sentence to AI response if appropriate
  * Only adds closing if conversation is naturally winding down
  * Closing is subtle and non-pressuring
@@ -1452,6 +1520,33 @@ Users subconsciously bond with consistency. Personality drift destroys emotional
    
    ⚠️ These quirks make you recognizable
    ⚠️ NEVER abandon your characteristic phrases or style
+
+7. CLOSING STYLE (UNIQUE TO YOU):
+   ${personaStyle.closing_style ? `
+   - Your unique closing: "${personaStyle.closing_style}"
+   - This closing reflects YOUR personality and voice
+   - Use it naturally when conversations feel complete or are pausing
+   - DO NOT force it on every message
+   - DO NOT use it when:
+     * User is asking questions
+     * User is in high emotional distress
+     * User is venting
+     * Conversation is actively ongoing
+   - DO use it when:
+     * Conversation is naturally winding down
+     * User sends short acknowledgments ("ok", "thanks", "got it")
+     * User expresses closure ("that helps", "I feel better")
+     * Response feels complete and doesn't end with a question
+   
+   ⚠️ Your closing is part of your identity
+   ⚠️ It should feel natural, not forced
+   ⚠️ Quality over frequency - use it when it truly fits
+   ` : `
+   - You do NOT have a specific closing style
+   - Your responses end naturally without signature phrases
+   - This is part of your direct, practical personality
+   - DO NOT adopt closing phrases from other therapists
+   `}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🚫 AVOID PERSONALITY DRIFT (CRITICAL RULES):
@@ -2546,9 +2641,14 @@ serve(async (req) => {
       "I'm here with you. Tell me more about what's on your mind.";
 
     // ═══════════════════════════════════════════════════════════════════
-    // APPLY GENTLE CLOSING SENTENCE IF APPROPRIATE
+    // APPLY PERSONA-SPECIFIC CLOSING STYLE IF APPROPRIATE
     // ═══════════════════════════════════════════════════════════════════
-    reply = applyGentleClosing(reply, slowdownAnalysis);
+    // Get persona style for closing
+    const personaStyleForClosing = preferences?.therapist_persona_id 
+      ? getPersonaStyleMetadata(preferences.therapist_persona_id)
+      : null;
+    
+    reply = applyPersonaClosing(reply, personaStyleForClosing, slowdownAnalysis, ventingAnalysis);
 
     if (IS_DEV && aiToneId && !reply.includes(`(tone: ${aiToneId})`)) {
       reply += `\n\n(tone: ${aiToneId})`;
