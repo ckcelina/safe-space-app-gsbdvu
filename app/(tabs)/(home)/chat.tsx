@@ -184,7 +184,7 @@ export default function ChatScreen() {
   // FlatList ref for inverted list
   const flatListRef = useRef<FlatList>(null);
 
-  // Dev-only debug state
+  // Dev-only debug state - ONLY stored in __DEV__ mode
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   // Set initial subject from params if provided (from Library)
@@ -437,7 +437,11 @@ export default function ChatScreen() {
     setIsSending(true);
     isGeneratingRef.current = true;
     setError(null);
-    setDebugInfo(null); // Clear previous debug info
+    
+    // PRODUCTION SAFETY: Clear debug info in production builds
+    if (__DEV__) {
+      setDebugInfo(null);
+    }
     
     // Clear input immediately to prevent re-sends
     const userMessageText = text;
@@ -599,19 +603,23 @@ export default function ChatScreen() {
 
       // STEP 3: Handle result - check ok flag
       if (!result.ok) {
-        // Build detailed debug string for DEV mode
-        const debugString = JSON.stringify({
-          functionName: 'generate-ai-response',
-          timestamp: new Date().toISOString(),
-          lastUserMessageId: insertedMessage.id,
-          error: result.error,
-        }, null, 2);
-
-        console.error('[Chat] Edge Function failed:', result.error);
-
-        // Store debug info for dev mode banner
+        // PRODUCTION SAFETY: Only store debug info in __DEV__ mode
         if (__DEV__) {
+          // Build detailed debug string for DEV mode
+          const debugString = JSON.stringify({
+            functionName: 'generate-ai-response',
+            timestamp: new Date().toISOString(),
+            lastUserMessageId: insertedMessage.id,
+            error: result.error,
+          }, null, 2);
+
+          console.error('[Chat] Edge Function failed:', result.error);
+
+          // Store debug info for dev mode banner
           setDebugInfo(debugString);
+        } else {
+          // Production: Just log to console, no UI exposure
+          console.error('[Chat] Edge Function failed');
         }
 
         if (isMountedRef.current) {
@@ -832,9 +840,9 @@ export default function ChatScreen() {
     // TODO: Persist to Supabase if needed (currently local state only)
   }, [newSubjectName, availableSubjects, closeAddSubjectModal]);
 
-  // Handle debug banner tap (copy to clipboard)
+  // Handle debug banner tap (copy to clipboard) - ONLY in __DEV__
   const handleDebugBannerTap = useCallback(async () => {
-    if (debugInfo) {
+    if (__DEV__ && debugInfo) {
       await copyDebugToClipboard(debugInfo);
       showErrorToast('Debug info copied to clipboard');
     }
@@ -1010,7 +1018,24 @@ export default function ChatScreen() {
             onHide={() => setShowMemorySavedIndicator(false)}
           />
 
-          {/* DEV-ONLY: Debug Banner */}
+          {/* 
+            ═══════════════════════════════════════════════════════════════════
+            DEVELOPER DEBUG BANNER
+            ═══════════════════════════════════════════════════════════════════
+            
+            VISIBILITY RULES:
+            - Production builds (TestFlight/App Store): NEVER shown (__DEV__ === false)
+            - Expo Go / Dev builds: ONLY shown when __DEV__ === true AND debugInfo exists
+            
+            SAFETY GUARANTEES:
+            1. Entire block wrapped in __DEV__ check (compile-time removal in production)
+            2. debugInfo state is only set when __DEV__ === true
+            3. No debug components rendered outside __DEV__ block
+            4. No leftover spacing or margins when hidden
+            
+            This ensures debug information is NEVER exposed in TestFlight or App Store builds.
+            ═══════════════════════════════════════════════════════════════════
+          */}
           {__DEV__ && debugInfo && (
             <TouchableOpacity 
               style={[styles.debugBanner, { backgroundColor: '#FF9500' }]}
