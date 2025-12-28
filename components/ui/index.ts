@@ -5,6 +5,7 @@ export { AIHeaderRow } from './AIHeaderRow';
 export { TypingIndicator } from './TypingIndicator';
 export { AnimatedTypingIndicator } from './AnimatedTypingIndicator';
 export { LoadingOverlay } from './LoadingOverlay';
+export { MemorySavedIndicator } from './MemorySavedIndicator';
 export { PersonCard } from './PersonCard';
 export { SafeSpaceButton } from './SafeSpaceButton';
 export { SafeSpaceLinkButton } from './SafeSpaceLinkButton';

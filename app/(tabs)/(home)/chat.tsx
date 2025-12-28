@@ -31,6 +31,7 @@ import { AnimatedTypingIndicator } from '@/components/ui/AnimatedTypingIndicator
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
 import { SwipeableModal } from '@/components/ui/SwipeableModal';
+import { MemorySavedIndicator } from '@/components/ui/MemorySavedIndicator';
 import { showErrorToast } from '@/utils/toast';
 import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
@@ -207,6 +208,9 @@ export default function ChatScreen() {
   // NEW: Simple modal state for adding subjects
   const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState('');
+
+  // Memory saved indicator state
+  const [showMemorySavedIndicator, setShowMemorySavedIndicator] = useState(false);
 
   const isMountedRef = useRef(true);
 
@@ -535,6 +539,11 @@ export default function ChatScreen() {
           console.log('[Chat] Extracted', extractedMemories.length, 'memories locally');
           await upsertPersonMemories(userId, personId, extractedMemories);
           console.log('[Chat] Local memories upserted successfully');
+          
+          // Show subtle confirmation indicator
+          if (isMountedRef.current) {
+            setShowMemorySavedIndicator(true);
+          }
         } else {
           console.log('[Chat] No memories extracted from user text');
         }
@@ -719,6 +728,13 @@ export default function ChatScreen() {
           });
           
           console.log('[Chat] Memory extraction complete');
+          
+          // Show subtle confirmation indicator if memories were extracted
+          // Note: We don't check the exact count to avoid exposing internal logic
+          // The indicator shows regardless of whether new memories were added or existing ones were updated
+          if (isMountedRef.current && !extractionResult.error) {
+            setShowMemorySavedIndicator(true);
+          }
           
           // Update continuity if we got valid data
           if (extractionResult.continuity) {
@@ -987,6 +1003,12 @@ export default function ChatScreen() {
               keyExtractor={(item, index) => `subject-${index}-${item}`}
             />
           </View>
+
+          {/* Memory Saved Indicator */}
+          <MemorySavedIndicator 
+            visible={showMemorySavedIndicator}
+            onHide={() => setShowMemorySavedIndicator(false)}
+          />
 
           {/* DEV-ONLY: Debug Banner */}
           {__DEV__ && debugInfo && (
