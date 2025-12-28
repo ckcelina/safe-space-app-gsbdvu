@@ -156,11 +156,15 @@ export default function ChatScreen() {
 
   useEffect(() => {
     if (!personId) {
-      console.error('[Chat] Missing personId parameter - navigation may be broken');
+      if (__DEV__) {
+        console.log('[Chat] Missing personId parameter - navigation may be broken');
+      }
       showErrorToast('Invalid person ID');
     }
     if (!personName || personName === 'Chat') {
-      console.warn('[Chat] Missing personName parameter - using fallback');
+      if (__DEV__) {
+        console.warn('[Chat] Missing personName parameter - using fallback');
+      }
     }
   }, [personId, personName]);
 
@@ -289,12 +293,18 @@ export default function ChatScreen() {
         .or('subject.is.null,subject.eq.');
 
       if (updateError) {
-        console.error('[Chat] Backfill error:', updateError);
+        if (__DEV__) {
+          console.log('[Chat] Backfill error:', updateError);
+        }
       } else {
-        console.log('[Chat] Backfill completed successfully');
+        if (__DEV__) {
+          console.log('[Chat] Backfill completed successfully');
+        }
       }
     } catch (err) {
-      console.error('[Chat] Backfill unexpected error:', err);
+      if (__DEV__) {
+        console.log('[Chat] Backfill unexpected error:', err);
+      }
     }
   }, [personId, authUser?.id]);
 
@@ -330,7 +340,9 @@ export default function ChatScreen() {
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('[Chat] loadMessages error', error);
+        if (__DEV__) {
+          console.log('[Chat] loadMessages error', error);
+        }
         if (isMountedRef.current) {
           setError('Failed to load messages');
         }
@@ -359,7 +371,9 @@ export default function ChatScreen() {
 
       backfillSubjects();
     } catch (err: any) {
-      console.error('[Chat] loadMessages unexpected error:', err);
+      if (__DEV__) {
+        console.log('[Chat] loadMessages unexpected error:', err);
+      }
       if (isMountedRef.current) {
         setError('An unexpected error occurred');
       }
@@ -508,7 +522,9 @@ export default function ChatScreen() {
         .single();
 
       if (insertError || !insertedMessage) {
-        console.error('[Chat] Insert user message error:', insertError);
+        if (__DEV__) {
+          console.log('[Chat] Insert user message error:', insertError);
+        }
         if (isMountedRef.current) {
           setInputText(userMessageText); // Restore input on error
           setError(insertError?.message || 'Failed to send message. Please try again.');
@@ -656,7 +672,8 @@ export default function ChatScreen() {
         // PRODUCTION SAFETY: Only log detailed errors in __DEV__ mode
         // ═══════════════════════════════════════════════════════════════════
         if (__DEV__) {
-          console.error('[Chat] Edge Function failed:', {
+          // Use console.log instead of console.error to prevent red error overlays
+          console.log('[Chat] Edge Function failed:', {
             code: errorCode,
             message: errorMessage,
             status: errorStatus,
@@ -685,7 +702,7 @@ export default function ChatScreen() {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           }
         }
-        // In production (__DEV__ === false), do NOT console.error at all
+        // In production (__DEV__ === false), do NOT log at all
 
         if (isMountedRef.current) {
           setIsTyping(false);
@@ -852,7 +869,9 @@ export default function ChatScreen() {
         .single();
 
       if (aiInsertError || !aiInserted) {
-        console.error('[Chat] Insert AI message error:', aiInsertError);
+        if (__DEV__) {
+          console.log('[Chat] Insert AI message error:', aiInsertError);
+        }
         if (isMountedRef.current) {
           setIsTyping(false);
           setError(aiInsertError?.message || 'Failed to save AI reply.');
@@ -929,7 +948,7 @@ export default function ChatScreen() {
     } catch (err: any) {
       // Only log detailed errors in __DEV__ mode
       if (__DEV__) {
-        console.error('[Chat] sendMessage unexpected error:', err);
+        console.log('[Chat] sendMessage unexpected error:', err);
       }
       
       if (isMountedRef.current) {
@@ -956,7 +975,9 @@ export default function ChatScreen() {
         router.replace('/(tabs)/(home)');
       }
     } catch (error) {
-      console.error('[Chat] Back navigation error:', error);
+      if (__DEV__) {
+        console.log('[Chat] Back navigation error:', error);
+      }
       router.replace('/(tabs)/(home)');
     }
   }, []);

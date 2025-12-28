@@ -133,7 +133,7 @@ export async function invokeEdgeSafe<T = any>(
         const duration = Date.now() - startTime;
 
         if (__DEV__) {
-          console.error(`[invokeEdgeSafe] ${functionName} error (attempt ${attempt + 1}):`, {
+          console.log(`[invokeEdgeSafe] ${functionName} error (attempt ${attempt + 1}):`, {
             name: (error as any)?.name,
             message: (error as any)?.message,
             status,
@@ -264,7 +264,7 @@ export async function invokeEdgeSafe<T = any>(
         const statusText = e.statusText;
 
         if (__DEV__) {
-          console.error(`[invokeEdgeSafe] FunctionsHttpError for ${functionName} (attempt ${attempt + 1}):`, {
+          console.log(`[invokeEdgeSafe] FunctionsHttpError for ${functionName} (attempt ${attempt + 1}):`, {
             status,
             statusText,
             message: e.message,
@@ -296,7 +296,7 @@ export async function invokeEdgeSafe<T = any>(
           }
         } catch (extractError) {
           if (__DEV__) {
-            console.warn(`[invokeEdgeSafe] Could not extract error details:`, extractError);
+            console.log(`[invokeEdgeSafe] Could not extract error details:`, extractError);
           }
         }
 
@@ -336,7 +336,7 @@ export async function invokeEdgeSafe<T = any>(
 
       // Handle other unexpected errors
       if (__DEV__) {
-        console.error(`[invokeEdgeSafe] Unexpected error for ${functionName} (attempt ${attempt + 1}):`, {
+        console.log(`[invokeEdgeSafe] Unexpected error for ${functionName} (attempt ${attempt + 1}):`, {
           name: e?.name,
           message: e?.message,
           stack: e?.stack,
@@ -394,7 +394,7 @@ export async function invokeEdge<T = any>(functionName: string, body: any): Prom
       const context = (error as any)?.context;
 
       if (__DEV__) {
-        console.error('[invokeEdge] supabase.functions.invoke error', {
+        console.log('[invokeEdge] supabase.functions.invoke error', {
           functionName,
           name: (error as any)?.name,
           message: (error as any)?.message,
@@ -420,7 +420,7 @@ export async function invokeEdge<T = any>(functionName: string, body: any): Prom
       if (parsed) return { data: parsed as T, error: null };
 
       if (__DEV__) {
-        console.error('[invokeEdge] Non-JSON string response', { functionName, raw: data });
+        console.log('[invokeEdge] Non-JSON string response', { functionName, raw: data });
       }
       return {
         data: null,
@@ -437,7 +437,7 @@ export async function invokeEdge<T = any>(functionName: string, body: any): Prom
         if (parsed) return { data: parsed as T, error: null };
 
         if (__DEV__) {
-          console.error('[invokeEdge] Response-like non-JSON', { functionName, raw });
+          console.log('[invokeEdge] Response-like non-JSON', { functionName, raw });
         }
         return {
           data: null,
@@ -446,7 +446,7 @@ export async function invokeEdge<T = any>(functionName: string, body: any): Prom
         };
       } catch (e: any) {
         if (__DEV__) {
-          console.error('[invokeEdge] Failed reading Response-like body', { functionName, message: e?.message });
+          console.log('[invokeEdge] Failed reading Response-like body', { functionName, message: e?.message });
         }
         return {
           data: null,
@@ -460,7 +460,7 @@ export async function invokeEdge<T = any>(functionName: string, body: any): Prom
     return { data: data as T, error: null };
   } catch (e: any) {
     if (__DEV__) {
-      console.error('[invokeEdge] exception', {
+      console.log('[invokeEdge] exception', {
         functionName,
         message: e?.message,
         stack: e?.stack,
