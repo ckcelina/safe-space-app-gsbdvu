@@ -19,62 +19,10 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { useUserPreferences } from '@/contexts/UserPreferencesContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
-import { getPersonaById } from '@/constants/TherapistPersonas';
+import { getPersonaById, getPreviewContentById } from '@/constants/TherapistPersonas';
 import { showSuccessToast } from '@/utils/toast';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Static preview conversations for each therapist persona
-const PREVIEW_CONVERSATIONS: Record<string, Array<{ role: 'user' | 'assistant'; content: string }>> = {
-  dr_elias: [
-    { role: 'user', content: "I'm feeling really overwhelmed right now. Everything feels like too much." },
-    { role: 'assistant', content: "Let's take a breath for a moment. It's okay to feel overwhelmed. You're safe here, and we can take this one step at a time." },
-    { role: 'user', content: "I don't even know where to start." },
-    { role: 'assistant', content: "That's completely understandable. When everything feels heavy, it can be hard to see a starting point. What would help you feel more grounded right now?" },
-  ],
-  noah: [
-    { role: 'user', content: "I keep having the same argument with my partner. I don't know what to do." },
-    { role: 'assistant', content: "Okay. Here's the clean version: What patterns are you noticing in these arguments? What usually triggers them?" },
-    { role: 'user', content: "It's always about household chores. They never seem to do their share." },
-    { role: 'assistant', content: "Let's break this down into clear steps. Have you both agreed on what 'fair share' means? What's the most practical next move to address this?" },
-  ],
-  maya: [
-    { role: 'user', content: "I feel like I'm not good enough at my job. Everyone else seems so much better." },
-    { role: 'assistant', content: "That sounds really heavy to carry. It makes complete sense that you'd feel this way when you're comparing yourself to others. Your feelings are valid." },
-    { role: 'user', content: "I just feel like I'm always behind." },
-    { role: 'assistant', content: "It's okay to feel this way. Comparing ourselves to others can be so painful. I'm here with you in this. What would it feel like to be gentle with yourself right now?" },
-  ],
-  claire: [
-    { role: 'user', content: "I said yes to something I didn't want to do, and now I'm angry at myself." },
-    { role: 'assistant', content: "Something in what you said feels important. What do you notice when you reflect on why you said yes?" },
-    { role: 'user', content: "I guess I didn't want to disappoint them." },
-    { role: 'assistant', content: "I'm curious—what does this pattern tell you about how you relate to others? What does that bring up for you?" },
-  ],
-  ruth: [
-    { role: 'user', content: "I'm exhausted. I feel like I'm doing everything for everyone and nothing for myself." },
-    { role: 'assistant', content: "Oh love, of course you feel this way. You're carrying so much. It's okay to need support. That's what I'm here for." },
-    { role: 'user', content: "I just don't know how to say no." },
-    { role: 'assistant', content: "You're doing better than you think. Learning to set boundaries is hard, but you're already taking the first step by recognizing this. Be gentle with yourself today." },
-  ],
-  jordan: [
-    { role: 'user', content: "I failed my exam. I feel like such a failure." },
-    { role: 'assistant', content: "I'm proud of you for saying that out loud. Look at how far you've already come—you showed up, you tried, and you're still here. That takes strength." },
-    { role: 'user', content: "But I studied so hard." },
-    { role: 'assistant', content: "And that effort matters. One exam doesn't define you. You have the strength to handle this. What's one thing you're proud of today? You've got this—small steps count." },
-  ],
-  aisha: [
-    { role: 'user', content: "I'm stuck in the same routine and I hate it, but I don't know how to change." },
-    { role: 'assistant', content: "Can I get curious with you for a second? What if we looked at this from a different angle? What's keeping the routine in place?" },
-    { role: 'user', content: "I guess it feels safe, even though I don't like it." },
-    { role: 'assistant', content: "That's really insightful. I'm curious—what else might be going on here? What would it feel like to try something small and different? What else are you noticing?" },
-  ],
-  ken: [
-    { role: 'user', content: "I know I should be happy, but I just feel empty inside." },
-    { role: 'assistant', content: "Let's break this down logically: You're experiencing a disconnect between what you think you should feel and what you actually feel. How do your emotions and the facts fit together here?" },
-    { role: 'user', content: "I have everything I wanted, but it doesn't feel like I thought it would." },
-    { role: 'assistant', content: "Let's connect what you're feeling with what's happening. Sometimes our expectations don't match reality. What makes sense to you when you think it through? Does that framework help?" },
-  ],
-};
 
 export default function CommunicationStylePreviewScreen() {
   const params = useLocalSearchParams<{
@@ -102,14 +50,12 @@ export default function CommunicationStylePreviewScreen() {
   const insets = useSafeAreaInsets();
 
   const [tryItInput, setTryItInput] = useState('');
-  const [tryItResponse, setTryItResponse] = useState<string | null>(null);
+  const [tryItMessages, setTryItMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Get persona data
   const persona = getPersonaById(therapistPersonaId);
-
-  // Get preview conversation
-  const previewConversation = PREVIEW_CONVERSATIONS[therapistPersonaId] || [];
+  const previewContent = getPreviewContentById(therapistPersonaId);
 
   const handleBack = useCallback(() => {
     if (router.canGoBack()) {
@@ -144,46 +90,21 @@ export default function CommunicationStylePreviewScreen() {
 
   const handleTryIt = useCallback(() => {
     const input = tryItInput.trim();
-    if (!input) return;
+    if (!input || !previewContent) return;
 
-    // Generate a simple local response based on the persona style
-    // This is a simplified version and doesn't call the AI
-    let response = '';
+    // Add user message
+    const userMessage = { role: 'user' as const, content: input };
+    
+    // Generate assistant response using the persona's local preview rules
+    const assistantResponse = previewContent.localPreviewReplyRules(input);
+    const assistantMessage = { role: 'assistant' as const, content: assistantResponse };
 
-    switch (therapistPersonaId) {
-      case 'dr_elias':
-        response = "Let's take a moment to slow down. I hear what you're saying, and it's okay to feel this way.";
-        break;
-      case 'noah':
-        response = "Okay. Let's break this down. What's the most important part of what you just shared?";
-        break;
-      case 'maya':
-        response = "That sounds really difficult. Your feelings make complete sense given what you're experiencing.";
-        break;
-      case 'claire':
-        response = "I'm curious—what do you notice when you reflect on that? What does it bring up for you?";
-        break;
-      case 'ruth':
-        response = "Oh love, of course you feel this way. You're doing better than you think. Be gentle with yourself.";
-        break;
-      case 'jordan':
-        response = "I'm proud of you for sharing that. You have the strength to handle this. What's one small step you can take?";
-        break;
-      case 'aisha':
-        response = "Can I get curious with you for a second? What if we looked at this from a different angle?";
-        break;
-      case 'ken':
-        response = "Let's connect what you're feeling with what's happening. How do your emotions and the facts fit together here?";
-        break;
-      default:
-        response = "I hear you. Can you tell me more about what you're experiencing?";
-    }
-
-    setTryItResponse(response);
+    // Update messages
+    setTryItMessages((prev) => [...prev, userMessage, assistantMessage]);
     setTryItInput('');
-  }, [tryItInput, therapistPersonaId]);
+  }, [tryItInput, previewContent]);
 
-  if (!persona) {
+  if (!persona || !previewContent) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -262,16 +183,16 @@ export default function CommunicationStylePreviewScreen() {
                   />
                   <View style={styles.infoHeaderText}>
                     <Text style={[styles.therapistName, { color: theme.textPrimary }]}>
-                      {persona.name}
+                      {previewContent.title}
                     </Text>
                     <Text style={[styles.styleLabel, { color: theme.primary }]}>
-                      {persona.label}
+                      {previewContent.subtitle}
                     </Text>
                   </View>
                 </View>
 
                 <Text style={[styles.description, { color: theme.textSecondary }]}>
-                  {persona.short_description}
+                  {previewContent.description}
                 </Text>
               </View>
 
@@ -282,10 +203,10 @@ export default function CommunicationStylePreviewScreen() {
                 </Text>
 
                 <View style={styles.conversationContainer}>
-                  {previewConversation.map((message, index) => (
+                  {previewContent.sampleChat.map((message, index) => (
                     <View key={index} style={styles.messageWrapper}>
                       <AnimatedChatBubble
-                        message={message.content}
+                        message={message.text}
                         isUser={message.role === 'user'}
                         timestamp={undefined}
                         animate={false}
@@ -293,6 +214,21 @@ export default function CommunicationStylePreviewScreen() {
                         therapistAvatarSource={message.role === 'assistant' ? persona.image : undefined}
                         therapistPersonaId={message.role === 'assistant' ? therapistPersonaId : undefined}
                       />
+                    </View>
+                  ))}
+                </View>
+
+                {/* What this feels like */}
+                <View style={styles.quickTipsContainer}>
+                  <Text style={[styles.quickTipsTitle, { color: theme.textPrimary }]}>
+                    What this feels like:
+                  </Text>
+                  {previewContent.quickTips.map((tip, index) => (
+                    <View key={index} style={styles.quickTipRow}>
+                      <Text style={[styles.quickTipBullet, { color: theme.primary }]}>•</Text>
+                      <Text style={[styles.quickTipText, { color: theme.textSecondary }]}>
+                        {tip}
+                      </Text>
                     </View>
                   ))}
                 </View>
@@ -312,6 +248,25 @@ export default function CommunicationStylePreviewScreen() {
                   Type a message to see how {persona.name} might respond in this style.
                 </Text>
 
+                {/* Display try-it messages */}
+                {tryItMessages.length > 0 && (
+                  <View style={styles.tryItMessagesContainer}>
+                    {tryItMessages.map((message, index) => (
+                      <View key={index} style={styles.messageWrapper}>
+                        <AnimatedChatBubble
+                          message={message.content}
+                          isUser={message.role === 'user'}
+                          timestamp={undefined}
+                          animate={message.role === 'assistant'}
+                          therapistName={message.role === 'assistant' ? persona.name : undefined}
+                          therapistAvatarSource={message.role === 'assistant' ? persona.image : undefined}
+                          therapistPersonaId={message.role === 'assistant' ? therapistPersonaId : undefined}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                )}
+
                 <View style={styles.tryItInputContainer}>
                   <TextInput
                     style={[
@@ -322,7 +277,7 @@ export default function CommunicationStylePreviewScreen() {
                         borderColor: theme.textSecondary + '40',
                       },
                     ]}
-                    placeholder="Type your message here..."
+                    placeholder={previewContent.placeholderUserPrompt}
                     placeholderTextColor={theme.textSecondary}
                     value={tryItInput}
                     onChangeText={setTryItInput}
@@ -342,23 +297,9 @@ export default function CommunicationStylePreviewScreen() {
                     disabled={!tryItInput.trim()}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.tryItButtonText}>Send</Text>
+                    <Text style={styles.tryItButtonText}>Preview response</Text>
                   </TouchableOpacity>
                 </View>
-
-                {tryItResponse && (
-                  <View style={styles.tryItResponseContainer}>
-                    <AnimatedChatBubble
-                      message={tryItResponse}
-                      isUser={false}
-                      timestamp={undefined}
-                      animate={true}
-                      therapistName={persona.name}
-                      therapistAvatarSource={persona.image}
-                      therapistPersonaId={therapistPersonaId}
-                    />
-                  </View>
-                )}
               </View>
             </ScrollView>
 
@@ -488,10 +429,38 @@ const styles = StyleSheet.create({
   },
   conversationContainer: {
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   messageWrapper: {
     width: '100%',
+  },
+  quickTipsContainer: {
+    marginBottom: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.08)',
+  },
+  quickTipsTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  quickTipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    paddingLeft: 8,
+  },
+  quickTipBullet: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginRight: 12,
+    marginTop: -2,
+  },
+  quickTipText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
   },
   disclaimer: {
     fontSize: 12,
@@ -511,8 +480,15 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 16,
   },
-  tryItInputContainer: {
+  tryItMessagesContainer: {
+    gap: 12,
     marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
+  },
+  tryItInputContainer: {
+    marginBottom: 0,
   },
   tryItInput: {
     borderWidth: 1,
@@ -536,9 +512,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  tryItResponseContainer: {
-    marginTop: 16,
   },
   bottomButtons: {
     paddingHorizontal: '5%',
