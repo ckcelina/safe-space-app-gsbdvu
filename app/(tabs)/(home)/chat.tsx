@@ -16,6 +16,8 @@ import {
   ListRenderItemInfo,
   Modal,
   ImageSourcePropType,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -56,10 +58,13 @@ const DEFAULT_SUBJECTS = [
   'Money & Life Admin',
 ];
 
-// Extended Message type with therapist metadata
+// Extended Message type with therapist metadata and client-side status
 interface ExtendedMessage extends Message {
   therapist_name?: string;
   therapist_avatar_source?: ImageSourcePropType;
+  // Client-side only - not stored in DB
+  failed_to_send?: boolean;
+  retry_content?: string;
 }
 
 interface SubjectPillProps {
@@ -187,6 +192,10 @@ export default function ChatScreen() {
   // Dev-only debug state - ONLY stored in __DEV__ mode
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
+  // Track app state for detecting backgrounding
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
     if (initialSubject && initialSubject.trim()) {
@@ -218,6 +227,22 @@ export default function ChatScreen() {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+    };
+  }, []);
+
+  // Track app state changes
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      appStateRef.current = nextAppState;
+      setAppState(nextAppState);
+      
+      if (__DEV__) {
+        console.log('[Chat] App state changed:', nextAppState);
+      }
+    });
+
+    return () => {
+      subscription.remove();
     };
   }, []);
 
@@ -395,6 +420,26 @@ export default function ChatScreen() {
 
     return false;
   }, []);
+
+  // NEW: Retry handler for failed messages
+  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
+    if (!authUser?.id || !personId) {
+      return;
+    }
+
+    console.log('[Chat] Retrying failed message:', messageId);
+
+    // Remove the failed message from UI
+    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+
+    // Set the input text to the retry content and trigger send
+    setInputText(retryContent);
+    
+    // Small delay to ensure state updates
+    setTimeout(() => {
+      sendMessage();
+    }, 100);
+  }, [authUser?.id, personId]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -603,8 +648,17 @@ export default function ChatScreen() {
 
       // STEP 3: Handle result - check ok flag
       if (!result.ok) {
-        // PRODUCTION SAFETY: Only store debug info in __DEV__ mode
+        const errorCode = result.error?.code || 'UNKNOWN';
+        const errorMessage = result.error?.message || 'Unknown error';
+
+        // PRODUCTION SAFETY: Only log detailed errors in __DEV__ mode
         if (__DEV__) {
+          console.error('[Chat] Edge Function failed:', {
+            code: errorCode,
+            message: errorMessage,
+            details: result.error?.details,
+          });
+
           // Build detailed debug string for DEV mode
           const debugString = JSON.stringify({
             functionName: 'generate-ai-response',
@@ -613,8 +667,6 @@ export default function ChatScreen() {
             error: result.error,
           }, null, 2);
 
-          console.error('[Chat] Edge Function failed:', result.error);
-
           // Store debug info for dev mode banner
           setDebugInfo(debugString);
         }
@@ -622,17 +674,75 @@ export default function ChatScreen() {
         if (isMountedRef.current) {
           setIsTyping(false);
           
-          // STEP 4: Generate user-friendly error message based on error code
-          let fallbackMessage = "I'm having trouble responding right now. Please try again.";
+          // STEP 4: Handle different error types gracefully
           
-          if (result.error?.code === 'EDGE_TIMEOUT') {
-            fallbackMessage = "I'm taking a bit longer than usual to respond. Please try again.";
-          } else if (result.error?.code === 'EDGE_UNAVAILABLE') {
-            fallbackMessage = "I'm temporarily unavailable. Please check your connection and try again.";
-          } else if (result.error?.code === 'EDGE_AUTH') {
-            fallbackMessage = "There was an authentication issue. Please try logging out and back in.";
+          // Check if this is an AbortError/Timeout
+          if (errorCode === 'TIMEOUT' || errorCode === 'EDGE_ABORTED') {
+            // Check if user navigated away or app was backgrounded
+            const wasBackgrounded = appStateRef.current !== 'active';
+            const wasUnmounted = !isMountedRef.current;
+            
+            if (wasBackgrounded || wasUnmounted) {
+              // Silently ignore - user is no longer in the chat
+              if (__DEV__) {
+                console.log('[Chat] AbortError/Timeout ignored - user navigated away or app backgrounded');
+              }
+              return;
+            }
+            
+            // User is still in chat - show lightweight retry message
+            if (__DEV__) {
+              console.log('[Chat] AbortError/Timeout - showing retry message');
+            }
+            
+            // Mark the user message as failed (client-side only)
+            setAllMessages((prev) => 
+              prev.map((msg) => 
+                msg.id === insertedMessage.id 
+                  ? { ...msg, failed_to_send: true, retry_content: userMessageText }
+                  : msg
+              )
+            );
+            
+            // Show non-blocking error message
+            setError('Connection interrupted. Your message is saved - tap to retry.');
+            return;
           }
           
+          // Handle EDGE_UNAVAILABLE / EDGE_TIMEOUT
+          if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'FUNCTIONS_HTTP_ERROR') {
+            if (__DEV__) {
+              console.log('[Chat] Edge unavailable - marking message as failed');
+            }
+            
+            // Mark the user message as failed (client-side only)
+            setAllMessages((prev) => 
+              prev.map((msg) => 
+                msg.id === insertedMessage.id 
+                  ? { ...msg, failed_to_send: true, retry_content: userMessageText }
+                  : msg
+              )
+            );
+            
+            // Show retry action
+            setError('Unable to reach AI. Your message is saved - tap to retry.');
+            return;
+          }
+          
+          // Handle auth errors
+          if (errorCode === 'EDGE_AUTH') {
+            setError('Authentication issue. Please try logging out and back in.');
+            return;
+          }
+          
+          // Generic fallback for other errors
+          let fallbackMessage = "I'm having trouble responding right now. Please try again.";
+          
+          if (errorCode === 'MAX_RETRIES_EXCEEDED') {
+            fallbackMessage = "I'm having persistent connection issues. Please check your network and try again.";
+          }
+          
+          // Insert fallback AI message
           const { data: fallbackInserted } = await supabase
             .from('messages')
             .insert({
@@ -758,11 +868,17 @@ export default function ChatScreen() {
           }
         } catch (memoryError) {
           // Silently fail - memory extraction should never break chat
-          console.log('[Chat] Memory extraction/continuity update failed (silent):', memoryError);
+          if (__DEV__) {
+            console.log('[Chat] Memory extraction/continuity update failed (silent):', memoryError);
+          }
         }
       })();
     } catch (err: any) {
-      console.error('[Chat] sendMessage unexpected error:', err);
+      // Only log detailed errors in __DEV__ mode
+      if (__DEV__) {
+        console.error('[Chat] sendMessage unexpected error:', err);
+      }
+      
       if (isMountedRef.current) {
         setInputText(userMessageText); // Restore input on error
         setError(err?.message || 'An unexpected error occurred');
@@ -854,23 +970,60 @@ export default function ChatScreen() {
     }
   }, [debugInfo]);
 
+  // Handle error banner tap for retry
+  const handleErrorBannerTap = useCallback(() => {
+    // Find the most recent failed message
+    const failedMessage = allMessages
+      .filter((msg) => msg.failed_to_send && msg.retry_content)
+      .slice(-1)[0];
+    
+    if (failedMessage && failedMessage.retry_content) {
+      retryFailedMessage(failedMessage.id, failedMessage.retry_content);
+      setError(null);
+    } else {
+      // No failed message to retry, just dismiss error
+      setError(null);
+    }
+  }, [allMessages, retryFailedMessage]);
+
   // Render individual message item
   const renderMessageItem = useCallback(({ item, index }: ListRenderItemInfo<ExtendedMessage>) => {
     // Animate only the most recent AI message (first in reversed list)
     const shouldAnimate = item.role === 'assistant' && index === 0;
     
+    // Check if this message failed to send
+    const isFailed = item.failed_to_send === true;
+    
     return (
-      <AnimatedChatBubble
-        message={item.content}
-        isUser={item.role === 'user'}
-        timestamp={item.created_at}
-        animate={shouldAnimate}
-        therapistName={item.therapist_name}
-        therapistAvatarSource={item.therapist_avatar_source}
-        therapistPersonaId={preferences.therapist_persona_id}
-      />
+      <View>
+        <AnimatedChatBubble
+          message={item.content}
+          isUser={item.role === 'user'}
+          timestamp={item.created_at}
+          animate={shouldAnimate}
+          therapistName={item.therapist_name}
+          therapistAvatarSource={item.therapist_avatar_source}
+          therapistPersonaId={preferences.therapist_persona_id}
+        />
+        {isFailed && item.retry_content && (
+          <TouchableOpacity
+            style={[styles.retryButton, { backgroundColor: theme.primary }]}
+            onPress={() => retryFailedMessage(item.id, item.retry_content!)}
+            activeOpacity={0.7}
+          >
+            <IconSymbol
+              ios_icon_name="arrow.clockwise"
+              android_material_icon_name="refresh"
+              size={16}
+              color="#FFFFFF"
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     );
-  }, [preferences.therapist_persona_id]);
+  }, [preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
 
   // Key extractor for FlatList
   const keyExtractor = useCallback((item: ExtendedMessage) => item.id, []);
@@ -1062,7 +1215,11 @@ export default function ChatScreen() {
           )}
 
           {error && (
-            <View style={[styles.errorBanner, { backgroundColor: '#FF3B30' }]}>
+            <TouchableOpacity 
+              style={[styles.errorBanner, { backgroundColor: '#FF3B30' }]}
+              onPress={handleErrorBannerTap}
+              activeOpacity={0.7}
+            >
               <IconSymbol
                 ios_icon_name="exclamationmark.triangle.fill"
                 android_material_icon_name="error"
@@ -1081,7 +1238,7 @@ export default function ChatScreen() {
                   color="#FFFFFF"
                 />
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           )}
 
           {/* INVERTED FlatList for chat messages */}
@@ -1442,6 +1599,21 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.4,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginTop: 8,
+    marginRight: '5%',
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   // NEW: Simple modal styles
   modalOverlay: {
