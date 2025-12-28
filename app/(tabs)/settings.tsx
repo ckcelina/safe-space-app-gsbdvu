@@ -71,6 +71,50 @@ const AI_PREFERENCE_OPTIONS = [
   'Give more structure/steps',
 ];
 
+// Static preview examples for each therapist persona
+const PERSONA_PREVIEW_EXAMPLES: Record<string, string[]> = {
+  dr_elias: [
+    "Let's take a moment to slow down and breathe.",
+    "It's okay to feel overwhelmed. You're safe here.",
+    "What would help you feel more grounded right now?"
+  ],
+  noah: [
+    "Let's break this down into clear steps.",
+    "What patterns are you noticing here?",
+    "What's the most practical next move?"
+  ],
+  maya: [
+    "That sounds really difficult. I hear you.",
+    "Your feelings make complete sense given what you're going through.",
+    "It's okay to feel this way."
+  ],
+  claire: [
+    "What do you notice when you reflect on that?",
+    "I'm curious—what does this pattern tell you?",
+    "How does that sit with you?"
+  ],
+  ruth: [
+    "You're doing better than you think.",
+    "It's okay to need support. That's what I'm here for.",
+    "Let's take this one step at a time, together."
+  ],
+  jordan: [
+    "Look at how far you've already come!",
+    "You have the strength to handle this.",
+    "What's one thing you're proud of today?"
+  ],
+  aisha: [
+    "What if we looked at this from a different angle?",
+    "I'm curious—what else might be going on here?",
+    "Let's explore that thought together."
+  ],
+  ken: [
+    "Let's connect what you're feeling with what's happening.",
+    "How do your emotions and the facts fit together here?",
+    "What makes sense to you when you think it through?"
+  ],
+};
+
 interface PersonalizationUpdate {
   id: string;
   user_id: string;
@@ -103,6 +147,10 @@ export default function SettingsScreen() {
   const [showPersonaModal, setShowPersonaModal] = useState(false);
   const [selectedPersonaId, setSelectedPersonaId] = useState(preferences.therapist_persona_id || '');
   const [isUpdatingPersona, setIsUpdatingPersona] = useState(false);
+  
+  // Preview Modal State
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewPersonaId, setPreviewPersonaId] = useState<string | null>(null);
 
   // Personalization Modal State
   const [showPersonalizationModal, setShowPersonalizationModal] = useState(false);
@@ -389,6 +437,17 @@ export default function SettingsScreen() {
     }
   };
 
+  // Preview Style Handlers
+  const handleOpenPreview = (personaId: string) => {
+    setPreviewPersonaId(personaId);
+    setShowPreviewModal(true);
+  };
+
+  const handleClosePreview = () => {
+    setShowPreviewModal(false);
+    setPreviewPersonaId(null);
+  };
+
   // Personalization Handlers
   const handleOpenPersonalizationModal = () => {
     setShowPersonalizationModal(true);
@@ -643,63 +702,95 @@ export default function SettingsScreen() {
     const persona = getPersonaById(personaId);
     if (!persona) return null;
 
+    const isSelected = selectedPersonaId === persona.id;
+
     return (
-      <TouchableOpacity
+      <View
         key={persona.id}
         style={[
           styles.personaCard,
           {
-            backgroundColor: selectedPersonaId === persona.id ? theme.primary + '15' : theme.background,
-            borderColor: selectedPersonaId === persona.id ? theme.primary : theme.textSecondary + '30',
+            backgroundColor: isSelected ? theme.primary + '15' : theme.background,
+            borderColor: isSelected ? theme.primary : theme.textSecondary + '30',
           },
         ]}
-        onPress={() => setSelectedPersonaId(persona.id)}
-        activeOpacity={0.7}
+        accessible={true}
+        accessibilityLabel={`${persona.name}, ${persona.label}. ${persona.short_description}. ${isSelected ? 'Selected' : 'Not selected'}`}
+        accessibilityRole="button"
       >
-        <Image
-          source={persona.image}
-          style={styles.personaImage}
-          resizeMode="cover"
-        />
-        <View style={styles.personaCardContent}>
-          <View style={styles.personaCardHeader}>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={[
-                  styles.personaName,
-                  {
-                    color: selectedPersonaId === persona.id ? theme.primary : theme.textPrimary,
-                    fontWeight: selectedPersonaId === persona.id ? '700' : '600',
-                  },
-                ]}
-              >
-                {persona.name}
-              </Text>
-              <Text
-                style={[
-                  styles.personaLabel,
-                  {
-                    color: selectedPersonaId === persona.id ? theme.primary : theme.textSecondary,
-                  },
-                ]}
-              >
-                {persona.label}
-              </Text>
+        <TouchableOpacity
+          style={styles.personaCardTouchable}
+          onPress={() => setSelectedPersonaId(persona.id)}
+          activeOpacity={0.7}
+          accessible={false}
+        >
+          <Image
+            source={persona.image}
+            style={styles.personaImage}
+            resizeMode="cover"
+            accessible={true}
+            accessibilityLabel={`${persona.name} avatar`}
+          />
+          <View style={styles.personaCardContent}>
+            <View style={styles.personaCardHeader}>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.personaName,
+                    {
+                      color: isSelected ? theme.primary : theme.textPrimary,
+                      fontWeight: isSelected ? '700' : '600',
+                    },
+                  ]}
+                >
+                  {persona.name}
+                </Text>
+                <Text
+                  style={[
+                    styles.personaLabel,
+                    {
+                      color: isSelected ? theme.primary : theme.textSecondary,
+                    },
+                  ]}
+                >
+                  {persona.label}
+                </Text>
+              </View>
+              {isSelected && (
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check_circle"
+                  size={24}
+                  color={theme.primary}
+                />
+              )}
             </View>
-            {selectedPersonaId === persona.id && (
-              <IconSymbol
-                ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
-                size={24}
-                color={theme.primary}
-              />
-            )}
+            <Text style={[styles.personaDescription, { color: theme.textSecondary }]}>
+              {persona.short_description}
+            </Text>
           </View>
-          <Text style={[styles.personaDescription, { color: theme.textSecondary }]}>
-            {persona.short_description}
+        </TouchableOpacity>
+        
+        {/* Preview Style Button */}
+        <TouchableOpacity
+          style={[styles.previewButton, { borderColor: theme.primary }]}
+          onPress={() => handleOpenPreview(persona.id)}
+          activeOpacity={0.7}
+          accessible={true}
+          accessibilityLabel={`Preview ${persona.name}'s communication style`}
+          accessibilityRole="button"
+        >
+          <IconSymbol
+            ios_icon_name="eye.fill"
+            android_material_icon_name="visibility"
+            size={16}
+            color={theme.primary}
+          />
+          <Text style={[styles.previewButtonText, { color: theme.primary }]}>
+            Preview style
           </Text>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -722,6 +813,9 @@ export default function SettingsScreen() {
             ]}
             onPress={() => onSelect(option)}
             activeOpacity={0.7}
+            accessible={true}
+            accessibilityLabel={`${option}. ${selectedValue === option ? 'Selected' : 'Not selected'}`}
+            accessibilityRole="button"
           >
             <View style={styles.optionCardContent}>
               <Text
@@ -760,6 +854,8 @@ export default function SettingsScreen() {
     preferences.recent_changes;
 
   const selectedPersona = getPersonaById(preferences.therapist_persona_id || '');
+  const previewPersona = previewPersonaId ? getPersonaById(previewPersonaId) : null;
+  const previewExamples = previewPersonaId ? PERSONA_PREVIEW_EXAMPLES[previewPersonaId] || [] : [];
 
   return (
     <>
@@ -777,6 +873,9 @@ export default function SettingsScreen() {
                 onPress={handleBack} 
                 style={styles.backButton}
                 activeOpacity={0.7}
+                accessible={true}
+                accessibilityLabel="Go back"
+                accessibilityRole="button"
               >
                 <IconSymbol
                   ios_icon_name="chevron.left"
@@ -792,6 +891,9 @@ export default function SettingsScreen() {
                 onPress={handleInfoPress} 
                 style={styles.infoButton}
                 activeOpacity={0.7}
+                accessible={true}
+                accessibilityLabel="Settings information"
+                accessibilityRole="button"
               >
                 <IconSymbol
                   ios_icon_name="info.circle"
@@ -846,6 +948,9 @@ export default function SettingsScreen() {
                   style={[styles.row, { borderBottomWidth: 0 }]}
                   onPress={handleOpenChangePasswordModal}
                   activeOpacity={0.7}
+                  accessible={true}
+                  accessibilityLabel="Change password"
+                  accessibilityRole="button"
                 >
                   <View style={styles.rowLeft}>
                     <IconSymbol
@@ -867,7 +972,7 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Card 2.5: Therapists (Optional) - RENAMED FROM "AI Style Preferences" */}
+              {/* Card 2.5: Therapists (Optional) */}
               <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                   Therapists (Optional)
@@ -882,6 +987,9 @@ export default function SettingsScreen() {
                   style={[styles.row, { borderBottomWidth: 0, marginTop: 8 }]}
                   onPress={handleOpenPersonaModal}
                   activeOpacity={0.7}
+                  accessible={true}
+                  accessibilityLabel={`Therapist selection. Currently ${selectedPersona ? `${selectedPersona.name}, ${selectedPersona.label}` : 'not selected'}`}
+                  accessibilityRole="button"
                 >
                   <View style={styles.rowLeft}>
                     <IconSymbol
@@ -918,6 +1026,9 @@ export default function SettingsScreen() {
                     onPress={handleOpenPersonalizationInfoModal}
                     activeOpacity={0.7}
                     style={styles.whyWeAskButton}
+                    accessible={true}
+                    accessibilityLabel="Why we ask for personalization"
+                    accessibilityRole="button"
                   >
                     <Text style={[styles.whyWeAskText, { color: theme.primary }]}>
                       Why we ask
@@ -933,6 +1044,9 @@ export default function SettingsScreen() {
                   style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)', marginTop: 8 }]}
                   onPress={handleOpenPersonalizationModal}
                   activeOpacity={0.7}
+                  accessible={true}
+                  accessibilityLabel={`Personalization settings. ${hasPersonalizationData ? 'Configured' : 'Not set'}`}
+                  accessibilityRole="button"
                 >
                   <View style={styles.rowLeft}>
                     <IconSymbol
@@ -963,6 +1077,9 @@ export default function SettingsScreen() {
                   style={[styles.row, { borderBottomWidth: 0, marginTop: 0 }]}
                   onPress={handleOpenUpdatesModal}
                   activeOpacity={0.7}
+                  accessible={true}
+                  accessibilityLabel={`Updates over time. ${updates.length > 0 ? `${updates.length} update${updates.length !== 1 ? 's' : ''}` : 'No updates yet'}`}
+                  accessibilityRole="button"
                 >
                   <View style={styles.rowLeft}>
                     <IconSymbol
@@ -1015,6 +1132,9 @@ export default function SettingsScreen() {
                       ]}
                       onPress={() => handleThemeSelect(themeOption.key)}
                       activeOpacity={0.7}
+                      accessible={true}
+                      accessibilityLabel={`${themeOption.name} theme. ${selectedTheme === themeOption.key ? 'Selected' : 'Not selected'}`}
+                      accessibilityRole="button"
                     >
                       <Text
                         style={[
@@ -1047,6 +1167,9 @@ export default function SettingsScreen() {
                   style={[styles.row, { borderBottomWidth: 0 }]}
                   onPress={handleSupportPress}
                   activeOpacity={0.7}
+                  accessible={true}
+                  accessibilityLabel="Contact support"
+                  accessibilityRole="button"
                 >
                   <View style={styles.rowLeft}>
                     <IconSymbol
@@ -1078,6 +1201,9 @@ export default function SettingsScreen() {
                   style={styles.row}
                   onPress={handlePrivacyPress}
                   activeOpacity={0.7}
+                  accessible={true}
+                  accessibilityLabel="Privacy policy"
+                  accessibilityRole="button"
                 >
                   <View style={styles.rowLeft}>
                     <IconSymbol
@@ -1102,6 +1228,9 @@ export default function SettingsScreen() {
                   style={[styles.row, { borderBottomWidth: 0 }]}
                   onPress={handleTermsPress}
                   activeOpacity={0.7}
+                  accessible={true}
+                  accessibilityLabel="Terms and conditions"
+                  accessibilityRole="button"
                 >
                   <View style={styles.rowLeft}>
                     <IconSymbol
@@ -1128,6 +1257,9 @@ export default function SettingsScreen() {
                 style={[styles.logoutButton, { backgroundColor: '#FF6B6B' }]}
                 onPress={handleSignOut}
                 activeOpacity={0.8}
+                accessible={true}
+                accessibilityLabel="Log out"
+                accessibilityRole="button"
               >
                 <IconSymbol
                   ios_icon_name="arrow.right.square.fill"
@@ -1148,6 +1280,9 @@ export default function SettingsScreen() {
                     style={styles.deleteButton}
                     onPress={handleDeleteAccount}
                     activeOpacity={0.8}
+                    accessible={true}
+                    accessibilityLabel="Delete my account"
+                    accessibilityRole="button"
                   >
                     <IconSymbol
                       ios_icon_name="trash.fill"
@@ -1462,6 +1597,67 @@ export default function SettingsScreen() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Preview Style Modal */}
+      <Modal
+        visible={showPreviewModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleClosePreview}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.previewModalContent, { backgroundColor: '#FFFFFF' }]}>
+            {previewPersona && (
+              <>
+                <View style={styles.previewHeader}>
+                  <Image
+                    source={previewPersona.image}
+                    style={styles.previewAvatar}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.previewHeaderText}>
+                    <Text style={[styles.previewPersonaName, { color: theme.textPrimary }]}>
+                      {previewPersona.name}
+                    </Text>
+                    <Text style={[styles.previewPersonaLabel, { color: theme.textSecondary }]}>
+                      {previewPersona.label}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={[styles.previewTitle, { color: theme.textPrimary }]}>
+                  Example responses:
+                </Text>
+
+                <View style={styles.previewExamplesContainer}>
+                  {previewExamples.map((example, index) => (
+                    <View
+                      key={index}
+                      style={[styles.previewExampleBubble, { backgroundColor: theme.card }]}
+                    >
+                      <Text style={[styles.previewExampleText, { color: theme.textPrimary }]}>
+                        {example}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                <Text style={[styles.previewDisclaimer, { color: theme.textSecondary }]}>
+                  These are illustrative examples only. Actual responses will vary based on your conversation.
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.primary }]}
+                  onPress={handleClosePreview}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modalButtonText}>Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
       </Modal>
 
       {/* Personalization Info Modal */}
@@ -2354,6 +2550,8 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 2,
+  },
+  personaCardTouchable: {
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
@@ -2383,6 +2581,76 @@ const styles = StyleSheet.create({
   personaDescription: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  previewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    marginTop: 12,
+    gap: 6,
+  },
+  previewButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  previewModalContent: {
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
+    elevation: 5,
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  previewAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 16,
+  },
+  previewHeaderText: {
+    flex: 1,
+  },
+  previewPersonaName: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  previewPersonaLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  previewTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  previewExamplesContainer: {
+    gap: 12,
+    marginBottom: 20,
+  },
+  previewExampleBubble: {
+    padding: 14,
+    borderRadius: 12,
+  },
+  previewExampleText: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  previewDisclaimer: {
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+    fontStyle: 'italic',
   },
   personalizationScrollView: {
     maxHeight: SCREEN_HEIGHT * 0.55,
