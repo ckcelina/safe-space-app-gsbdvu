@@ -9,11 +9,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserPreferences } from '@/contexts/UserPreferencesContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
 import { libraryTopics, Topic } from './libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { supabase } from '@/lib/supabase';
 import { showErrorToast } from '@/utils/toast';
+import { getPersonaById } from '@/constants/TherapistPersonas';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -90,6 +92,7 @@ function ContentSection({
 export default function LibraryDetailScreen() {
   const { theme } = useThemeContext();
   const { userId } = useAuth();
+  const { preferences } = useUserPreferences();
   const router = useRouter();
   const params = useLocalSearchParams();
   const topicId = params.topicId as string;
@@ -105,6 +108,38 @@ export default function LibraryDetailScreen() {
 
   // Find the topic from the static dataset
   const topic: Topic | undefined = libraryTopics.find(t => t.id === topicId);
+
+  // Helper function to get current therapist metadata
+  const getCurrentTherapistMetadata = useCallback(() => {
+    const personaId = preferences.therapist_persona_id;
+    if (!personaId) {
+      return {
+        name: null,
+      };
+    }
+
+    const persona = getPersonaById(personaId);
+    if (!persona) {
+      return {
+        name: null,
+      };
+    }
+
+    return {
+      name: persona.name,
+    };
+  }, [preferences.therapist_persona_id]);
+
+  // Get dynamic button text based on therapist persona
+  const getButtonText = useCallback(() => {
+    const therapistMeta = getCurrentTherapistMetadata();
+    
+    if (therapistMeta.name) {
+      return `Ask ${therapistMeta.name} about this topic`;
+    }
+    
+    return 'Ask your therapist about this topic';
+  }, [getCurrentTherapistMetadata]);
 
   // Load saved status on mount
   const loadSavedStatus = useCallback(async () => {
@@ -438,7 +473,7 @@ export default function LibraryDetailScreen() {
                 </Text>
               </View>
 
-              {/* Ask AI Questions Button */}
+              {/* Ask AI Questions Button - DYNAMIC TEXT */}
               <TouchableOpacity
                 onPress={handleAskAI}
                 disabled={isNavigating}
@@ -457,7 +492,7 @@ export default function LibraryDetailScreen() {
                     <>
                       <Ionicons name="chatbubbles" size={24} color={theme.buttonText} style={styles.askAIIcon} />
                       <Text style={[styles.askAIButtonText, { color: theme.buttonText }]}>
-                        Ask AI questions about this topic
+                        {getButtonText()}
                       </Text>
                     </>
                   )}
