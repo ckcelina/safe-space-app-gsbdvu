@@ -650,12 +650,14 @@ export default function ChatScreen() {
       if (!result.ok) {
         const errorCode = result.error?.code || 'UNKNOWN';
         const errorMessage = result.error?.message || 'Unknown error';
+        const errorStatus = result.error?.status;
 
         // PRODUCTION SAFETY: Only log detailed errors in __DEV__ mode
         if (__DEV__) {
           console.error('[Chat] Edge Function failed:', {
             code: errorCode,
             message: errorMessage,
+            status: errorStatus,
             details: result.error?.details,
           });
 
@@ -669,6 +671,17 @@ export default function ChatScreen() {
 
           // Store debug info for dev mode banner
           setDebugInfo(debugString);
+
+          // DEV-ONLY: Show clear auth error hint
+          if (errorCode === 'EDGE_AUTH' || errorStatus === 401 || errorStatus === 403) {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🔐 EDGE AUTH FAILED - CHECK:');
+            console.log('   1. SUPABASE_URL is correct');
+            console.log('   2. ANON_KEY is correct');
+            console.log('   3. Edge Function name is correct');
+            console.log('   4. RLS policies allow access');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          }
         }
 
         if (isMountedRef.current) {

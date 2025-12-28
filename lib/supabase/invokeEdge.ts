@@ -77,6 +77,7 @@ export async function copyDebugToClipboard(text: any): Promise<boolean> {
  * - Implements 20s timeout to prevent hanging
  * - Extracts detailed error information for debugging
  * - Handles all error types: FunctionsHttpError, network errors, timeouts
+ * - DEV-ONLY: Logs compact diagnostic line on failure
  * 
  * @param functionName - Name of the Edge Function to invoke
  * @param payload - Request body to send
@@ -87,6 +88,7 @@ export async function invokeEdgeSafe<T = any>(
   payload: any
 ): Promise<InvokeEdgeSafeResult<T>> {
   let attempt = 0;
+  const startTime = Date.now();
 
   while (attempt <= MAX_RETRIES) {
     let timeoutId: NodeJS.Timeout | null = null;
@@ -120,6 +122,7 @@ export async function invokeEdgeSafe<T = any>(
         const status = (error as any)?.status;
         const statusText = (error as any)?.statusText;
         const context = (error as any)?.context;
+        const duration = Date.now() - startTime;
 
         console.error(`[invokeEdgeSafe] ${functionName} error (attempt ${attempt + 1}):`, {
           name: (error as any)?.name,
@@ -127,6 +130,12 @@ export async function invokeEdgeSafe<T = any>(
           status,
           statusText,
         });
+
+        // DEV-ONLY: Log compact diagnostic line
+        if (__DEV__) {
+          const normalizedCode = (error as any)?.name || 'EDGE_FUNCTION_ERROR';
+          console.log(`[Edge] code=${normalizedCode} status=${status || 'none'} duration_ms=${duration}`);
+        }
 
         // Check if this is a transient error that should be retried
         if (status && TRANSIENT_STATUS_CODES.includes(status) && attempt < MAX_RETRIES) {
@@ -137,11 +146,17 @@ export async function invokeEdgeSafe<T = any>(
           continue; // Retry
         }
 
+        // Determine error code based on status
+        let errorCode = (error as any)?.name || 'EDGE_FUNCTION_ERROR';
+        if (status === 401 || status === 403) {
+          errorCode = 'EDGE_AUTH';
+        }
+
         // Non-transient error or max retries reached - return error
         return {
           ok: false,
           error: {
-            code: (error as any)?.name || 'EDGE_FUNCTION_ERROR',
+            code: errorCode,
             message: (error as any)?.message || 'Edge Function returned an error',
             status,
             details: {
@@ -198,9 +213,16 @@ export async function invokeEdgeSafe<T = any>(
         timeoutId = null;
       }
 
+      const duration = Date.now() - startTime;
+
       // Handle AbortError (timeout)
       if (e.name === 'AbortError') {
         console.error(`[invokeEdgeSafe] ${functionName} timed out (attempt ${attempt + 1})`);
+        
+        // DEV-ONLY: Log compact diagnostic line
+        if (__DEV__) {
+          console.log(`[Edge] code=TIMEOUT status=none duration_ms=${duration}`);
+        }
         
         // Retry timeout errors
         if (attempt < MAX_RETRIES) {
@@ -231,6 +253,11 @@ export async function invokeEdgeSafe<T = any>(
           statusText,
           message: e.message,
         });
+
+        // DEV-ONLY: Log compact diagnostic line
+        if (__DEV__) {
+          console.log(`[Edge] code=FUNCTIONS_HTTP_ERROR status=${status} duration_ms=${duration}`);
+        }
 
         // Try to extract response body
         let bodyText = null;
@@ -265,11 +292,17 @@ export async function invokeEdgeSafe<T = any>(
           continue; // Retry
         }
 
+        // Determine error code based on status
+        let errorCode = 'FUNCTIONS_HTTP_ERROR';
+        if (status === 401 || status === 403) {
+          errorCode = 'EDGE_AUTH';
+        }
+
         // Non-transient error or max retries reached
         return {
           ok: false,
           error: {
-            code: 'FUNCTIONS_HTTP_ERROR',
+            code: errorCode,
             message: e.message || `HTTP ${status} error`,
             status,
             details: {
@@ -289,6 +322,11 @@ export async function invokeEdgeSafe<T = any>(
         stack: e?.stack,
       });
 
+      // DEV-ONLY: Log compact diagnostic line
+      if (__DEV__) {
+        console.log(`[Edge] code=UNEXPECTED_ERROR status=none duration_ms=${duration}`);
+      }
+
       // Don't retry unexpected errors
       return {
         ok: false,
@@ -306,6 +344,13 @@ export async function invokeEdgeSafe<T = any>(
   }
 
   // Should never reach here, but just in case
+  const duration = Date.now() - startTime;
+  
+  // DEV-ONLY: Log compact diagnostic line
+  if (__DEV__) {
+    console.log(`[Edge] code=MAX_RETRIES_EXCEEDED status=none duration_ms=${duration}`);
+  }
+
   return {
     ok: false,
     error: {
