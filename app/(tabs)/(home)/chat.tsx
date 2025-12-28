@@ -617,16 +617,22 @@ export default function ChatScreen() {
 
           // Store debug info for dev mode banner
           setDebugInfo(debugString);
-        } else {
-          // Production: Just log to console, no UI exposure
-          console.error('[Chat] Edge Function failed');
         }
 
         if (isMountedRef.current) {
           setIsTyping(false);
           
-          // STEP 4: Insert fallback error message with therapist metadata
-          const fallbackMessage = "I'm having trouble responding right now. Please try again.";
+          // STEP 4: Generate user-friendly error message based on error code
+          let fallbackMessage = "I'm having trouble responding right now. Please try again.";
+          
+          if (result.error?.code === 'EDGE_TIMEOUT') {
+            fallbackMessage = "I'm taking a bit longer than usual to respond. Please try again.";
+          } else if (result.error?.code === 'EDGE_UNAVAILABLE') {
+            fallbackMessage = "I'm temporarily unavailable. Please check your connection and try again.";
+          } else if (result.error?.code === 'EDGE_AUTH') {
+            fallbackMessage = "There was an authentication issue. Please try logging out and back in.";
+          }
+          
           const { data: fallbackInserted } = await supabase
             .from('messages')
             .insert({
