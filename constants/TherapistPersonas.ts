@@ -81,7 +81,7 @@ export const THERAPIST_PERSONAS: TherapistPersona[] = [
     metaphor_use: 'light',
     signoff_style: 'gentle',
     opening_style: "Let's take a breath for a moment.",
-    closing_style: "We can take this one step at a time.",
+    closing_style: "We can take this one step at a time.",,
   },
   {
     id: 'noah',

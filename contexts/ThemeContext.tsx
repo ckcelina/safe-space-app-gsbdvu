@@ -92,19 +92,9 @@ const themes: Record<ThemeKey, Theme> = {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeKey, setThemeKey] = useState<ThemeKey>('SoftRose'); // Default to soft_rose as per requirements
   const [theme, setThemeState] = useState<Theme>(softRoseTheme);
-  const [widgetContext, setWidgetContext] = useState<ReturnType<typeof useWidget> | null>(null);
-
-  // Get widget context after mount to avoid hook ordering issues
-  useEffect(() => {
-    try {
-      // We need to access useWidget in a way that doesn't violate hook rules
-      // This is a workaround since we can't conditionally call hooks
-      const widget = useWidget();
-      setWidgetContext(widget);
-    } catch (error) {
-      console.log('[Theme] Widget context not available yet');
-    }
-  }, []);
+  
+  // Call useWidget at the top level to comply with React Hooks rules
+  const widgetContext = useWidget();
 
   const loadTheme = useCallback(async () => {
     try {
@@ -115,20 +105,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setThemeState(themes[key]);
         
         // Update widget with loaded theme
-        if (widgetContext) {
-          const themeData = {
-            themeId: THEME_ID_MAP[key],
-            primaryHex: themes[key].primary,
-            gradientStartHex: themes[key].primaryGradient[0],
-            gradientEndHex: themes[key].primaryGradient[1],
-          };
-          widgetContext.updateWidgetTheme(themeData);
-        }
+        const themeData = {
+          themeId: THEME_ID_MAP[key],
+          primaryHex: themes[key].primary,
+          gradientStartHex: themes[key].primaryGradient[0],
+          gradientEndHex: themes[key].primaryGradient[1],
+        };
+        widgetContext.updateWidgetTheme(themeData);
       }
     } catch (error) {
       console.error('Error loading theme:', error);
     }
-  }, [widgetContext]);
+  }, []);
 
   useEffect(() => {
     loadTheme();
@@ -141,16 +129,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setThemeState(themes[newThemeKey]);
       
       // Update widget with new theme
-      if (widgetContext) {
-        const themeData = {
-          themeId: THEME_ID_MAP[newThemeKey],
-          primaryHex: themes[newThemeKey].primary,
-          gradientStartHex: themes[newThemeKey].primaryGradient[0],
-          gradientEndHex: themes[newThemeKey].primaryGradient[1],
-        };
-        widgetContext.updateWidgetTheme(themeData);
-        console.log('[Theme] Theme changed to:', newThemeKey, 'Widget updated');
-      }
+      const themeData = {
+        themeId: THEME_ID_MAP[newThemeKey],
+        primaryHex: themes[newThemeKey].primary,
+        gradientStartHex: themes[newThemeKey].primaryGradient[0],
+        gradientEndHex: themes[newThemeKey].primaryGradient[1],
+      };
+      widgetContext.updateWidgetTheme(themeData);
+      console.log('[Theme] Theme changed to:', newThemeKey, 'Widget updated');
     } catch (error) {
       console.error('Error saving theme:', error);
     }
