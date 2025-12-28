@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useWidget } from './WidgetContext';
+import { isWidgetContextFallback, useWidget } from './WidgetContext';
 
 export type ThemeKey = 'OceanBlue' | 'SoftRose' | 'ForestGreen' | 'SunnyYellow';
 
@@ -95,6 +95,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   
   // Call useWidget at the top level to comply with React Hooks rules
   const widgetContext = useWidget();
+
+  useEffect(() => {
+    if (__DEV__ && isWidgetContextFallback(widgetContext)) {
+      console.warn('[Theme] WidgetProvider is missing; widget theming updates are disabled.');
+    }
+  }, [widgetContext]);
 
   const loadTheme = useCallback(async () => {
     try {
