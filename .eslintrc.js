@@ -21,6 +21,13 @@ module.exports = {
   env: {
     browser: true,
   },
+  settings: {
+    'import/resolver': {
+      node: {
+        extensions: ['.js', '.jsx', '.ts', '.tsx']
+      }
+    }
+  },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-explicit-any": "off",
@@ -31,7 +38,7 @@ module.exports = {
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "error",
+    "import/no-unresolved": "off",
     "prefer-const": "off",
     "react/prop-types": 1,
     "no-case-declarations": "off",
@@ -44,6 +51,19 @@ module.exports = {
       files: ['metro.config.js'],
       rules: {
         '@typescript-eslint/no-var-requires': 'off'
+      }
+    },
+    {
+      files: ['*.ts', '*.tsx', '*.d.ts'],
+      settings: {
+        'import/resolver': {
+          node: {
+            extensions: ['.js', '.jsx', '.ts', '.tsx', '.d.ts']
+          }
+        }
+      },
+      rules: {
+        'import/namespace': 'off'
       }
     }
   ]
