@@ -60,10 +60,14 @@ export async function copyDebugToClipboard(text: any): Promise<boolean> {
       return true;
     }
 
-    console.warn('[copyDebugToClipboard] Clipboard API not available in this environment.');
+    if (__DEV__) {
+      console.warn('[copyDebugToClipboard] Clipboard API not available in this environment.');
+    }
     return false;
   } catch (e: any) {
-    console.warn('[copyDebugToClipboard] Failed', { message: e?.message });
+    if (__DEV__) {
+      console.warn('[copyDebugToClipboard] Failed', { message: e?.message });
+    }
     return false;
   }
 }
@@ -91,18 +95,22 @@ export async function invokeEdgeSafe<T = any>(
   const startTime = Date.now();
 
   while (attempt <= MAX_RETRIES) {
-    let timeoutId: NodeJS.Timeout | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let controller: AbortController | null = null;
 
     try {
       // Create AbortController for timeout
       controller = new AbortController();
       timeoutId = setTimeout(() => {
-        console.log(`[invokeEdgeSafe] Timeout reached for ${functionName} (attempt ${attempt + 1})`);
+        if (__DEV__) {
+          console.log(`[invokeEdgeSafe] Timeout reached for ${functionName} (attempt ${attempt + 1})`);
+        }
         controller?.abort();
       }, TIMEOUT_MS);
 
-      console.log(`[invokeEdgeSafe] Invoking ${functionName} (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+      if (__DEV__) {
+        console.log(`[invokeEdgeSafe] Invoking ${functionName} (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+      }
 
       // Call the Edge Function with timeout signal
       const { data, error } = await supabase.functions.invoke(functionName, {
@@ -124,15 +132,15 @@ export async function invokeEdgeSafe<T = any>(
         const context = (error as any)?.context;
         const duration = Date.now() - startTime;
 
-        console.error(`[invokeEdgeSafe] ${functionName} error (attempt ${attempt + 1}):`, {
-          name: (error as any)?.name,
-          message: (error as any)?.message,
-          status,
-          statusText,
-        });
-
-        // DEV-ONLY: Log compact diagnostic line
         if (__DEV__) {
+          console.error(`[invokeEdgeSafe] ${functionName} error (attempt ${attempt + 1}):`, {
+            name: (error as any)?.name,
+            message: (error as any)?.message,
+            status,
+            statusText,
+          });
+
+          // DEV-ONLY: Log compact diagnostic line
           const normalizedCode = (error as any)?.name || 'EDGE_FUNCTION_ERROR';
           console.log(`[Edge] code=${normalizedCode} status=${status || 'none'} duration_ms=${duration}`);
         }
@@ -140,7 +148,9 @@ export async function invokeEdgeSafe<T = any>(
         // Check if this is a transient error that should be retried
         if (status && TRANSIENT_STATUS_CODES.includes(status) && attempt < MAX_RETRIES) {
           const delay = RETRY_DELAYS[attempt];
-          console.log(`[invokeEdgeSafe] Transient error ${status}, retrying in ${delay}ms...`);
+          if (__DEV__) {
+            console.log(`[invokeEdgeSafe] Transient error ${status}, retrying in ${delay}ms...`);
+          }
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
           continue; // Retry
@@ -169,7 +179,9 @@ export async function invokeEdgeSafe<T = any>(
       }
 
       // Success - parse and return data
-      console.log(`[invokeEdgeSafe] ${functionName} succeeded (attempt ${attempt + 1})`);
+      if (__DEV__) {
+        console.log(`[invokeEdgeSafe] ${functionName} succeeded (attempt ${attempt + 1})`);
+      }
 
       // Handle string responses
       if (typeof data === 'string') {
@@ -177,7 +189,9 @@ export async function invokeEdgeSafe<T = any>(
         if (parsed) {
           return { ok: true, data: parsed as T };
         }
-        console.warn(`[invokeEdgeSafe] Non-JSON string response from ${functionName}`);
+        if (__DEV__) {
+          console.warn(`[invokeEdgeSafe] Non-JSON string response from ${functionName}`);
+        }
         return { ok: true, data: data as T };
       }
 
@@ -191,7 +205,9 @@ export async function invokeEdgeSafe<T = any>(
           }
           return { ok: true, data: raw as T };
         } catch (readError: any) {
-          console.error(`[invokeEdgeSafe] Failed reading Response body:`, readError?.message);
+          if (__DEV__) {
+            console.error(`[invokeEdgeSafe] Failed reading Response body:`, readError?.message);
+          }
           return {
             ok: false,
             error: {
@@ -215,30 +231,29 @@ export async function invokeEdgeSafe<T = any>(
 
       const duration = Date.now() - startTime;
 
-      // Handle AbortError (timeout)
+      // Handle AbortError (timeout) - SILENT, no console.error even in dev
       if (e.name === 'AbortError') {
-        console.error(`[invokeEdgeSafe] ${functionName} timed out (attempt ${attempt + 1})`);
-        
-        // DEV-ONLY: Log compact diagnostic line
-        if (__DEV__) {
-          console.log(`[Edge] code=TIMEOUT status=none duration_ms=${duration}`);
-        }
-        
         // Retry timeout errors
         if (attempt < MAX_RETRIES) {
           const delay = RETRY_DELAYS[attempt];
-          console.log(`[invokeEdgeSafe] Timeout, retrying in ${delay}ms...`);
+          if (__DEV__) {
+            console.log(`[invokeEdgeSafe] Request cancelled/timed out, retrying in ${delay}ms...`);
+          }
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
           continue;
         }
 
+        // Max retries reached - return normalized error
         return {
           ok: false,
           error: {
-            code: 'TIMEOUT',
-            message: `Edge Function timed out after ${TIMEOUT_MS}ms`,
-            details: { attempt: attempt + 1 },
+            code: 'EDGE_ABORTED',
+            message: 'Request cancelled or timed out',
+            details: { 
+              attempt: attempt + 1,
+              timeoutMs: TIMEOUT_MS,
+            },
           },
         };
       }
@@ -248,14 +263,14 @@ export async function invokeEdgeSafe<T = any>(
         const status = e.status;
         const statusText = e.statusText;
 
-        console.error(`[invokeEdgeSafe] FunctionsHttpError for ${functionName} (attempt ${attempt + 1}):`, {
-          status,
-          statusText,
-          message: e.message,
-        });
-
-        // DEV-ONLY: Log compact diagnostic line
         if (__DEV__) {
+          console.error(`[invokeEdgeSafe] FunctionsHttpError for ${functionName} (attempt ${attempt + 1}):`, {
+            status,
+            statusText,
+            message: e.message,
+          });
+
+          // DEV-ONLY: Log compact diagnostic line
           console.log(`[Edge] code=FUNCTIONS_HTTP_ERROR status=${status} duration_ms=${duration}`);
         }
 
@@ -280,13 +295,17 @@ export async function invokeEdgeSafe<T = any>(
             }
           }
         } catch (extractError) {
-          console.warn(`[invokeEdgeSafe] Could not extract error details:`, extractError);
+          if (__DEV__) {
+            console.warn(`[invokeEdgeSafe] Could not extract error details:`, extractError);
+          }
         }
 
         // Check if this is a transient error that should be retried
         if (TRANSIENT_STATUS_CODES.includes(status) && attempt < MAX_RETRIES) {
           const delay = RETRY_DELAYS[attempt];
-          console.log(`[invokeEdgeSafe] Transient HTTP error ${status}, retrying in ${delay}ms...`);
+          if (__DEV__) {
+            console.log(`[invokeEdgeSafe] Transient HTTP error ${status}, retrying in ${delay}ms...`);
+          }
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
           continue; // Retry
@@ -316,14 +335,14 @@ export async function invokeEdgeSafe<T = any>(
       }
 
       // Handle other unexpected errors
-      console.error(`[invokeEdgeSafe] Unexpected error for ${functionName} (attempt ${attempt + 1}):`, {
-        name: e?.name,
-        message: e?.message,
-        stack: e?.stack,
-      });
-
-      // DEV-ONLY: Log compact diagnostic line
       if (__DEV__) {
+        console.error(`[invokeEdgeSafe] Unexpected error for ${functionName} (attempt ${attempt + 1}):`, {
+          name: e?.name,
+          message: e?.message,
+          stack: e?.stack,
+        });
+
+        // DEV-ONLY: Log compact diagnostic line
         console.log(`[Edge] code=UNEXPECTED_ERROR status=none duration_ms=${duration}`);
       }
 
@@ -346,8 +365,8 @@ export async function invokeEdgeSafe<T = any>(
   // Should never reach here, but just in case
   const duration = Date.now() - startTime;
   
-  // DEV-ONLY: Log compact diagnostic line
   if (__DEV__) {
+    // DEV-ONLY: Log compact diagnostic line
     console.log(`[Edge] code=MAX_RETRIES_EXCEEDED status=none duration_ms=${duration}`);
   }
 
@@ -374,13 +393,15 @@ export async function invokeEdge<T = any>(functionName: string, body: any): Prom
       const status = (error as any)?.status;
       const context = (error as any)?.context;
 
-      console.error('[invokeEdge] supabase.functions.invoke error', {
-        functionName,
-        name: (error as any)?.name,
-        message: (error as any)?.message,
-        status,
-        context,
-      });
+      if (__DEV__) {
+        console.error('[invokeEdge] supabase.functions.invoke error', {
+          functionName,
+          name: (error as any)?.name,
+          message: (error as any)?.message,
+          status,
+          context,
+        });
+      }
 
       return {
         data: null,
@@ -398,7 +419,9 @@ export async function invokeEdge<T = any>(functionName: string, body: any): Prom
       const parsed = safeJsonParse(data);
       if (parsed) return { data: parsed as T, error: null };
 
-      console.error('[invokeEdge] Non-JSON string response', { functionName, raw: data });
+      if (__DEV__) {
+        console.error('[invokeEdge] Non-JSON string response', { functionName, raw: data });
+      }
       return {
         data: null,
         error: { name: 'non_json_response', message: 'Edge function returned a non-JSON string' },
@@ -413,14 +436,18 @@ export async function invokeEdge<T = any>(functionName: string, body: any): Prom
         const parsed = safeJsonParse(raw);
         if (parsed) return { data: parsed as T, error: null };
 
-        console.error('[invokeEdge] Response-like non-JSON', { functionName, raw });
+        if (__DEV__) {
+          console.error('[invokeEdge] Response-like non-JSON', { functionName, raw });
+        }
         return {
           data: null,
           error: { name: 'non_json_response', message: 'Edge function returned non-JSON response body' },
           debug: { raw },
         };
       } catch (e: any) {
-        console.error('[invokeEdge] Failed reading Response-like body', { functionName, message: e?.message });
+        if (__DEV__) {
+          console.error('[invokeEdge] Failed reading Response-like body', { functionName, message: e?.message });
+        }
         return {
           data: null,
           error: { name: 'read_response_failed', message: e?.message || 'Failed reading response body' },
@@ -432,11 +459,13 @@ export async function invokeEdge<T = any>(functionName: string, body: any): Prom
     // Normal case: data is already JSON/object
     return { data: data as T, error: null };
   } catch (e: any) {
-    console.error('[invokeEdge] exception', {
-      functionName,
-      message: e?.message,
-      stack: e?.stack,
-    });
+    if (__DEV__) {
+      console.error('[invokeEdge] exception', {
+        functionName,
+        message: e?.message,
+        stack: e?.stack,
+      });
+    }
 
     return {
       data: null,
