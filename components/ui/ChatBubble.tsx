@@ -1,18 +1,29 @@
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
+import { AIHeaderRow } from './AIHeaderRow';
 
 interface ChatBubbleProps {
   message: string;
   isUser: boolean;
   timestamp?: string;
   animate?: boolean;
+  // NEW: Therapist metadata for AI messages
+  therapistName?: string;
+  therapistAvatarSource?: ImageSourcePropType; // Changed to ImageSourcePropType
 }
 
-export function ChatBubble({ message, isUser, timestamp, animate = false }: ChatBubbleProps) {
+export function ChatBubble({ 
+  message, 
+  isUser, 
+  timestamp, 
+  animate = false,
+  therapistName,
+  therapistAvatarSource,
+}: ChatBubbleProps) {
   const { theme } = useThemeContext();
   const fadeAnim = useRef(new Animated.Value(animate ? 0 : 1)).current;
   const slideAnim = useRef(new Animated.Value(animate ? 15 : 0)).current;
@@ -139,71 +150,87 @@ export function ChatBubble({ message, isUser, timestamp, animate = false }: Chat
   return (
     <Animated.View
       style={[
-        styles.container,
-        isUser ? styles.userContainer : styles.aiContainer,
+        styles.outerContainer,
         {
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
         },
       ]}
     >
+      {/* NEW: AI Header Row - only for AI messages */}
       {!isUser && (
-        <View style={[styles.aiIcon, { backgroundColor: theme.background }]}>
-          <IconSymbol
-            ios_icon_name="sparkles"
-            android_material_icon_name="auto_awesome"
-            size={16}
-            color={theme.primary}
-          />
-        </View>
+        <AIHeaderRow 
+          therapistName={therapistName}
+          therapistAvatarSource={therapistAvatarSource}
+        />
       )}
 
-      <View style={styles.bubbleContainer}>
-        {isUser ? (
-          <LinearGradient
-            colors={theme.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.bubble, styles.userBubble]}
-          >
-            <Text style={[styles.userText, { color: theme.buttonText }]}>{message}</Text>
-          </LinearGradient>
-        ) : (
-          <View
-            style={[
-              styles.bubble,
-              styles.aiBubble,
-              {
-                backgroundColor: theme.card,
-              },
-            ]}
-          >
-            <Text style={[styles.aiText, { color: theme.textPrimary }]}>
-              {renderMessageText(message)}
-            </Text>
+      <View
+        style={[
+          styles.container,
+          isUser ? styles.userContainer : styles.aiContainer,
+        ]}
+      >
+        {!isUser && (
+          <View style={[styles.aiIcon, { backgroundColor: theme.background }]}>
+            <IconSymbol
+              ios_icon_name="sparkles"
+              android_material_icon_name="auto_awesome"
+              size={16}
+              color={theme.primary}
+            />
           </View>
         )}
 
-        {timestamp && (
-          <Text
-            style={[
-              styles.timestamp,
-              { color: theme.textSecondary },
-              isUser ? styles.timestampRight : styles.timestampLeft,
-            ]}
-          >
-            {formatTimestamp(timestamp)}
-          </Text>
-        )}
+        <View style={styles.bubbleContainer}>
+          {isUser ? (
+            <LinearGradient
+              colors={theme.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.bubble, styles.userBubble]}
+            >
+              <Text style={[styles.userText, { color: theme.buttonText }]}>{message}</Text>
+            </LinearGradient>
+          ) : (
+            <View
+              style={[
+                styles.bubble,
+                styles.aiBubble,
+                {
+                  backgroundColor: theme.card,
+                },
+              ]}
+            >
+              <Text style={[styles.aiText, { color: theme.textPrimary }]}>
+                {renderMessageText(message)}
+              </Text>
+            </View>
+          )}
+
+          {timestamp && (
+            <Text
+              style={[
+                styles.timestamp,
+                { color: theme.textSecondary },
+                isUser ? styles.timestampRight : styles.timestampLeft,
+              ]}
+            >
+              {formatTimestamp(timestamp)}
+            </Text>
+          )}
+        </View>
       </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    marginBottom: 16,
+  },
   container: {
     flexDirection: 'row',
-    marginBottom: 16,
     alignItems: 'flex-end',
   },
   userContainer: {

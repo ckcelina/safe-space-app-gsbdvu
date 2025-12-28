@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   ListRenderItemInfo,
   Modal,
+  ImageSourcePropType,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,6 +38,7 @@ import { upsertPersonContinuity, getPersonContinuity } from '@/lib/memory/person
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
 import { invokeEdgeSafe, copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
+import { getPersonaById } from '@/constants/TherapistPersonas';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -52,6 +54,12 @@ const DEFAULT_SUBJECTS = [
   'Studies & School',
   'Money & Life Admin',
 ];
+
+// Extended Message type with therapist metadata
+interface ExtendedMessage extends Message {
+  therapist_name?: string;
+  therapist_avatar_source?: ImageSourcePropType;
+}
 
 interface SubjectPillProps {
   subject: string;
@@ -154,7 +162,7 @@ export default function ChatScreen() {
   const { theme } = useThemeContext();
   const { preferences } = useUserPreferences();
 
-  const [allMessages, setAllMessages] = useState<Message[]>([]);
+  const [allMessages, setAllMessages] = useState<ExtendedMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -210,6 +218,30 @@ export default function ChatScreen() {
   }, []);
 
   const isFreeUser = role === 'free';
+
+  // Helper function to get current therapist metadata
+  const getCurrentTherapistMetadata = useCallback(() => {
+    const personaId = preferences.therapist_persona_id;
+    if (!personaId) {
+      return {
+        name: 'Safe Space',
+        avatarSource: undefined,
+      };
+    }
+
+    const persona = getPersonaById(personaId);
+    if (!persona) {
+      return {
+        name: 'Safe Space',
+        avatarSource: undefined,
+      };
+    }
+
+    return {
+      name: persona.name,
+      avatarSource: persona.image,
+    };
+  }, [preferences.therapist_persona_id]);
 
   // Safe backfill function - updates NULL/empty subjects to 'General'
   const backfillSubjects = useCallback(async () => {
@@ -278,8 +310,22 @@ export default function ChatScreen() {
 
       console.log('[Chat] Messages loaded:', data?.length || 0);
       
+      // Attach current therapist metadata to existing AI messages
+      // This is a fallback for old messages that don't have metadata stored
+      const therapistMeta = getCurrentTherapistMetadata();
+      const messagesWithMetadata: ExtendedMessage[] = (data ?? []).map((msg) => {
+        if (msg.role === 'assistant') {
+          return {
+            ...msg,
+            therapist_name: therapistMeta.name,
+            therapist_avatar_source: therapistMeta.avatarSource,
+          };
+        }
+        return msg;
+      });
+      
       if (isMountedRef.current) {
-        setAllMessages(data ?? []);
+        setAllMessages(messagesWithMetadata);
       }
 
       backfillSubjects();
@@ -293,7 +339,7 @@ export default function ChatScreen() {
         setLoading(false);
       }
     }
-  }, [personId, authUser?.id, backfillSubjects]);
+  }, [personId, authUser?.id, backfillSubjects, getCurrentTherapistMetadata]);
 
   useEffect(() => {
     if (personId && authUser?.id) {
@@ -379,6 +425,10 @@ export default function ChatScreen() {
     console.log('[Chat] Current subject:', currentSubject);
     console.log('[Chat] chatId (personId):', personId);
     
+    // Get current therapist metadata for this message
+    const therapistMeta = getCurrentTherapistMetadata();
+    console.log('[Chat] Current therapist:', therapistMeta.name);
+    
     // Set in-flight flag immediately
     setIsSending(true);
     isGeneratingRef.current = true;
@@ -417,7 +467,7 @@ export default function ChatScreen() {
       
       lastProcessedUserMessageIdRef.current = insertedMessage.id;
 
-      let updatedMessages: Message[] = [];
+      let updatedMessages: ExtendedMessage[] = [];
       if (isMountedRef.current) {
         setAllMessages((prev) => {
           updatedMessages = [...prev, insertedMessage];
@@ -558,7 +608,7 @@ export default function ChatScreen() {
         if (isMountedRef.current) {
           setIsTyping(false);
           
-          // STEP 4: Insert fallback error message
+          // STEP 4: Insert fallback error message with therapist metadata
           const fallbackMessage = "I'm having trouble responding right now. Please try again.";
           const { data: fallbackInserted } = await supabase
             .from('messages')
@@ -574,7 +624,12 @@ export default function ChatScreen() {
             .single();
 
           if (fallbackInserted) {
-            setAllMessages((prev) => [...prev, fallbackInserted]);
+            const fallbackWithMeta: ExtendedMessage = {
+              ...fallbackInserted,
+              therapist_name: therapistMeta.name,
+              therapist_avatar_source: therapistMeta.avatarSource,
+            };
+            setAllMessages((prev) => [...prev, fallbackWithMeta]);
           }
         }
 
@@ -621,8 +676,15 @@ export default function ChatScreen() {
 
       console.log('[Chat] AI message inserted:', aiInserted.id);
 
+      // Attach therapist metadata to the AI message
+      const aiMessageWithMeta: ExtendedMessage = {
+        ...aiInserted,
+        therapist_name: therapistMeta.name,
+        therapist_avatar_source: therapistMeta.avatarSource,
+      };
+
       if (isMountedRef.current) {
-        setAllMessages((prev) => [...prev, aiInserted]);
+        setAllMessages((prev) => [...prev, aiMessageWithMeta]);
         setIsTyping(false);
       }
       console.log('[Chat] sendMessage: Complete');
@@ -683,7 +745,7 @@ export default function ChatScreen() {
         isGeneratingRef.current = false;
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -763,19 +825,21 @@ export default function ChatScreen() {
   }, [debugInfo]);
 
   // Render individual message item
-  const renderMessageItem = useCallback(({ item }: ListRenderItemInfo<Message>) => {
+  const renderMessageItem = useCallback(({ item }: ListRenderItemInfo<ExtendedMessage>) => {
     return (
       <ChatBubble
         message={item.content}
         isUser={item.role === 'user'}
         timestamp={item.created_at}
         animate={false}
+        therapistName={item.therapist_name}
+        therapistAvatarSource={item.therapist_avatar_source}
       />
     );
   }, []);
 
   // Key extractor for FlatList
-  const keyExtractor = useCallback((item: Message) => item.id, []);
+  const keyExtractor = useCallback((item: ExtendedMessage) => item.id, []);
 
   // Empty list component
   const renderEmptyList = useCallback(() => {
