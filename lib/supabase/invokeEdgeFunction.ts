@@ -1,18 +1,26 @@
 
 /**
- * invokeEdgeFunction.ts
+ * ═══════════════════════════════════════════════════════════════════
+ * ⚠️  DEPRECATED: DO NOT USE THIS FILE
+ * ═══════════════════════════════════════════════════════════════════
  * 
- * Alternative Edge Function invocation utility using fetch directly.
- * This file is currently unused by the app (chat uses invokeEdgeSafe from invokeEdge.ts).
+ * Use invokeEdgeSafe from invokeEdge.ts instead.
  * 
- * SECURITY: No hardcoded keys - relies on Supabase client configuration.
+ * This file is kept for reference only and should not be used in new code.
+ * The app uses invokeEdgeSafe which provides:
+ * - Automatic retry logic for transient failures
+ * - Proper timeout handling
+ * - Consistent error codes
+ * - Better debugging support
  * 
- * @deprecated Consider using invokeEdgeSafe from invokeEdge.ts instead
+ * ═══════════════════════════════════════════════════════════════════
  */
 
 import { supabase } from '../supabase';
 
 /**
+ * @deprecated Use invokeEdgeSafe from invokeEdge.ts instead
+ * 
  * Invoke a Supabase Edge Function using fetch directly.
  * 
  * NOTE: This function is not currently used by the app.
