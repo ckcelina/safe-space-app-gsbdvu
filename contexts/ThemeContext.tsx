@@ -116,13 +116,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error loading theme:', error);
     }
-  }, []);
+  }, [widgetContext]);
 
   useEffect(() => {
     loadTheme();
   }, [loadTheme]);
 
-  const setTheme = async (newThemeKey: ThemeKey) => {
+  const setTheme = useCallback(async (newThemeKey: ThemeKey) => {
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeKey);
       setThemeKey(newThemeKey);
@@ -140,7 +140,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error saving theme:', error);
     }
-  };
+  }, [widgetContext]);
 
   return (
     <ThemeContext.Provider value={{ themeKey, theme, setTheme }}>
