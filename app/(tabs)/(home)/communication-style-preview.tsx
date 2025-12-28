@@ -50,7 +50,7 @@ export default function CommunicationStylePreviewScreen() {
   const insets = useSafeAreaInsets();
 
   const [tryItInput, setTryItInput] = useState('');
-  const [tryItMessages, setTryItMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [tryItMessages, setTryItMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Get persona data

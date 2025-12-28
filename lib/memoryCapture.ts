@@ -58,8 +58,8 @@ function generateMemoryKey(category: string, content: string): string {
 function extractFactualStatements(
   messageText: string,
   personName: string
-): Array<{ category: string; content: string }> {
-  const facts: Array<{ category: string; content: string }> = [];
+): { category: string; content: string }[] {
+  const facts: { category: string; content: string }[] = [];
   const lowerText = messageText.toLowerCase();
   const trimmedText = messageText.trim();
   
