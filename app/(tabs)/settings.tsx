@@ -972,14 +972,14 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Card 2.5: Therapists (Optional) */}
+              {/* Card 2.5: Therapist Selection (Optional) */}
               <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                 <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                  Therapists (Optional)
+                  Therapist Selection (Optional)
                 </Text>
 
                 <Text style={[styles.cardDescription, { color: theme.textSecondary }]}>
-                  Pick a therapist style that feels right. You can change this anytime.
+                  Choose a communication style that feels comfortable. You can change or skip this anytime.
                 </Text>
 
                 {/* Therapist Persona Selection */}
@@ -1554,11 +1554,11 @@ export default function SettingsScreen() {
               </View>
 
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                Choose Your Therapist
+                Choose a Communication Style
               </Text>
 
               <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-                Pick a therapist style that feels right. You can change this anytime.
+                Pick a style that feels comfortable. This is optional and you can change it anytime.
               </Text>
 
               <ScrollView 
