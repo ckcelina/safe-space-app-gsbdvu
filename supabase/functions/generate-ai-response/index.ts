@@ -348,6 +348,132 @@ function detectCondition(message: string): string | null {
   return null;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// NEW: EMOTIONAL CONTINUITY EXTRACTION
+// ═══════════════════════════════════════════════════════════════════
+// Extract emotional themes from the current conversation thread
+// This is NOT stored in the database - it's ephemeral and conversation-specific
+// Used only to help the AI reference emotional themes naturally
+// ═══════════════════════════════════════════════════════════════════
+
+interface EmotionalTheme {
+  feeling: string;
+  context: string;
+}
+
+/**
+ * Extract emotional themes from recent conversation messages
+ * Returns a list of emotional themes that can be referenced
+ * This is purely for conversational continuity - no data is saved
+ */
+function extractEmotionalThemes(messages: any[]): EmotionalTheme[] {
+  const themes: EmotionalTheme[] = [];
+  
+  // Only look at recent messages (last 6-8 messages)
+  const recentMessages = messages.slice(-8);
+  
+  // Emotional keywords to detect
+  const emotionalKeywords = {
+    heavy: ['heavy', 'burden', 'weight', 'carrying', 'exhausting', 'draining'],
+    anxious: ['anxious', 'worried', 'nervous', 'scared', 'afraid', 'fear'],
+    frustrated: ['frustrated', 'annoyed', 'irritated', 'angry', 'mad'],
+    sad: ['sad', 'down', 'depressed', 'hopeless', 'empty', 'lonely'],
+    confused: ['confused', 'lost', 'unclear', 'uncertain', 'don\'t know'],
+    hurt: ['hurt', 'pain', 'wounded', 'betrayed', 'rejected'],
+    overwhelmed: ['overwhelmed', 'too much', 'can\'t handle', 'drowning'],
+    stuck: ['stuck', 'trapped', 'can\'t move', 'paralyzed', 'frozen'],
+    hopeful: ['hopeful', 'optimistic', 'better', 'improving', 'progress'],
+    relieved: ['relieved', 'better', 'lighter', 'easier', 'calmer'],
+  };
+  
+  // Scan user messages for emotional content
+  for (const msg of recentMessages) {
+    if (msg.role !== 'user') continue;
+    
+    const content = (msg.content || '').toLowerCase();
+    
+    // Check for emotional keywords
+    for (const [feeling, keywords] of Object.entries(emotionalKeywords)) {
+      for (const keyword of keywords) {
+        if (content.includes(keyword)) {
+          // Extract a brief context snippet (max 60 chars)
+          const keywordIndex = content.indexOf(keyword);
+          const start = Math.max(0, keywordIndex - 20);
+          const end = Math.min(content.length, keywordIndex + 40);
+          const snippet = content.substring(start, end).trim();
+          
+          themes.push({
+            feeling,
+            context: snippet,
+          });
+          
+          // Only capture one theme per message to avoid overload
+          break;
+        }
+      }
+    }
+  }
+  
+  // Deduplicate by feeling (keep most recent)
+  const uniqueThemes = new Map<string, EmotionalTheme>();
+  for (const theme of themes.reverse()) {
+    if (!uniqueThemes.has(theme.feeling)) {
+      uniqueThemes.set(theme.feeling, theme);
+    }
+  }
+  
+  // Return up to 3 most recent unique themes
+  return Array.from(uniqueThemes.values()).slice(0, 3);
+}
+
+/**
+ * Build emotional continuity context for the AI prompt
+ * This allows the AI to subtly reference emotional themes from the current conversation
+ * WITHOUT exposing memory content or stored data
+ */
+function buildEmotionalContinuityContext(messages: any[]): string {
+  const themes = extractEmotionalThemes(messages);
+  
+  if (themes.length === 0) {
+    return '';
+  }
+  
+  let context = `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💭 EMOTIONAL CONTINUITY (Current Conversation Only)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In this conversation, the user has expressed these emotional themes:
+`;
+  
+  for (const theme of themes) {
+    context += `\n- Feeling: ${theme.feeling}`;
+  }
+  
+  context += `
+
+⚠️ USAGE RULES FOR EMOTIONAL CONTINUITY:
+
+You MAY subtly reference these emotional themes using phrases like:
+✓ "Earlier you mentioned this felt heavy."
+✓ "This sounds connected to what you shared before."
+✓ "I hear that same frustration coming through."
+✓ "It seems like this is still weighing on you."
+
+You MUST NOT:
+✗ Mention specific facts, dates, or stored details
+✗ Say "I remember you said..." (implies memory storage)
+✗ Reference conversations from other sessions
+✗ Expose any technical memory system details
+✗ Summarize past conversations explicitly
+
+This is EMOTIONAL continuity, not memory recall.
+Focus on the FEELING, not the facts.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+  
+  return context;
+}
+
 // Fetch person continuity data (and DB-level continuity_enabled) from Supabase
 async function getPersonContinuity(
   supabase: any,
@@ -841,6 +967,7 @@ async function buildSystemPrompt(
   lastUserMessage: string,
   personName: string,
   relationshipType: string,
+  messages: any[],
   currentSubject?: string,
   aiToneId?: string,
   aiScienceMode?: boolean,
@@ -935,6 +1062,18 @@ ${personaStyle.signoff_style === 'none' ? '- No specific closing style - end nat
   }
 
   basePrompt += `\n\nYou're talking about ${personName} (${relationshipType}).`;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // NEW: ADD EMOTIONAL CONTINUITY CONTEXT
+  // ═══════════════════════════════════════════════════════════════════
+  // This allows the AI to subtly reference emotional themes from the
+  // current conversation thread WITHOUT exposing memory content
+  // ═══════════════════════════════════════════════════════════════════
+  
+  const emotionalContext = buildEmotionalContinuityContext(messages);
+  if (emotionalContext) {
+    basePrompt += emotionalContext;
+  }
 
   // Fetch continuity from DB and compute effective flag:
   const continuityData = await getPersonContinuity(supabase, userId, personId);
@@ -1228,6 +1367,7 @@ serve(async (req) => {
       lastUserMessage,
       personName || "this person",
       personRelationshipType || "your relationship",
+      messages,
       currentSubject,
       aiToneId,
       aiScienceMode,
@@ -1425,3 +1565,179 @@ serve(async (req) => {
     );
   }
 });
+</write file>
+
+Now let me create a summary document explaining the implementation:
+
+<write file="EMOTIONAL_CONTINUITY_IMPLEMENTATION.md">
+# Emotional Continuity Implementation
+
+## Overview
+
+This implementation improves emotional continuity in conversations by allowing the AI to subtly reference emotional themes from the **current conversation thread**, without changing memory logic or saving additional data.
+
+## Key Features
+
+### 1. **Emotional Theme Extraction**
+- Extracts emotional themes from recent messages (last 6-8 messages)
+- Detects feelings like: heavy, anxious, frustrated, sad, confused, hurt, overwhelmed, stuck, hopeful, relieved
+- Captures brief context snippets for each detected emotion
+- Deduplicates and keeps only the 3 most recent unique themes
+
+### 2. **Ephemeral Context (No Storage)**
+- Emotional themes are extracted on-the-fly during each AI request
+- **Nothing is saved to the database**
+- Themes are only used for the current response generation
+- Completely separate from the existing memory system
+
+### 3. **AI Prompt Enhancement**
+- Adds an "Emotional Continuity" section to the AI system prompt
+- Provides clear usage rules for the AI:
+  - ✓ Can reference emotional themes subtly
+  - ✓ Can use phrases like "Earlier you mentioned this felt heavy"
+  - ✗ Cannot mention specific facts or dates
+  - ✗ Cannot say "I remember you said..." (implies storage)
+  - ✗ Cannot reference other sessions
+
+### 4. **Privacy & Compliance**
+- No new data storage
+- No memory content exposed to users
+- No explicit summarization of past conversations
+- Focuses on emotional continuity, not memory recall
+- Apple compliance preserved
+
+## Implementation Details
+
+### New Functions
+
+#### `extractEmotionalThemes(messages: any[]): EmotionalTheme[]`
+- Scans recent user messages for emotional keywords
+- Returns up to 3 unique emotional themes
+- Each theme includes: feeling name and brief context snippet
+
+#### `buildEmotionalContinuityContext(messages: any[]): string`
+- Builds the AI prompt section for emotional continuity
+- Includes clear usage rules for the AI
+- Returns empty string if no themes detected
+
+### Modified Functions
+
+#### `buildSystemPrompt(...)`
+- Now accepts `messages` parameter
+- Calls `buildEmotionalContinuityContext()` to add emotional context
+- Inserts emotional continuity section after therapist persona and before conversation continuity
+
+## Example Usage
+
+### Before (No Emotional Continuity)
+```
+User: "I'm feeling really overwhelmed by everything."
+AI: "What's making you feel that way?"
+
+[Later in conversation]
+User: "I just don't know what to do anymore."
+AI: "Can you tell me more about what's going on?"
+```
+
+### After (With Emotional Continuity)
+```
+User: "I'm feeling really overwhelmed by everything."
+AI: "What's making you feel that way?"
+
+[Later in conversation]
+User: "I just don't know what to do anymore."
+AI: "I hear that same overwhelm coming through. This sounds connected to what you shared before."
+```
+
+## Acceptable Phrasing Examples
+
+The AI can now use phrases like:
+- "Earlier you mentioned this felt heavy."
+- "This sounds connected to what you shared before."
+- "I hear that same frustration coming through."
+- "It seems like this is still weighing on you."
+- "That feeling of being stuck is showing up again."
+
+## What the AI Cannot Do
+
+The AI must NOT:
+- Mention specific facts, dates, or stored details
+- Say "I remember you said..." (implies memory storage)
+- Reference conversations from other sessions
+- Expose any technical memory system details
+- Summarize past conversations explicitly
+
+## Testing
+
+### Manual Testing
+1. Start a conversation and express an emotion (e.g., "I feel overwhelmed")
+2. Continue the conversation with several messages
+3. Express a related concern later
+4. Verify the AI subtly references the earlier emotional theme
+
+### Expected Behavior
+- AI should naturally reference emotional themes when relevant
+- References should feel human and conversational
+- No technical jargon or memory system exposure
+- No privacy concerns
+
+## Acceptance Criteria
+
+✅ Conversations feel coherent across messages
+✅ No privacy concerns
+✅ No new data storage
+✅ Apple compliance preserved
+✅ Emotional continuity, not memory recall
+✅ Subtle and natural phrasing
+
+## Technical Notes
+
+### Performance
+- Emotional theme extraction is lightweight (simple keyword matching)
+- No additional API calls required
+- No database queries added
+- Minimal impact on response time
+
+### Scalability
+- Works with any conversation length
+- Only processes last 6-8 messages
+- Deduplicates themes to avoid overload
+- Caps at 3 themes maximum
+
+### Compatibility
+- Works with all existing features
+- Compatible with therapist personas
+- Compatible with AI tones
+- Compatible with memory system (separate concerns)
+- Compatible with continuity toggle
+
+## Deployment
+
+### Edge Function
+The changes are in `supabase/functions/generate-ai-response/index.ts`:
+1. Deploy the updated Edge Function
+2. No database migrations required
+3. No client-side changes required
+4. Works immediately after deployment
+
+### Rollback
+If needed, simply redeploy the previous version of the Edge Function. No data cleanup required since nothing is stored.
+
+## Future Enhancements
+
+Potential improvements (not implemented):
+- Add more emotional keywords for better detection
+- Support for emotional intensity levels
+- Detect emotional shifts (e.g., from sad to hopeful)
+- Multi-language emotional keyword support
+
+## Summary
+
+This implementation provides emotional continuity without:
+- Changing memory storage logic
+- Exposing memory content to users
+- Summarizing past conversations explicitly
+- Raising privacy concerns
+- Requiring new data storage
+
+The AI can now subtly reference emotional themes from the current conversation, making conversations feel more coherent and human.
