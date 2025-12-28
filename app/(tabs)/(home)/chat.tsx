@@ -39,7 +39,7 @@ import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
 import { upsertPersonContinuity, getPersonContinuity } from '@/lib/memory/personSummary';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
-import { invokeEdgeSafe, copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
+import { invokeEdgeSafe } from '@/lib/supabase/invokeEdge';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
 import { getPersonaById } from '@/constants/TherapistPersonas';
 
@@ -192,9 +192,6 @@ export default function ChatScreen() {
 
   // FlatList ref for scrolling
   const flatListRef = useRef<FlatList>(null);
-
-  // Dev-only debug state - ONLY stored in __DEV__ mode
-  const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   // Track app state for detecting backgrounding
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -492,11 +489,6 @@ export default function ChatScreen() {
     isGeneratingRef.current = true;
     setError(null);
     
-    // PRODUCTION SAFETY: Clear debug info in production builds
-    if (__DEV__) {
-      setDebugInfo(null);
-    }
-    
     // Clear input immediately to prevent re-sends
     const userMessageText = text;
     setInputText('');
@@ -663,28 +655,14 @@ export default function ChatScreen() {
         const errorMessage = result.error?.message || 'Unknown error';
         const errorStatus = result.error?.status;
 
-        // ═══════════════════════════════════════════════════════════════════
-        // PRODUCTION SAFETY: Only log detailed errors in __DEV__ mode
-        // ═══════════════════════════════════════════════════════════════════
+        // Log errors in development mode only
         if (__DEV__) {
-          // Use console.log instead of console.error to prevent red error overlays
           console.log('[Chat] Edge Function failed:', {
             code: errorCode,
             message: errorMessage,
             status: errorStatus,
             details: result.error?.details,
           });
-
-          // Build detailed debug string for DEV mode
-          const debugString = JSON.stringify({
-            functionName: 'generate-ai-response',
-            timestamp: new Date().toISOString(),
-            lastUserMessageId: insertedMessage.id,
-            error: result.error,
-          }, null, 2);
-
-          // Store debug info for dev mode banner
-          setDebugInfo(debugString);
 
           // DEV-ONLY: Show clear auth error hint
           if (errorCode === 'EDGE_AUTH' || errorStatus === 401 || errorStatus === 403) {
@@ -697,7 +675,6 @@ export default function ChatScreen() {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           }
         }
-        // In production (__DEV__ === false), do NOT log at all
 
         if (isMountedRef.current) {
           setIsTyping(false);
@@ -1051,14 +1028,6 @@ export default function ChatScreen() {
     // TODO: Persist to Supabase if needed (currently local state only)
   }, [newSubjectName, availableSubjects, closeAddSubjectModal]);
 
-  // Handle debug banner tap (copy to clipboard) - ONLY in __DEV__
-  const handleDebugBannerTap = useCallback(async () => {
-    if (__DEV__ && debugInfo) {
-      await copyDebugToClipboard(debugInfo);
-      showErrorToast('Debug info copied to clipboard');
-    }
-  }, [debugInfo]);
-
   // Handle error banner tap for retry
   const handleErrorBannerTap = useCallback(() => {
     // For abort/timeout errors, just dismiss
@@ -1272,43 +1241,6 @@ export default function ChatScreen() {
             visible={showMemorySavedIndicator}
             onHide={() => setShowMemorySavedIndicator(false)}
           />
-
-          {/* 
-            ═══════════════════════════════════════════════════════════════════
-            DEVELOPER DEBUG BANNER
-            ═══════════════════════════════════════════════════════════════════
-            
-            VISIBILITY RULES:
-            - Production builds (TestFlight/App Store): NEVER shown (__DEV__ === false)
-            - Expo Go / Dev builds: ONLY shown when __DEV__ === true AND debugInfo exists
-            
-            SAFETY GUARANTEES:
-            1. Entire block wrapped in __DEV__ check (compile-time removal in production)
-            2. debugInfo state is only set when __DEV__ === true
-            3. No debug components rendered outside __DEV__ block
-            4. No leftover spacing or margins when hidden
-            
-            This ensures debug information is NEVER exposed in TestFlight or App Store builds.
-            ═══════════════════════════════════════════════════════════════════
-          */}
-          {__DEV__ && debugInfo && (
-            <TouchableOpacity 
-              style={[styles.debugBanner, { backgroundColor: '#FF9500' }]}
-              onPress={handleDebugBannerTap}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                ios_icon_name="exclamationmark.triangle.fill"
-                android_material_icon_name="error"
-                size={16}
-                color="#FFFFFF"
-                style={styles.bannerIcon}
-              />
-              <Text style={[styles.debugBannerText, { color: '#FFFFFF' }]}>
-                AI error (tap to copy debug)
-              </Text>
-            </TouchableOpacity>
-          )}
 
           {error && (
             <TouchableOpacity 
@@ -1580,18 +1512,6 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontSize: 14,
-  },
-  debugBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  debugBannerText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 18,
   },
   bannerIcon: {
     marginRight: 8,
