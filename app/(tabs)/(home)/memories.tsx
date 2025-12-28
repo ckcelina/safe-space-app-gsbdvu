@@ -132,83 +132,6 @@ function getMemoryGroupKey(memory: Memory): string {
   return 'general';
 }
 
-/**
- * DEBUG CARD COMPONENT
- * 
- * This component renders the "Developer Debug Info" section.
- * 
- * SAFETY GUARANTEES:
- * 1. Only rendered when __DEV__ === true (production builds will never see this)
- * 2. Only rendered when showDebugInfo prop is true (user must explicitly enable)
- * 3. Double safety check inside component itself
- * 
- * This ensures that debug info is NEVER visible in production/TestFlight builds,
- * and is hidden by default in Expo Go until user explicitly enables it.
- */
-function DebugCard({ 
-  currentUser, 
-  personId, 
-  memories, 
-  supabaseError, 
-  theme,
-  showDebugInfo,
-}: { 
-  currentUser: any; 
-  personId: string; 
-  memories: Memory[]; 
-  supabaseError: any; 
-  theme: any;
-  showDebugInfo: boolean;
-}) {
-  // PRODUCTION SAFETY: Always return null in production builds
-  if (!__DEV__) {
-    return null;
-  }
-
-  // DEVELOPMENT SAFETY: Only show if explicitly enabled
-  if (!showDebugInfo) {
-    return null;
-  }
-
-  // DEVELOPMENT ONLY: Render debug info
-  return (
-    <View style={[styles.debugContainer, { backgroundColor: theme.card, borderColor: theme.textSecondary + '40' }]}>
-      <Text style={[styles.debugTitle, { color: theme.primary }]}>
-        🔧 Developer Debug Info (DEV ONLY)
-      </Text>
-      <Text style={[styles.debugText, { color: theme.textSecondary }]}>
-        User ID: {currentUser?.id || 'N/A'}
-      </Text>
-      <Text style={[styles.debugText, { color: theme.textSecondary }]}>
-        Person ID: {personId || 'N/A'}
-      </Text>
-      <Text style={[styles.debugText, { color: theme.textSecondary }]}>
-        Memory Count: {memories.length}
-      </Text>
-      {supabaseError && (
-        <>
-          <Text style={[styles.debugText, { color: '#FF3B30', fontWeight: '600', marginTop: 8 }]}>
-            Supabase Error:
-          </Text>
-          <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
-            {supabaseError.message || JSON.stringify(supabaseError)}
-          </Text>
-          {supabaseError.code && (
-            <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
-              Code: {supabaseError.code}
-            </Text>
-          )}
-          {supabaseError.hint && (
-            <Text style={[styles.debugText, { color: '#FF3B30', fontSize: 11 }]}>
-              Hint: {supabaseError.hint}
-            </Text>
-          )}
-        </>
-      )}
-    </View>
-  );
-}
-
 export default function MemoriesScreen() {
   const params = useLocalSearchParams<{
     personId?: string | string[];
@@ -227,7 +150,6 @@ export default function MemoriesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [supabaseError, setSupabaseError] = useState<any>(null);
 
   // Collapsible sections state
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
@@ -235,9 +157,6 @@ export default function MemoriesScreen() {
   // Conversation Continuity toggle state
   const [continuityEnabled, setContinuityEnabledState] = useState(true);
   const [continuityLoading, setContinuityLoading] = useState(false);
-
-  // Developer Debug Info toggle state (default OFF)
-  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   // Edit modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -254,20 +173,6 @@ export default function MemoriesScreen() {
     };
   }, []);
 
-  // ENHANCED: Validate personId is a valid UUID format
-  useEffect(() => {
-    if (__DEV__ && showDebugInfo) {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (personId && !uuidRegex.test(personId)) {
-        console.error('[Memories] ⚠️  CRITICAL: personId is not a valid UUID!');
-        console.error('[Memories]   - Received personId:', personId);
-        console.error('[Memories]   - Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
-      } else if (personId) {
-        console.log('[Memories] ✅ personId is a valid UUID:', personId);
-      }
-    }
-  }, [personId, showDebugInfo]);
-
   // Fetch continuity setting
   const fetchContinuitySetting = useCallback(async () => {
     if (!personId || !currentUser?.id) {
@@ -275,14 +180,14 @@ export default function MemoriesScreen() {
     }
 
     try {
-      if (__DEV__ && showDebugInfo) {
+      if (__DEV__) {
         console.log('[Memories] Fetching continuity setting for person:', personId);
       }
       const continuityData = await getPersonContinuity(currentUser.id, personId);
       
       if (isMountedRef.current) {
         setContinuityEnabledState(continuityData.continuity_enabled);
-        if (__DEV__ && showDebugInfo) {
+        if (__DEV__) {
           console.log('[Memories] Continuity enabled:', continuityData.continuity_enabled);
         }
       }
@@ -291,7 +196,7 @@ export default function MemoriesScreen() {
         console.error('[Memories] Error fetching continuity setting:', err);
       }
     }
-  }, [personId, currentUser?.id, showDebugInfo]);
+  }, [personId, currentUser?.id]);
 
   // Handle continuity toggle change
   const handleContinuityToggle = useCallback(async (value: boolean) => {
@@ -299,7 +204,7 @@ export default function MemoriesScreen() {
       return;
     }
 
-    if (__DEV__ && showDebugInfo) {
+    if (__DEV__) {
       console.log('[Memories] Toggling continuity to:', value);
       console.log('[Memories] ⚠️  NOTE: This toggle ONLY affects saving NEW memories.');
       console.log('[Memories]    Existing memories will ALWAYS be displayed regardless of toggle state.');
@@ -310,7 +215,7 @@ export default function MemoriesScreen() {
       setContinuityEnabledState(value);
       await setContinuityEnabled(currentUser.id, personId, value);
       
-      if (__DEV__ && showDebugInfo) {
+      if (__DEV__) {
         console.log('[Memories] Continuity setting updated successfully');
       }
       showSuccessToast(
@@ -329,7 +234,7 @@ export default function MemoriesScreen() {
         setContinuityLoading(false);
       }
     }
-  }, [personId, currentUser?.id, showDebugInfo]);
+  }, [personId, currentUser?.id]);
 
   /**
    * Group memories by their group key (key prefix || category || 'general')
@@ -381,7 +286,7 @@ export default function MemoriesScreen() {
    */
   const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
-      if (__DEV__ && showDebugInfo) {
+      if (__DEV__) {
         console.warn('[Memories] ⚠️  Missing personId or userId');
         console.warn('[Memories]   - personId:', personId || 'MISSING');
         console.warn('[Memories]   - userId:', currentUser?.id || 'MISSING');
@@ -401,9 +306,8 @@ export default function MemoriesScreen() {
       }
       
       setError(null);
-      setSupabaseError(null);
       
-      if (__DEV__ && showDebugInfo) {
+      if (__DEV__) {
         console.log('');
         console.log('═══════════════════════════════════════════════════════');
         console.log('[Memories] 📖 LOADING MEMORIES');
@@ -433,7 +337,7 @@ export default function MemoriesScreen() {
         .order('updated_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false, nullsFirst: false });
 
-      if (__DEV__ && showDebugInfo) {
+      if (__DEV__) {
         console.log('[Memories] Query executed');
         console.log('[Memories] Response:');
         console.log('[Memories]   - Error:', fetchError ? fetchError.message : 'None');
@@ -451,15 +355,14 @@ export default function MemoriesScreen() {
         }
         if (isMountedRef.current) {
           setError('Failed to load memories');
-          setSupabaseError(fetchError);
         }
-        if (__DEV__ && showDebugInfo) {
+        if (__DEV__) {
           console.log('═══════════════════════════════════════════════════════');
         }
         return;
       }
 
-      if (__DEV__ && showDebugInfo) {
+      if (__DEV__) {
         console.log('[Memories] ✅ Loaded', data?.length || 0, 'memories');
         
         if (data && data.length > 0) {
@@ -483,7 +386,7 @@ export default function MemoriesScreen() {
         setMemories(data);
         const grouped = groupMemoriesByKey(data);
         setGroupedMemories(grouped);
-        if (__DEV__ && showDebugInfo) {
+        if (__DEV__) {
           console.log('[Memories] Grouped into', grouped.length, 'groups');
           grouped.forEach((group) => {
             console.log(`[Memories]   - ${group.groupKey}: ${group.memories.length} memories`);
@@ -491,7 +394,7 @@ export default function MemoriesScreen() {
         }
       }
       
-      if (__DEV__ && showDebugInfo) {
+      if (__DEV__) {
         console.log('═══════════════════════════════════════════════════════');
         console.log('');
       }
@@ -505,9 +408,8 @@ export default function MemoriesScreen() {
       }
       if (isMountedRef.current) {
         setError('An unexpected error occurred');
-        setSupabaseError(err);
       }
-      if (__DEV__ && showDebugInfo) {
+      if (__DEV__) {
         console.log('═══════════════════════════════════════════════════════');
       }
     } finally {
@@ -516,7 +418,7 @@ export default function MemoriesScreen() {
         setRefreshing(false);
       }
     }
-  }, [personId, personName, currentUser?.id, continuityEnabled, groupMemoriesByKey, showDebugInfo]);
+  }, [personId, personName, currentUser?.id, continuityEnabled, groupMemoriesByKey]);
 
   // Fetch on mount
   useEffect(() => {
@@ -527,11 +429,11 @@ export default function MemoriesScreen() {
   // Refetch when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      if (__DEV__ && showDebugInfo) {
+      if (__DEV__) {
         console.log('[Memories] Screen focused, refreshing memories');
       }
       fetchMemories(true);
-    }, [fetchMemories, showDebugInfo])
+    }, [fetchMemories])
   );
 
   // Handle back press
@@ -565,13 +467,13 @@ export default function MemoriesScreen() {
 
   // Open edit modal
   const handleEditPress = useCallback((memory: Memory) => {
-    if (__DEV__ && showDebugInfo) {
+    if (__DEV__) {
       console.log('[Memories] Opening edit modal for:', memory.id);
     }
     setEditingMemory(memory);
     setEditValue(memory.value);
     setEditModalVisible(true);
-  }, [showDebugInfo]);
+  }, []);
 
   // Close edit modal
   const handleCloseEditModal = useCallback(() => {
@@ -597,7 +499,7 @@ export default function MemoriesScreen() {
       return;
     }
 
-    if (__DEV__ && showDebugInfo) {
+    if (__DEV__) {
       console.log('[Memories] Saving edit for:', editingMemory.id);
     }
     setSaving(true);
@@ -631,7 +533,7 @@ export default function MemoriesScreen() {
     } finally {
       setSaving(false);
     }
-  }, [editingMemory, editValue, currentUser?.id, handleCloseEditModal, fetchMemories, showDebugInfo]);
+  }, [editingMemory, editValue, currentUser?.id, handleCloseEditModal, fetchMemories]);
 
   // Delete memory
   const handleDeletePress = useCallback((memory: Memory) => {
@@ -651,7 +553,7 @@ export default function MemoriesScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            if (__DEV__ && showDebugInfo) {
+            if (__DEV__) {
               console.log('[Memories] Deleting memory:', memory.id);
             }
 
@@ -682,12 +584,11 @@ export default function MemoriesScreen() {
         },
       ]
     );
-  }, [currentUser?.id, fetchMemories, showDebugInfo]);
+  }, [currentUser?.id, fetchMemories]);
 
   // Retry loading on error
   const handleRetry = useCallback(() => {
     setError(null);
-    setSupabaseError(null);
     fetchMemories(false);
   }, [fetchMemories]);
 
@@ -820,61 +721,6 @@ export default function MemoriesScreen() {
             </Text>
           </View>
 
-          {/* Developer Debug Info Toggle (DEV ONLY) */}
-          {__DEV__ && (
-            <View style={[
-              styles.debugToggleSection,
-              {
-                backgroundColor: theme.card,
-                borderColor: theme.textSecondary + '40',
-                ...Platform.select({
-                  ios: {
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 4,
-                  },
-                  android: {
-                    elevation: 2,
-                  },
-                  web: {
-                    boxShadow: '0px 1px 4px rgba(0, 0, 0, 0.05)',
-                  },
-                }),
-              }
-            ]}>
-              <View style={styles.continuityHeader}>
-                <View style={styles.continuityTitleRow}>
-                  <IconSymbol
-                    ios_icon_name="wrench.and.screwdriver.fill"
-                    android_material_icon_name="build"
-                    size={20}
-                    color={theme.primary}
-                    style={styles.continuityIcon}
-                  />
-                  <Text style={[styles.continuityTitle, { color: theme.textPrimary }]}>
-                    Show Developer Debug Info
-                  </Text>
-                </View>
-                <Switch
-                  value={showDebugInfo}
-                  onValueChange={setShowDebugInfo}
-                  trackColor={{ 
-                    false: theme.textSecondary + '40', 
-                    true: theme.primary + '80' 
-                  }}
-                  thumbColor={showDebugInfo ? theme.primary : '#f4f3f4'}
-                  ios_backgroundColor={theme.textSecondary + '40'}
-                />
-              </View>
-              <Text style={[styles.continuityDescription, { color: theme.textSecondary }]}>
-                {showDebugInfo 
-                  ? 'Debug information is visible below. This toggle is only available in development builds.'
-                  : 'Enable to see technical details like user IDs and error messages. Only visible in Expo Go.'}
-              </Text>
-            </View>
-          )}
-
           {/* Loading State */}
           {loading && memories.length === 0 && !error && (
             <View style={styles.loadingState}>
@@ -899,38 +745,6 @@ export default function MemoriesScreen() {
                   ? 'As you chat, the AI will save important details here.'
                   : 'Memory saving is currently paused. Turn it on to start saving new memories.'}
               </Text>
-              
-              {/* 
-                DEVELOPER DEBUG INFO SECTION
-                
-                This section is ONLY rendered when:
-                1. __DEV__ === true (development build)
-                2. showDebugInfo === true (user explicitly enabled it)
-                
-                VISIBILITY LOGIC:
-                - Production builds (TestFlight/App Store): NEVER rendered (__DEV__ === false)
-                - Expo Go / Dev builds: Hidden by default (showDebugInfo defaults to false)
-                - Only visible when user explicitly toggles "Show Developer Debug Info" ON
-                
-                SAFETY GUARANTEES:
-                1. Entire block wrapped in __DEV__ conditional (first check)
-                2. DebugCard component has __DEV__ check (second check)
-                3. DebugCard component checks showDebugInfo prop (third check)
-                4. No debug components rendered when conditions not met
-                5. No leftover spacing or margins when hidden
-                
-                This ensures user_id and person_id are NEVER exposed in production.
-              */}
-              {__DEV__ && (
-                <DebugCard
-                  currentUser={currentUser}
-                  personId={personId}
-                  memories={memories}
-                  supabaseError={supabaseError}
-                  theme={theme}
-                  showDebugInfo={showDebugInfo}
-                />
-              )}
             </View>
           )}
 
@@ -1244,12 +1058,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     marginTop: 4,
   },
-  debugToggleSection: {
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
-    borderWidth: 1,
-  },
   loadingState: {
     flex: 1,
     alignItems: 'center',
@@ -1305,26 +1113,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 22,
-  },
-  debugContainer: {
-    marginTop: 24,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    width: '100%',
-    maxWidth: 400,
-  },
-  debugTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  debugText: {
-    fontSize: 12,
-    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' }),
-    marginBottom: 4,
-    lineHeight: 18,
   },
   categorySection: {
     marginBottom: 24,
