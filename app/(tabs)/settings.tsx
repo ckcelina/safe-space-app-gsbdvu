@@ -71,50 +71,6 @@ const AI_PREFERENCE_OPTIONS = [
   'Give more structure/steps',
 ];
 
-// Static preview examples for each therapist persona
-const PERSONA_PREVIEW_EXAMPLES: Record<string, string[]> = {
-  dr_elias: [
-    "Let's take a moment to slow down and breathe.",
-    "It's okay to feel overwhelmed. You're safe here.",
-    "What would help you feel more grounded right now?"
-  ],
-  noah: [
-    "Let's break this down into clear steps.",
-    "What patterns are you noticing here?",
-    "What's the most practical next move?"
-  ],
-  maya: [
-    "That sounds really difficult. I hear you.",
-    "Your feelings make complete sense given what you're going through.",
-    "It's okay to feel this way."
-  ],
-  claire: [
-    "What do you notice when you reflect on that?",
-    "I'm curious—what does this pattern tell you?",
-    "How does that sit with you?"
-  ],
-  ruth: [
-    "You're doing better than you think.",
-    "It's okay to need support. That's what I'm here for.",
-    "Let's take this one step at a time, together."
-  ],
-  jordan: [
-    "Look at how far you've already come!",
-    "You have the strength to handle this.",
-    "What's one thing you're proud of today?"
-  ],
-  aisha: [
-    "What if we looked at this from a different angle?",
-    "I'm curious—what else might be going on here?",
-    "Let's explore that thought together."
-  ],
-  ken: [
-    "Let's connect what you're feeling with what's happening.",
-    "How do your emotions and the facts fit together here?",
-    "What makes sense to you when you think it through?"
-  ],
-};
-
 interface PersonalizationUpdate {
   id: string;
   user_id: string;
@@ -148,9 +104,7 @@ export default function SettingsScreen() {
   const [selectedPersonaId, setSelectedPersonaId] = useState(preferences.therapist_persona_id || '');
   const [isUpdatingPersona, setIsUpdatingPersona] = useState(false);
   
-  // Preview Modal State
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [previewPersonaId, setPreviewPersonaId] = useState<string | null>(null);
+
 
   // Personalization Modal State
   const [showPersonalizationModal, setShowPersonalizationModal] = useState(false);
@@ -439,14 +393,25 @@ export default function SettingsScreen() {
 
   // Preview Style Handlers
   const handleOpenPreview = (personaId: string) => {
-    setPreviewPersonaId(personaId);
-    setShowPreviewModal(true);
+    const persona = getPersonaById(personaId);
+    if (!persona) {
+      console.error('[Settings] Persona not found:', personaId);
+      return;
+    }
+
+    // Navigate to preview screen
+    router.push({
+      pathname: '/(tabs)/(home)/communication-style-preview',
+      params: {
+        therapistPersonaId: persona.id,
+        therapistName: persona.name,
+        styleLabel: persona.label,
+        description: persona.short_description,
+      },
+    });
   };
 
-  const handleClosePreview = () => {
-    setShowPreviewModal(false);
-    setPreviewPersonaId(null);
-  };
+
 
   // Personalization Handlers
   const handleOpenPersonalizationModal = () => {
@@ -854,8 +819,6 @@ export default function SettingsScreen() {
     preferences.recent_changes;
 
   const selectedPersona = getPersonaById(preferences.therapist_persona_id || '');
-  const previewPersona = previewPersonaId ? getPersonaById(previewPersonaId) : null;
-  const previewExamples = previewPersonaId ? PERSONA_PREVIEW_EXAMPLES[previewPersonaId] || [] : [];
 
   return (
     <>
@@ -1599,66 +1562,7 @@ export default function SettingsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Preview Style Modal */}
-      <Modal
-        visible={showPreviewModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleClosePreview}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.previewModalContent, { backgroundColor: '#FFFFFF' }]}>
-            {previewPersona && (
-              <>
-                <View style={styles.previewHeader}>
-                  <Image
-                    source={previewPersona.image}
-                    style={styles.previewAvatar}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.previewHeaderText}>
-                    <Text style={[styles.previewPersonaName, { color: theme.textPrimary }]}>
-                      {previewPersona.name}
-                    </Text>
-                    <Text style={[styles.previewPersonaLabel, { color: theme.textSecondary }]}>
-                      {previewPersona.label}
-                    </Text>
-                  </View>
-                </View>
 
-                <Text style={[styles.previewTitle, { color: theme.textPrimary }]}>
-                  Example responses:
-                </Text>
-
-                <View style={styles.previewExamplesContainer}>
-                  {previewExamples.map((example, index) => (
-                    <View
-                      key={index}
-                      style={[styles.previewExampleBubble, { backgroundColor: theme.card }]}
-                    >
-                      <Text style={[styles.previewExampleText, { color: theme.textPrimary }]}>
-                        {example}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
-                <Text style={[styles.previewDisclaimer, { color: theme.textSecondary }]}>
-                  These are illustrative examples only. Actual responses will vary based on your conversation.
-                </Text>
-
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: theme.primary }]}
-                  onPress={handleClosePreview}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.modalButtonText}>Close</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
 
       {/* Personalization Info Modal */}
       <Modal
@@ -2597,61 +2501,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  previewModalContent: {
-    borderRadius: 20,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
-    elevation: 5,
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  previewAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginRight: 16,
-  },
-  previewHeaderText: {
-    flex: 1,
-  },
-  previewPersonaName: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  previewPersonaLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  previewTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  previewExamplesContainer: {
-    gap: 12,
-    marginBottom: 20,
-  },
-  previewExampleBubble: {
-    padding: 14,
-    borderRadius: 12,
-  },
-  previewExampleText: {
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  previewDisclaimer: {
-    fontSize: 12,
-    lineHeight: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-    fontStyle: 'italic',
-  },
+
   personalizationScrollView: {
     maxHeight: SCREEN_HEIGHT * 0.55,
     marginBottom: 16,
