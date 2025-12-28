@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useWidget } from './WidgetContext';
 
 export type ThemeKey = 'OceanBlue' | 'SoftRose' | 'ForestGreen' | 'SunnyYellow';
 
@@ -24,6 +25,14 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = '@safe_space_theme_v2';
+
+// Theme ID mapping for widget storage
+const THEME_ID_MAP: Record<ThemeKey, string> = {
+  OceanBlue: 'ocean_blue',
+  SoftRose: 'soft_rose',
+  ForestGreen: 'forest_green',
+  SunnyYellow: 'sunny_yellow',
+};
 
 // Ocean Blue Theme - Calm and serene
 const oceanBlueTheme: Theme = {
@@ -81,8 +90,21 @@ const themes: Record<ThemeKey, Theme> = {
 };
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeKey, setThemeKey] = useState<ThemeKey>('OceanBlue');
-  const [theme, setThemeState] = useState<Theme>(oceanBlueTheme);
+  const [themeKey, setThemeKey] = useState<ThemeKey>('SoftRose'); // Default to soft_rose as per requirements
+  const [theme, setThemeState] = useState<Theme>(softRoseTheme);
+  const [widgetContext, setWidgetContext] = useState<ReturnType<typeof useWidget> | null>(null);
+
+  // Get widget context after mount to avoid hook ordering issues
+  useEffect(() => {
+    try {
+      // We need to access useWidget in a way that doesn't violate hook rules
+      // This is a workaround since we can't conditionally call hooks
+      const widget = useWidget();
+      setWidgetContext(widget);
+    } catch (error) {
+      console.log('[Theme] Widget context not available yet');
+    }
+  }, []);
 
   const loadTheme = useCallback(async () => {
     try {
@@ -91,11 +113,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const key = savedTheme as ThemeKey;
         setThemeKey(key);
         setThemeState(themes[key]);
+        
+        // Update widget with loaded theme
+        if (widgetContext) {
+          const themeData = {
+            themeId: THEME_ID_MAP[key],
+            primaryHex: themes[key].primary,
+            gradientStartHex: themes[key].primaryGradient[0],
+            gradientEndHex: themes[key].primaryGradient[1],
+          };
+          widgetContext.updateWidgetTheme(themeData);
+        }
       }
     } catch (error) {
       console.error('Error loading theme:', error);
     }
-  }, []);
+  }, [widgetContext]);
 
   useEffect(() => {
     loadTheme();
@@ -106,6 +139,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeKey);
       setThemeKey(newThemeKey);
       setThemeState(themes[newThemeKey]);
+      
+      // Update widget with new theme
+      if (widgetContext) {
+        const themeData = {
+          themeId: THEME_ID_MAP[newThemeKey],
+          primaryHex: themes[newThemeKey].primary,
+          gradientStartHex: themes[newThemeKey].primaryGradient[0],
+          gradientEndHex: themes[newThemeKey].primaryGradient[1],
+        };
+        widgetContext.updateWidgetTheme(themeData);
+        console.log('[Theme] Theme changed to:', newThemeKey, 'Widget updated');
+      }
     } catch (error) {
       console.error('Error saving theme:', error);
     }

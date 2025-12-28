@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Safe Space",
@@ -18,6 +19,11 @@
       "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.safespace.app"
+        ]
       }
     },
     "android": {
@@ -38,7 +44,13 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "@bacons/apple-targets",
+        {
+          "appleTeamId": "YOUR_TEAM_ID"
+        }
+      ]
     ],
     "scheme": "safespace",
     "experiments": {
