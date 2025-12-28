@@ -336,19 +336,20 @@ function RootLayoutInner() {
 }
 
 export default function RootLayout() {
+  // WidgetProvider must wrap the entire app tree so hooks always have context
   return (
-    <ErrorBoundary>
-      <SafeAreaProvider>
-        <AppThemeProvider>
-          <AuthProvider>
-            <UserPreferencesProvider>
-              <WidgetProvider>
+    <WidgetProvider>
+      <ErrorBoundary>
+        <SafeAreaProvider>
+          <AppThemeProvider>
+            <AuthProvider>
+              <UserPreferencesProvider>
                 <RootLayoutInner />
-              </WidgetProvider>
-            </UserPreferencesProvider>
-          </AuthProvider>
-        </AppThemeProvider>
-      </SafeAreaProvider>
-    </ErrorBoundary>
+              </UserPreferencesProvider>
+            </AuthProvider>
+          </AppThemeProvider>
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    </WidgetProvider>
   );
 }
