@@ -399,16 +399,21 @@ export default function SettingsScreen() {
       return;
     }
 
-    // Navigate to preview screen
-    router.push({
-      pathname: '/(tabs)/(home)/communication-style-preview',
-      params: {
-        therapistPersonaId: persona.id,
-        therapistName: persona.name,
-        styleLabel: persona.label,
-        description: persona.short_description,
-      },
-    });
+    // Close the modal first to prevent it from staying open behind the preview screen
+    setShowPersonaModal(false);
+
+    // Small delay to allow modal close animation to complete before navigation
+    setTimeout(() => {
+      router.push({
+        pathname: '/(tabs)/(home)/communication-style-preview',
+        params: {
+          therapistPersonaId: persona.id,
+          therapistName: persona.name,
+          styleLabel: persona.label,
+          description: persona.short_description,
+        },
+      });
+    }, 200);
   };
 
 
