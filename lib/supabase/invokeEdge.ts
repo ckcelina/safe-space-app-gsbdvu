@@ -34,9 +34,9 @@ export type InvokeEdgeSafeResult<T = any> = {
 };
 
 // Configuration for retry logic - PLATFORM-AWARE
-const MAX_RETRIES = 3; // Increased from 2 to 3 for better reliability
+const MAX_RETRIES = 3;
 const RETRY_DELAYS = [600, 1200, 2400]; // ms - exponential backoff with jitter added below
-const TIMEOUT_MS = Platform.OS === 'ios' ? 60000 : 45000; // 60s for iOS, 45s for Android/Web
+const TIMEOUT_MS = Platform.OS === 'ios' ? 90000 : 60000; // 90s for iOS, 60s for Android/Web (increased from 60s/45s)
 const TRANSIENT_STATUS_CODES = [502, 503, 504];
 
 // Add random jitter to backoff delays (0-250ms)
@@ -81,14 +81,15 @@ export async function copyDebugToClipboard(text: any): Promise<boolean> {
 }
 
 /**
- * NEW: Safe wrapper around supabase.functions.invoke with retry logic and timeout
+ * FIXED: Safe wrapper around supabase.functions.invoke with retry logic and timeout
  * 
  * Features:
  * - Never throws - always returns { ok, data?, error? }
  * - Retries transient failures (AbortError, 502/503/504, network errors) up to 3 times
- * - Implements platform-aware timeout (60s iOS, 45s Android/Web)
+ * - Implements platform-aware timeout (90s iOS, 60s Android/Web) - INCREASED
  * - Exponential backoff with jitter (600ms, 1200ms, 2400ms + random 0-250ms)
  * - Ensures auth/session is attached correctly with Authorization header
+ * - Refreshes session token on each retry attempt
  * - Returns structured error codes for better error handling
  * - DEV-ONLY: Uses console.log/warn for transient errors (no red LogBox)
  * 
@@ -103,27 +104,31 @@ export async function invokeEdgeSafe<T = any>(
   let attempt = 0;
   const startTime = Date.now();
 
-  // Get session and auth headers BEFORE retry loop
-  let authHeaders: Record<string, string> = {};
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      authHeaders['Authorization'] = `Bearer ${session.access_token}`;
-      if (__DEV__) {
-        console.log('[invokeEdgeSafe] Auth token attached');
-      }
-    } else {
-      if (__DEV__) {
-        console.warn('[invokeEdgeSafe] No session found - proceeding without auth token');
-      }
-    }
-  } catch (sessionError: any) {
-    if (__DEV__) {
-      console.warn('[invokeEdgeSafe] Failed to get session:', sessionError?.message);
-    }
-  }
-
   while (attempt <= MAX_RETRIES) {
+    // CRITICAL FIX: Get fresh session token on EACH retry attempt
+    let authHeaders: Record<string, string> = {};
+    let hasSessionToken = false;
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        authHeaders['Authorization'] = `Bearer ${session.access_token}`;
+        hasSessionToken = true;
+        
+        if (__DEV__) {
+          console.log(`[invokeEdgeSafe] Auth token attached (attempt ${attempt + 1})`);
+        }
+      } else {
+        if (__DEV__) {
+          console.warn(`[invokeEdgeSafe] No session found (attempt ${attempt + 1}) - proceeding without auth token`);
+        }
+      }
+    } catch (sessionError: any) {
+      if (__DEV__) {
+        console.warn(`[invokeEdgeSafe] Failed to get session (attempt ${attempt + 1}):`, sessionError?.message);
+      }
+    }
+
     // Web-compatible timeout typing
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let controller: AbortController | null = null;
@@ -140,31 +145,45 @@ export async function invokeEdgeSafe<T = any>(
     try {
       // DEV-ONLY: Log invocation with project ref and platform info
       if (__DEV__) {
-        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://zjzvkxvahrbuuyzjzxol.supabase.co';
         const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : 'unknown';
-        console.log(`[Edge] invoke ${functionName} attempt ${attempt + 1}/${MAX_RETRIES + 1} project ${projectRef} platform=${Platform.OS} timeout=${TIMEOUT_MS}ms`);
+        console.log(`[Edge] invoke ${functionName} attempt ${attempt + 1}/${MAX_RETRIES + 1} project ${projectRef} platform=${Platform.OS} timeout=${TIMEOUT_MS}ms hasToken=${hasSessionToken}`);
       }
 
-      // Set up timeout
+      // Set up timeout - INCREASED to 90s for iOS, 60s for others
       if (controller) {
         timeoutId = setTimeout(() => {
           didTimeout = true;
           if (__DEV__) {
-            console.log(`[invokeEdgeSafe] Timeout reached for ${functionName} (attempt ${attempt + 1})`);
+            console.log(`[invokeEdgeSafe] Timeout reached for ${functionName} after ${TIMEOUT_MS}ms (attempt ${attempt + 1})`);
           }
           controller?.abort();
         }, TIMEOUT_MS);
       }
 
-      // Call the Edge Function with timeout signal and auth headers
+      // CRITICAL FIX: Call the Edge Function with timeout signal and auth headers
+      // Ensure headers are passed correctly to supabase.functions.invoke
       const invokeOptions: any = {
         body: payload,
-        headers: authHeaders,
       };
+      
+      // Add headers if we have auth token
+      if (Object.keys(authHeaders).length > 0) {
+        invokeOptions.headers = authHeaders;
+      }
       
       // Only add signal if AbortController is available
       if (signal) {
         invokeOptions.signal = signal;
+      }
+
+      if (__DEV__) {
+        console.log(`[invokeEdgeSafe] Calling supabase.functions.invoke with:`, {
+          functionName,
+          hasHeaders: !!invokeOptions.headers,
+          hasSignal: !!invokeOptions.signal,
+          payloadKeys: Object.keys(payload || {}),
+        });
       }
 
       const { data, error } = await supabase.functions.invoke(functionName, invokeOptions);
@@ -234,12 +253,17 @@ export async function invokeEdgeSafe<T = any>(
       // Success - parse and return data
       if (__DEV__) {
         console.log(`[invokeEdgeSafe] ${functionName} succeeded (attempt ${attempt + 1})`);
+        console.log(`[invokeEdgeSafe] Response data type:`, typeof data);
+        console.log(`[invokeEdgeSafe] Response data keys:`, data && typeof data === 'object' ? Object.keys(data) : 'N/A');
       }
 
       // Handle string responses
       if (typeof data === 'string') {
         const parsed = safeJsonParse(data);
         if (parsed) {
+          if (__DEV__) {
+            console.log(`[invokeEdgeSafe] Parsed string response, keys:`, Object.keys(parsed));
+          }
           return { ok: true, data: parsed as T };
         }
         if (__DEV__) {
@@ -254,6 +278,9 @@ export async function invokeEdgeSafe<T = any>(
           const raw = await (data as any).text();
           const parsed = safeJsonParse(raw);
           if (parsed) {
+            if (__DEV__) {
+              console.log(`[invokeEdgeSafe] Parsed Response body, keys:`, Object.keys(parsed));
+            }
             return { ok: true, data: parsed as T };
           }
           return { ok: true, data: raw as T };
@@ -273,6 +300,9 @@ export async function invokeEdgeSafe<T = any>(
       }
 
       // Normal case - data is already parsed
+      if (__DEV__) {
+        console.log(`[invokeEdgeSafe] Returning parsed data directly`);
+      }
       return { ok: true, data: data as T };
 
     } catch (e: any) {
