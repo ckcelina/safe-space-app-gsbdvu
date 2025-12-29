@@ -206,6 +206,86 @@ function generateTempId(): string {
   return `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// STEP B: Helper function to extract assistant text from various response formats
+// ═══════════════════════════════════════════════════════════════════
+function extractAssistantText(result: any): string | null {
+  // If result is a string, use it directly
+  if (typeof result === 'string') {
+    const trimmed = result.trim();
+    return trimmed || null;
+  }
+
+  // Check various possible locations for the text
+  const possiblePaths = [
+    result?.content,
+    result?.text,
+    result?.message?.content,
+    result?.message?.text,
+    result?.data?.content,
+    result?.data?.text,
+    result?.choices?.[0]?.message?.content,
+    result?.reply, // Our Edge Function returns { reply: "..." }
+  ];
+
+  for (const path of possiblePaths) {
+    if (typeof path === 'string') {
+      const trimmed = path.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  }
+
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP C: Helper to merge messages with deduplication
+// ═══════════════════════════════════════════════════════════════════
+function mergeMessages(existing: ExtendedMessage[], incoming: ExtendedMessage[]): ExtendedMessage[] {
+  const merged = [...existing];
+  
+  for (const newMsg of incoming) {
+    // Check if message already exists by ID
+    const existsById = merged.some(m => m.id === newMsg.id);
+    if (existsById) {
+      continue; // Skip duplicate
+    }
+
+    // Check by temp_id for optimistic messages
+    if (newMsg.temp_id) {
+      const existsByTempId = merged.some(m => m.temp_id === newMsg.temp_id);
+      if (existsByTempId) {
+        continue; // Skip duplicate
+      }
+    }
+
+    // Check by content hash (same role + content + subject + within 5 seconds)
+    const newTime = new Date(newMsg.created_at).getTime();
+    const isDuplicate = merged.some(m => {
+      if (m.role !== newMsg.role) return false;
+      if (m.subject !== newMsg.subject) return false;
+      if (m.content !== newMsg.content) return false;
+      
+      const existingTime = new Date(m.created_at).getTime();
+      const timeDiff = Math.abs(newTime - existingTime);
+      return timeDiff < 5000; // Within 5 seconds
+    });
+
+    if (!isDuplicate) {
+      merged.push(newMsg);
+    }
+  }
+
+  // Sort by created_at
+  return merged.sort((a, b) => {
+    const timeA = new Date(a.created_at).getTime();
+    const timeB = new Date(b.created_at).getTime();
+    return timeA - timeB;
+  });
+}
+
 export default function ChatScreen() {
   const params = useLocalSearchParams<{
     personId?: string | string[];
@@ -525,10 +605,10 @@ export default function ChatScreen() {
     // 1. User is already near bottom (within 50px)
     // 2. OR this is the initial load (hasn't scrolled yet)
     if (isNearBottom || !hasInitialScrolledRef.current) {
-      // Small delay to ensure layout is complete
+      // Small delay to ensure layout is complete (STEP F.3)
       setTimeout(() => {
         scrollToBottom(true);
-      }, 50);
+      }, 100);
     }
   }, [isNearBottom, scrollToBottom]);
 
@@ -613,29 +693,6 @@ export default function ChatScreen() {
       sendMessage();
     }, 100);
   }, [authUser?.id, personId]);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // NEW: Deduplication helper
-  // ═══════════════════════════════════════════════════════════════════
-  const isDuplicateMessage = useCallback((newMsg: ExtendedMessage, existingMessages: ExtendedMessage[]): boolean => {
-    // Check by ID first (most reliable)
-    if (existingMessages.some(m => m.id === newMsg.id)) {
-      return true;
-    }
-
-    // Check by content hash for optimistic messages
-    // Match: same role + same content + same subject + within 5 seconds
-    const newTime = new Date(newMsg.created_at).getTime();
-    return existingMessages.some(m => {
-      if (m.role !== newMsg.role) return false;
-      if (m.subject !== newMsg.subject) return false;
-      if (m.content !== newMsg.content) return false;
-      
-      const existingTime = new Date(m.created_at).getTime();
-      const timeDiff = Math.abs(newTime - existingTime);
-      return timeDiff < 5000; // Within 5 seconds
-    });
-  }, []);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -795,6 +852,17 @@ export default function ChatScreen() {
         console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
       }
 
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP A.1: Log BEFORE calling AI generation
+      // ═══════════════════════════════════════════════════════════════════
+      if (__DEV__) {
+        console.log('[AI_REQUEST]', {
+          conversation_id: personId,
+          user_id: userId,
+          messageLength: userMessageText.length,
+        });
+      }
+
       console.log('[Chat] Calling AI Edge Function...');
       console.log('[Chat] Total messages in history:', updatedMessages.length);
       
@@ -844,7 +912,27 @@ export default function ChatScreen() {
       });
 
       // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL FIX: ALWAYS append AI response to messages state
+      // STEP A.2: Log IMMEDIATELY after AI generation call returns
+      // ═══════════════════════════════════════════════════════════════════
+      if (__DEV__) {
+        console.log('[AI_RESPONSE]', {
+          type: typeof result,
+          keys: result ? Object.keys(result) : [],
+          content: result?.content,
+          text: result?.text,
+          message: result?.message,
+          data: result?.data,
+        });
+
+        // Check if we got usable text
+        const extractedText = extractAssistantText(result?.data || result);
+        if (!extractedText) {
+          console.log('[AI_RETURNED_EMPTY]');
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP B & C: Extract and normalize assistant text, create optimistic message
       // ═══════════════════════════════════════════════════════════════════
       
       // STEP 3: Handle result - check ok flag
@@ -907,11 +995,10 @@ export default function ChatScreen() {
           }
           
           // ═══════════════════════════════════════════════════════════════════
-          // CRITICAL FIX: Create optimistic AI message for ALL other errors
-          // This ensures the AI reply ALWAYS appears in the UI
+          // STEP E: If AI returns empty, create error bubble with retry
           // ═══════════════════════════════════════════════════════════════════
           
-          let fallbackContent = "I'm having trouble responding right now. Please try again.";
+          let fallbackContent = "I couldn't generate a response. Tap to retry.";
           
           if (errorCode === 'EDGE_AUTH') {
             fallbackContent = "I'm having trouble connecting right now. Please try logging out and back in.";
@@ -926,7 +1013,7 @@ export default function ChatScreen() {
             setError('An error occurred. Please try again.');
           }
           
-          // Create optimistic AI message with temp ID
+          // STEP C: Create optimistic AI message with temp ID
           const tempId = generateTempId();
           const optimisticAiMessage: ExtendedMessage = {
             id: tempId,
@@ -935,6 +1022,7 @@ export default function ChatScreen() {
             person_id: personId,
             role: 'assistant',
             content: fallbackContent,
+            text: fallbackContent, // STEP D: Populate both fields
             subject: currentSubject,
             created_at: new Date().toISOString(),
             therapist_name: therapistMeta.name,
@@ -944,15 +1032,16 @@ export default function ChatScreen() {
             retry_content: userMessageText,
           };
           
-          // CRITICAL: Append optimistic message to state IMMEDIATELY
-          setAllMessages((prev) => {
-            // Deduplicate before adding
-            if (isDuplicateMessage(optimisticAiMessage, prev)) {
-              console.log('[Chat] Skipping duplicate optimistic AI message');
-              return prev;
-            }
-            return [...prev, optimisticAiMessage];
-          });
+          // STEP C.3: Append optimistic message using mergeMessages
+          setAllMessages((prev) => mergeMessages(prev, [optimisticAiMessage]));
+          
+          // STEP A.4: Log after setMessages append
+          if (__DEV__) {
+            const lastTwo = [...prev, optimisticAiMessage]
+              .slice(-2)
+              .map(m => `${m.role}: ${(m.content || '').substring(0, 40)}`);
+            console.log('[MESSAGES_AFTER_APPEND]', lastTwo);
+          }
           
           // Try to persist to Supabase in background (fire-and-forget)
           supabase
@@ -970,7 +1059,22 @@ export default function ChatScreen() {
             .then(({ data: persistedMsg, error: persistError }) => {
               if (persistError) {
                 console.log('[Chat] Failed to persist fallback message (non-blocking):', persistError);
+                
+                // STEP A.3: Log after insert (even if failed)
+                if (__DEV__) {
+                  console.log('[AI_INSERT_FAILED]', {
+                    error: persistError.message,
+                  });
+                }
               } else if (persistedMsg && isMountedRef.current) {
+                // STEP A.3: Log after successful insert
+                if (__DEV__) {
+                  console.log('[AI_INSERT_SUCCESS]', {
+                    id: persistedMsg.id,
+                    created_at: persistedMsg.created_at,
+                  });
+                }
+                
                 // Replace optimistic message with persisted one
                 setAllMessages((prev) => {
                   return prev.map(m => {
@@ -993,13 +1097,22 @@ export default function ChatScreen() {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // SUCCESS PATH: Extract reply and create optimistic message
+      // SUCCESS PATH: Extract reply using STEP B helper and create optimistic message
       // ═══════════════════════════════════════════════════════════════════
       const aiResponse = result.data;
-      let replyText =
-        aiResponse?.reply ||
-        "I'm having trouble responding right now. Please try again.";
+      
+      // STEP B: Use extractAssistantText helper to normalize response
+      let replyText = extractAssistantText(aiResponse);
+      
+      // If no text extracted, use fallback
+      if (!replyText) {
+        if (__DEV__) {
+          console.log('[Chat] No text extracted from AI response, using fallback');
+        }
+        replyText = "I'm having trouble responding right now. Please try again.";
+      }
 
+      // Check for loop detection
       if (lastAssistantMessage && areSimilar(replyText, lastAssistantMessage.content)) {
         console.warn('[Chat] Loop detected! AI response is too similar to previous response');
         console.log('[Chat] Previous:', lastAssistantMessage.content.substring(0, 50));
@@ -1009,7 +1122,7 @@ export default function ChatScreen() {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL FIX: Create optimistic AI message IMMEDIATELY
+      // STEP C: Create optimistic AI message IMMEDIATELY
       // ═══════════════════════════════════════════════════════════════════
       const tempId = generateTempId();
       const optimisticAiMessage: ExtendedMessage = {
@@ -1019,6 +1132,7 @@ export default function ChatScreen() {
         person_id: personId,
         role: 'assistant',
         content: replyText,
+        text: replyText, // STEP D: Populate both fields to be safe
         subject: currentSubject,
         created_at: new Date().toISOString(),
         therapist_name: therapistMeta.name,
@@ -1026,15 +1140,20 @@ export default function ChatScreen() {
         optimistic: true,
       };
 
-      // CRITICAL: Append optimistic message to state IMMEDIATELY
+      // STEP C.3: Append optimistic message using mergeMessages
       if (isMountedRef.current) {
         setAllMessages((prev) => {
-          // Deduplicate before adding
-          if (isDuplicateMessage(optimisticAiMessage, prev)) {
-            console.log('[Chat] Skipping duplicate optimistic AI message');
-            return prev;
+          const merged = mergeMessages(prev, [optimisticAiMessage]);
+          
+          // STEP A.4: Log after setMessages append
+          if (__DEV__) {
+            const lastTwo = merged
+              .slice(-2)
+              .map(m => `${m.role}: ${(m.content || '').substring(0, 40)}`);
+            console.log('[MESSAGES_AFTER_APPEND]', lastTwo);
           }
-          return [...prev, optimisticAiMessage];
+          
+          return merged;
         });
       }
 
@@ -1060,11 +1179,24 @@ export default function ChatScreen() {
       if (aiInsertError || !aiInserted) {
         if (__DEV__) {
           console.log('[Chat] Insert AI message error (non-blocking):', aiInsertError);
+          
+          // STEP A.3: Log after insert failure
+          console.log('[AI_INSERT_FAILED]', {
+            error: aiInsertError?.message,
+          });
         }
         // Don't show error - optimistic message is already in UI
         // User can retry if needed
       } else {
         console.log('[Chat] AI message persisted:', aiInserted.id);
+        
+        // STEP A.3: Log after successful insert
+        if (__DEV__) {
+          console.log('[AI_INSERT_SUCCESS]', {
+            id: aiInserted.id,
+            created_at: aiInserted.created_at,
+          });
+        }
 
         // Replace optimistic message with persisted one
         if (isMountedRef.current) {
@@ -1145,7 +1277,7 @@ export default function ChatScreen() {
       }
     } finally {
       // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: Always reset flags in finally block
+      // CRITICAL: Always reset flags in finally block (STEP E.1)
       // ═══════════════════════════════════════════════════════════════════
       if (isMountedRef.current) {
         setIsSending(false);
@@ -1153,7 +1285,7 @@ export default function ChatScreen() {
         isGeneratingRef.current = false;
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, isDuplicateMessage]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -1295,7 +1427,7 @@ export default function ChatScreen() {
     );
   }, [preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
 
-  // Key extractor for FlatList
+  // STEP F.1: Key extractor using message.id (string)
   const keyExtractor = useCallback((item: MessageListItem, index: number) => {
     if (item.type === 'date-separator') {
       return `date-${item.date.toISOString()}-${index}`;
@@ -1505,7 +1637,7 @@ export default function ChatScreen() {
             </TouchableOpacity>
           )}
 
-          {/* NON-INVERTED FlatList for chat messages */}
+          {/* STEP F.2: FlatList with extraData to ensure re-render */}
           <FlatList
             ref={flatListRef}
             data={messageListItems}
