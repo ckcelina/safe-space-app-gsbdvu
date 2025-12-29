@@ -59,7 +59,7 @@ export function runDevDiagnostics() {
     }
     
     // Log Metro bundler status (without making network requests)
-      if (typeof global !== 'undefined' && (global as any).__DEV__) {
+    if (typeof global !== 'undefined' && global.__DEV__) {
       console.log('✅ Metro bundler: Connected (JS bundle loaded successfully)');
       console.log('📦 Running in development mode with hot reload enabled');
     }

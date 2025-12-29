@@ -277,7 +277,7 @@ export interface PreviewChatMessage {
   time?: string;
 }
 
-export interface TherapistPreviewConfig {
+export interface TherapistPreviewContent {
   title: string;
   subtitle: string;
   description: string;
@@ -311,7 +311,7 @@ function detectEmotionalKeywords(text: string): {
   };
 }
 
-export const THERAPIST_PREVIEW_CONTENT: Record<string, TherapistPreviewConfig> = {
+export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = {
   dr_elias: {
     title: 'Dr. Elias',
     subtitle: 'Calm & Grounding',
@@ -327,7 +327,7 @@ export const THERAPIST_PREVIEW_CONTENT: Record<string, TherapistPreviewConfig> =
       },
       {
         role: 'user',
-        text: 'Everything at work is piling up and I don\'t know where to start.',
+        text: 'Everything at work is piling up and I don't know where to start.',
       },
       {
         role: 'assistant',
@@ -475,7 +475,7 @@ export const THERAPIST_PREVIEW_CONTENT: Record<string, TherapistPreviewConfig> =
     sampleChat: [
       {
         role: 'user',
-        text: 'I keep saying yes to things I don\'t want to do.',
+        text: 'I keep saying yes to things I don't want to do.',
       },
       {
         role: 'assistant',
@@ -547,7 +547,7 @@ export const THERAPIST_PREVIEW_CONTENT: Record<string, TherapistPreviewConfig> =
       'Provides perspective and wisdom',
       'Reminds you to be kind to yourself',
     ],
-    placeholderUserPrompt: 'What\'s weighing on your heart?',
+    placeholderUserPrompt: 'What's weighing on your heart?',
     localPreviewReplyRules: (inputText: string) => {
       const emotions = detectEmotionalKeywords(inputText);
       
@@ -729,15 +729,9 @@ export const THERAPIST_PREVIEW_CONTENT: Record<string, TherapistPreviewConfig> =
   },
 };
 
-// Backward-compatible aliases
-export type TherapistPreviewContent = TherapistPreviewConfig;
-// Alias the preview content map for compatibility with existing imports.
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const TherapistPreviewContent = THERAPIST_PREVIEW_CONTENT;
-
 /**
  * Get preview content for a persona ID
  */
-export function getPreviewContentById(personaId: string): TherapistPreviewConfig | undefined {
-  return THERAPIST_PREVIEW_CONTENT[personaId];
+export function getPreviewContentById(personaId: string): TherapistPreviewContent | undefined {
+  return TherapistPreviewContent[personaId];
 }

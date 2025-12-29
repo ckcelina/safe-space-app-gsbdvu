@@ -37,9 +37,9 @@ import { MemorySavedIndicator } from '@/components/ui/MemorySavedIndicator';
 import { showErrorToast } from '@/utils/toast';
 import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
-import { upsertPersonContinuity } from '@/lib/memory/personSummary';
+import { upsertPersonContinuity, getPersonContinuity } from '@/lib/memory/personSummary';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
-import { invokeEdgeSafe } from '@/lib/supabase/invokeEdge';
+import { invokeEdgeSafe, copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
 import { getPersonaById } from '@/constants/TherapistPersonas';
 
@@ -193,12 +193,12 @@ export default function ChatScreen() {
   // FlatList ref for scrolling
   const flatListRef = useRef<FlatList>(null);
 
+  // Dev-only debug state - ONLY stored in __DEV__ mode
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
+
   // Track app state for detecting backgrounding
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
-
-  // NEW: Rate limiting for memory refresh pings
-  const lastMemoryPingRef = useRef<number>(0);
 
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
@@ -275,55 +275,6 @@ export default function ChatScreen() {
       avatarSource: persona.image,
     };
   }, [preferences.therapist_persona_id]);
-
-  // NEW: Helper function to ping memory refresh (rate-limited)
-  const pingMemoryRefresh = useCallback(async (userId: string, personId: string) => {
-    const now = Date.now();
-    const timeSinceLastPing = now - lastMemoryPingRef.current;
-    
-    // Rate limit: only ping if > 5 seconds since last ping
-    if (timeSinceLastPing < 5000) {
-      if (__DEV__) {
-        console.log('[Chat] Memory refresh ping skipped (rate limited)');
-      }
-      return;
-    }
-    
-    try {
-      if (__DEV__) {
-        console.log('[Chat] Pinging memory refresh...');
-      }
-      
-      // Update the updated_at timestamp in person_chat_summaries
-      // This will signal the Memories screen to refresh
-      const { error } = await supabase
-        .from('person_chat_summaries')
-        .upsert({
-          user_id: userId,
-          person_id: personId,
-          updated_at: new Date().toISOString(),
-        }, { 
-          onConflict: 'user_id, person_id',
-          ignoreDuplicates: false,
-        });
-      
-      if (error) {
-        if (__DEV__) {
-          console.log('[Chat] Memory refresh ping error (silent):', error);
-        }
-      } else {
-        lastMemoryPingRef.current = now;
-        if (__DEV__) {
-          console.log('[Chat] Memory refresh ping successful');
-        }
-      }
-    } catch (err) {
-      // Silent failure - never crash the chat
-      if (__DEV__) {
-        console.log('[Chat] Memory refresh ping exception (silent):', err);
-      }
-    }
-  }, []);
 
   // Safe backfill function - updates NULL/empty subjects to 'General'
   const backfillSubjects = useCallback(async () => {
@@ -479,9 +430,28 @@ export default function ChatScreen() {
     return false;
   }, []);
 
-  const sendMessage = useCallback(async (overrideText?: string) => {
-    const raw = typeof overrideText === 'string' ? overrideText : inputText;
-    const text = raw.trim();
+  // NEW: Retry handler for failed messages
+  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
+    if (!authUser?.id || !personId) {
+      return;
+    }
+
+    console.log('[Chat] Retrying failed message:', messageId);
+
+    // Remove the failed message from UI
+    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+
+    // Set the input text to the retry content and trigger send
+    setInputText(retryContent);
+    
+    // Small delay to ensure state updates
+    setTimeout(() => {
+      sendMessage();
+    }, 100);
+  }, [authUser?.id, personId, sendMessage]);
+
+  const sendMessage = useCallback(async () => {
+    const text = inputText.trim();
 
     // STEP 1: In-flight guard - prevent multiple rapid sends
     if (isSending) {
@@ -521,6 +491,11 @@ export default function ChatScreen() {
     setIsSending(true);
     isGeneratingRef.current = true;
     setError(null);
+    
+    // PRODUCTION SAFETY: Clear debug info in production builds
+    if (__DEV__) {
+      setDebugInfo(null);
+    }
     
     // Clear input immediately to prevent re-sends
     const userMessageText = text;
@@ -565,68 +540,67 @@ export default function ChatScreen() {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // MEMORY CAPTURE: Reliable and deterministic
+      // MEMORY CAPTURE: Fire-and-forget capture of factual statements
       // ═══════════════════════════════════════════════════════════════════
       // This runs IMMEDIATELY after user message is saved
       // It NEVER blocks the chat flow or throws errors
       // It respects the "Continue conversations" toggle
       // ═══════════════════════════════════════════════════════════════════
       
-      console.log('[Chat] 🧠 Starting memory capture...');
+      console.log('[Chat] 🧠 Triggering memory capture...');
       
-      // Helper function to safely check continuity enabled status
-      const safeContinuityEnabled = async (): Promise<boolean> => {
-        try {
-          const { data, error } = await supabase
-            .from('person_chat_summaries')
-            .select('continuity_enabled')
-            .eq('user_id', userId)
-            .eq('person_id', personId)
-            .maybeSingle();
-          
-          if (error) {
+      // Check continuity setting first
+      getPersonContinuity(userId, personId).then((continuityData) => {
+        const continuityEnabled = continuityData.continuity_enabled;
+        
+        console.log('[Chat] Memory capture - continuity enabled:', continuityEnabled);
+        
+        if (continuityEnabled) {
+          console.log('[Chat] Memory capture - calling captureMemoriesFromMessage');
+          // Call the memory capture function (fire-and-forget)
+          captureMemoriesFromMessage(
+            userId,
+            personId,
+            userMessageText,
+            personName,
+            currentSubject
+          ).catch((err) => {
+            // Silent failure - never crash the chat
             if (__DEV__) {
-              console.log('[Chat] Error checking continuity, defaulting to enabled:', error);
+              console.log('[Chat] Memory capture failed (silent):', err?.message || 'unknown');
             }
-            return true; // Default to enabled on error
-          }
-          
-          if (!data) {
-            if (__DEV__) {
-              console.log('[Chat] No continuity record found, defaulting to enabled');
-            }
-            return true; // Default to enabled if no record
-          }
-          
-          const enabled = data.continuity_enabled ?? true;
-          if (__DEV__) {
-            console.log('[Chat] Continuity enabled:', enabled);
-          }
-          return Boolean(enabled);
-        } catch (err) {
-          if (__DEV__) {
-            console.log('[Chat] Exception checking continuity, defaulting to enabled:', err);
-          }
-          return true; // Default to enabled on exception
+          });
+        } else {
+          console.log('[Chat] Memory capture - skipped (continuity disabled)');
         }
-      };
+      }).catch((err) => {
+        // If we can't check continuity, default to enabled
+        if (__DEV__) {
+          console.log('[Chat] Failed to check continuity, defaulting to enabled:', err);
+        }
+        captureMemoriesFromMessage(
+          userId,
+          personId,
+          userMessageText,
+          personName,
+          currentSubject
+        ).catch(() => {
+          // Silent failure
+        });
+      });
 
-      // STEP A: Local memory extraction and upsert (AWAIT THIS)
+      // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
+      // This runs even if the AI reply fails, ensuring memories are always saved
       try {
         console.log('[Chat] Running local memory extraction...');
         const extractedMemories = extractMemoriesFromUserText(userMessageText, personName);
         
         if (extractedMemories.length > 0) {
           console.log('[Chat] Extracted', extractedMemories.length, 'memories locally');
-          
-          // AWAIT the upsert to ensure it completes
           await upsertPersonMemories(userId, personId, extractedMemories);
           console.log('[Chat] Local memories upserted successfully');
           
-          // Ping memory refresh after successful upsert
-          await pingMemoryRefresh(userId, personId);
-          
-          // Show subtle confirmation indicator ONLY after successful upsert
+          // Show subtle confirmation indicator
           if (isMountedRef.current) {
             setShowMemorySavedIndicator(true);
           }
@@ -635,41 +609,8 @@ export default function ChatScreen() {
         }
       } catch (memoryError: any) {
         // Silent failure - never crash the chat
-        if (__DEV__) {
-          console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
-        }
+        console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
       }
-
-      // STEP B: Server memory capture (fire-and-forget)
-      (async () => {
-        try {
-          const enabled = await safeContinuityEnabled();
-          
-          if (enabled) {
-            console.log('[Chat] Memory capture - calling captureMemoriesFromMessage');
-            // Call the memory capture function (fire-and-forget)
-            captureMemoriesFromMessage(
-              userId,
-              personId,
-              userMessageText,
-              personName,
-              currentSubject
-            ).catch((err) => {
-              // Silent failure - never crash the chat
-              if (__DEV__) {
-                console.log('[Chat] Server memory capture failed (silent):', err?.message || 'unknown');
-              }
-            });
-          } else {
-            console.log('[Chat] Memory capture - skipped (continuity disabled)');
-          }
-        } catch (err) {
-          // Silent failure
-          if (__DEV__) {
-            console.log('[Chat] Server memory capture exception (silent):', err);
-          }
-        }
-      })();
 
       console.log('[Chat] Calling AI Edge Function...');
       console.log('[Chat] Total messages in history:', updatedMessages.length);
@@ -722,14 +663,28 @@ export default function ChatScreen() {
         const errorMessage = result.error?.message || 'Unknown error';
         const errorStatus = result.error?.status;
 
-        // Log errors in development mode only
+        // ═══════════════════════════════════════════════════════════════════
+        // PRODUCTION SAFETY: Only log detailed errors in __DEV__ mode
+        // ═══════════════════════════════════════════════════════════════════
         if (__DEV__) {
+          // Use console.log instead of console.error to prevent red error overlays
           console.log('[Chat] Edge Function failed:', {
             code: errorCode,
             message: errorMessage,
             status: errorStatus,
             details: result.error?.details,
           });
+
+          // Build detailed debug string for DEV mode
+          const debugString = JSON.stringify({
+            functionName: 'generate-ai-response',
+            timestamp: new Date().toISOString(),
+            lastUserMessageId: insertedMessage.id,
+            error: result.error,
+          }, null, 2);
+
+          // Store debug info for dev mode banner
+          setDebugInfo(debugString);
 
           // DEV-ONLY: Show clear auth error hint
           if (errorCode === 'EDGE_AUTH' || errorStatus === 401 || errorStatus === 403) {
@@ -742,6 +697,7 @@ export default function ChatScreen() {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           }
         }
+        // In production (__DEV__ === false), do NOT log at all
 
         if (isMountedRef.current) {
           setIsTyping(false);
@@ -984,11 +940,6 @@ export default function ChatScreen() {
           
           console.log('[Chat] Memory extraction complete');
           
-          // Ping memory refresh after successful extraction
-          if (!extractionResult.error) {
-            await pingMemoryRefresh(userId, personId);
-          }
-          
           // Show subtle confirmation indicator if memories were extracted
           // Note: We don't check the exact count to avoid exposing internal logic
           // The indicator shows regardless of whether new memories were added or existing ones were updated
@@ -1027,22 +978,7 @@ export default function ChatScreen() {
         isGeneratingRef.current = false;
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, pingMemoryRefresh]);
-
-  // NEW: Retry handler for failed messages (moved BELOW sendMessage)
-  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
-    if (!authUser?.id || !personId) {
-      return;
-    }
-
-    console.log('[Chat] Retrying failed message:', messageId);
-
-    // Remove the failed message from UI
-    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-
-    // Send directly using override text (no setTimeout, no input state race)
-    await sendMessage(retryContent);
-  }, [authUser?.id, personId, sendMessage]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -1114,6 +1050,14 @@ export default function ChatScreen() {
 
     // TODO: Persist to Supabase if needed (currently local state only)
   }, [newSubjectName, availableSubjects, closeAddSubjectModal]);
+
+  // Handle debug banner tap (copy to clipboard) - ONLY in __DEV__
+  const handleDebugBannerTap = useCallback(async () => {
+    if (__DEV__ && debugInfo) {
+      await copyDebugToClipboard(debugInfo);
+      showErrorToast('Debug info copied to clipboard');
+    }
+  }, [debugInfo]);
 
   // Handle error banner tap for retry
   const handleErrorBannerTap = useCallback(() => {
@@ -1329,6 +1273,43 @@ export default function ChatScreen() {
             onHide={() => setShowMemorySavedIndicator(false)}
           />
 
+          {/* 
+            ═══════════════════════════════════════════════════════════════════
+            DEVELOPER DEBUG BANNER
+            ═══════════════════════════════════════════════════════════════════
+            
+            VISIBILITY RULES:
+            - Production builds (TestFlight/App Store): NEVER shown (__DEV__ === false)
+            - Expo Go / Dev builds: ONLY shown when __DEV__ === true AND debugInfo exists
+            
+            SAFETY GUARANTEES:
+            1. Entire block wrapped in __DEV__ check (compile-time removal in production)
+            2. debugInfo state is only set when __DEV__ === true
+            3. No debug components rendered outside __DEV__ block
+            4. No leftover spacing or margins when hidden
+            
+            This ensures debug information is NEVER exposed in TestFlight or App Store builds.
+            ═══════════════════════════════════════════════════════════════════
+          */}
+          {__DEV__ && debugInfo && (
+            <TouchableOpacity 
+              style={[styles.debugBanner, { backgroundColor: '#FF9500' }]}
+              onPress={handleDebugBannerTap}
+              activeOpacity={0.7}
+            >
+              <IconSymbol
+                ios_icon_name="exclamationmark.triangle.fill"
+                android_material_icon_name="error"
+                size={16}
+                color="#FFFFFF"
+                style={styles.bannerIcon}
+              />
+              <Text style={[styles.debugBannerText, { color: '#FFFFFF' }]}>
+                AI error (tap to copy debug)
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {error && (
             <TouchableOpacity 
               style={[styles.errorBanner, { backgroundColor: '#FF3B30' }]}
@@ -1416,7 +1397,7 @@ export default function ChatScreen() {
                   { backgroundColor: theme.primary },
                   isSendDisabled && styles.sendButtonDisabled,
                 ]}
-                onPress={() => sendMessage()}
+                onPress={sendMessage}
                 disabled={isSendDisabled}
                 activeOpacity={0.7}
               >
@@ -1599,6 +1580,18 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontSize: 14,
+  },
+  debugBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  debugBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   bannerIcon: {
     marginRight: 8,

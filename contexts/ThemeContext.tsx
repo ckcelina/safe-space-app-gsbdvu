@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isWidgetContextFallback, useWidget } from './WidgetContext';
 
 export type ThemeKey = 'OceanBlue' | 'SoftRose' | 'ForestGreen' | 'SunnyYellow';
 
@@ -25,14 +24,6 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = '@safe_space_theme_v2';
-
-// Theme ID mapping for widget storage
-const THEME_ID_MAP: Record<ThemeKey, string> = {
-  OceanBlue: 'ocean_blue',
-  SoftRose: 'soft_rose',
-  ForestGreen: 'forest_green',
-  SunnyYellow: 'sunny_yellow',
-};
 
 // Ocean Blue Theme - Calm and serene
 const oceanBlueTheme: Theme = {
@@ -90,17 +81,8 @@ const themes: Record<ThemeKey, Theme> = {
 };
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeKey, setThemeKey] = useState<ThemeKey>('SoftRose'); // Default to soft_rose as per requirements
-  const [theme, setThemeState] = useState<Theme>(softRoseTheme);
-  
-  // Call useWidget at the top level to comply with React Hooks rules
-  const widgetContext = useWidget();
-
-  useEffect(() => {
-    if (__DEV__ && isWidgetContextFallback(widgetContext)) {
-      console.warn('[Theme] WidgetProvider is missing; widget theming updates are disabled.');
-    }
-  }, [widgetContext]);
+  const [themeKey, setThemeKey] = useState<ThemeKey>('OceanBlue');
+  const [theme, setThemeState] = useState<Theme>(oceanBlueTheme);
 
   const loadTheme = useCallback(async () => {
     try {
@@ -109,44 +91,25 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const key = savedTheme as ThemeKey;
         setThemeKey(key);
         setThemeState(themes[key]);
-        
-        // Update widget with loaded theme
-        const themeData = {
-          themeId: THEME_ID_MAP[key],
-          primaryHex: themes[key].primary,
-          gradientStartHex: themes[key].primaryGradient[0],
-          gradientEndHex: themes[key].primaryGradient[1],
-        };
-        widgetContext.updateWidgetTheme(themeData);
       }
     } catch (error) {
       console.error('Error loading theme:', error);
     }
-  }, [widgetContext]);
+  }, []);
 
   useEffect(() => {
     loadTheme();
   }, [loadTheme]);
 
-  const setTheme = useCallback(async (newThemeKey: ThemeKey) => {
+  const setTheme = async (newThemeKey: ThemeKey) => {
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeKey);
       setThemeKey(newThemeKey);
       setThemeState(themes[newThemeKey]);
-      
-      // Update widget with new theme
-      const themeData = {
-        themeId: THEME_ID_MAP[newThemeKey],
-        primaryHex: themes[newThemeKey].primary,
-        gradientStartHex: themes[newThemeKey].primaryGradient[0],
-        gradientEndHex: themes[newThemeKey].primaryGradient[1],
-      };
-      widgetContext.updateWidgetTheme(themeData);
-      console.log('[Theme] Theme changed to:', newThemeKey, 'Widget updated');
     } catch (error) {
       console.error('Error saving theme:', error);
     }
-  }, [widgetContext]);
+  };
 
   return (
     <ThemeContext.Provider value={{ themeKey, theme, setTheme }}>

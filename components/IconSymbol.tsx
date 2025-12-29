@@ -24,8 +24,7 @@ export function IconSymbol({
   style,
 }: {
   ios_icon_name?: string | undefined;
-  // Allow any Material icon name to keep call sites flexible across platforms
-  android_material_icon_name?: keyof typeof MaterialIcons.glyphMap | string;
+  android_material_icon_name?: keyof typeof MaterialIcons.glyphMap;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<ViewStyle>;

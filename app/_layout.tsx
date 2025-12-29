@@ -1,12 +1,12 @@
 
 import "react-native-reanimated";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, View, Platform, LogBox, Text, ActivityIndicator, StyleSheet } from "react-native";
+import { useColorScheme, Alert, View, Platform, LogBox } from "react-native";
 import { useNetworkState } from "expo-network";
 import Constants from "expo-constants";
 import {
@@ -16,7 +16,7 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -25,7 +25,6 @@ import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { runDevDiagnostics, logStartupError } from "@/utils/devDiagnostics";
 import { setupNetworkDebugging } from "@/utils/networkDebug";
-import { supabaseConfigStatus } from "@/lib/supabase";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // DEV-ONLY: Network Request Failed Error Suppression
@@ -88,71 +87,6 @@ if (typeof global !== 'undefined') {
   });
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// FALLBACK UI COMPONENTS
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// These components prevent white screen crashes by always rendering something
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// Loading fallback - shown during app initialization
-function LoadingFallback() {
-  return (
-    <SafeAreaView style={styles.fallbackContainer}>
-      <ActivityIndicator size="large" color="#ffffff" />
-      <Text style={styles.fallbackText}>Loading Safe Space...</Text>
-    </SafeAreaView>
-  );
-}
-
-// Supabase configuration error UI - shown when env vars are missing
-function SupabaseConfigError() {
-  const missingVars = [
-    !supabaseConfigStatus.hasUrl ? "EXPO_PUBLIC_SUPABASE_URL" : null,
-    !supabaseConfigStatus.hasAnonKey ? "EXPO_PUBLIC_SUPABASE_ANON_KEY" : null,
-  ].filter(Boolean);
-
-  // Log missing variables in dev mode only
-  if (__DEV__) {
-    console.error('[Supabase] ❌ Missing environment variables:', missingVars.join(', '));
-    console.error('[Supabase] 📝 To fix this:');
-    console.error('[Supabase]    1. Open Natively dashboard');
-    console.error('[Supabase]    2. Go to Environment Variables');
-    console.error('[Supabase]    3. Add the missing variables');
-    console.error('[Supabase]    4. Restart the preview');
-  }
-
-  return (
-    <SafeAreaProvider>
-      <GestureHandlerRootView style={styles.errorContainer}>
-        <View style={styles.errorContent}>
-          <Text style={styles.errorTitle}>
-            🔧 Configuration Required
-          </Text>
-          <Text style={styles.errorMessage}>
-            Safe Space needs Supabase configuration to work.
-          </Text>
-          <Text style={styles.errorMessage}>
-            Please add the following environment variables:
-          </Text>
-          <View style={styles.errorVarList}>
-            {missingVars.map((varName, index) => (
-              <Text key={index} style={styles.errorVarName}>
-                • {varName}
-              </Text>
-            ))}
-          </View>
-          {__DEV__ && (
-            <Text style={styles.errorDetails}>
-              Check the console for detailed instructions
-            </Text>
-          )}
-        </View>
-        <SystemBars style="light" />
-      </GestureHandlerRootView>
-    </SafeAreaProvider>
-  );
-}
-
 // Inner component that has access to theme context
 function RootLayoutInner() {
   const colorScheme = useColorScheme();
@@ -161,7 +95,6 @@ function RootLayoutInner() {
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const [appReady, setAppReady] = useState(false);
 
   // Run dev diagnostics on mount (in useEffect to avoid blocking render)
   useEffect(() => {
@@ -204,16 +137,6 @@ function RootLayoutInner() {
     }
   }, [loaded]);
 
-  // Set appReady to true after initial mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setAppReady(true);
-      console.log('[Startup] App ready, rendering main content');
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   React.useEffect(() => {
     try {
       if (!networkState.isConnected && networkState.isInternetReachable === false) {
@@ -227,10 +150,7 @@ function RootLayoutInner() {
     }
   }, [networkState.isConnected, networkState.isInternetReachable]);
 
-  // Show loading fallback if fonts not loaded or app not ready
-  if (!loaded || !appReady) {
-    return <LoadingFallback />;
-  }
+  if (!loaded) return null;
 
   const CustomDefaultTheme: Theme = {
     ...DefaultTheme,
@@ -415,137 +335,20 @@ function RootLayoutInner() {
   );
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ROOT LAYOUT - ENTRY POINT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// This is the root component that wraps the entire app.
-// It performs early validation and ensures the app never shows a white screen.
-//
-// VALIDATION ORDER:
-// 1. Check Supabase configuration (EXPO_PUBLIC_* env vars)
-// 2. Show loading fallback during initialization
-// 3. Render main app with all providers
-//
-// COMPATIBILITY:
-// ✅ Expo Go
-// ✅ Natively Preview
-// ✅ Production builds (TestFlight, App Store)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 export default function RootLayout() {
-  const [appReady, setAppReady] = useState(false);
-
-  // Set appReady to true after initial mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setAppReady(true);
-      console.log('[RootLayout] App initialized and ready');
-    }, 50);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 1: CHECK SUPABASE CONFIGURATION
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // This check happens FIRST, before any other rendering.
-  // If configuration is missing, show the error screen instead of crashing.
-  // This ensures the app ALWAYS renders something, never a white screen.
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  if (!supabaseConfigStatus.isConfigured) {
-    return <SupabaseConfigError />;
-  }
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 2: SHOW LOADING FALLBACK
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // Show a loading screen while the app initializes.
-  // This prevents white screen flashes during startup.
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  if (!appReady) {
-    return <LoadingFallback />;
-  }
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 3: RENDER MAIN APP
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // All validation passed - render the main app with all providers.
-  // Provider order is critical: WidgetProvider must be outermost.
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
   return (
-    <WidgetProvider>
-      <ErrorBoundary>
-        <SafeAreaProvider>
-          <AppThemeProvider>
-            <AuthProvider>
-              <UserPreferencesProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <AppThemeProvider>
+          <AuthProvider>
+            <UserPreferencesProvider>
+              <WidgetProvider>
                 <RootLayoutInner />
-              </UserPreferencesProvider>
-            </AuthProvider>
-          </AppThemeProvider>
-        </SafeAreaProvider>
-      </ErrorBoundary>
-    </WidgetProvider>
+              </WidgetProvider>
+            </UserPreferencesProvider>
+          </AuthProvider>
+        </AppThemeProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// STYLES
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-const styles = StyleSheet.create({
-  fallbackContainer: {
-    flex: 1,
-    backgroundColor: '#0b172a',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fallbackText: {
-    color: '#ffffff',
-    marginTop: 16,
-    fontSize: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    backgroundColor: '#0b172a',
-  },
-  errorContent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 16,
-  },
-  errorTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: 'white',
-    textAlign: 'center',
-  },
-  errorMessage: {
-    fontSize: 16,
-    color: '#d1d5db',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  errorVarList: {
-    marginTop: 8,
-    gap: 8,
-  },
-  errorVarName: {
-    fontSize: 14,
-    color: '#60a5fa',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    textAlign: 'center',
-  },
-  errorDetails: {
-    fontSize: 14,
-    color: '#9ca3af',
-    textAlign: 'center',
-    marginTop: 16,
-    fontStyle: 'italic',
-  },
-});
