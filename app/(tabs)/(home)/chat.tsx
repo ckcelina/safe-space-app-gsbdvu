@@ -193,6 +193,14 @@ export default function ChatScreen() {
   // FlatList ref for scrolling
   const flatListRef = useRef<FlatList>(null);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // NEW: Scroll-to-bottom tracking and arrow visibility
+  // ═══════════════════════════════════════════════════════════════════
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showScrollArrow, setShowScrollArrow] = useState(false);
+  const scrollArrowOpacity = useRef(new Animated.Value(0)).current;
+  const hasScrolledOnceRef = useRef(false); // Track if we've done initial scroll
+
   // Dev-only debug state - ONLY stored in __DEV__ mode
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
@@ -405,6 +413,63 @@ export default function ChatScreen() {
     });
   }, [allMessages, currentSubject]);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // NEW: Auto-scroll to bottom when messages load or change
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    // Only auto-scroll if:
+    // 1. Messages exist
+    // 2. Not loading
+    // 3. User is already at bottom OR this is the first scroll
+    if (displayedMessages.length > 0 && !loading) {
+      if (isAtBottom || !hasScrolledOnceRef.current) {
+        // Small delay to ensure FlatList has rendered
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: !hasScrolledOnceRef.current ? false : true });
+          hasScrolledOnceRef.current = true;
+        }, 100);
+      }
+    }
+  }, [displayedMessages.length, loading, isAtBottom]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // NEW: Handle scroll events to track position
+  // ═══════════════════════════════════════════════════════════════════
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+    
+    // Calculate if we're near the bottom (within 50px tolerance)
+    const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    const nearBottom = distanceFromBottom < 50;
+    
+    setIsAtBottom(nearBottom);
+    
+    // Show/hide arrow based on position
+    // Only show if:
+    // 1. Not at bottom
+    // 2. Content is scrollable (contentSize > layoutMeasurement)
+    // 3. Has scrolled at least once (not initial load)
+    const shouldShowArrow = !nearBottom && contentSize.height > layoutMeasurement.height && hasScrolledOnceRef.current;
+    
+    if (shouldShowArrow !== showScrollArrow) {
+      setShowScrollArrow(shouldShowArrow);
+      
+      // Animate arrow appearance/disappearance
+      Animated.timing(scrollArrowOpacity, {
+        toValue: shouldShowArrow ? 1 : 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showScrollArrow, scrollArrowOpacity]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // NEW: Scroll to bottom handler for arrow button
+  // ═══════════════════════════════════════════════════════════════════
+  const scrollToBottom = useCallback(() => {
+    flatListRef.current?.scrollToEnd({ animated: true });
+  }, []);
+
   const handleRetry = useCallback(() => {
     loadMessages();
   }, [loadMessages]);
@@ -448,7 +513,7 @@ export default function ChatScreen() {
     setTimeout(() => {
       sendMessage();
     }, 100);
-  }, [authUser?.id, personId, sendMessage]);
+  }, [authUser?.id, personId]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -1350,7 +1415,49 @@ export default function ChatScreen() {
             ListEmptyComponent={renderEmptyList}
             ListFooterComponent={renderListFooter}
             removeClippedSubviews={Platform.OS === 'android'}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
           />
+
+          {/* ═══════════════════════════════════════════════════════════════════
+              NEW: Floating Scroll-to-Bottom Arrow
+              ═══════════════════════════════════════════════════════════════════
+              - Only visible when user has scrolled up
+              - Positioned above input bar
+              - Matches Safe Space theme
+              - Smooth fade in/out animation
+              ═══════════════════════════════════════════════════════════════════ */}
+          {showScrollArrow && (
+            <Animated.View
+              style={[
+                styles.scrollArrowContainer,
+                {
+                  opacity: scrollArrowOpacity,
+                  bottom: insets.bottom + 80, // Position above input bar
+                },
+              ]}
+              pointerEvents={showScrollArrow ? 'auto' : 'none'}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.scrollArrowButton,
+                  {
+                    backgroundColor: theme.primary,
+                    shadowColor: theme.primary,
+                  },
+                ]}
+                onPress={scrollToBottom}
+                activeOpacity={0.8}
+              >
+                <IconSymbol
+                  ios_icon_name="chevron.down"
+                  android_material_icon_name="keyboard_arrow_down"
+                  size={24}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
 
           {/* Input Container */}
           <View style={[
@@ -1658,6 +1765,25 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 12,
     fontStyle: 'italic',
+  },
+  // ═══════════════════════════════════════════════════════════════════
+  // NEW: Scroll-to-bottom arrow styles
+  // ═══════════════════════════════════════════════════════════════════
+  scrollArrowContainer: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 100,
+  },
+  scrollArrowButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   inputContainer: {
     paddingHorizontal: '5%',
