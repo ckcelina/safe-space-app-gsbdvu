@@ -6,7 +6,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, View, Platform, LogBox, Text, ActivityIndicator } from "react-native";
+import { useColorScheme, Alert, View, Platform, LogBox, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { useNetworkState } from "expo-network";
 import Constants from "expo-constants";
 import {
@@ -91,10 +91,45 @@ if (typeof global !== 'undefined') {
 // Fallback UI component to prevent white screen
 function LoadingFallback() {
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0b172a', justifyContent: 'center', alignItems: 'center' }}>
+    <SafeAreaView style={styles.fallbackContainer}>
       <ActivityIndicator size="large" color="#ffffff" />
-      <Text style={{ color: '#ffffff', marginTop: 16, fontSize: 16 }}>Loading...</Text>
+      <Text style={styles.fallbackText}>Loading...</Text>
     </SafeAreaView>
+  );
+}
+
+// Supabase configuration error UI
+function SupabaseConfigError() {
+  const missingVars = [
+    !supabaseConfigStatus.hasUrl ? "EXPO_PUBLIC_SUPABASE_URL" : null,
+    !supabaseConfigStatus.hasAnonKey ? "EXPO_PUBLIC_SUPABASE_ANON_KEY" : null,
+  ].filter(Boolean);
+
+  // Log missing variables in dev mode only
+  if (__DEV__) {
+    console.error('[Supabase] Missing environment variables:', missingVars.join(', '));
+    console.error('[Supabase] Please add these variables to your .env file and restart the app');
+  }
+
+  return (
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={styles.errorContainer}>
+        <View style={styles.errorContent}>
+          <Text style={styles.errorTitle}>
+            Safe Space needs configuration
+          </Text>
+          <Text style={styles.errorMessage}>
+            Supabase settings are missing.
+          </Text>
+          {__DEV__ && (
+            <Text style={styles.errorDetails}>
+              Missing: {missingVars.join(" and ")}
+            </Text>
+          )}
+        </View>
+        <SystemBars style="light" />
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }
 
@@ -373,43 +408,15 @@ export default function RootLayout() {
     return () => clearTimeout(timer);
   }, []);
 
+  // CHECK SUPABASE CONFIG FIRST - before any other rendering
+  // This prevents white screen by always rendering something
+  if (!supabaseConfigStatus.hasUrl || !supabaseConfigStatus.hasAnonKey) {
+    return <SupabaseConfigError />;
+  }
+
   // Show loading fallback before app is ready
   if (!appReady) {
     return <LoadingFallback />;
-  }
-
-  if (!supabaseConfigStatus.hasUrl || !supabaseConfigStatus.hasAnonKey) {
-    const missingVars = [
-      !supabaseConfigStatus.hasUrl ? "EXPO_PUBLIC_SUPABASE_URL" : null,
-      !supabaseConfigStatus.hasAnonKey ? "EXPO_PUBLIC_SUPABASE_ANON_KEY" : null,
-    ].filter(Boolean);
-
-    return (
-      <SafeAreaProvider>
-        <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0b172a" }}>
-          <View
-            style={{
-              flex: 1,
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 24,
-              gap: 12,
-            }}
-          >
-            <Text style={{ fontSize: 22, fontWeight: "700", color: "white", textAlign: "center" }}>
-              Safe Space needs configuration
-            </Text>
-            <Text style={{ fontSize: 16, color: "#d1d5db", textAlign: "center" }}>
-              We couldn't start the app because the Supabase settings are missing.
-            </Text>
-            <Text style={{ fontSize: 14, color: "#9ca3af", textAlign: "center" }}>
-              Add {missingVars.join(" and ")} to your environment and reload.
-            </Text>
-          </View>
-          <SystemBars style="light" />
-        </GestureHandlerRootView>
-      </SafeAreaProvider>
-    );
   }
 
   // WidgetProvider must wrap the entire app tree so hooks always have context
@@ -429,3 +436,45 @@ export default function RootLayout() {
     </WidgetProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  fallbackContainer: {
+    flex: 1,
+    backgroundColor: '#0b172a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fallbackText: {
+    color: '#ffffff',
+    marginTop: 16,
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#0b172a',
+  },
+  errorContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 12,
+  },
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: 'white',
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#d1d5db',
+    textAlign: 'center',
+  },
+  errorDetails: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+});

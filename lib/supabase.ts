@@ -17,7 +17,7 @@ let hasLoggedMissingConfigWarning = false;
 const resolveMissingConfig = async () => {
   const error = new Error(missingConfigMessage);
   if (__DEV__ && !hasLoggedMissingConfigWarning) {
-    console.error('[Supabase]', error.message);
+    console.warn('[Supabase] Configuration missing - operations will fail gracefully');
     hasLoggedMissingConfigWarning = true;
   }
 
@@ -40,6 +40,9 @@ const createSupabaseFallback = (): SupabaseClient<any, any, any> =>
     from: () => createQueryBuilderStub(),
     channel: () => createQueryBuilderStub(),
     rpc: () => resolveMissingConfig(),
+    functions: {
+      invoke: () => resolveMissingConfig(),
+    },
   } as unknown as SupabaseClient<any, any, any>);
 
 const supabaseClient = hasSupabaseConfig
@@ -53,12 +56,16 @@ const supabaseClient = hasSupabaseConfig
     })
   : createSupabaseFallback();
 
-if (hasSupabaseConfig) {
-  console.log('[Supabase] Client initialized successfully');
-} else {
-  console.log('[Supabase] Missing environment variables!');
-  console.log('[Supabase] URL:', supabaseUrl ? 'Present' : 'MISSING');
-  console.log('[Supabase] Key:', supabaseAnonKey ? 'Present' : 'MISSING');
+// Log configuration status only in dev mode
+if (__DEV__) {
+  if (hasSupabaseConfig) {
+    console.log('[Supabase] Client initialized successfully');
+  } else {
+    console.warn('[Supabase] ⚠️  Missing environment variables!');
+    console.warn('[Supabase] URL:', supabaseUrl ? 'Present' : 'MISSING');
+    console.warn('[Supabase] Key:', supabaseAnonKey ? 'Present' : 'MISSING');
+    console.warn('[Supabase] App will show configuration error screen');
+  }
 }
 
 // Create and export a single Supabase client instance
