@@ -197,6 +197,9 @@ export default function ChatScreen() {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
+  // NEW: Rate limiting for memory refresh pings
+  const lastMemoryPingRef = useRef<number>(0);
+
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
     if (initialSubject && initialSubject.trim()) {
@@ -272,6 +275,55 @@ export default function ChatScreen() {
       avatarSource: persona.image,
     };
   }, [preferences.therapist_persona_id]);
+
+  // NEW: Helper function to ping memory refresh (rate-limited)
+  const pingMemoryRefresh = useCallback(async (userId: string, personId: string) => {
+    const now = Date.now();
+    const timeSinceLastPing = now - lastMemoryPingRef.current;
+    
+    // Rate limit: only ping if > 5 seconds since last ping
+    if (timeSinceLastPing < 5000) {
+      if (__DEV__) {
+        console.log('[Chat] Memory refresh ping skipped (rate limited)');
+      }
+      return;
+    }
+    
+    try {
+      if (__DEV__) {
+        console.log('[Chat] Pinging memory refresh...');
+      }
+      
+      // Update the updated_at timestamp in person_chat_summaries
+      // This will signal the Memories screen to refresh
+      const { error } = await supabase
+        .from('person_chat_summaries')
+        .upsert({
+          user_id: userId,
+          person_id: personId,
+          updated_at: new Date().toISOString(),
+        }, { 
+          onConflict: 'user_id, person_id',
+          ignoreDuplicates: false,
+        });
+      
+      if (error) {
+        if (__DEV__) {
+          console.log('[Chat] Memory refresh ping error (silent):', error);
+        }
+      } else {
+        lastMemoryPingRef.current = now;
+        if (__DEV__) {
+          console.log('[Chat] Memory refresh ping successful');
+        }
+      }
+    } catch (err) {
+      // Silent failure - never crash the chat
+      if (__DEV__) {
+        console.log('[Chat] Memory refresh ping exception (silent):', err);
+      }
+    }
+  }, []);
 
   // Safe backfill function - updates NULL/empty subjects to 'General'
   const backfillSubjects = useCallback(async () => {
@@ -570,6 +622,9 @@ export default function ChatScreen() {
           // AWAIT the upsert to ensure it completes
           await upsertPersonMemories(userId, personId, extractedMemories);
           console.log('[Chat] Local memories upserted successfully');
+          
+          // Ping memory refresh after successful upsert
+          await pingMemoryRefresh(userId, personId);
           
           // Show subtle confirmation indicator ONLY after successful upsert
           if (isMountedRef.current) {
@@ -929,6 +984,11 @@ export default function ChatScreen() {
           
           console.log('[Chat] Memory extraction complete');
           
+          // Ping memory refresh after successful extraction
+          if (!extractionResult.error) {
+            await pingMemoryRefresh(userId, personId);
+          }
+          
           // Show subtle confirmation indicator if memories were extracted
           // Note: We don't check the exact count to avoid exposing internal logic
           // The indicator shows regardless of whether new memories were added or existing ones were updated
@@ -967,7 +1027,7 @@ export default function ChatScreen() {
         isGeneratingRef.current = false;
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, pingMemoryRefresh]);
 
   // NEW: Retry handler for failed messages (moved BELOW sendMessage)
   const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
