@@ -1,5 +1,5 @@
 
-import { getSupabaseConfig, supabaseReady, supabaseConfigError } from '@/lib/supabase';
+import { getSupabaseConfig, isSupabaseReady, supabaseReady, supabaseConfigError } from '@/lib/supabase';
 
 /**
  * Utility functions for checking Supabase configuration status
@@ -21,9 +21,10 @@ export function getConfigDetails() {
     isReady: supabaseReady,
     error: supabaseConfigError,
     url: config.url,
-    hasKey: config.hasKey,
+    hasKey: !!config.anonKey,
     isValid: config.isValid,
-    platform: config.platform,
+    source: config.source,
+    problems: config.problems,
   };
 }
 
@@ -42,10 +43,13 @@ export function logConfigStatus() {
   console.log(`URL Present: ${details.url ? '✅' : '❌'}`);
   console.log(`Key Present: ${details.hasKey ? '✅' : '❌'}`);
   console.log(`Valid: ${details.isValid ? '✅' : '❌'}`);
-  console.log(`Platform: ${details.platform}`);
+  console.log(`Source: ${details.source || 'none'}`);
   
-  if (details.error) {
-    console.log(`Error: ${details.error}`);
+  if (details.problems && details.problems.length > 0) {
+    console.log(`Problems:`);
+    details.problems.forEach((problem) => {
+      console.log(`  - ${problem}`);
+    });
   }
   
   if (details.url) {

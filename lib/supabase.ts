@@ -1,92 +1,169 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 // ============================================================================
-// STRICT RUNTIME VALIDATION FOR SUPABASE CONFIGURATION
+// ROBUST SUPABASE CONFIGURATION WITH MULTIPLE SOURCES
 // ============================================================================
 
-// Read environment variables (NO FALLBACK - we want to catch misconfigurations)
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-// Validation function
-function validateSupabaseConfig(): { isValid: boolean; error?: string } {
-  // Check if variables exist
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return {
-      isValid: false,
-      error: 'Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY environment variables',
-    };
-  }
-
-  // Check if variables are not empty strings
-  if (supabaseUrl.trim() === '' || supabaseAnonKey.trim() === '') {
-    return {
-      isValid: false,
-      error: 'EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY cannot be empty',
-    };
-  }
-
-  // Validate URL format
-  if (!supabaseUrl.startsWith('https://')) {
-    return {
-      isValid: false,
-      error: 'EXPO_PUBLIC_SUPABASE_URL must start with https://',
-    };
-  }
-
-  if (!supabaseUrl.includes('supabase.co')) {
-    return {
-      isValid: false,
-      error: 'EXPO_PUBLIC_SUPABASE_URL must contain "supabase.co"',
-    };
-  }
-
-  return { isValid: true };
+/**
+ * Configuration result interface
+ */
+export interface SupabaseConfig {
+  url?: string;
+  anonKey?: string;
+  isValid: boolean;
+  problems: string[];
+  source: 'env' | 'extra' | null;
 }
 
-// Perform validation at module load time (once)
-const validation = validateSupabaseConfig();
+/**
+ * Get Supabase configuration from multiple sources with fallbacks
+ * Priority: process.env → Constants.expoConfig.extra
+ */
+export function getSupabaseConfig(): SupabaseConfig {
+  const problems: string[] = [];
+  let url: string | undefined;
+  let anonKey: string | undefined;
+  let source: 'env' | 'extra' | null = null;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SOURCE 1: Read from process.env (primary source)
+  // ═══════════════════════════════════════════════════════════════════
+  const envUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const envAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (envUrl && envAnonKey) {
+    url = envUrl;
+    anonKey = envAnonKey;
+    source = 'env';
+    
+    if (__DEV__) {
+      console.log('[Supabase Config] ✅ Found credentials in process.env');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SOURCE 2: Fallback to Constants.expoConfig.extra (for preview environments)
+  // ═══════════════════════════════════════════════════════════════════
+  if (!url || !anonKey) {
+    // Try EXPO_PUBLIC_ prefixed keys first
+    const extraUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL;
+    const extraAnonKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (extraUrl && extraAnonKey) {
+      url = extraUrl;
+      anonKey = extraAnonKey;
+      source = 'extra';
+      
+      if (__DEV__) {
+        console.log('[Supabase Config] ✅ Found credentials in Constants.expoConfig.extra (EXPO_PUBLIC_ prefix)');
+      }
+    } else {
+      // Try without EXPO_PUBLIC_ prefix (legacy support)
+      const legacyUrl = Constants.expoConfig?.extra?.supabaseUrl;
+      const legacyAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey;
+
+      if (legacyUrl && legacyAnonKey) {
+        url = legacyUrl;
+        anonKey = legacyAnonKey;
+        source = 'extra';
+        
+        if (__DEV__) {
+          console.log('[Supabase Config] ✅ Found credentials in Constants.expoConfig.extra (legacy keys)');
+        }
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // VALIDATION: Check if credentials exist
+  // ═══════════════════════════════════════════════════════════════════
+  if (!url) {
+    problems.push('Missing EXPO_PUBLIC_SUPABASE_URL');
+  }
+  if (!anonKey) {
+    problems.push('Missing EXPO_PUBLIC_SUPABASE_ANON_KEY');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // VALIDATION: Normalize and validate URL format
+  // ═══════════════════════════════════════════════════════════════════
+  if (url) {
+    // Trim whitespace
+    url = url.trim();
+
+    // Check if URL starts with https://
+    if (!url.startsWith('https://')) {
+      problems.push('EXPO_PUBLIC_SUPABASE_URL must start with https://');
+    }
+
+    // Check if URL contains supabase.co (basic sanity check)
+    if (!url.includes('supabase.co')) {
+      problems.push('EXPO_PUBLIC_SUPABASE_URL must contain "supabase.co"');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // VALIDATION: Validate anon key is non-empty
+  // ═══════════════════════════════════════════════════════════════════
+  if (anonKey) {
+    // Trim whitespace
+    anonKey = anonKey.trim();
+
+    // Check if key is empty after trimming
+    if (anonKey.length === 0) {
+      problems.push('EXPO_PUBLIC_SUPABASE_ANON_KEY cannot be empty');
+    }
+  }
+
+  const isValid = problems.length === 0;
+
+  return {
+    url,
+    anonKey,
+    isValid,
+    problems,
+    source,
+  };
+}
+
+// ============================================================================
+// INITIALIZE CONFIGURATION AT MODULE LOAD TIME
+// ============================================================================
+const config = getSupabaseConfig();
 
 // ============================================================================
 // CREATE SUPABASE CLIENT OR NULL
 // ============================================================================
-
 let supabase: SupabaseClient | null = null;
-let supabaseReady = false;
-let supabaseConfigError: string | undefined = undefined;
 
-if (!validation.isValid) {
+if (!config.isValid) {
   // Configuration is invalid - do NOT create a client
-  console.warn('[Supabase] Missing env vars');
-  console.warn(`[Supabase] ${validation.error}`);
+  if (__DEV__) {
+    console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.warn('[Supabase] ❌ Configuration validation FAILED');
+    console.warn('[Supabase] Problems:', config.problems);
+    console.warn('[Supabase] URL present:', !!config.url);
+    console.warn('[Supabase] Key present:', !!config.anonKey);
+    console.warn('[Supabase] Source:', config.source || 'none');
+    if (config.url) {
+      console.warn('[Supabase] URL value:', config.url);
+    }
+    console.warn('[Supabase] supabase = null');
+    console.warn('[Supabase] supabaseReady = false');
+    console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  }
   
   supabase = null;
-  supabaseReady = false;
-  supabaseConfigError = validation.error;
-
-  // Log detailed status in DEV
-  if (__DEV__) {
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error('[Supabase] ❌ Configuration validation FAILED');
-    console.error(`[Supabase] Error: ${validation.error}`);
-    console.error('[Supabase] URL present:', !!supabaseUrl);
-    console.error('[Supabase] Key present:', !!supabaseAnonKey);
-    if (supabaseUrl) {
-      console.error('[Supabase] URL value:', supabaseUrl);
-    }
-    console.error('[Supabase] supabase = null');
-    console.error('[Supabase] supabaseReady = false');
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  }
 } else {
-  // ============================================================================
+  // ═══════════════════════════════════════════════════════════════════
   // VALID CONFIGURATION - CREATE PRODUCTION CLIENT
-  // ============================================================================
+  // ═══════════════════════════════════════════════════════════════════
   
-  supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
+  supabase = createClient(config.url!, config.anonKey!, {
     auth: {
       storage: AsyncStorage,
       autoRefreshToken: true,
@@ -97,40 +174,56 @@ if (!validation.isValid) {
     },
   });
 
-  supabaseReady = true;
-  supabaseConfigError = undefined;
-
   // Log successful initialization (DEV only)
   if (__DEV__) {
-    // Extract hostname from URL
-    const urlHost = new URL(supabaseUrl).hostname;
-    // Get last 6 characters of anon key
-    const anonKeySuffix = supabaseAnonKey.slice(-6);
-    
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('[Supabase] ✅ Configuration validated successfully');
-    console.log(`[Supabase] 🌐 urlHost=${urlHost}`);
-    console.log(`[Supabase] 🔑 anon=…${anonKeySuffix}`);
-    console.log('[Supabase] ✅ Client initialized and ready for use');
-    console.log('[Supabase] ✅ Auth session persistence: ENABLED');
-    console.log('[Supabase] ✅ Auto token refresh: ENABLED');
-    console.log(`[Supabase] ✅ Session URL detection: ${Platform.OS === 'web' ? 'ENABLED (web)' : 'DISABLED (native)'}`);
-    console.log('[Supabase] supabaseReady = true');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    try {
+      // Extract hostname from URL
+      const urlHost = new URL(config.url!).hostname;
+      // Get last 6 characters of anon key
+      const anonKeySuffix = config.anonKey!.slice(-6);
+      
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('[Supabase] ✅ Configuration validated successfully');
+      console.log(`[Supabase] 🌐 urlHost=${urlHost}`);
+      console.log(`[Supabase] 🔑 anon=…${anonKeySuffix}`);
+      console.log(`[Supabase] 📍 source=${config.source}`);
+      console.log('[Supabase] ✅ Client initialized and ready for use');
+      console.log('[Supabase] ✅ Auth session persistence: ENABLED');
+      console.log('[Supabase] ✅ Auto token refresh: ENABLED');
+      console.log(`[Supabase] ✅ Session URL detection: ${Platform.OS === 'web' ? 'ENABLED (web)' : 'DISABLED (native)'}`);
+      console.log('[Supabase] supabaseReady = true');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    } catch (e) {
+      console.log('[Supabase] ✅ Client initialized (could not parse URL for logging)');
+    }
   }
+}
+
+// ============================================================================
+// READINESS FUNCTION
+// ============================================================================
+
+/**
+ * Check if Supabase is properly configured and ready to use
+ * @returns true if Supabase client is initialized and ready
+ */
+export function isSupabaseReady(): boolean {
+  return config.isValid && supabase !== null;
 }
 
 // ============================================================================
 // EXPORTS
 // ============================================================================
 
-export { supabase, supabaseReady, supabaseConfigError };
+export { supabase };
 
-// Export configuration details for debugging
-export const getSupabaseConfig = () => ({
-  url: supabaseUrl,
-  hasKey: !!supabaseAnonKey,
-  isValid: validation.isValid,
-  error: validation.error,
-  platform: Platform.OS,
-});
+/**
+ * Boolean flag indicating if Supabase is ready
+ * Computed from isSupabaseReady() for convenience
+ */
+export const supabaseReady = isSupabaseReady();
+
+/**
+ * Configuration error message (if any)
+ */
+export const supabaseConfigError = config.isValid ? undefined : config.problems.join(', ');

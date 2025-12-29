@@ -4,8 +4,20 @@ import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { getSupabaseConfig } from '@/lib/supabase';
 
+// Default colors for when theme context is not available
+const DEFAULT_COLORS = {
+  background: '#FFFFFF',
+  text: '#000000',
+  card: '#F5F5F5',
+  primary: '#007AFF',
+  textSecondary: '#666666',
+};
+
 export default function SupabaseSetupInstructions() {
-  const { colors } = useThemeContext();
+  // Guard against undefined theme context during early boot
+  const themeContext = useThemeContext();
+  const colors = themeContext?.colors ?? DEFAULT_COLORS;
+  
   const config = getSupabaseConfig();
 
   return (
@@ -19,14 +31,16 @@ export default function SupabaseSetupInstructions() {
           The app cannot start because Supabase environment variables are missing or invalid.
         </Text>
 
-        {config.error && (
+        {config.problems.length > 0 && (
           <View style={[styles.errorBox, { backgroundColor: colors.card, borderColor: '#ff4444' }]}>
             <Text style={[styles.errorTitle, { color: '#ff4444' }]}>
-              ❌ Configuration Error
+              ❌ Configuration Errors
             </Text>
-            <Text style={[styles.errorText, { color: colors.text }]}>
-              {config.error}
-            </Text>
+            {config.problems.map((problem, index) => (
+              <Text key={index} style={[styles.errorText, { color: colors.text }]}>
+                • {problem}
+              </Text>
+            ))}
           </View>
         )}
 
@@ -44,10 +58,13 @@ export default function SupabaseSetupInstructions() {
               </Text>
             )}
             <Text style={[styles.statusText, { color: colors.text }]}>
-              EXPO_PUBLIC_SUPABASE_ANON_KEY: {config.hasKey ? '✅ Present' : '❌ Missing'}
+              EXPO_PUBLIC_SUPABASE_ANON_KEY: {config.anonKey ? '✅ Present' : '❌ Missing'}
             </Text>
             <Text style={[styles.statusText, { color: colors.text }]}>
               Valid Configuration: {config.isValid ? '✅ Yes' : '❌ No'}
+            </Text>
+            <Text style={[styles.statusText, { color: colors.text }]}>
+              Source: {config.source || 'none'}
             </Text>
             <Text style={[styles.statusText, { color: colors.text }]}>
               Platform: {Platform.OS}
@@ -135,6 +152,9 @@ export default function SupabaseSetupInstructions() {
           <Text style={[styles.text, { color: colors.text }]}>
             • Check the console logs for the actual values being read
           </Text>
+          <Text style={[styles.text, { color: colors.text }]}>
+            • Current source: {config.source || 'none detected'}
+          </Text>
         </View>
       </View>
     </ScrollView>
@@ -181,6 +201,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 14,
     lineHeight: 20,
+    marginBottom: 4,
   },
   statusBox: {
     padding: 16,
