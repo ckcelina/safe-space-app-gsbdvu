@@ -43,6 +43,13 @@ import { invokeEdgeSafe, copyDebugToClipboard } from '@/lib/supabase/invokeEdge'
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
 import { getPersonaById } from '@/constants/TherapistPersonas';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
+import {
+  isTransientAIError,
+  logAIError,
+  getRetryDelay,
+  formatAIErrorMessage,
+  extractAssistantText,
+} from '@/utils/aiErrorHandling';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -204,40 +211,6 @@ function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageLi
 // NEW: Generate temporary ID for optimistic messages
 function generateTempId(): string {
   return `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// STEP B: Helper function to extract assistant text from various response formats
-// ═══════════════════════════════════════════════════════════════════
-function extractAssistantText(result: any): string | null {
-  // If result is a string, use it directly
-  if (typeof result === 'string') {
-    const trimmed = result.trim();
-    return trimmed || null;
-  }
-
-  // Check various possible locations for the text
-  const possiblePaths = [
-    result?.content,
-    result?.text,
-    result?.message?.content,
-    result?.message?.text,
-    result?.data?.content,
-    result?.data?.text,
-    result?.choices?.[0]?.message?.content,
-    result?.reply, // Our Edge Function returns { reply: "..."}
-  ];
-
-  for (const path of possiblePaths) {
-    if (typeof path === 'string') {
-      const trimmed = path.trim();
-      if (trimmed) {
-        return trimmed;
-      }
-    }
-  }
-
-  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -708,7 +681,7 @@ export default function ChatScreen() {
   }, [authUser?.id, personId]);
 
   // ═══════════════════════════════════════════════════════════════════
-  // MAIN SEND MESSAGE FUNCTION - FIXED FOR FIRST-SEND RELIABILITY
+  // MAIN SEND MESSAGE FUNCTION - WITH RETRY LOGIC AND ENHANCED ERROR HANDLING
   // ═══════════════════════════════════════════════════════════════════
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -739,16 +712,6 @@ export default function ChatScreen() {
     console.log('[Chat] sendMessage: Starting send process');
     console.log('[Chat] Current subject:', currentSubject);
     console.log('[Chat] chatId (personId):', personId);
-    
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 3: Ensure conversation_id exists (personId is our conversation_id)
-    // Already validated above - personId is required
-    // ═══════════════════════════════════════════════════════════════════
-    
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 3: Ensure therapist prompt is loaded (from preferences)
-    // Already available via preferences.therapist_persona_id
-    // ═══════════════════════════════════════════════════════════════════
     
     // Get current therapist metadata for this message
     const therapistMeta = getCurrentTherapistMetadata();
@@ -913,25 +876,9 @@ export default function ChatScreen() {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // STEP A.1: Log BEFORE calling AI generation
+      // AI GENERATION WITH RETRY LOGIC
       // ═══════════════════════════════════════════════════════════════════
-      if (__DEV__) {
-        console.log('[AI_REQUEST]', {
-          conversation_id: personId,
-          user_id: userId,
-          messageLength: userMessageText.length,
-        });
-      }
-
-      console.log('[Chat] Calling AI Edge Function...');
       
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL FIX: Set typing indicator BEFORE calling AI
-      // ═══════════════════════════════════════════════════════════════════
-      if (isMountedRef.current) {
-        setIsGenerating(true); // Show typing indicator
-      }
-
       // Filter messages for current subject and prepare for AI
       const subjectMessages = nextMessages.filter((msg) => {
         const msgSubject = msg.subject || 'General';
@@ -946,6 +893,22 @@ export default function ChatScreen() {
           createdAt: msg.created_at,
         }));
 
+      const lastAssistantMessage = subjectMessages
+        .filter((m) => m.role === 'assistant')
+        .slice(-1)[0];
+
+      // Prepare AI request payload
+      const aiPayload = {
+        userId,
+        personId,
+        personName,
+        personRelationshipType: relationshipType || 'Unknown',
+        messages: recentMessages,
+        currentSubject: currentSubject,
+        aiToneId: preferences.ai_tone_id,
+        aiScienceMode: preferences.ai_science_mode,
+      };
+
       console.log('[Chat] Sending to AI:', {
         chatId: personId,
         messageCount: recentMessages.length,
@@ -955,135 +918,139 @@ export default function ChatScreen() {
         aiScienceMode: preferences.ai_science_mode,
       });
 
-      const lastAssistantMessage = subjectMessages
-        .filter((m) => m.role === 'assistant')
-        .slice(-1)[0];
+      // ═══════════════════════════════════════════════════════════════════
+      // RETRY LOOP: Try once, retry once on transient failure
+      // ═══════════════════════════════════════════════════════════════════
+      let result: any = null;
+      let lastError: any = null;
+      let retryAttempt = 0;
+      const maxRetries = 1; // One retry
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 4: Call AI generation using nextMessages (NOT stale state)
-      // ═══════════════════════════════════════════════════════════════════
-      const result = await invokeEdgeSafe('generate-ai-response', {
-        userId,
-        personId,
-        personName,
-        personRelationshipType: relationshipType || 'Unknown',
-        messages: recentMessages,
-        currentSubject: currentSubject,
-        aiToneId: preferences.ai_tone_id,
-        aiScienceMode: preferences.ai_science_mode,
-      });
+      while (retryAttempt <= maxRetries) {
+        try {
+          // Log AI request stage
+          if (__DEV__) {
+            logAIError('AI_REQUEST', {}, {
+              conversationId: personId,
+              userId,
+              messageCount: recentMessages.length,
+              attempt: retryAttempt + 1,
+            });
+          }
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP A.2: Log IMMEDIATELY after AI generation call returns
-      // ═══════════════════════════════════════════════════════════════════
-      if (__DEV__) {
-        console.log('[AI_RESPONSE]', {
-          type: typeof result,
-          keys: result ? Object.keys(result) : [],
-          content: result?.content,
-          text: result?.text,
-          message: result?.message,
-          data: result?.data,
-        });
+          // Call AI generation
+          result = await invokeEdgeSafe('generate-ai-response', aiPayload);
 
-        // Check if we got usable text
-        const extractedText = extractAssistantText(result?.data || result);
-        if (!extractedText) {
-          console.log('[AI_RETURNED_EMPTY]');
+          // Check if successful
+          if (result.ok) {
+            console.log('[Chat] AI generation succeeded on attempt', retryAttempt + 1);
+            break; // Success - exit retry loop
+          }
+
+          // Failed - check if transient
+          lastError = result.error;
+          
+          // Log error
+          if (__DEV__) {
+            logAIError('EDGE_FUNCTION_INVOKE', result.error, {
+              conversationId: personId,
+              userId,
+              messageCount: recentMessages.length,
+              attempt: retryAttempt + 1,
+            });
+          }
+
+          // Check if we should retry
+          if (isTransientAIError(result.error) && retryAttempt < maxRetries) {
+            const delay = getRetryDelay(600, 1200);
+            console.log(`[Chat] Transient error detected, retrying in ${delay}ms...`);
+            
+            // Log retry
+            if (__DEV__) {
+              logAIError('AI_RETRY', result.error, {
+                conversationId: personId,
+                userId,
+                attempt: retryAttempt + 2,
+              });
+            }
+
+            await new Promise(resolve => setTimeout(resolve, delay));
+            retryAttempt++;
+            continue; // Retry
+          }
+
+          // Non-transient error or max retries reached
+          break;
+        } catch (unexpectedError: any) {
+          // Unexpected error during AI call
+          lastError = unexpectedError;
+          
+          if (__DEV__) {
+            logAIError('EDGE_FUNCTION_INVOKE', unexpectedError, {
+              conversationId: personId,
+              userId,
+              messageCount: recentMessages.length,
+              attempt: retryAttempt + 1,
+            });
+          }
+
+          // Check if we should retry
+          if (isTransientAIError(unexpectedError) && retryAttempt < maxRetries) {
+            const delay = getRetryDelay(600, 1200);
+            console.log(`[Chat] Unexpected transient error, retrying in ${delay}ms...`);
+            
+            await new Promise(resolve => setTimeout(resolve, delay));
+            retryAttempt++;
+            continue; // Retry
+          }
+
+          // Non-transient error or max retries reached
+          break;
         }
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // STEP B & C: Extract and normalize assistant text, create optimistic message
+      // HANDLE AI RESULT OR ERROR
       // ═══════════════════════════════════════════════════════════════════
-      
-      // STEP 3: Handle result - check ok flag
-      if (!result.ok) {
-        const errorCode = result.error?.code || 'UNKNOWN';
-        const errorMessage = result.error?.message || 'Unknown error';
-        const errorStatus = result.error?.status;
 
-        // ═══════════════════════════════════════════════════════════════════
-        // PRODUCTION SAFETY: Only log detailed errors in __DEV__ mode
-        // ═══════════════════════════════════════════════════════════════════
+      if (!result || !result.ok) {
+        // AI generation failed after retries
+        const errorCode = lastError?.code || 'UNKNOWN';
+        const errorMessage = lastError?.message || 'Unknown error';
+        const errorStatus = lastError?.status;
+
+        console.log('[Chat] AI generation failed after retries:', {
+          code: errorCode,
+          message: errorMessage,
+          status: errorStatus,
+        });
+
+        // Build debug info for DEV mode
         if (__DEV__) {
-          console.log('[Chat] Edge Function failed:', {
-            code: errorCode,
-            message: errorMessage,
-            status: errorStatus,
-            details: result.error?.details,
-          });
-
-          // Build detailed debug string for DEV mode
           const debugString = JSON.stringify({
             functionName: 'generate-ai-response',
             timestamp: new Date().toISOString(),
             lastUserMessageId: insertedMessage.id,
-            error: result.error,
+            error: lastError,
+            attempts: retryAttempt + 1,
           }, null, 2);
 
-          // Store debug info for dev mode banner
           setDebugInfo(debugString);
-
-          // DEV-ONLY: Show clear auth error hint
-          if (errorCode === 'EDGE_AUTH' || errorStatus === 401 || errorStatus === 403) {
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('🔐 EDGE AUTH FAILED - CHECK:');
-            console.log('   1. SUPABASE_URL is correct');
-            console.log('   2. ANON_KEY is correct');
-            console.log('   3. Edge Function name is correct');
-            console.log('   4. RLS policies allow access');
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          }
         }
 
+        // Format error message for display
+        const displayMessage = formatAIErrorMessage(lastError, __DEV__);
+
         if (isMountedRef.current) {
-          // ═══════════════════════════════════════════════════════════════════
-          // STEP 4: Handle different error types gracefully
-          // ═══════════════════════════════════════════════════════════════════
-          
-          // Handle EDGE_ABORTED or EDGE_TIMEOUT - NO fallback message
-          if (errorCode === 'EDGE_ABORTED' || errorCode === 'EDGE_TIMEOUT') {
-            if (__DEV__) {
-              console.log('[Chat] Abort/Timeout detected - showing clean error, no fallback message');
-            }
-            
-            // Show non-blocking error message
-            setError('Connection interrupted. Please try again.');
-            
-            // Do NOT insert fallback assistant message
-            // Chat state remains stable (input cleared, user message remains)
-            return;
-          }
-          
-          // ═══════════════════════════════════════════════════════════════════
-          // STEP E: If AI returns empty, create error bubble with retry
-          // ═══════════════════════════════════════════════════════════════════
-          
-          let fallbackContent = "I couldn't generate a response. Tap to retry.";
-          
-          if (errorCode === 'EDGE_AUTH') {
-            fallbackContent = "I'm having trouble connecting right now. Please try logging out and back in.";
-            setError('Authentication issue. Please try logging out and back in.');
-          } else if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'FUNCTIONS_HTTP_ERROR') {
-            fallbackContent = "I'm having trouble responding right now. Please try again in a moment.";
-            setError('Service temporarily unavailable. Please try again.');
-          } else if (errorCode === 'EDGE_UNKNOWN' || errorCode === 'UNEXPECTED_ERROR' || errorCode === 'MAX_RETRIES_EXCEEDED') {
-            if (errorCode === 'MAX_RETRIES_EXCEEDED') {
-              fallbackContent = "I'm having persistent connection issues. Please check your network and try again.";
-            }
-            setError('An error occurred. Please try again.');
-          }
-          
-          // STEP C: Create optimistic AI message with temp ID
+          // Create error bubble
           const tempId = generateTempId();
-          const optimisticAiMessage: ExtendedMessage = {
+          const errorBubble: ExtendedMessage = {
             id: tempId,
             temp_id: tempId,
             user_id: userId,
             person_id: personId,
             role: 'assistant',
-            content: fallbackContent,
+            content: displayMessage,
             subject: currentSubject,
             created_at: new Date().toISOString(),
             therapist_name: therapistMeta.name,
@@ -1092,51 +1059,25 @@ export default function ChatScreen() {
             failed_to_send: true,
             retry_content: userMessageText,
           };
-          
-          // STEP C.3: Append optimistic message using mergeMessages
-          setAllMessages((prev) => mergeMessages(prev, [optimisticAiMessage]));
-          
-          // STEP A.4: Log after setMessages append
-          if (__DEV__) {
-            const lastTwo = [...prev, optimisticAiMessage]
-              .slice(-2)
-              .map(m => `${m.role}: ${(m.content || '').substring(0, 40)}`);
-            console.log('[MESSAGES_AFTER_APPEND]', lastTwo);
-          }
-          
-          // Try to persist to Supabase in background (fire-and-forget)
+
+          setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
+          setError(errorMessage);
+
+          // Try to persist error bubble in background
           supabase
             .from('messages')
             .insert({
               user_id: userId,
               person_id: personId,
               role: 'assistant',
-              content: fallbackContent,
+              content: displayMessage,
               subject: currentSubject,
               created_at: new Date().toISOString(),
             })
             .select('*')
             .single()
             .then(({ data: persistedMsg, error: persistError }) => {
-              if (persistError) {
-                console.log('[Chat] Failed to persist fallback message (non-blocking):', persistError);
-                
-                // STEP A.3: Log after insert (even if failed)
-                if (__DEV__) {
-                  console.log('[AI_INSERT_FAILED]', {
-                    error: persistError.message,
-                  });
-                }
-              } else if (persistedMsg && isMountedRef.current) {
-                // STEP A.3: Log after successful insert
-                if (__DEV__) {
-                  console.log('[AI_INSERT_SUCCESS]', {
-                    id: persistedMsg.id,
-                    created_at: persistedMsg.created_at,
-                  });
-                }
-                
-                // Replace optimistic message with persisted one
+              if (!persistError && persistedMsg && isMountedRef.current) {
                 setAllMessages((prev) => {
                   return prev.map(m => {
                     if (m.temp_id === tempId) {
@@ -1153,23 +1094,28 @@ export default function ChatScreen() {
             });
         }
 
-        // STEP 5: Return without throwing - safe error handling
-        return;
+        return; // Exit - error handled
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // SUCCESS PATH: Extract reply using STEP B helper and create optimistic message
+      // SUCCESS: Extract and display AI response
       // ═══════════════════════════════════════════════════════════════════
+      
       const aiResponse = result.data;
       
-      // STEP B: Use extractAssistantText helper to normalize response
-      let replyText = extractAssistantText(aiResponse);
-      
-      // If no text extracted, use fallback
-      if (!replyText) {
+      // Extract assistant text using hardened helper
+      let replyText: string;
+      try {
+        replyText = extractAssistantText(aiResponse);
+      } catch (extractError: any) {
+        // Failed to extract text - log and use fallback
         if (__DEV__) {
-          console.log('[Chat] No text extracted from AI response, using fallback');
+          logAIError('OPENAI_RESPONSE_PARSE', extractError, {
+            conversationId: personId,
+            userId,
+          });
         }
+
         replyText = "I'm having trouble responding right now. Please try again.";
       }
 
@@ -1182,9 +1128,7 @@ export default function ChatScreen() {
         replyText = `I hear you. Can you tell me more about what you're experiencing with ${personName}?`;
       }
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP C & D: Create optimistic AI message with BOTH text and content fields
-      // ═══════════════════════════════════════════════════════════════════
+      // Create optimistic AI message
       const tempId = generateTempId();
       const optimisticAiMessage: ExtendedMessage = {
         id: tempId,
@@ -1192,7 +1136,7 @@ export default function ChatScreen() {
         user_id: userId,
         person_id: personId,
         role: 'assistant',
-        content: replyText, // STEP D: Populate content
+        content: replyText,
         subject: currentSubject,
         created_at: new Date().toISOString(),
         therapist_name: therapistMeta.name,
@@ -1200,28 +1144,14 @@ export default function ChatScreen() {
         optimistic: true,
       };
 
-      // STEP C.3: Append optimistic message using mergeMessages
+      // Append optimistic message
       if (isMountedRef.current) {
-        setAllMessages((prev) => {
-          const merged = mergeMessages(prev, [optimisticAiMessage]);
-          
-          // STEP A.4: Log after setMessages append
-          if (__DEV__) {
-            const lastTwo = merged
-              .slice(-2)
-              .map(m => `${m.role}: ${(m.content || '').substring(0, 40)}`);
-            console.log('[MESSAGES_AFTER_APPEND]', lastTwo);
-          }
-          
-          return merged;
-        });
+        setAllMessages((prev) => mergeMessages(prev, [optimisticAiMessage]));
       }
 
       console.log('[Chat] Optimistic AI message added to UI');
 
-      // ═══════════════════════════════════════════════════════════════════
-      // BACKGROUND PERSISTENCE: Try to persist to Supabase
-      // ═══════════════════════════════════════════════════════════════════
+      // Persist to Supabase in background
       console.log('[Chat] Persisting AI message to Supabase...');
       const { data: aiInserted, error: aiInsertError } = await supabase
         .from('messages')
@@ -1239,24 +1169,9 @@ export default function ChatScreen() {
       if (aiInsertError || !aiInserted) {
         if (__DEV__) {
           console.log('[Chat] Insert AI message error (non-blocking):', aiInsertError);
-          
-          // STEP A.3: Log after insert failure
-          console.log('[AI_INSERT_FAILED]', {
-            error: aiInsertError?.message,
-          });
         }
-        // Don't show error - optimistic message is already in UI
-        // User can retry if needed
       } else {
         console.log('[Chat] AI message persisted:', aiInserted.id);
-        
-        // STEP A.3: Log after successful insert
-        if (__DEV__) {
-          console.log('[AI_INSERT_SUCCESS]', {
-            id: aiInserted.id,
-            created_at: aiInserted.created_at,
-          });
-        }
 
         // Replace optimistic message with persisted one
         if (isMountedRef.current) {
@@ -1326,9 +1241,13 @@ export default function ChatScreen() {
         }
       })();
     } catch (err: any) {
-      // Only log detailed errors in __DEV__ mode
+      // Unexpected error in sendMessage
       if (__DEV__) {
         console.log('[Chat] sendMessage unexpected error:', err);
+        logAIError('AI_REQUEST', err, {
+          conversationId: personId,
+          userId,
+        });
       }
       
       if (isMountedRef.current) {
@@ -1337,7 +1256,7 @@ export default function ChatScreen() {
       }
     } finally {
       // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: Always reset flags in finally block (STEP 1 cleanup)
+      // CRITICAL: Always reset flags in finally block (STEP 4)
       // ═══════════════════════════════════════════════════════════════════
       if (isMountedRef.current) {
         isGeneratingRef.current = false;
@@ -1348,7 +1267,7 @@ export default function ChatScreen() {
   }, [
     authUser?.id,
     inputText,
-    isGenerating, // Added to dependencies
+    isGenerating,
     personId,
     personName,
     relationshipType,

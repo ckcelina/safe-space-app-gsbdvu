@@ -36,7 +36,7 @@ export type InvokeEdgeSafeResult<T = any> = {
 const MAX_RETRIES = 2;
 const RETRY_DELAYS = [250, 800]; // ms - exponential backoff
 const TIMEOUT_MS = 45000; // 45 seconds (increased from 20s for mobile networks + cold starts)
-const TRANSIENT_STATUS_CODES = [502, 503, 504];
+const TRANSIENT_STATUS_CODES = [429, 502, 503, 504]; // Added 429 for rate limiting
 
 function safeJsonParse(text: string) {
   try {
@@ -73,11 +73,36 @@ export async function copyDebugToClipboard(text: any): Promise<boolean> {
 }
 
 /**
+ * Check if an error is transient and should be retried
+ */
+function isTransientError(error: any): boolean {
+  const status = error?.status;
+  const message = error?.message?.toLowerCase() || '';
+  
+  // Check status codes
+  if (status && TRANSIENT_STATUS_CODES.includes(status)) {
+    return true;
+  }
+  
+  // Check error messages for network/timeout issues
+  if (
+    message.includes('timeout') ||
+    message.includes('network') ||
+    message.includes('failed to fetch') ||
+    message.includes('network request failed')
+  ) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * NEW: Safe wrapper around supabase.functions.invoke with retry logic and timeout
  * 
  * Features:
  * - Never throws - always returns { ok, data?, error? }
- * - Retries transient failures (502/503/504) up to 2 times with backoff
+ * - Retries transient failures (429/502/503/504/network/timeout) up to 2 times with backoff
  * - Implements 45s timeout to prevent hanging (increased from 20s)
  * - Retries timeout errors once before giving up
  * - Extracts detailed error information for debugging
@@ -167,10 +192,10 @@ export async function invokeEdgeSafe<T = any>(
         }
 
         // Check if this is a transient error that should be retried
-        if (status && TRANSIENT_STATUS_CODES.includes(status) && attempt < MAX_RETRIES) {
+        if (isTransientError({ status, message: (error as any)?.message }) && attempt < MAX_RETRIES) {
           const delay = RETRY_DELAYS[attempt];
           if (__DEV__) {
-            console.log(`[invokeEdgeSafe] Transient error ${status}, retrying in ${delay}ms...`);
+            console.log(`[invokeEdgeSafe] Transient error ${status || 'network'}, retrying in ${delay}ms...`);
           }
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
@@ -275,8 +300,8 @@ export async function invokeEdgeSafe<T = any>(
         return {
           ok: false,
           error: {
-            code: 'EDGE_ABORTED',
-            message: 'Request cancelled or timed out',
+            code: 'EDGE_TIMEOUT',
+            message: 'Request timed out',
             details: { 
               attempt: attempt + 1,
               timeoutMs: TIMEOUT_MS,
@@ -328,7 +353,7 @@ export async function invokeEdgeSafe<T = any>(
         }
 
         // Check if this is a transient error that should be retried
-        if (TRANSIENT_STATUS_CODES.includes(status) && attempt < MAX_RETRIES) {
+        if (isTransientError({ status, message: e.message }) && attempt < MAX_RETRIES) {
           const delay = RETRY_DELAYS[attempt];
           if (__DEV__) {
             console.log(`[invokeEdgeSafe] Transient HTTP error ${status}, retrying in ${delay}ms...`);
@@ -376,13 +401,7 @@ export async function invokeEdgeSafe<T = any>(
       }
 
       // Check if this is a network error that should be retried
-      const isNetworkError =
-        e.message?.includes('Failed to fetch') ||
-        e.message?.includes('Network request failed') ||
-        e.message?.includes('Network error') ||
-        e.code === 'FunctionsFetchError';
-
-      if (isNetworkError && attempt < MAX_RETRIES) {
+      if (isTransientError({ message: e?.message }) && attempt < MAX_RETRIES) {
         const delay = RETRY_DELAYS[attempt];
         if (__DEV__) {
           console.log(`[invokeEdgeSafe] Network error, retrying in ${delay}ms...`);

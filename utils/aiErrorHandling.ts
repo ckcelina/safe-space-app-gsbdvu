@@ -1,0 +1,178 @@
+
+/**
+ * AI Error Handling Utilities
+ * 
+ * Provides structured error logging, transient error detection, and retry logic
+ * specifically for AI generation failures.
+ */
+
+/**
+ * Check if an error is transient and should be retried
+ * 
+ * Transient errors include:
+ * - Network errors (timeout, connection failed)
+ * - HTTP 503 (Service Unavailable)
+ * - HTTP 502 (Bad Gateway)
+ * - HTTP 504 (Gateway Timeout)
+ * - HTTP 429 (Rate Limit)
+ */
+export function isTransientAIError(error: any): boolean {
+  const status = error?.status || error?.error?.status;
+  const code = error?.code || error?.error?.code;
+  const message = (error?.message || error?.error?.message || '').toLowerCase();
+  
+  // Check status codes
+  if (status === 429 || status === 502 || status === 503 || status === 504) {
+    return true;
+  }
+  
+  // Check error codes
+  if (code === 'EDGE_TIMEOUT' || code === 'EDGE_UNAVAILABLE' || code === 'EDGE_ABORTED') {
+    return true;
+  }
+  
+  // Check error messages
+  if (
+    message.includes('timeout') ||
+    message.includes('network') ||
+    message.includes('failed to fetch') ||
+    message.includes('connection') ||
+    message.includes('rate limit')
+  ) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Log structured error information (DEV only)
+ * 
+ * @param stage - The stage where the error occurred
+ * @param error - The error object
+ * @param context - Additional context information
+ */
+export function logAIError(
+  stage: 'AI_REQUEST' | 'EDGE_FUNCTION_INVOKE' | 'OPENAI_RESPONSE_PARSE' | 'AI_RETRY',
+  error: any,
+  context?: {
+    conversationId?: string;
+    userId?: string;
+    messageCount?: number;
+    attempt?: number;
+  }
+): void {
+  if (!__DEV__) return;
+  
+  const status = error?.status || error?.error?.status;
+  const code = error?.code || error?.error?.code;
+  const message = error?.message || error?.error?.message || 'Unknown error';
+  const details = error?.details || error?.error?.details;
+  
+  // Extract response body snippet if available
+  let bodySnippet = null;
+  if (details?.body) {
+    const bodyStr = typeof details.body === 'string' 
+      ? details.body 
+      : JSON.stringify(details.body);
+    bodySnippet = bodyStr.substring(0, 200);
+  }
+  
+  console.error(`[${stage}]`, {
+    stage,
+    code,
+    status,
+    message,
+    bodySnippet,
+    context,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * Generate a random delay with jitter for retry backoff
+ * 
+ * @param minMs - Minimum delay in milliseconds
+ * @param maxMs - Maximum delay in milliseconds
+ * @returns Random delay between min and max
+ */
+export function getRetryDelay(minMs: number = 600, maxMs: number = 1200): number {
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+}
+
+/**
+ * Format error message for display
+ * 
+ * @param error - The error object
+ * @param isDev - Whether to show detailed error (DEV mode)
+ * @returns User-friendly error message
+ */
+export function formatAIErrorMessage(error: any, isDev: boolean = false): string {
+  const status = error?.status || error?.error?.status;
+  const code = error?.code || error?.error?.code;
+  const message = error?.message || error?.error?.message || 'Unknown error';
+  
+  if (isDev) {
+    // DEV: Show detailed error with status and code
+    return `Error: ${status || code || 'UNKNOWN'} ${message}`;
+  }
+  
+  // PROD: Show friendly message
+  return "I'm having trouble responding right now. Tap to retry.";
+}
+
+/**
+ * Extract assistant text from various response formats
+ * 
+ * This function normalizes AI responses from different sources and ensures
+ * we always get a valid string or throw an error.
+ * 
+ * Supported formats:
+ * - Direct string
+ * - { content: string }
+ * - { text: string }
+ * - { message: { content: string } }
+ * - { message: { text: string } }
+ * - { data: { content: string } }
+ * - { data: { text: string } }
+ * - { choices: [{ message: { content: string } }] }
+ * - { reply: string } (our Edge Function format)
+ * 
+ * @param result - The AI response result
+ * @returns The extracted text string
+ * @throws Error if no valid text is found
+ */
+export function extractAssistantText(result: any): string {
+  // If result is a string, use it directly
+  if (typeof result === 'string') {
+    const trimmed = result.trim();
+    if (!trimmed) {
+      throw new Error('EMPTY_ASSISTANT_RESPONSE');
+    }
+    return trimmed;
+  }
+
+  // Check various possible locations for the text
+  const possiblePaths = [
+    result?.content,
+    result?.text,
+    result?.message?.content,
+    result?.message?.text,
+    result?.data?.content,
+    result?.data?.text,
+    result?.choices?.[0]?.message?.content,
+    result?.reply, // Our Edge Function returns { reply: "..."}
+  ];
+
+  for (const path of possiblePaths) {
+    if (typeof path === 'string') {
+      const trimmed = path.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  }
+
+  // No valid text found - throw error
+  throw new Error('EMPTY_ASSISTANT_RESPONSE');
+}
