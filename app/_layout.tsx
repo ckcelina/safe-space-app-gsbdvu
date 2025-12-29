@@ -1,12 +1,12 @@
 
 import "react-native-reanimated";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, View, Platform, LogBox, Text } from "react-native";
+import { useColorScheme, Alert, View, Platform, LogBox, Text, ActivityIndicator } from "react-native";
 import { useNetworkState } from "expo-network";
 import Constants from "expo-constants";
 import {
@@ -16,7 +16,7 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -88,6 +88,16 @@ if (typeof global !== 'undefined') {
   });
 }
 
+// Fallback UI component to prevent white screen
+function LoadingFallback() {
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0b172a', justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" color="#ffffff" />
+      <Text style={{ color: '#ffffff', marginTop: 16, fontSize: 16 }}>Loading...</Text>
+    </SafeAreaView>
+  );
+}
+
 // Inner component that has access to theme context
 function RootLayoutInner() {
   const colorScheme = useColorScheme();
@@ -96,6 +106,7 @@ function RootLayoutInner() {
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
+  const [appReady, setAppReady] = useState(false);
 
   // Run dev diagnostics on mount (in useEffect to avoid blocking render)
   useEffect(() => {
@@ -138,6 +149,16 @@ function RootLayoutInner() {
     }
   }, [loaded]);
 
+  // Set appReady to true after initial mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppReady(true);
+      console.log('[Startup] App ready, rendering main content');
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   React.useEffect(() => {
     try {
       if (!networkState.isConnected && networkState.isInternetReachable === false) {
@@ -151,7 +172,10 @@ function RootLayoutInner() {
     }
   }, [networkState.isConnected, networkState.isInternetReachable]);
 
-  if (!loaded) return null;
+  // Show loading fallback if fonts not loaded or app not ready
+  if (!loaded || !appReady) {
+    return <LoadingFallback />;
+  }
 
   const CustomDefaultTheme: Theme = {
     ...DefaultTheme,
@@ -337,6 +361,23 @@ function RootLayoutInner() {
 }
 
 export default function RootLayout() {
+  const [appReady, setAppReady] = useState(false);
+
+  // Set appReady to true after initial mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppReady(true);
+      console.log('[RootLayout] App initialized and ready');
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Show loading fallback before app is ready
+  if (!appReady) {
+    return <LoadingFallback />;
+  }
+
   if (!supabaseConfigStatus.hasUrl || !supabaseConfigStatus.hasAnonKey) {
     const missingVars = [
       !supabaseConfigStatus.hasUrl ? "EXPO_PUBLIC_SUPABASE_URL" : null,
@@ -359,7 +400,7 @@ export default function RootLayout() {
               Safe Space needs configuration
             </Text>
             <Text style={{ fontSize: 16, color: "#d1d5db", textAlign: "center" }}>
-              We couldn’t start the app because the Supabase settings are missing.
+              We couldn't start the app because the Supabase settings are missing.
             </Text>
             <Text style={{ fontSize: 14, color: "#9ca3af", textAlign: "center" }}>
               Add {missingVars.join(" and ")} to your environment and reload.
