@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
-  Dimensions,
+  useWindowDimensions,
   Image,
   TextInput,
   KeyboardAvoidingView,
@@ -21,8 +21,6 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
 import { getPersonaById, getPreviewContentById } from '@/constants/TherapistPersonas';
 import { showSuccessToast } from '@/utils/toast';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function CommunicationStylePreviewScreen() {
   const params = useLocalSearchParams<{
@@ -48,6 +46,7 @@ export default function CommunicationStylePreviewScreen() {
   const { theme } = useThemeContext();
   const { updatePreferences } = useUserPreferences();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
 
   const [tryItInput, setTryItInput] = useState('');
   const [tryItMessages, setTryItMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
@@ -56,6 +55,22 @@ export default function CommunicationStylePreviewScreen() {
   // Get persona data
   const persona = getPersonaById(therapistPersonaId);
   const previewContent = getPreviewContentById(therapistPersonaId);
+
+  // Responsive scaling
+  const isSmallDevice = height < 700;
+  const isLargeDevice = height > 850;
+  
+  const scale = {
+    headerHeight: isSmallDevice ? 50 : 60,
+    titleSize: Math.min(Math.max(width * 0.045, 18), 22),
+    avatarSize: isSmallDevice ? 70 : isLargeDevice ? 90 : 80,
+    nameSize: isSmallDevice ? 20 : isLargeDevice ? 26 : 24,
+    subtitleSize: isSmallDevice ? 14 : 16,
+    descriptionSize: isSmallDevice ? 14 : 15,
+    cardPadding: isSmallDevice ? 16 : isLargeDevice ? 24 : 20,
+    sectionTitleSize: isSmallDevice ? 16 : 18,
+    buttonHeight: isSmallDevice ? 50 : 56,
+  };
 
   const handleBack = useCallback(() => {
     if (router.canGoBack()) {
@@ -125,6 +140,8 @@ export default function CommunicationStylePreviewScreen() {
     );
   }
 
+  const BOTTOM_ACTION_HEIGHT = scale.buttonHeight * 2 + 12 + 32; // Two buttons + gap + padding
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -137,10 +154,10 @@ export default function CommunicationStylePreviewScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
+            {/* Compact Header */}
+            <View style={[styles.header, { height: scale.headerHeight }]}>
               <TouchableOpacity
                 onPress={handleBack}
                 style={styles.headerBackButton}
@@ -152,13 +169,13 @@ export default function CommunicationStylePreviewScreen() {
                 <IconSymbol
                   ios_icon_name="chevron.left"
                   android_material_icon_name="arrow_back"
-                  size={24}
+                  size={22}
                   color={theme.buttonText}
                 />
               </TouchableOpacity>
 
-              <Text style={[styles.headerTitle, { color: theme.buttonText }]}>
-                Preview Style
+              <Text style={[styles.headerTitle, { color: theme.buttonText, fontSize: scale.titleSize }]}>
+                Preview style
               </Text>
 
               <View style={{ width: 40 }} />
@@ -167,42 +184,102 @@ export default function CommunicationStylePreviewScreen() {
             <ScrollView
               contentContainerStyle={[
                 styles.scrollContent,
-                { paddingBottom: 60 + insets.bottom + 16 },
+                { 
+                  paddingBottom: BOTTOM_ACTION_HEIGHT + insets.bottom + 16,
+                  paddingHorizontal: Math.max(width * 0.05, 16),
+                },
               ]}
               showsVerticalScrollIndicator={false}
             >
-              {/* Therapist Info Card */}
-              <View style={[styles.infoCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+              {/* Premium Therapist Info Card */}
+              <View style={[
+                styles.infoCard, 
+                { 
+                  backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                  padding: scale.cardPadding,
+                  marginBottom: isSmallDevice ? 12 : 16,
+                }
+              ]}>
                 <View style={styles.infoHeader}>
-                  <Image
-                    source={persona.image}
-                    style={styles.avatar}
-                    resizeMode="cover"
-                    accessible={true}
-                    accessibilityLabel={`${persona.name} avatar`}
-                  />
+                  <View style={[
+                    styles.avatarContainer,
+                    {
+                      width: scale.avatarSize,
+                      height: scale.avatarSize,
+                      borderRadius: scale.avatarSize / 2,
+                    }
+                  ]}>
+                    <Image
+                      source={persona.image}
+                      style={[
+                        styles.avatar,
+                        {
+                          width: scale.avatarSize,
+                          height: scale.avatarSize,
+                          borderRadius: scale.avatarSize / 2,
+                        }
+                      ]}
+                      resizeMode="cover"
+                      accessible={true}
+                      accessibilityLabel={`${persona.name} avatar`}
+                    />
+                  </View>
                   <View style={styles.infoHeaderText}>
-                    <Text style={[styles.therapistName, { color: theme.textPrimary }]}>
+                    <Text style={[
+                      styles.therapistName, 
+                      { 
+                        color: theme.textPrimary,
+                        fontSize: scale.nameSize,
+                      }
+                    ]}>
                       {previewContent.title}
                     </Text>
-                    <Text style={[styles.styleLabel, { color: theme.primary }]}>
+                    <Text style={[
+                      styles.styleLabel, 
+                      { 
+                        color: theme.primary,
+                        fontSize: scale.subtitleSize,
+                      }
+                    ]}>
                       {previewContent.subtitle}
                     </Text>
                   </View>
                 </View>
 
-                <Text style={[styles.description, { color: theme.textSecondary }]}>
+                <Text style={[
+                  styles.description, 
+                  { 
+                    color: theme.textSecondary,
+                    fontSize: scale.descriptionSize,
+                  }
+                ]}>
                   {previewContent.description}
                 </Text>
               </View>
 
-              {/* Preview Conversation */}
-              <View style={[styles.previewCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+              {/* Example Conversation Card with Soft Background */}
+              <View style={[
+                styles.conversationPanel,
+                { 
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  padding: scale.cardPadding,
+                  marginBottom: isSmallDevice ? 12 : 16,
+                }
+              ]}>
+                <Text style={[
+                  styles.sectionTitle, 
+                  { 
+                    color: theme.textPrimary,
+                    fontSize: scale.sectionTitleSize,
+                  }
+                ]}>
                   Example conversation
                 </Text>
 
-                <View style={styles.conversationContainer}>
+                <View style={[
+                  styles.conversationContainer,
+                  { backgroundColor: theme.background + '40' }
+                ]}>
                   {previewContent.sampleChat.map((message, index) => (
                     <View key={index} style={styles.messageWrapper}>
                       <AnimatedChatBubble
@@ -220,31 +297,68 @@ export default function CommunicationStylePreviewScreen() {
 
                 {/* What this feels like */}
                 <View style={styles.quickTipsContainer}>
-                  <Text style={[styles.quickTipsTitle, { color: theme.textPrimary }]}>
+                  <Text style={[
+                    styles.quickTipsTitle, 
+                    { 
+                      color: theme.textPrimary,
+                      fontSize: scale.descriptionSize,
+                    }
+                  ]}>
                     What this feels like:
                   </Text>
                   {previewContent.quickTips.map((tip, index) => (
                     <View key={index} style={styles.quickTipRow}>
                       <Text style={[styles.quickTipBullet, { color: theme.primary }]}>•</Text>
-                      <Text style={[styles.quickTipText, { color: theme.textSecondary }]}>
+                      <Text style={[
+                        styles.quickTipText, 
+                        { 
+                          color: theme.textSecondary,
+                          fontSize: isSmallDevice ? 13 : 14,
+                        }
+                      ]}>
                         {tip}
                       </Text>
                     </View>
                   ))}
                 </View>
 
-                <Text style={[styles.disclaimer, { color: theme.textSecondary }]}>
+                <Text style={[
+                  styles.disclaimer, 
+                  { 
+                    color: theme.textSecondary,
+                    fontSize: isSmallDevice ? 11 : 12,
+                  }
+                ]}>
                   These are illustrative examples. Actual responses will vary based on your conversation.
                 </Text>
               </View>
 
               {/* Try It Section */}
-              <View style={[styles.tryItCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+              <View style={[
+                styles.tryItCard, 
+                { 
+                  backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                  padding: scale.cardPadding,
+                  marginBottom: isSmallDevice ? 12 : 16,
+                }
+              ]}>
+                <Text style={[
+                  styles.sectionTitle, 
+                  { 
+                    color: theme.textPrimary,
+                    fontSize: scale.sectionTitleSize,
+                  }
+                ]}>
                   Try it yourself
                 </Text>
 
-                <Text style={[styles.tryItDescription, { color: theme.textSecondary }]}>
+                <Text style={[
+                  styles.tryItDescription, 
+                  { 
+                    color: theme.textSecondary,
+                    fontSize: scale.descriptionSize,
+                  }
+                ]}>
                   Type a message to see how {persona.name} might respond in this style.
                 </Text>
 
@@ -275,6 +389,7 @@ export default function CommunicationStylePreviewScreen() {
                         backgroundColor: theme.background,
                         color: theme.textPrimary,
                         borderColor: theme.textSecondary + '40',
+                        fontSize: scale.descriptionSize,
                       },
                     ]}
                     placeholder={previewContent.placeholderUserPrompt}
@@ -290,31 +405,48 @@ export default function CommunicationStylePreviewScreen() {
                   <TouchableOpacity
                     style={[
                       styles.tryItButton,
-                      { backgroundColor: theme.primary },
+                      { 
+                        backgroundColor: theme.primary,
+                        height: scale.buttonHeight - 6,
+                      },
                       !tryItInput.trim() && styles.tryItButtonDisabled,
                     ]}
                     onPress={handleTryIt}
                     disabled={!tryItInput.trim()}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.tryItButtonText}>Preview response</Text>
+                    <Text style={[
+                      styles.tryItButtonText,
+                      { fontSize: isSmallDevice ? 15 : 16 }
+                    ]}>
+                      Preview response
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
             </ScrollView>
 
-            {/* Bottom Buttons */}
+            {/* Fixed Bottom Action Bar */}
             <View
               style={[
-                styles.bottomButtons,
+                styles.bottomActions,
                 {
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  paddingBottom: insets.bottom || 16,
+                  backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                  paddingBottom: insets.bottom + 16,
+                  paddingHorizontal: Math.max(width * 0.05, 16),
+                  boxShadow: '0px -2px 12px rgba(0, 0, 0, 0.08)',
+                  elevation: 8,
                 },
               ]}
             >
               <TouchableOpacity
-                style={[styles.useButton, { backgroundColor: theme.primary }]}
+                style={[
+                  styles.useButton, 
+                  { 
+                    backgroundColor: theme.primary,
+                    height: scale.buttonHeight,
+                  }
+                ]}
                 onPress={handleUseThisStyle}
                 disabled={isUpdating}
                 activeOpacity={0.7}
@@ -322,13 +454,22 @@ export default function CommunicationStylePreviewScreen() {
                 accessibilityLabel={`Use ${persona.name} as your therapist`}
                 accessibilityRole="button"
               >
-                <Text style={styles.useButtonText}>
+                <Text style={[
+                  styles.useButtonText,
+                  { fontSize: isSmallDevice ? 16 : 18 }
+                ]}>
                   {isUpdating ? 'Updating...' : 'Use this style'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.cancelButton, { borderColor: theme.textSecondary }]}
+                style={[
+                  styles.cancelButton, 
+                  { 
+                    borderColor: theme.textSecondary + '80',
+                    height: scale.buttonHeight,
+                  }
+                ]}
                 onPress={handleBack}
                 disabled={isUpdating}
                 activeOpacity={0.7}
@@ -336,7 +477,13 @@ export default function CommunicationStylePreviewScreen() {
                 accessibilityLabel="Go back without changing"
                 accessibilityRole="button"
               >
-                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                <Text style={[
+                  styles.cancelButtonText, 
+                  { 
+                    color: theme.textSecondary,
+                    fontSize: isSmallDevice ? 15 : 16,
+                  }
+                ]}>
                   Back
                 </Text>
               </TouchableOpacity>
@@ -365,69 +512,75 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: '5%',
-    paddingTop: Platform.OS === 'android' ? 16 : 8,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? 8 : 4,
+    paddingBottom: 8,
   },
   headerBackButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
   },
   headerTitle: {
-    fontSize: Math.min(SCREEN_WIDTH * 0.06, 24),
-    fontWeight: 'bold',
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   scrollContent: {
-    paddingHorizontal: '5%',
+    paddingTop: 12,
   },
   infoCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
+    borderRadius: 20,
+    boxShadow: '0px 3px 12px rgba(0, 0, 0, 0.08)',
+    elevation: 4,
   },
   infoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  avatarContainer: {
     marginRight: 16,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.12)',
+    elevation: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  avatar: {
+    backgroundColor: '#F5F5F5',
   },
   infoHeaderText: {
     flex: 1,
   },
   therapistName: {
-    fontSize: 24,
     fontWeight: '700',
     marginBottom: 4,
+    letterSpacing: 0.2,
   },
   styleLabel: {
-    fontSize: 16,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   description: {
-    fontSize: 15,
     lineHeight: 22,
+    letterSpacing: 0.2,
   },
-  previewCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
+  conversationPanel: {
+    borderRadius: 20,
+    boxShadow: '0px 3px 12px rgba(0, 0, 0, 0.08)',
+    elevation: 4,
   },
   sectionTitle: {
-    fontSize: 18,
     fontWeight: '700',
     marginBottom: 16,
+    letterSpacing: 0.3,
   },
   conversationContainer: {
+    borderRadius: 16,
+    padding: 16,
     gap: 12,
     marginBottom: 20,
   },
@@ -438,110 +591,112 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.08)',
+    borderTopColor: 'rgba(0, 0, 0, 0.06)',
   },
   quickTipsTitle: {
-    fontSize: 15,
     fontWeight: '600',
     marginBottom: 12,
+    letterSpacing: 0.2,
   },
   quickTipRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 8,
-    paddingLeft: 8,
+    paddingLeft: 4,
   },
   quickTipBullet: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
-    marginRight: 12,
-    marginTop: -2,
+    marginRight: 10,
+    marginTop: -1,
   },
   quickTipText: {
     flex: 1,
-    fontSize: 14,
     lineHeight: 20,
+    letterSpacing: 0.2,
   },
   disclaimer: {
-    fontSize: 12,
     lineHeight: 16,
     textAlign: 'center',
     fontStyle: 'italic',
+    opacity: 0.8,
   },
   tryItCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
+    borderRadius: 20,
+    boxShadow: '0px 3px 12px rgba(0, 0, 0, 0.08)',
+    elevation: 4,
   },
   tryItDescription: {
-    fontSize: 14,
     lineHeight: 20,
     marginBottom: 16,
+    letterSpacing: 0.2,
   },
   tryItMessagesContainer: {
     gap: 12,
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.06)',
   },
   tryItInputContainer: {
     marginBottom: 0,
   },
   tryItInput: {
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 15,
+    borderRadius: 14,
+    padding: 14,
     minHeight: 80,
     textAlignVertical: 'top',
     marginBottom: 12,
+    letterSpacing: 0.2,
   },
   tryItButton: {
-    paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   tryItButtonDisabled: {
     opacity: 0.4,
   },
   tryItButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
-  bottomButtons: {
-    paddingHorizontal: '5%',
+  bottomActions: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingTop: 16,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.08)',
+    borderTopColor: 'rgba(0, 0, 0, 0.06)',
   },
   useButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    boxShadow: '0px 3px 10px rgba(0, 0, 0, 0.12)',
+    elevation: 5,
   },
   useButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
     fontWeight: '700',
+    letterSpacing: 0.4,
   },
   cancelButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     backgroundColor: 'transparent',
   },
   cancelButtonText: {
-    fontSize: 16,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   errorContainer: {
     flex: 1,
