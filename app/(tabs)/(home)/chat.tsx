@@ -19,7 +19,6 @@ import {
   AppState,
   AppStateStatus,
   Keyboard,
-  InteractionManager,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,7 +50,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Typing indicator timeout (15 seconds as per requirements)
 const TYPING_TIMEOUT_MS = 15000;
 
-// NEW: Stuck-typing failsafe timeout (25 seconds)
+// Stuck-typing failsafe timeout (25 seconds)
 const STUCK_TYPING_FAILSAFE_MS = 25000;
 
 // Input height buffer for proper padding
@@ -79,7 +78,7 @@ interface ExtendedMessage extends Message {
   retry_content?: string;
 }
 
-// NEW: Message or Date Separator item type
+// Message or Date Separator item type
 type MessageListItem = 
   | { type: 'message'; data: ExtendedMessage; shouldAnimate: boolean }
   | { type: 'date-separator'; date: Date; label: string };
@@ -174,7 +173,7 @@ const DateSeparator = React.memo(({ label }: { label: string }) => {
 
 DateSeparator.displayName = 'DateSeparator';
 
-// NEW: Helper function to format date separator label
+// Helper function to format date separator label
 function getDateSeparatorLabel(date: Date): string {
   if (isToday(date)) {
     return 'Today';
@@ -186,7 +185,7 @@ function getDateSeparatorLabel(date: Date): string {
   return format(date, 'MMM d, yyyy');
 }
 
-// NEW: Transform messages into list items with date separators
+// Transform messages into list items with date separators
 function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageListItem[] {
   const items: MessageListItem[] = [];
   let lastDate: Date | null = null;
@@ -519,13 +518,10 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: Robust scroll-to-bottom tracking refs
+  // SCROLL-TO-BOTTOM: Robust tracking refs
   // ═══════════════════════════════════════════════════════════════════
   const isNearBottomRef = useRef(true);
   const shouldAutoScrollRef = useRef(false);
-
-  // Track if we've done initial scroll
-  const hasInitialScrolledRef = useRef(false);
 
   // Dev-only debug state - ONLY stored in __DEV__ mode
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
@@ -540,13 +536,13 @@ export default function ChatScreen() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW A) Stuck-typing failsafe timer refs
+  // RETRY: Stuck-typing failsafe timer refs
   // ═══════════════════════════════════════════════════════════════════
   const typingFailsafeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingReplyForUserMessageIdRef = useRef<string | null>(null);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW B) Store last edge request payload for retry (NO new user message)
+  // RETRY: Store last edge request payload for retry (NO new user message)
   // ═══════════════════════════════════════════════════════════════════
   const lastEdgeRequestRef = useRef<null | {
     payload: {
@@ -580,7 +576,7 @@ export default function ChatScreen() {
     }
   }, [initialSubject]);
 
-  // NEW: Simple modal state for adding subjects
+  // Simple modal state for adding subjects
   const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState('');
 
@@ -649,7 +645,7 @@ export default function ChatScreen() {
           }
           
           // Insert fallback message
-          insertAssistantMessageSafely("Looks like the app paused. Tap to retry my response.");
+          insertAssistantMessageSafely("Looks like the app paused. Tap to retry.");
         }
       }
     });
@@ -686,7 +682,7 @@ export default function ChatScreen() {
   }, [preferences.therapist_persona_id]);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: Robust scrollToBottom helper function
+  // SCROLL-TO-BOTTOM: Robust helper function
   // Uses requestAnimationFrame + setTimeout for reliable scrolling
   // ═══════════════════════════════════════════════════════════════════
   const scrollToBottom = useCallback((animated: boolean = true) => {
@@ -694,20 +690,17 @@ export default function ChatScreen() {
       return;
     }
 
-    // Use double requestAnimationFrame to ensure layout is complete
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated });
-          // Reset auto-scroll flag after scrolling
-          shouldAutoScrollRef.current = false;
-        }, 50);
-      });
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated });
+        // Reset auto-scroll flag after scrolling
+        shouldAutoScrollRef.current = false;
+      }, 50);
     });
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: Track scroll position to determine if user is near bottom
+  // SCROLL-TO-BOTTOM: Track scroll position to determine if user is near bottom
   // ═══════════════════════════════════════════════════════════════════
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
@@ -718,7 +711,7 @@ export default function ChatScreen() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: Handle content size change - scroll when appropriate
+  // SCROLL-TO-BOTTOM: Handle content size change - scroll when appropriate
   // ═══════════════════════════════════════════════════════════════════
   const handleContentSizeChange = useCallback(() => {
     // Only auto-scroll if:
@@ -730,7 +723,17 @@ export default function ChatScreen() {
   }, [scrollToBottom]);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: Keyboard listeners for auto-scrolling
+  // SCROLL-TO-BOTTOM: Handle layout changes
+  // ═══════════════════════════════════════════════════════════════════
+  const handleLayout = useCallback(() => {
+    // Scroll to bottom on layout (initial render)
+    if (shouldAutoScrollRef.current) {
+      scrollToBottom(false);
+    }
+  }, [scrollToBottom]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SCROLL-TO-BOTTOM: Keyboard listeners for auto-scrolling
   // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
@@ -742,9 +745,8 @@ export default function ChatScreen() {
 
     const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
       if (__DEV__) {
-        console.log('[Chat] Keyboard hidden - scrolling to bottom');
+        console.log('[Chat] Keyboard hidden');
       }
-      scrollToBottom(true);
     });
 
     return () => {
@@ -845,7 +847,7 @@ export default function ChatScreen() {
       if (isMountedRef.current) {
         setAllMessages(messagesWithMetadata);
         
-        // A) Scroll to bottom after loading messages successfully
+        // Scroll to bottom after loading messages successfully
         shouldAutoScrollRef.current = true;
         setTimeout(() => {
           scrollToBottom(false);
@@ -888,13 +890,13 @@ export default function ChatScreen() {
     });
   }, [allMessages, currentSubject]);
 
-  // NEW: Transform messages with date separators
+  // Transform messages with date separators
   const messageListItems = React.useMemo(() => {
     return transformMessagesWithSeparators(displayedMessages);
   }, [displayedMessages]);
 
   // ═══════════════════════════════════════════════════════════════════
-  // F) Scroll to bottom when currentSubject changes (switching tabs)
+  // SCROLL-TO-BOTTOM: Scroll when currentSubject changes (switching tabs)
   // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!loading && messageListItems.length > 0) {
@@ -907,15 +909,11 @@ export default function ChatScreen() {
   }, [currentSubject, loading, messageListItems.length, scrollToBottom]);
 
   // ═══════════════════════════════════════════════════════════════════
-  // D) & E) Scroll when typing indicator changes
+  // SCROLL-TO-BOTTOM: Scroll when typing indicator changes
   // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (isTyping) {
       console.log('[Chat] Typing indicator appeared - scrolling to bottom');
-      shouldAutoScrollRef.current = true;
-      scrollToBottom(true);
-    } else {
-      console.log('[Chat] Typing indicator removed - scrolling to bottom');
       shouldAutoScrollRef.current = true;
       scrollToBottom(true);
     }
@@ -956,7 +954,7 @@ export default function ChatScreen() {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
-    // NEW: Also clear failsafe timer
+    // Also clear failsafe timer
     if (typingFailsafeRef.current) {
       clearTimeout(typingFailsafeRef.current);
       typingFailsafeRef.current = null;
@@ -964,7 +962,7 @@ export default function ChatScreen() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: HELPER - Insert assistant message safely (used for BOTH real replies + fallbacks)
+  // HELPER: Insert assistant message safely (used for BOTH real replies + fallbacks)
   // ═══════════════════════════════════════════════════════════════════
   const insertAssistantMessageSafely = useCallback(async (content: string): Promise<void> => {
     if (!authUser?.id || !personId) {
@@ -1011,13 +1009,9 @@ export default function ChatScreen() {
         };
         setAllMessages((prev) => [...prev, messageWithMeta]);
         
-        // Scroll to bottom reliably
+        // Scroll to bottom reliably after adding assistant message
         shouldAutoScrollRef.current = true;
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          }, 80);
-        });
+        scrollToBottom(true);
       }
     } catch (err) {
       if (__DEV__) {
@@ -1029,10 +1023,10 @@ export default function ChatScreen() {
       setIsTyping(false);
       clearTypingIndicator();
     }
-  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator]);
+  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator, scrollToBottom]);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW C) Implement retryLastAiResponse() (no duplicate user message)
+  // RETRY: Implement retryLastAiResponse() (no duplicate user message)
   // ═══════════════════════════════════════════════════════════════════
   const retryLastAiResponse = useCallback(async () => {
     if (!lastEdgeRequestRef.current) {
@@ -1071,7 +1065,7 @@ export default function ChatScreen() {
     try {
       const result = await invokeEdgeSafe('generate-ai-response', lastEdgeRequestRef.current.payload);
       
-      // Apply the SAME reply guarantee logic as Prompt 1
+      // Apply the SAME reply guarantee logic
       if (!result.ok) {
         const errorCode = result.error?.code || 'EDGE_UNKNOWN';
         
@@ -1236,7 +1230,7 @@ export default function ChatScreen() {
           return updatedMessages;
         });
         
-        // B) Scroll after adding user message
+        // Scroll after adding user message
         shouldAutoScrollRef.current = true;
         scrollToBottom(true);
       }
@@ -1246,7 +1240,7 @@ export default function ChatScreen() {
       // ═══════════════════════════════════════════════════════════════════
       setIsTyping(true);
       
-      // NEW A) Set pending reply for failsafe
+      // Set pending reply for failsafe
       pendingReplyForUserMessageIdRef.current = insertedMessage.id;
       
       // Clear any existing timers
@@ -1272,7 +1266,7 @@ export default function ChatScreen() {
         typingTimeoutRef.current = null;
       }, TYPING_TIMEOUT_MS);
       
-      // NEW A) Start failsafe timer (25 seconds)
+      // Start failsafe timer (25 seconds)
       typingFailsafeRef.current = setTimeout(async () => {
         if (!isMountedRef.current) return;
         // still typing AND still waiting on the same user message
@@ -1375,7 +1369,7 @@ export default function ChatScreen() {
         .filter((m) => m.role === 'assistant')
         .slice(-1)[0];
 
-      // NEW B) Store last edge request payload for retry
+      // RETRY: Store last edge request payload for retry
       const edgePayload = {
         userId,
         personId,
@@ -1441,7 +1435,7 @@ export default function ChatScreen() {
               console.log('[Chat] Abort/Timeout detected - showing friendly banner + fallback');
             }
             
-            await insertAssistantMessageSafely("I got interrupted before I could reply. Tap to retry my response.");
+            await insertAssistantMessageSafely("I got interrupted before I could reply. Tap to retry.");
             setError('Connection interrupted. Tap the message above to retry.');
             return;
           }
@@ -1577,7 +1571,7 @@ export default function ChatScreen() {
         isGeneratingRef.current = false;
         // Final safety: ensure typing is cleared
         clearTypingIndicator();
-        // NEW: Clear pending reply
+        // Clear pending reply
         pendingReplyForUserMessageIdRef.current = null;
       }
       
@@ -1607,21 +1601,21 @@ export default function ChatScreen() {
     setCurrentSubject(subject);
   }, []);
 
-  // NEW: Open simple add subject modal
+  // Open simple add subject modal
   const openAddSubjectModal = useCallback(() => {
     console.log('[Chat] Opening Add Subject modal');
     setShowAddSubjectModal(true);
     setNewSubjectName('');
   }, []);
 
-  // NEW: Close simple add subject modal
+  // Close simple add subject modal
   const closeAddSubjectModal = useCallback(() => {
     console.log('[Chat] Closing Add Subject modal');
     setShowAddSubjectModal(false);
     setNewSubjectName('');
   }, []);
 
-  // NEW: Add subject handler
+  // Add subject handler
   const addSubject = useCallback(() => {
     const trimmedSubject = newSubjectName.trim();
     
@@ -1662,7 +1656,7 @@ export default function ChatScreen() {
     }
   }, [debugInfo]);
 
-  // NEW D) Wire retry to existing UI (no redesign)
+  // RETRY: Wire retry to existing UI (no redesign)
   // Handle error banner tap for retry
   const handleErrorBannerTap = useCallback(() => {
     // Check if this is a retry-able error
@@ -1692,9 +1686,8 @@ export default function ChatScreen() {
     
     // Message item
     const message = item.data;
-    const isFailed = message.failed_to_send === true;
     
-    // NEW D) Check if this is a retry-able message (contains "Tap to retry")
+    // RETRY: Check if this is a retry-able message (contains "Tap to retry")
     const isRetryableMessage = message.role === 'assistant' && 
       message.content.includes('Tap to retry');
     
@@ -1917,6 +1910,7 @@ export default function ChatScreen() {
             onScroll={handleScroll}
             scrollEventThrottle={16}
             onContentSizeChange={handleContentSizeChange}
+            onLayout={handleLayout}
             initialNumToRender={15}
             maxToRenderPerBatch={10}
             windowSize={7}
@@ -1940,7 +1934,7 @@ export default function ChatScreen() {
 
       <LoadingOverlay visible={loading && !error} />
 
-      {/* NEW: Simple Add Subject Modal */}
+      {/* Simple Add Subject Modal */}
       <Modal
         visible={showAddSubjectModal}
         animationType="fade"
