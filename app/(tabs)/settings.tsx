@@ -839,6 +839,7 @@ export default function SettingsScreen() {
         style={styles.gradientBackground}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
+        pointerEvents="box-none"
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container}>
@@ -885,6 +886,8 @@ export default function SettingsScreen() {
                 { paddingBottom: 60 + insets.bottom + 16 }
               ]}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
             >
               {/* Header */}
               <View style={styles.header}>
@@ -1284,7 +1287,7 @@ export default function SettingsScreen() {
         animationType="fade"
         onRequestClose={handleCloseInfoModal}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
           <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
             <View style={styles.modalIconContainer}>
               <IconSymbol
@@ -1321,7 +1324,7 @@ export default function SettingsScreen() {
         animationType="fade"
         onRequestClose={handleCancelDelete}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
           <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
             <View style={styles.modalIconContainer}>
               <IconSymbol
@@ -1383,6 +1386,7 @@ export default function SettingsScreen() {
           <ScrollView
             contentContainerStyle={styles.modalScrollContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             bounces={false}
           >
             <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
@@ -1513,64 +1517,60 @@ export default function SettingsScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
-          <ScrollView
-            contentContainerStyle={styles.modalScrollContent}
-            keyboardShouldPersistTaps="handled"
-            bounces={false}
-          >
-            <View style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}>
-              <View style={styles.modalIconContainer}>
-                <IconSymbol
-                  ios_icon_name="person.circle.fill"
-                  android_material_icon_name="account_circle"
-                  size={48}
-                  color={theme.primary}
-                />
-              </View>
-
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                Choose a Communication Style
-              </Text>
-
-              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-                Pick a style that feels comfortable. This is optional and you can change it anytime.
-              </Text>
-
-              <ScrollView 
-                style={styles.personaScrollView}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
-              >
-                {THERAPIST_PERSONAS.map((persona) => renderPersonaCard(persona.id))}
-              </ScrollView>
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
-                  onPress={handleClosePersonaModal}
-                  disabled={isUpdatingPersona}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
-                  onPress={handleSavePersona}
-                  disabled={isUpdatingPersona}
-                  activeOpacity={0.8}
-                >
-                  {isUpdatingPersona ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.modalButtonText}>Save</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}>
+            <View style={styles.modalIconContainer}>
+              <IconSymbol
+                ios_icon_name="person.circle.fill"
+                android_material_icon_name="account_circle"
+                size={48}
+                color={theme.primary}
+              />
             </View>
-          </ScrollView>
+
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              Choose a Communication Style
+            </Text>
+
+            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+              Pick a style that feels comfortable. This is optional and you can change it anytime.
+            </Text>
+
+            <ScrollView 
+              style={styles.personaScrollView}
+              contentContainerStyle={{ paddingBottom: 16 }}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+            >
+              {THERAPIST_PERSONAS.map((persona) => renderPersonaCard(persona.id))}
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                onPress={handleClosePersonaModal}
+                disabled={isUpdatingPersona}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
+                onPress={handleSavePersona}
+                disabled={isUpdatingPersona}
+                activeOpacity={0.8}
+              >
+                {isUpdatingPersona ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -1583,7 +1583,7 @@ export default function SettingsScreen() {
         animationType="fade"
         onRequestClose={handleClosePersonalizationInfoModal}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
           <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
             <View style={styles.modalIconContainer}>
               <IconSymbol
@@ -1620,7 +1620,7 @@ export default function SettingsScreen() {
         animationType="fade"
         onRequestClose={handleCloseClearPersonalizationModal}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
           <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
             <View style={styles.modalIconContainer}>
               <IconSymbol
@@ -1722,6 +1722,7 @@ export default function SettingsScreen() {
                 ]}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
               >
                 {/* Preferred conversation style */}
                 <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
@@ -1977,6 +1978,8 @@ export default function SettingsScreen() {
                   }
                 ]}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
               >
                 {isLoadingUpdates ? (
                   <View style={styles.updatesLoadingContainer}>
@@ -2093,6 +2096,7 @@ export default function SettingsScreen() {
           <ScrollView
             contentContainerStyle={styles.modalScrollContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             bounces={false}
           >
             <View style={[styles.addUpdateModalContent, { backgroundColor: '#FFFFFF' }]}>
