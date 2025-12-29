@@ -144,6 +144,44 @@ export default function SettingsScreen() {
   const modalMaxWidth = Math.min(windowWidth * 0.92, 520);
   const actionBarHeight = 140; // Approximate height for action buttons area
 
+  // DEFENSIVE DEBUG LOGGING: Detect modals mounted while marked closed
+  useEffect(() => {
+    if (__DEV__) {
+      // Check if any modal backdrop is present in DOM while state says closed
+      const modalStates = {
+        showInfoModal,
+        showDeleteModal,
+        showChangePasswordModal,
+        showPersonaModal,
+        showPersonalizationInfoModal,
+        showClearPersonalizationModal,
+        showPersonalizationModal,
+        showUpdatesModal,
+        showAddUpdateModal,
+      };
+
+      const openModals = Object.entries(modalStates).filter(([_, isOpen]) => isOpen);
+      
+      if (openModals.length > 1) {
+        console.warn(
+          '[Settings] Multiple modals open simultaneously:',
+          openModals.map(([name]) => name).join(', '),
+          '- This may cause backdrop stacking issues'
+        );
+      }
+    }
+  }, [
+    showInfoModal,
+    showDeleteModal,
+    showChangePasswordModal,
+    showPersonaModal,
+    showPersonalizationInfoModal,
+    showClearPersonalizationModal,
+    showPersonalizationModal,
+    showUpdatesModal,
+    showAddUpdateModal,
+  ]);
+
   useEffect(() => {
     setSelectedTheme(themeKey);
   }, [themeKey]);
@@ -406,7 +444,7 @@ export default function SettingsScreen() {
       return;
     }
 
-    // Close the modal first to prevent it from staying open behind the preview screen
+    // FIX: Close the modal first to prevent lingering backdrop
     setShowPersonaModal(false);
 
     // Small delay to allow modal close animation to complete before navigation
@@ -466,7 +504,11 @@ export default function SettingsScreen() {
   };
 
   const handleOpenClearPersonalizationModal = () => {
-    setShowClearPersonalizationModal(true);
+    // FIX: Don't open nested modal - close parent first
+    setShowPersonalizationModal(false);
+    setTimeout(() => {
+      setShowClearPersonalizationModal(true);
+    }, 300);
   };
 
   const handleCloseClearPersonalizationModal = () => {
@@ -491,7 +533,6 @@ export default function SettingsScreen() {
     if (result.success) {
       showSuccessToast('Personalization cleared');
       setShowClearPersonalizationModal(false);
-      setShowPersonalizationModal(false);
       // Reset local state
       setConversationStyle('');
       setStressResponse('');
@@ -1280,207 +1321,77 @@ export default function SettingsScreen() {
         </SafeAreaView>
       </LinearGradient>
 
-      {/* Info Modal */}
-      <Modal
-        visible={showInfoModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleCloseInfoModal}
-      >
-        <View style={styles.modalOverlay} pointerEvents="box-none">
-          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
-            <View style={styles.modalIconContainer}>
-              <IconSymbol
-                ios_icon_name="info.circle.fill"
-                android_material_icon_name="info"
-                size={48}
-                color={theme.primary}
-              />
-            </View>
-
-            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-              Settings
-            </Text>
-
-            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-              Here you can update your theme and manage your account.
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: theme.primary }]}
-              onPress={handleCloseInfoModal}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.modalButtonText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        visible={showDeleteModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleCancelDelete}
-      >
-        <View style={styles.modalOverlay} pointerEvents="box-none">
-          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
-            <View style={styles.modalIconContainer}>
-              <IconSymbol
-                ios_icon_name="exclamationmark.triangle.fill"
-                android_material_icon_name="warning"
-                size={48}
-                color="#FF3B30"
-              />
-            </View>
-
-            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-              Delete account?
-            </Text>
-
-            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-              This action is permanent and cannot be undone.
-            </Text>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
-                onPress={handleCancelDelete}
-                disabled={isDeleting}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalButtonHalf, styles.confirmDeleteButton]}
-                onPress={handleConfirmDelete}
-                disabled={isDeleting}
-                activeOpacity={0.8}
-              >
-                {isDeleting ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.confirmDeleteButtonText}>Delete</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Change Password Modal */}
-      <Modal
-        visible={showChangePasswordModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleCloseChangePasswordModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+      {/* Info Modal - FIX: Only render when visible, backdrop blocks touches when open */}
+      {showInfoModal && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleCloseInfoModal}
         >
-          <ScrollView
-            contentContainerStyle={styles.modalScrollContent}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            bounces={false}
-          >
+          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
               <View style={styles.modalIconContainer}>
                 <IconSymbol
-                  ios_icon_name="lock.fill"
-                  android_material_icon_name="lock"
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
                   size={48}
                   color={theme.primary}
                 />
               </View>
 
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                Change password
+                Settings
               </Text>
 
               <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-                Update your password to keep your account secure.
+                Here you can update your theme and manage your account.
               </Text>
 
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                  Current password
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.background,
-                      color: theme.textPrimary,
-                      borderColor: theme.primary,
-                    },
-                  ]}
-                  placeholder="Enter current password"
-                  placeholderTextColor={theme.textSecondary}
-                  secureTextEntry
-                  value={currentPassword}
-                  onChangeText={setCurrentPassword}
-                  autoCapitalize="none"
-                  editable={!isUpdatingPassword}
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: theme.primary }]}
+                onPress={handleCloseInfoModal}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalButtonText}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Delete Confirmation Modal - FIX: Only render when visible */}
+      {showDeleteModal && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleCancelDelete}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+              <View style={styles.modalIconContainer}>
+                <IconSymbol
+                  ios_icon_name="exclamationmark.triangle.fill"
+                  android_material_icon_name="warning"
+                  size={48}
+                  color="#FF3B30"
                 />
               </View>
 
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                  New password
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.background,
-                      color: theme.textPrimary,
-                      borderColor: theme.primary,
-                    },
-                  ]}
-                  placeholder="Enter new password"
-                  placeholderTextColor={theme.textSecondary}
-                  secureTextEntry
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  autoCapitalize="none"
-                  editable={!isUpdatingPassword}
-                />
-              </View>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                Delete account?
+              </Text>
 
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                  Confirm new password
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.background,
-                      color: theme.textPrimary,
-                      borderColor: theme.primary,
-                    },
-                  ]}
-                  placeholder="Confirm new password"
-                  placeholderTextColor={theme.textSecondary}
-                  secureTextEntry
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  autoCapitalize="none"
-                  editable={!isUpdatingPassword}
-                />
-              </View>
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+                This action is permanent and cannot be undone.
+              </Text>
 
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
-                  onPress={handleCloseChangePasswordModal}
-                  disabled={isUpdatingPassword}
+                  onPress={handleCancelDelete}
+                  disabled={isDeleting}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
@@ -1489,400 +1400,133 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
-                  onPress={handleSavePassword}
-                  disabled={isUpdatingPassword}
+                  style={[styles.modalButtonHalf, styles.confirmDeleteButton]}
+                  onPress={handleConfirmDelete}
+                  disabled={isDeleting}
                   activeOpacity={0.8}
                 >
-                  {isUpdatingPassword ? (
+                  {isDeleting ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.modalButtonText}>Save</Text>
+                    <Text style={styles.confirmDeleteButtonText}>Delete</Text>
                   )}
                 </TouchableOpacity>
               </View>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
+          </View>
+        </Modal>
+      )}
 
-      {/* Therapist Persona Modal */}
-      <Modal
-        visible={showPersonaModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleClosePersonaModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+      {/* Change Password Modal - FIX: Only render when visible */}
+      {showChangePasswordModal && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleCloseChangePasswordModal}
         >
-          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}>
-            <View style={styles.modalIconContainer}>
-              <IconSymbol
-                ios_icon_name="person.circle.fill"
-                android_material_icon_name="account_circle"
-                size={48}
-                color={theme.primary}
-              />
-            </View>
-
-            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-              Choose a Communication Style
-            </Text>
-
-            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-              Pick a style that feels comfortable. This is optional and you can change it anytime.
-            </Text>
-
-            <ScrollView 
-              style={styles.personaScrollView}
-              contentContainerStyle={{ paddingBottom: 16 }}
-              showsVerticalScrollIndicator={true}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-            >
-              {THERAPIST_PERSONAS.map((persona) => renderPersonaCard(persona.id))}
-            </ScrollView>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
-                onPress={handleClosePersonaModal}
-                disabled={isUpdatingPersona}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
-                onPress={handleSavePersona}
-                disabled={isUpdatingPersona}
-                activeOpacity={0.8}
-              >
-                {isUpdatingPersona ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.modalButtonText}>Save</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-
-
-      {/* Personalization Info Modal */}
-      <Modal
-        visible={showPersonalizationInfoModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleClosePersonalizationInfoModal}
-      >
-        <View style={styles.modalOverlay} pointerEvents="box-none">
-          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
-            <View style={styles.modalIconContainer}>
-              <IconSymbol
-                ios_icon_name="info.circle.fill"
-                android_material_icon_name="info"
-                size={48}
-                color={theme.primary}
-              />
-            </View>
-
-            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-              Why Personalization?
-            </Text>
-
-            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-              This helps the AI match your preferred tone, pacing, and examples. It does not diagnose or label you. You&apos;re always in control, and you can clear this anytime.
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: theme.primary }]}
-              onPress={handleClosePersonalizationInfoModal}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.modalButtonText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Clear Personalization Confirmation Modal */}
-      <Modal
-        visible={showClearPersonalizationModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleCloseClearPersonalizationModal}
-      >
-        <View style={styles.modalOverlay} pointerEvents="box-none">
-          <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
-            <View style={styles.modalIconContainer}>
-              <IconSymbol
-                ios_icon_name="exclamationmark.triangle.fill"
-                android_material_icon_name="warning"
-                size={48}
-                color="#FF9500"
-              />
-            </View>
-
-            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-              Clear personalization?
-            </Text>
-
-            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-              This removes the personalization details from your account. The AI will go back to default behavior.
-            </Text>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
-                onPress={handleCloseClearPersonalizationModal}
-                disabled={isClearingPersonalization}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalButtonHalf, { backgroundColor: '#FF9500' }]}
-                onPress={handleConfirmClearPersonalization}
-                disabled={isClearingPersonalization}
-                activeOpacity={0.8}
-              >
-                {isClearingPersonalization ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.modalButtonText}>Clear</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Personalization Modal - FIXED RESPONSIVE VERSION */}
-      <Modal
-        visible={showPersonalizationModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleClosePersonalizationModal}
-      >
-        <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.personalizationModalContainer}
+            style={styles.modalOverlay}
           >
-            <View 
-              style={[
-                styles.personalizationModalContent, 
-                { 
-                  backgroundColor: '#FFFFFF',
-                  width: modalMaxWidth,
-                  maxWidth: '100%',
-                  alignSelf: 'center',
-                }
-              ]}
+            <ScrollView
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              bounces={false}
             >
-              {/* Header */}
-              <View style={[styles.personalizationModalHeader, { paddingTop: isCompactScreen ? 12 : 16 }]}>
+              <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
                 <View style={styles.modalIconContainer}>
                   <IconSymbol
-                    ios_icon_name="person.fill"
-                    android_material_icon_name="person"
-                    size={isCompactScreen ? 40 : 48}
+                    ios_icon_name="lock.fill"
+                    android_material_icon_name="lock"
+                    size={48}
                     color={theme.primary}
                   />
                 </View>
 
-                <Text style={[styles.modalTitle, { color: theme.textPrimary, fontSize: isCompactScreen ? 20 : 24 }]}>
-                  Personalization (Optional)
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                  Change password
                 </Text>
 
-                <Text style={[styles.modalText, { color: theme.textSecondary, marginBottom: isCompactScreen ? 12 : 16 }]}>
-                  Share what helps conversations feel natural for you. You can change or remove this anytime.
+                <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+                  Update your password to keep your account secure.
                 </Text>
-              </View>
 
-              {/* Scrollable Content */}
-              <ScrollView 
-                style={styles.personalizationScrollView}
-                contentContainerStyle={[
-                  styles.personalizationScrollContent,
-                  { 
-                    paddingBottom: actionBarHeight + insets.bottom + 20,
-                  }
-                ]}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-              >
-                {/* Preferred conversation style */}
-                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
-                    Preferred conversation style
-                  </Text>
-                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
-                    Choose the tone that feels best to you.
-                  </Text>
-                  {renderOptionCard(CONVERSATION_STYLES, conversationStyle, setConversationStyle)}
-                </View>
-
-                {/* When you're stressed, what helps most? */}
-                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
-                    When you&apos;re stressed, what helps most?
-                  </Text>
-                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
-                    This helps the AI respond in a way that feels more useful.
-                  </Text>
-                  {renderOptionCard(STRESS_RESPONSES, stressResponse, setStressResponse)}
-                </View>
-
-                {/* How do you prefer to process feelings? */}
-                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
-                    How do you prefer to process feelings?
-                  </Text>
-                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
-                    Everyone processes differently — pick what fits you best.
-                  </Text>
-                  {renderOptionCard(PROCESSING_STYLES, processingStyle, setProcessingStyle)}
-                </View>
-
-                {/* Decision-making style */}
-                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
-                    Decision-making style
-                  </Text>
-                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
-                    How do you usually prefer to decide?
-                  </Text>
-                  {renderOptionCard(DECISION_STYLES, decisionStyle, setDecisionStyle)}
-                </View>
-
-                {/* Cultural context (optional) */}
-                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
-                    Cultural context (optional)
-                  </Text>
-                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
-                    Share anything that helps the AI understand your context.
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    Current password
                   </Text>
                   <TextInput
                     style={[
-                      styles.multilineTextInput,
+                      styles.textInput,
                       {
                         backgroundColor: theme.background,
                         color: theme.textPrimary,
-                        borderColor: theme.textSecondary + '30',
+                        borderColor: theme.primary,
                       },
                     ]}
-                    placeholder="Optional"
+                    placeholder="Enter current password"
                     placeholderTextColor={theme.textSecondary}
-                    multiline
-                    numberOfLines={3}
-                    value={culturalContext}
-                    onChangeText={setCulturalContext}
-                    editable={!isUpdatingPersonalization}
+                    secureTextEntry
+                    value={currentPassword}
+                    onChangeText={setCurrentPassword}
+                    autoCapitalize="none"
+                    editable={!isUpdatingPassword}
                   />
                 </View>
 
-                {/* Values or boundaries (optional) */}
-                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
-                    Values or boundaries (optional)
-                  </Text>
-                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
-                    Anything the AI should respect while responding?
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    New password
                   </Text>
                   <TextInput
                     style={[
-                      styles.multilineTextInput,
+                      styles.textInput,
                       {
                         backgroundColor: theme.background,
                         color: theme.textPrimary,
-                        borderColor: theme.textSecondary + '30',
+                        borderColor: theme.primary,
                       },
                     ]}
-                    placeholder="Optional"
+                    placeholder="Enter new password"
                     placeholderTextColor={theme.textSecondary}
-                    multiline
-                    numberOfLines={3}
-                    value={valuesBoundaries}
-                    onChangeText={setValuesBoundaries}
-                    editable={!isUpdatingPersonalization}
+                    secureTextEntry
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    autoCapitalize="none"
+                    editable={!isUpdatingPassword}
                   />
                 </View>
 
-                {/* Recent changes you've noticed (optional) */}
-                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                  <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
-                    Recent changes you&apos;ve noticed (optional)
-                  </Text>
-                  <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
-                    If something feels different lately, you can note it here.
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    Confirm new password
                   </Text>
                   <TextInput
                     style={[
-                      styles.multilineTextInput,
+                      styles.textInput,
                       {
                         backgroundColor: theme.background,
                         color: theme.textPrimary,
-                        borderColor: theme.textSecondary + '30',
+                        borderColor: theme.primary,
                       },
                     ]}
-                    placeholder="Optional"
+                    placeholder="Confirm new password"
                     placeholderTextColor={theme.textSecondary}
-                    multiline
-                    numberOfLines={3}
-                    value={recentChanges}
-                    onChangeText={setRecentChanges}
-                    editable={!isUpdatingPersonalization}
+                    secureTextEntry
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    autoCapitalize="none"
+                    editable={!isUpdatingPassword}
                   />
                 </View>
-
-                {/* Privacy copy */}
-                <Text style={[styles.personalizationPrivacyText, { color: theme.textSecondary }]}>
-                  Personalization is optional. You can edit or clear it anytime.
-                </Text>
-              </ScrollView>
-
-              {/* Sticky Action Bar */}
-              <View 
-                style={[
-                  styles.personalizationActionBar,
-                  { 
-                    paddingBottom: insets.bottom + 12,
-                    backgroundColor: '#FFFFFF',
-                  }
-                ]}
-              >
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: theme.primary, marginBottom: 10 }]}
-                  onPress={handleSavePersonalization}
-                  disabled={isUpdatingPersonalization}
-                  activeOpacity={0.8}
-                >
-                  {isUpdatingPersonalization ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.modalButtonText}>Save changes</Text>
-                  )}
-                </TouchableOpacity>
 
                 <View style={styles.modalButtons}>
                   <TouchableOpacity
                     style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
-                    onPress={handleClosePersonalizationModal}
-                    disabled={isUpdatingPersonalization}
+                    onPress={handleCloseChangePasswordModal}
+                    disabled={isUpdatingPassword}
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
@@ -1891,305 +1535,69 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.modalButtonHalf, { backgroundColor: '#FF9500' }]}
-                    onPress={handleOpenClearPersonalizationModal}
-                    disabled={isUpdatingPersonalization}
+                    style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
+                    onPress={handleSavePassword}
+                    disabled={isUpdatingPassword}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.modalButtonText}>Clear data</Text>
+                    {isUpdatingPassword ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.modalButtonText}>Save</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
+            </ScrollView>
           </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Modal>
+        </Modal>
+      )}
 
-      {/* Updates Over Time Modal - FIXED RESPONSIVE VERSION */}
-      <Modal
-        visible={showUpdatesModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleCloseUpdatesModal}
-      >
-        <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.updatesModalContainer}
-          >
-            <View 
-              style={[
-                styles.updatesModalContent, 
-                { 
-                  backgroundColor: '#FFFFFF',
-                  paddingTop: insets.top,
-                }
-              ]}
-            >
-              {/* Sticky Header */}
-              <View style={styles.updatesModalHeader}>
-                <TouchableOpacity
-                  onPress={handleCloseUpdatesModal}
-                  style={styles.updatesModalCloseButton}
-                  activeOpacity={0.7}
-                >
-                  <IconSymbol
-                    ios_icon_name="xmark"
-                    android_material_icon_name="close"
-                    size={24}
-                    color={theme.textSecondary}
-                  />
-                </TouchableOpacity>
-                <Text style={[styles.updatesModalTitle, { color: theme.textPrimary }]}>
-                  Updates Over Time
-                </Text>
-                <View style={{ width: 40 }} />
-              </View>
-
-              {/* Description + Add Button */}
-              <View style={styles.updatesModalTopSection}>
-                <Text style={[styles.updatesModalDescription, { color: theme.textSecondary }]}>
-                  Add short updates so responses stay relevant to what you&apos;re experiencing.
-                </Text>
-
-                <TouchableOpacity
-                  style={[styles.addUpdateButton, { backgroundColor: theme.primary }]}
-                  onPress={handleOpenAddUpdateModal}
-                  activeOpacity={0.8}
-                >
-                  <IconSymbol
-                    ios_icon_name="plus"
-                    android_material_icon_name="add"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.addUpdateButtonText}>Add update</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Scrollable List */}
-              <ScrollView
-                style={styles.updatesListScrollView}
-                contentContainerStyle={[
-                  styles.updatesListContent,
-                  { 
-                    flexGrow: 1,
-                    paddingBottom: insets.bottom + 20,
-                  }
-                ]}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-              >
-                {isLoadingUpdates ? (
-                  <View style={styles.updatesLoadingContainer}>
-                    <ActivityIndicator size="large" color={theme.primary} />
-                  </View>
-                ) : updates.length === 0 ? (
-                  <View style={styles.updatesEmptyContainer}>
-                    <IconSymbol
-                      ios_icon_name="clock"
-                      android_material_icon_name="schedule"
-                      size={isCompactScreen ? 40 : 48}
-                      color={theme.textSecondary}
-                    />
-                    <Text style={[styles.updatesEmptyText, { color: theme.textSecondary, fontSize: isCompactScreen ? 16 : 18 }]}>
-                      No updates yet
-                    </Text>
-                    <Text style={[styles.updatesEmptySubtext, { color: theme.textSecondary, fontSize: isCompactScreen ? 13 : 14 }]}>
-                      Add your first update to help personalize your experience
-                    </Text>
-                  </View>
-                ) : (
-                  updates.map((update, index) => (
-                    <View
-                      key={index}
-                      style={[
-                        styles.updateCard,
-                        {
-                          backgroundColor: theme.background,
-                          borderColor: theme.textSecondary + '20',
-                        },
-                      ]}
-                    >
-                      <View style={styles.updateCardHeader}>
-                        <Text style={[styles.updateCardTitle, { color: theme.textPrimary }]}>
-                          {update.title}
-                        </Text>
-                        {update.started_at && (
-                          <Text style={[styles.updateCardDate, { color: theme.textSecondary }]}>
-                            {formatDate(update.started_at)}
-                          </Text>
-                        )}
-                      </View>
-
-                      {update.details && (
-                        <Text
-                          style={[styles.updateCardDetails, { color: theme.textSecondary }]}
-                          numberOfLines={2}
-                        >
-                          {update.details}
-                        </Text>
-                      )}
-
-                      {update.ai_preference && (
-                        <View style={[styles.updateCardPreference, { backgroundColor: theme.primary + '15' }]}>
-                          <Text style={[styles.updateCardPreferenceText, { color: theme.primary }]}>
-                            {update.ai_preference}
-                          </Text>
-                        </View>
-                      )}
-
-                      <View style={styles.updateCardActions}>
-                        <TouchableOpacity
-                          style={styles.updateCardActionButton}
-                          onPress={() => handleOpenEditUpdateModal(update)}
-                          activeOpacity={0.7}
-                        >
-                          <IconSymbol
-                            ios_icon_name="pencil"
-                            android_material_icon_name="edit"
-                            size={18}
-                            color={theme.primary}
-                          />
-                          <Text style={[styles.updateCardActionText, { color: theme.primary }]}>
-                            Edit
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.updateCardActionButton}
-                          onPress={() => handleDeleteUpdate(update.id)}
-                          activeOpacity={0.7}
-                        >
-                          <IconSymbol
-                            ios_icon_name="trash"
-                            android_material_icon_name="delete"
-                            size={18}
-                            color="#FF3B30"
-                          />
-                          <Text style={[styles.updateCardActionText, { color: '#FF3B30' }]}>
-                            Delete
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))
-                )}
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Add/Edit Update Modal */}
-      <Modal
-        visible={showAddUpdateModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleCloseAddUpdateModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+      {/* Therapist Persona Modal - FIX: Only render when visible */}
+      {showPersonaModal && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleClosePersonaModal}
         >
-          <ScrollView
-            contentContainerStyle={styles.modalScrollContent}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            bounces={false}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalOverlay}
           >
-            <View style={[styles.addUpdateModalContent, { backgroundColor: '#FFFFFF' }]}>
+            <View style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}>
               <View style={styles.modalIconContainer}>
                 <IconSymbol
-                  ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add_circle"
+                  ios_icon_name="person.circle.fill"
+                  android_material_icon_name="account_circle"
                   size={48}
                   color={theme.primary}
                 />
               </View>
 
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                {editingUpdate ? 'Edit Update' : 'Add Update'}
+                Choose a Communication Style
               </Text>
 
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                  What changed? *
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.background,
-                      color: theme.textPrimary,
-                      borderColor: theme.primary,
-                    },
-                  ]}
-                  placeholder="e.g., Feeling more sensitive lately"
-                  placeholderTextColor={theme.textSecondary}
-                  value={updateTitle}
-                  onChangeText={setUpdateTitle}
-                  editable={!isSavingUpdate}
-                />
-              </View>
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+                Pick a style that feels comfortable. This is optional and you can change it anytime.
+              </Text>
 
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                  Details (optional)
-                </Text>
-                <TextInput
-                  style={[
-                    styles.multilineTextInput,
-                    {
-                      backgroundColor: theme.background,
-                      color: theme.textPrimary,
-                      borderColor: theme.textSecondary + '30',
-                    },
-                  ]}
-                  placeholder="Add more context if helpful"
-                  placeholderTextColor={theme.textSecondary}
-                  multiline
-                  numberOfLines={3}
-                  value={updateDetails}
-                  onChangeText={setUpdateDetails}
-                  editable={!isSavingUpdate}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                  When did this start? (optional)
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.background,
-                      color: theme.textPrimary,
-                      borderColor: theme.textSecondary + '30',
-                    },
-                  ]}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={theme.textSecondary}
-                  value={updateStartedAt}
-                  onChangeText={setUpdateStartedAt}
-                  editable={!isSavingUpdate}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                  How should the AI respond differently? (optional)
-                </Text>
-                {renderOptionCard(AI_PREFERENCE_OPTIONS, updateAiPreference, setUpdateAiPreference)}
-              </View>
+              <ScrollView 
+                style={styles.personaScrollView}
+                contentContainerStyle={{ paddingBottom: 16 }}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+              >
+                {THERAPIST_PERSONAS.map((persona) => renderPersonaCard(persona.id))}
+              </ScrollView>
 
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
-                  onPress={handleCloseAddUpdateModal}
-                  disabled={isSavingUpdate}
+                  onPress={handleClosePersonaModal}
+                  disabled={isUpdatingPersona}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
@@ -2199,11 +1607,11 @@ export default function SettingsScreen() {
 
                 <TouchableOpacity
                   style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
-                  onPress={handleSaveUpdate}
-                  disabled={isSavingUpdate}
+                  onPress={handleSavePersona}
+                  disabled={isUpdatingPersona}
                   activeOpacity={0.8}
                 >
-                  {isSavingUpdate ? (
+                  {isUpdatingPersona ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
                     <Text style={styles.modalButtonText}>Save</Text>
@@ -2211,9 +1619,660 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
+
+
+
+      {/* Personalization Info Modal - FIX: Only render when visible */}
+      {showPersonalizationInfoModal && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleClosePersonalizationInfoModal}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+              <View style={styles.modalIconContainer}>
+                <IconSymbol
+                  ios_icon_name="info.circle.fill"
+                  android_material_icon_name="info"
+                  size={48}
+                  color={theme.primary}
+                />
+              </View>
+
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                Why Personalization?
+              </Text>
+
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+                This helps the AI match your preferred tone, pacing, and examples. It does not diagnose or label you. You&apos;re always in control, and you can clear this anytime.
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: theme.primary }]}
+                onPress={handleClosePersonalizationInfoModal}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalButtonText}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Clear Personalization Confirmation Modal - FIX: Only render when visible */}
+      {showClearPersonalizationModal && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleCloseClearPersonalizationModal}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+              <View style={styles.modalIconContainer}>
+                <IconSymbol
+                  ios_icon_name="exclamationmark.triangle.fill"
+                  android_material_icon_name="warning"
+                  size={48}
+                  color="#FF9500"
+                />
+              </View>
+
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                Clear personalization?
+              </Text>
+
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+                This removes the personalization details from your account. The AI will go back to default behavior.
+              </Text>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                  onPress={handleCloseClearPersonalizationModal}
+                  disabled={isClearingPersonalization}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButtonHalf, { backgroundColor: '#FF9500' }]}
+                  onPress={handleConfirmClearPersonalization}
+                  disabled={isClearingPersonalization}
+                  activeOpacity={0.8}
+                >
+                  {isClearingPersonalization ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalButtonText}>Clear</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Personalization Modal - FIX: Only render when visible */}
+      {showPersonalizationModal && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleClosePersonalizationModal}
+        >
+          <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.personalizationModalContainer}
+            >
+              <View 
+                style={[
+                  styles.personalizationModalContent, 
+                  { 
+                    backgroundColor: '#FFFFFF',
+                    width: modalMaxWidth,
+                    maxWidth: '100%',
+                    alignSelf: 'center',
+                  }
+                ]}
+              >
+                {/* Header */}
+                <View style={[styles.personalizationModalHeader, { paddingTop: isCompactScreen ? 12 : 16 }]}>
+                  <View style={styles.modalIconContainer}>
+                    <IconSymbol
+                      ios_icon_name="person.fill"
+                      android_material_icon_name="person"
+                      size={isCompactScreen ? 40 : 48}
+                      color={theme.primary}
+                    />
+                  </View>
+
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary, fontSize: isCompactScreen ? 20 : 24 }]}>
+                    Personalization (Optional)
+                  </Text>
+
+                  <Text style={[styles.modalText, { color: theme.textSecondary, marginBottom: isCompactScreen ? 12 : 16 }]}>
+                    Share what helps conversations feel natural for you. You can change or remove this anytime.
+                  </Text>
+                </View>
+
+                {/* Scrollable Content */}
+                <ScrollView 
+                  style={styles.personalizationScrollView}
+                  contentContainerStyle={[
+                    styles.personalizationScrollContent,
+                    { 
+                      paddingBottom: actionBarHeight + insets.bottom + 20,
+                    }
+                  ]}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                >
+                  {/* Preferred conversation style */}
+                  <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
+                    <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                      Preferred conversation style
+                    </Text>
+                    <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                      Choose the tone that feels best to you.
+                    </Text>
+                    {renderOptionCard(CONVERSATION_STYLES, conversationStyle, setConversationStyle)}
+                  </View>
+
+                  {/* When you're stressed, what helps most? */}
+                  <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
+                    <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                      When you&apos;re stressed, what helps most?
+                    </Text>
+                    <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                      This helps the AI respond in a way that feels more useful.
+                    </Text>
+                    {renderOptionCard(STRESS_RESPONSES, stressResponse, setStressResponse)}
+                  </View>
+
+                  {/* How do you prefer to process feelings? */}
+                  <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
+                    <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                      How do you prefer to process feelings?
+                    </Text>
+                    <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                      Everyone processes differently — pick what fits you best.
+                    </Text>
+                    {renderOptionCard(PROCESSING_STYLES, processingStyle, setProcessingStyle)}
+                  </View>
+
+                  {/* Decision-making style */}
+                  <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
+                    <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                      Decision-making style
+                    </Text>
+                    <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                      How do you usually prefer to decide?
+                    </Text>
+                    {renderOptionCard(DECISION_STYLES, decisionStyle, setDecisionStyle)}
+                  </View>
+
+                  {/* Cultural context (optional) */}
+                  <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
+                    <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                      Cultural context (optional)
+                    </Text>
+                    <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                      Share anything that helps the AI understand your context.
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.multilineTextInput,
+                        {
+                          backgroundColor: theme.background,
+                          color: theme.textPrimary,
+                          borderColor: theme.textSecondary + '30',
+                        },
+                      ]}
+                      placeholder="Optional"
+                      placeholderTextColor={theme.textSecondary}
+                      multiline
+                      numberOfLines={3}
+                      value={culturalContext}
+                      onChangeText={setCulturalContext}
+                      editable={!isUpdatingPersonalization}
+                    />
+                  </View>
+
+                  {/* Values or boundaries (optional) */}
+                  <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
+                    <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                      Values or boundaries (optional)
+                    </Text>
+                    <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                      Anything the AI should respect while responding?
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.multilineTextInput,
+                        {
+                          backgroundColor: theme.background,
+                          color: theme.textPrimary,
+                          borderColor: theme.textSecondary + '30',
+                        },
+                      ]}
+                      placeholder="Optional"
+                      placeholderTextColor={theme.textSecondary}
+                      multiline
+                      numberOfLines={3}
+                      value={valuesBoundaries}
+                      onChangeText={setValuesBoundaries}
+                      editable={!isUpdatingPersonalization}
+                    />
+                  </View>
+
+                  {/* Recent changes you've noticed (optional) */}
+                  <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
+                    <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
+                      Recent changes you&apos;ve noticed (optional)
+                    </Text>
+                    <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
+                      If something feels different lately, you can note it here.
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.multilineTextInput,
+                        {
+                          backgroundColor: theme.background,
+                          color: theme.textPrimary,
+                          borderColor: theme.textSecondary + '30',
+                        },
+                      ]}
+                      placeholder="Optional"
+                      placeholderTextColor={theme.textSecondary}
+                      multiline
+                      numberOfLines={3}
+                      value={recentChanges}
+                      onChangeText={setRecentChanges}
+                      editable={!isUpdatingPersonalization}
+                    />
+                  </View>
+
+                  {/* Privacy copy */}
+                  <Text style={[styles.personalizationPrivacyText, { color: theme.textSecondary }]}>
+                    Personalization is optional. You can edit or clear it anytime.
+                  </Text>
+                </ScrollView>
+
+                {/* Sticky Action Bar */}
+                <View 
+                  style={[
+                    styles.personalizationActionBar,
+                    { 
+                      paddingBottom: insets.bottom + 12,
+                      backgroundColor: '#FFFFFF',
+                    }
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: theme.primary, marginBottom: 10 }]}
+                    onPress={handleSavePersonalization}
+                    disabled={isUpdatingPersonalization}
+                    activeOpacity={0.8}
+                  >
+                    {isUpdatingPersonalization ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.modalButtonText}>Save changes</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                      onPress={handleClosePersonalizationModal}
+                      disabled={isUpdatingPersonalization}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.modalButtonHalf, { backgroundColor: '#FF9500' }]}
+                      onPress={handleOpenClearPersonalizationModal}
+                      disabled={isUpdatingPersonalization}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.modalButtonText}>Clear data</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </Modal>
+      )}
+
+      {/* Updates Over Time Modal - FIX: Only render when visible */}
+      {showUpdatesModal && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleCloseUpdatesModal}
+        >
+          <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.updatesModalContainer}
+            >
+              <View 
+                style={[
+                  styles.updatesModalContent, 
+                  { 
+                    backgroundColor: '#FFFFFF',
+                    paddingTop: insets.top,
+                  }
+                ]}
+              >
+                {/* Sticky Header */}
+                <View style={styles.updatesModalHeader}>
+                  <TouchableOpacity
+                    onPress={handleCloseUpdatesModal}
+                    style={styles.updatesModalCloseButton}
+                    activeOpacity={0.7}
+                  >
+                    <IconSymbol
+                      ios_icon_name="xmark"
+                      android_material_icon_name="close"
+                      size={24}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                  <Text style={[styles.updatesModalTitle, { color: theme.textPrimary }]}>
+                    Updates Over Time
+                  </Text>
+                  <View style={{ width: 40 }} />
+                </View>
+
+                {/* Description + Add Button */}
+                <View style={styles.updatesModalTopSection}>
+                  <Text style={[styles.updatesModalDescription, { color: theme.textSecondary }]}>
+                    Add short updates so responses stay relevant to what you&apos;re experiencing.
+                  </Text>
+
+                  <TouchableOpacity
+                    style={[styles.addUpdateButton, { backgroundColor: theme.primary }]}
+                    onPress={handleOpenAddUpdateModal}
+                    activeOpacity={0.8}
+                  >
+                    <IconSymbol
+                      ios_icon_name="plus"
+                      android_material_icon_name="add"
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.addUpdateButtonText}>Add update</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Scrollable List */}
+                <ScrollView
+                  style={styles.updatesListScrollView}
+                  contentContainerStyle={[
+                    styles.updatesListContent,
+                    { 
+                      flexGrow: 1,
+                      paddingBottom: insets.bottom + 20,
+                    }
+                  ]}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                >
+                  {isLoadingUpdates ? (
+                    <View style={styles.updatesLoadingContainer}>
+                      <ActivityIndicator size="large" color={theme.primary} />
+                    </View>
+                  ) : updates.length === 0 ? (
+                    <View style={styles.updatesEmptyContainer}>
+                      <IconSymbol
+                        ios_icon_name="clock"
+                        android_material_icon_name="schedule"
+                        size={isCompactScreen ? 40 : 48}
+                        color={theme.textSecondary}
+                      />
+                      <Text style={[styles.updatesEmptyText, { color: theme.textSecondary, fontSize: isCompactScreen ? 16 : 18 }]}>
+                        No updates yet
+                      </Text>
+                      <Text style={[styles.updatesEmptySubtext, { color: theme.textSecondary, fontSize: isCompactScreen ? 13 : 14 }]}>
+                        Add your first update to help personalize your experience
+                      </Text>
+                    </View>
+                  ) : (
+                    updates.map((update, index) => (
+                      <View
+                        key={index}
+                        style={[
+                          styles.updateCard,
+                          {
+                            backgroundColor: theme.background,
+                            borderColor: theme.textSecondary + '20',
+                          },
+                        ]}
+                      >
+                        <View style={styles.updateCardHeader}>
+                          <Text style={[styles.updateCardTitle, { color: theme.textPrimary }]}>
+                            {update.title}
+                          </Text>
+                          {update.started_at && (
+                            <Text style={[styles.updateCardDate, { color: theme.textSecondary }]}>
+                              {formatDate(update.started_at)}
+                            </Text>
+                          )}
+                        </View>
+
+                        {update.details && (
+                          <Text
+                            style={[styles.updateCardDetails, { color: theme.textSecondary }]}
+                            numberOfLines={2}
+                          >
+                            {update.details}
+                          </Text>
+                        )}
+
+                        {update.ai_preference && (
+                          <View style={[styles.updateCardPreference, { backgroundColor: theme.primary + '15' }]}>
+                            <Text style={[styles.updateCardPreferenceText, { color: theme.primary }]}>
+                              {update.ai_preference}
+                            </Text>
+                          </View>
+                        )}
+
+                        <View style={styles.updateCardActions}>
+                          <TouchableOpacity
+                            style={styles.updateCardActionButton}
+                            onPress={() => handleOpenEditUpdateModal(update)}
+                            activeOpacity={0.7}
+                          >
+                            <IconSymbol
+                              ios_icon_name="pencil"
+                              android_material_icon_name="edit"
+                              size={18}
+                              color={theme.primary}
+                            />
+                            <Text style={[styles.updateCardActionText, { color: theme.primary }]}>
+                              Edit
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.updateCardActionButton}
+                            onPress={() => handleDeleteUpdate(update.id)}
+                            activeOpacity={0.7}
+                          >
+                            <IconSymbol
+                              ios_icon_name="trash"
+                              android_material_icon_name="delete"
+                              size={18}
+                              color="#FF3B30"
+                            />
+                            <Text style={[styles.updateCardActionText, { color: '#FF3B30' }]}>
+                              Delete
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </Modal>
+      )}
+
+      {/* Add/Edit Update Modal - FIX: Only render when visible */}
+      {showAddUpdateModal && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleCloseAddUpdateModal}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalOverlay}
+          >
+            <ScrollView
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              bounces={false}
+            >
+              <View style={[styles.addUpdateModalContent, { backgroundColor: '#FFFFFF' }]}>
+                <View style={styles.modalIconContainer}>
+                  <IconSymbol
+                    ios_icon_name="plus.circle.fill"
+                    android_material_icon_name="add_circle"
+                    size={48}
+                    color={theme.primary}
+                  />
+                </View>
+
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                  {editingUpdate ? 'Edit Update' : 'Add Update'}
+                </Text>
+
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    What changed? *
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.textPrimary,
+                        borderColor: theme.primary,
+                      },
+                    ]}
+                    placeholder="e.g., Feeling more sensitive lately"
+                    placeholderTextColor={theme.textSecondary}
+                    value={updateTitle}
+                    onChangeText={setUpdateTitle}
+                    editable={!isSavingUpdate}
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    Details (optional)
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.multilineTextInput,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.textPrimary,
+                        borderColor: theme.textSecondary + '30',
+                      },
+                    ]}
+                    placeholder="Add more context if helpful"
+                    placeholderTextColor={theme.textSecondary}
+                    multiline
+                    numberOfLines={3}
+                    value={updateDetails}
+                    onChangeText={setUpdateDetails}
+                    editable={!isSavingUpdate}
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    When did this start? (optional)
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.textPrimary,
+                        borderColor: theme.textSecondary + '30',
+                      },
+                    ]}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={theme.textSecondary}
+                    value={updateStartedAt}
+                    onChangeText={setUpdateStartedAt}
+                    editable={!isSavingUpdate}
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    How should the AI respond differently? (optional)
+                  </Text>
+                  {renderOptionCard(AI_PREFERENCE_OPTIONS, updateAiPreference, setUpdateAiPreference)}
+                </View>
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
+                    onPress={handleCloseAddUpdateModal}
+                    disabled={isSavingUpdate}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
+                    onPress={handleSaveUpdate}
+                    disabled={isSavingUpdate}
+                    activeOpacity={0.8}
+                  >
+                    {isSavingUpdate ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.modalButtonText}>Save</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
     </>
   );
 }
@@ -2401,6 +2460,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
   },
+  // FIX: Modal overlay now blocks touches when visible (no pointerEvents prop)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -2554,7 +2614,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // NEW RESPONSIVE PERSONALIZATION MODAL STYLES
+  // RESPONSIVE PERSONALIZATION MODAL STYLES
   personalizationModalSafeArea: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -2636,7 +2696,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  // FIXED RESPONSIVE UPDATES OVER TIME MODAL STYLES
+  // RESPONSIVE UPDATES OVER TIME MODAL STYLES
   updatesModalSafeArea: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
