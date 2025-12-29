@@ -46,8 +46,8 @@ import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Typing indicator timeout (30 seconds)
-const TYPING_TIMEOUT_MS = 30000;
+// Typing indicator timeout (15 seconds as per requirements)
+const TYPING_TIMEOUT_MS = 15000;
 
 // Default subjects list - IMPROVED LABELS
 const DEFAULT_SUBJECTS = [
@@ -530,7 +530,7 @@ export default function ChatScreen() {
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
   // ═══════════════════════════════════════════════════════════════════
-  // TYPING INDICATOR TIMEOUT: Force-clear after 30 seconds
+  // TYPING INDICATOR TIMEOUT: Force-clear after 15 seconds
   // ═══════════════════════════════════════════════════════════════════
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -904,6 +904,47 @@ export default function ChatScreen() {
     }
   }, []);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // HELPER: Insert fallback message when AI fails
+  // ═══════════════════════════════════════════════════════════════════
+  const insertFallbackMessage = useCallback(async (fallbackText: string) => {
+    if (!authUser?.id || !personId) {
+      return;
+    }
+
+    console.log('[Chat] Inserting fallback message');
+    
+    const therapistMeta = getCurrentTherapistMetadata();
+    
+    try {
+      const { data: fallbackInserted } = await supabase
+        .from('messages')
+        .insert({
+          user_id: authUser.id,
+          person_id: personId,
+          role: 'assistant',
+          content: fallbackText,
+          subject: currentSubject,
+          created_at: new Date().toISOString(),
+        })
+        .select('*')
+        .single();
+
+      if (fallbackInserted && isMountedRef.current) {
+        const fallbackWithMeta: ExtendedMessage = {
+          ...fallbackInserted,
+          therapist_name: therapistMeta.name,
+          therapist_avatar_source: therapistMeta.avatarSource,
+        };
+        setAllMessages((prev) => [...prev, fallbackWithMeta]);
+      }
+    } catch (err) {
+      if (__DEV__) {
+        console.log('[Chat] Failed to insert fallback message:', err);
+      }
+    }
+  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata]);
+
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
@@ -941,7 +982,9 @@ export default function ChatScreen() {
     const therapistMeta = getCurrentTherapistMetadata();
     console.log('[Chat] Current therapist:', therapistMeta.name);
     
-    // Set in-flight flag immediately
+    // ═══════════════════════════════════════════════════════════════════
+    // CRITICAL: Set flags and clear typing IMMEDIATELY
+    // ═══════════════════════════════════════════════════════════════════
     setIsSending(true);
     isGeneratingRef.current = true;
     setError(null);
@@ -954,6 +997,22 @@ export default function ChatScreen() {
     // Clear input immediately to prevent re-sends
     const userMessageText = text;
     setInputText('');
+
+    // ═══════════════════════════════════════════════════════════════════
+    // CRITICAL: Start typing indicator + timeout BEFORE any async work
+    // ═══════════════════════════════════════════════════════════════════
+    setIsTyping(true);
+    
+    // Start hard timeout to force-clear typing indicator after 15 seconds
+    typingTimeoutRef.current = setTimeout(() => {
+      console.log('[Chat] ⚠️ HARD TIMEOUT: Force-clearing typing indicator after 15s');
+      if (isMountedRef.current) {
+        setIsTyping(false);
+        // Insert fallback message on timeout
+        insertFallbackMessage("I'm having trouble responding right now. Please try again.");
+      }
+      typingTimeoutRef.current = null;
+    }, TYPING_TIMEOUT_MS);
 
     try {
       console.log('[Chat] Inserting user message...');
@@ -996,11 +1055,6 @@ export default function ChatScreen() {
       // ═══════════════════════════════════════════════════════════════════
       // MEMORY CAPTURE: Fire-and-forget capture of factual statements
       // ═══════════════════════════════════════════════════════════════════
-      // This runs IMMEDIATELY after user message is saved
-      // It NEVER blocks the chat flow or throws errors
-      // It respects the "Continue conversations" toggle
-      // ═══════════════════════════════════════════════════════════════════
-      
       console.log('[Chat] 🧠 Triggering memory capture...');
       
       // Check continuity setting first
@@ -1011,7 +1065,6 @@ export default function ChatScreen() {
         
         if (continuityEnabled) {
           console.log('[Chat] Memory capture - calling captureMemoriesFromMessage');
-          // Call the memory capture function (fire-and-forget)
           captureMemoriesFromMessage(
             userId,
             personId,
@@ -1019,7 +1072,6 @@ export default function ChatScreen() {
             personName,
             currentSubject
           ).catch((err) => {
-            // Silent failure - never crash the chat
             if (__DEV__) {
               console.log('[Chat] Memory capture failed (silent):', err?.message || 'unknown');
             }
@@ -1028,7 +1080,6 @@ export default function ChatScreen() {
           console.log('[Chat] Memory capture - skipped (continuity disabled)');
         }
       }).catch((err) => {
-        // If we can't check continuity, default to enabled
         if (__DEV__) {
           console.log('[Chat] Failed to check continuity, defaulting to enabled:', err);
         }
@@ -1044,7 +1095,6 @@ export default function ChatScreen() {
       });
 
       // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
-      // This runs even if the AI reply fails, ensuring memories are always saved
       try {
         console.log('[Chat] Running local memory extraction...');
         const extractedMemories = extractMemoriesFromUserText(userMessageText, personName);
@@ -1054,7 +1104,6 @@ export default function ChatScreen() {
           await upsertPersonMemories(userId, personId, extractedMemories);
           console.log('[Chat] Local memories upserted successfully');
           
-          // Show subtle confirmation indicator
           if (isMountedRef.current) {
             setShowMemorySavedIndicator(true);
           }
@@ -1062,28 +1111,11 @@ export default function ChatScreen() {
           console.log('[Chat] No memories extracted from user text');
         }
       } catch (memoryError: any) {
-        // Silent failure - never crash the chat
         console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
       }
 
       console.log('[Chat] Calling AI Edge Function...');
       console.log('[Chat] Total messages in history:', updatedMessages.length);
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // SET TYPING INDICATOR: Start typing animation + timeout
-      // ═══════════════════════════════════════════════════════════════════
-      if (isMountedRef.current) {
-        setIsTyping(true);
-        
-        // Start timeout to force-clear typing indicator after 30 seconds
-        typingTimeoutRef.current = setTimeout(() => {
-          console.log('[Chat] ⚠️ Typing indicator timeout reached - force clearing');
-          if (isMountedRef.current) {
-            setIsTyping(false);
-          }
-          typingTimeoutRef.current = null;
-        }, TYPING_TIMEOUT_MS);
-      }
 
       const subjectMessages = updatedMessages.filter((msg) => {
         const msgSubject = msg.subject || 'General';
@@ -1129,11 +1161,7 @@ export default function ChatScreen() {
         const errorMessage = result.error?.message || 'Unknown error';
         const errorStatus = result.error?.status;
 
-        // ═══════════════════════════════════════════════════════════════════
-        // PRODUCTION SAFETY: Only log detailed errors in __DEV__ mode
-        // ═══════════════════════════════════════════════════════════════════
         if (__DEV__) {
-          // Use console.log instead of console.error to prevent red error overlays
           console.log('[Chat] Edge Function failed:', {
             code: errorCode,
             message: errorMessage,
@@ -1141,7 +1169,6 @@ export default function ChatScreen() {
             details: result.error?.details,
           });
 
-          // Build detailed debug string for DEV mode
           const debugString = JSON.stringify({
             functionName: 'generate-ai-response',
             timestamp: new Date().toISOString(),
@@ -1149,10 +1176,8 @@ export default function ChatScreen() {
             error: result.error,
           }, null, 2);
 
-          // Store debug info for dev mode banner
           setDebugInfo(debugString);
 
-          // DEV-ONLY: Show clear auth error hint
           if (errorCode === 'EDGE_AUTH' || errorStatus === 401 || errorStatus === 403) {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             console.log('🔐 EDGE AUTH FAILED - CHECK:');
@@ -1163,16 +1188,10 @@ export default function ChatScreen() {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           }
         }
-        // In production (__DEV__ === false), do NOT log at all
 
         if (isMountedRef.current) {
           // ═══════════════════════════════════════════════════════════════════
-          // CRITICAL: Clear typing indicator on error
-          // ═══════════════════════════════════════════════════════════════════
-          clearTypingIndicator();
-          
-          // ═══════════════════════════════════════════════════════════════════
-          // STEP 4: Handle different error types gracefully
+          // STEP 4: Handle different error types with fallback messages
           // ═══════════════════════════════════════════════════════════════════
           
           // Handle EDGE_ABORTED or EDGE_TIMEOUT - NO fallback message
@@ -1181,126 +1200,33 @@ export default function ChatScreen() {
               console.log('[Chat] Abort/Timeout detected - showing clean error, no fallback message');
             }
             
-            // Show non-blocking error message
             setError('Connection interrupted. Please try again.');
-            
-            // Do NOT insert fallback assistant message
-            // Chat state remains stable (input cleared, user message remains)
             return;
           }
           
           // ═══════════════════════════════════════════════════════════════════
-          // FALLBACK MESSAGE: Only for EDGE_AUTH, EDGE_UNKNOWN, EDGE_UNAVAILABLE
+          // FALLBACK MESSAGES: For all other error types
           // ═══════════════════════════════════════════════════════════════════
           
-          // Handle EDGE_AUTH
+          let fallbackText = "I'm having trouble responding right now. Please try again.";
+          let errorText = 'An error occurred. Please try again.';
+          
           if (errorCode === 'EDGE_AUTH') {
-            if (__DEV__) {
-              console.log('[Chat] Auth error - inserting fallback message');
-            }
-            
-            const fallbackMessage = "I'm having trouble connecting right now. Please try logging out and back in.";
-            
-            const { data: fallbackInserted } = await supabase
-              .from('messages')
-              .insert({
-                user_id: userId,
-                person_id: personId,
-                role: 'assistant',
-                content: fallbackMessage,
-                subject: currentSubject,
-                created_at: new Date().toISOString(),
-              })
-              .select('*')
-              .single();
-
-            if (fallbackInserted) {
-              const fallbackWithMeta: ExtendedMessage = {
-                ...fallbackInserted,
-                therapist_name: therapistMeta.name,
-                therapist_avatar_source: therapistMeta.avatarSource,
-              };
-              setAllMessages((prev) => [...prev, fallbackWithMeta]);
-            }
-            
-            setError('Authentication issue. Please try logging out and back in.');
-            return;
+            fallbackText = "I'm having trouble connecting right now. Please try logging out and back in.";
+            errorText = 'Authentication issue. Please try logging out and back in.';
+          } else if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'FUNCTIONS_HTTP_ERROR') {
+            fallbackText = "I'm having trouble responding right now. Please try again in a moment.";
+            errorText = 'Service temporarily unavailable. Please try again.';
+          } else if (errorCode === 'MAX_RETRIES_EXCEEDED') {
+            fallbackText = "I'm having persistent connection issues. Please check your network and try again.";
+            errorText = 'Connection issues. Please check your network.';
           }
           
-          // Handle EDGE_UNAVAILABLE
-          if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'FUNCTIONS_HTTP_ERROR') {
-            if (__DEV__) {
-              console.log('[Chat] Service unavailable - inserting fallback message');
-            }
-            
-            const fallbackMessage = "I'm having trouble responding right now. Please try again in a moment.";
-            
-            const { data: fallbackInserted } = await supabase
-              .from('messages')
-              .insert({
-                user_id: userId,
-                person_id: personId,
-                role: 'assistant',
-                content: fallbackMessage,
-                subject: currentSubject,
-                created_at: new Date().toISOString(),
-              })
-              .select('*')
-              .single();
-
-            if (fallbackInserted) {
-              const fallbackWithMeta: ExtendedMessage = {
-                ...fallbackInserted,
-                therapist_name: therapistMeta.name,
-                therapist_avatar_source: therapistMeta.avatarSource,
-              };
-              setAllMessages((prev) => [...prev, fallbackWithMeta]);
-            }
-            
-            setError('Service temporarily unavailable. Please try again.');
-            return;
-          }
-          
-          // Handle EDGE_UNKNOWN and other errors
-          if (errorCode === 'EDGE_UNKNOWN' || errorCode === 'UNEXPECTED_ERROR' || errorCode === 'MAX_RETRIES_EXCEEDED') {
-            if (__DEV__) {
-              console.log('[Chat] Unknown/unexpected error - inserting fallback message');
-            }
-            
-            let fallbackMessage = "I'm having trouble responding right now. Please try again.";
-            
-            if (errorCode === 'MAX_RETRIES_EXCEEDED') {
-              fallbackMessage = "I'm having persistent connection issues. Please check your network and try again.";
-            }
-            
-            const { data: fallbackInserted } = await supabase
-              .from('messages')
-              .insert({
-                user_id: userId,
-                person_id: personId,
-                role: 'assistant',
-                content: fallbackMessage,
-                subject: currentSubject,
-                created_at: new Date().toISOString(),
-              })
-              .select('*')
-              .single();
-
-            if (fallbackInserted) {
-              const fallbackWithMeta: ExtendedMessage = {
-                ...fallbackInserted,
-                therapist_name: therapistMeta.name,
-                therapist_avatar_source: therapistMeta.avatarSource,
-              };
-              setAllMessages((prev) => [...prev, fallbackWithMeta]);
-            }
-            
-            setError('An error occurred. Please try again.');
-            return;
-          }
+          // Insert fallback message
+          await insertFallbackMessage(fallbackText);
+          setError(errorText);
         }
 
-        // STEP 5: Return without throwing - safe error handling
         return;
       }
 
@@ -1337,11 +1263,9 @@ export default function ChatScreen() {
           console.log('[Chat] Insert AI message error:', aiInsertError);
         }
         if (isMountedRef.current) {
-          // ═══════════════════════════════════════════════════════════════════
-          // CRITICAL: Clear typing indicator on error
-          // ═══════════════════════════════════════════════════════════════════
-          clearTypingIndicator();
           setError(aiInsertError?.message || 'Failed to save AI reply.');
+          // Insert fallback message if we couldn't save the AI response
+          await insertFallbackMessage("I'm having trouble responding right now. Please try again.");
         }
         return;
       }
@@ -1357,29 +1281,21 @@ export default function ChatScreen() {
 
       if (isMountedRef.current) {
         setAllMessages((prev) => [...prev, aiMessageWithMeta]);
-        // ═══════════════════════════════════════════════════════════════════
-        // CRITICAL: Clear typing indicator on success
-        // ═══════════════════════════════════════════════════════════════════
-        clearTypingIndicator();
       }
       console.log('[Chat] sendMessage: Complete');
 
-      // MEMORY EXTRACTION + CONTINUITY UPDATE: Extract memories and update continuity in the background
-      // This is fire-and-forget and will not block or delay the chat flow
+      // MEMORY EXTRACTION + CONTINUITY UPDATE: Background task
       (async () => {
         try {
           console.log('[Chat] Triggering memory extraction and continuity update...');
           
-          // Get existing memories for context
           const existingMemories = await getPersonMemories(userId, personId, 50);
           
-          // Extract last 5 user messages for context
           const userMessages = subjectMessages
             .filter(m => m.role === 'user')
             .slice(-5)
             .map(m => m.content);
 
-          // Extract memories and continuity (await to get continuity data)
           const extractionResult = await extractMemories({
             personName,
             recentUserMessages: userMessages,
@@ -1395,39 +1311,31 @@ export default function ChatScreen() {
           
           console.log('[Chat] Memory extraction complete');
           
-          // Show subtle confirmation indicator if memories were extracted
-          // Note: We don't check the exact count to avoid exposing internal logic
-          // The indicator shows regardless of whether new memories were added or existing ones were updated
           if (isMountedRef.current && !extractionResult.error) {
             setShowMemorySavedIndicator(true);
           }
           
-          // Update continuity if we got valid data
           if (extractionResult.continuity) {
             console.log('[Chat] Updating conversation continuity...');
             await upsertPersonContinuity(userId, personId, extractionResult.continuity);
             console.log('[Chat] Continuity updated successfully');
           }
         } catch (memoryError) {
-          // Silently fail - memory extraction should never break chat
           if (__DEV__) {
             console.log('[Chat] Memory extraction/continuity update failed (silent):', memoryError);
           }
         }
       })();
     } catch (err: any) {
-      // Only log detailed errors in __DEV__ mode
       if (__DEV__) {
         console.log('[Chat] sendMessage unexpected error:', err);
       }
       
       if (isMountedRef.current) {
-        setInputText(userMessageText); // Restore input on error
+        setInputText(userMessageText);
         setError(err?.message || 'An unexpected error occurred');
-        // ═══════════════════════════════════════════════════════════════════
-        // CRITICAL: Clear typing indicator on error
-        // ═══════════════════════════════════════════════════════════════════
-        clearTypingIndicator();
+        // Insert fallback message on unexpected error
+        await insertFallbackMessage("I'm having trouble responding right now. Please try again.");
       }
     } finally {
       // ═══════════════════════════════════════════════════════════════════
@@ -1440,8 +1348,10 @@ export default function ChatScreen() {
         // Final safety: ensure typing is cleared
         clearTypingIndicator();
       }
+      
+      console.log('[Chat] sendMessage: Finally block complete - all flags reset');
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, clearTypingIndicator]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, clearTypingIndicator, insertFallbackMessage]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -1510,8 +1420,6 @@ export default function ChatScreen() {
 
     // Close modal
     closeAddSubjectModal();
-
-    // TODO: Persist to Supabase if needed (currently local state only)
   }, [newSubjectName, availableSubjects, closeAddSubjectModal]);
 
   // Handle debug banner tap (copy to clipboard) - ONLY in __DEV__
@@ -1711,19 +1619,6 @@ export default function ChatScreen() {
             ═══════════════════════════════════════════════════════════════════
             DEVELOPER DEBUG BANNER
             ═══════════════════════════════════════════════════════════════════
-            
-            VISIBILITY RULES:
-            - Production builds (TestFlight/App Store): NEVER shown (__DEV__ === false)
-            - Expo Go / Dev builds: ONLY shown when __DEV__ === true AND debugInfo exists
-            
-            SAFETY GUARANTEES:
-            1. Entire block wrapped in __DEV__ check (compile-time removal in production)
-            2. debugInfo state is only set when __DEV__ === true
-            3. No debug components rendered outside __DEV__ block
-            4. No leftover spacing or margins when hidden
-            
-            This ensures debug information is NEVER exposed in TestFlight or App Store builds.
-            ═══════════════════════════════════════════════════════════════════
           */}
           {__DEV__ && debugInfo && (
             <TouchableOpacity 
@@ -1791,23 +1686,15 @@ export default function ChatScreen() {
             scrollEventThrottle={16}
             onContentSizeChange={handleContentSizeChange}
             onLayout={handleLayout}
-            // ═══════════════════════════════════════════════════════════════════
-            // PERFORMANCE: FlatList optimization props
-            // ═══════════════════════════════════════════════════════════════════
             initialNumToRender={15}
             maxToRenderPerBatch={10}
             windowSize={7}
             updateCellsBatchingPeriod={50}
-            getItemLayout={undefined} // Can't use with variable height items
+            getItemLayout={undefined}
           />
 
           {/* ═══════════════════════════════════════════════════════════════════
               Floating Scroll-to-Bottom Arrow
-              ═══════════════════════════════════════════════════════════════════
-              - Only visible when user has scrolled up
-              - Positioned above input bar
-              - Matches Safe Space theme
-              - Smooth fade in/out animation
               ═══════════════════════════════════════════════════════════════════ */}
           {showScrollArrow && (
             <Animated.View
@@ -1815,7 +1702,7 @@ export default function ChatScreen() {
                 styles.scrollArrowContainer,
                 {
                   opacity: scrollArrowOpacity,
-                  bottom: insets.bottom + 80, // Position above input bar
+                  bottom: insets.bottom + 80,
                 },
               ]}
               pointerEvents={showScrollArrow ? 'auto' : 'none'}
@@ -2066,7 +1953,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: '5%',
     paddingVertical: 16,
   },
-  // NEW: Date separator styles
   dateSeparatorContainer: {
     alignItems: 'center',
     marginVertical: 16,
@@ -2122,9 +2008,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontStyle: 'italic',
   },
-  // ═══════════════════════════════════════════════════════════════════
-  // Scroll-to-bottom arrow styles
-  // ═══════════════════════════════════════════════════════════════════
   scrollArrowContainer: {
     position: 'absolute',
     right: 20,
@@ -2191,7 +2074,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  // NEW: Simple modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
