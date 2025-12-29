@@ -1904,158 +1904,179 @@ export default function SettingsScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Updates Over Time Modal */}
+      {/* Updates Over Time Modal - FIXED RESPONSIVE VERSION */}
       <Modal
         visible={showUpdatesModal}
         transparent={true}
         animationType="slide"
         onRequestClose={handleCloseUpdatesModal}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <View style={[styles.updatesModalContent, { backgroundColor: '#FFFFFF' }]}>
-            <View style={styles.updatesModalHeader}>
-              <TouchableOpacity
-                onPress={handleCloseUpdatesModal}
-                style={styles.updatesModalCloseButton}
-                activeOpacity={0.7}
-              >
-                <IconSymbol
-                  ios_icon_name="xmark"
-                  android_material_icon_name="close"
-                  size={24}
-                  color={theme.textSecondary}
-                />
-              </TouchableOpacity>
-              <Text style={[styles.updatesModalTitle, { color: theme.textPrimary }]}>
-                Updates Over Time
-              </Text>
-              <View style={{ width: 40 }} />
-            </View>
-
-            <Text style={[styles.updatesModalDescription, { color: theme.textSecondary }]}>
-              Add short updates so responses stay relevant to what you&apos;re experiencing.
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.addUpdateButton, { backgroundColor: theme.primary }]}
-              onPress={handleOpenAddUpdateModal}
-              activeOpacity={0.8}
+        <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.updatesModalContainer}
+          >
+            <View 
+              style={[
+                styles.updatesModalContent, 
+                { 
+                  backgroundColor: '#FFFFFF',
+                  paddingTop: insets.top,
+                }
+              ]}
             >
-              <IconSymbol
-                ios_icon_name="plus"
-                android_material_icon_name="add"
-                size={20}
-                color="#FFFFFF"
-              />
-              <Text style={styles.addUpdateButtonText}>Add update</Text>
-            </TouchableOpacity>
-
-            <ScrollView
-              style={styles.updatesListScrollView}
-              contentContainerStyle={styles.updatesListContent}
-              showsVerticalScrollIndicator={true}
-            >
-              {isLoadingUpdates ? (
-                <View style={styles.updatesLoadingContainer}>
-                  <ActivityIndicator size="large" color={theme.primary} />
-                </View>
-              ) : updates.length === 0 ? (
-                <View style={styles.updatesEmptyContainer}>
+              {/* Sticky Header */}
+              <View style={styles.updatesModalHeader}>
+                <TouchableOpacity
+                  onPress={handleCloseUpdatesModal}
+                  style={styles.updatesModalCloseButton}
+                  activeOpacity={0.7}
+                >
                   <IconSymbol
-                    ios_icon_name="clock"
-                    android_material_icon_name="schedule"
-                    size={48}
+                    ios_icon_name="xmark"
+                    android_material_icon_name="close"
+                    size={24}
                     color={theme.textSecondary}
                   />
-                  <Text style={[styles.updatesEmptyText, { color: theme.textSecondary }]}>
-                    No updates yet
-                  </Text>
-                  <Text style={[styles.updatesEmptySubtext, { color: theme.textSecondary }]}>
-                    Add your first update to help personalize your experience
-                  </Text>
-                </View>
-              ) : (
-                updates.map((update, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.updateCard,
-                      {
-                        backgroundColor: theme.background,
-                        borderColor: theme.textSecondary + '20',
-                      },
-                    ]}
-                  >
-                    <View style={styles.updateCardHeader}>
-                      <Text style={[styles.updateCardTitle, { color: theme.textPrimary }]}>
-                        {update.title}
-                      </Text>
-                      {update.started_at && (
-                        <Text style={[styles.updateCardDate, { color: theme.textSecondary }]}>
-                          {formatDate(update.started_at)}
+                </TouchableOpacity>
+                <Text style={[styles.updatesModalTitle, { color: theme.textPrimary }]}>
+                  Updates Over Time
+                </Text>
+                <View style={{ width: 40 }} />
+              </View>
+
+              {/* Description + Add Button */}
+              <View style={styles.updatesModalTopSection}>
+                <Text style={[styles.updatesModalDescription, { color: theme.textSecondary }]}>
+                  Add short updates so responses stay relevant to what you&apos;re experiencing.
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.addUpdateButton, { backgroundColor: theme.primary }]}
+                  onPress={handleOpenAddUpdateModal}
+                  activeOpacity={0.8}
+                >
+                  <IconSymbol
+                    ios_icon_name="plus"
+                    android_material_icon_name="add"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.addUpdateButtonText}>Add update</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Scrollable List */}
+              <ScrollView
+                style={styles.updatesListScrollView}
+                contentContainerStyle={[
+                  styles.updatesListContent,
+                  { 
+                    flexGrow: 1,
+                    paddingBottom: insets.bottom + 20,
+                  }
+                ]}
+                showsVerticalScrollIndicator={false}
+              >
+                {isLoadingUpdates ? (
+                  <View style={styles.updatesLoadingContainer}>
+                    <ActivityIndicator size="large" color={theme.primary} />
+                  </View>
+                ) : updates.length === 0 ? (
+                  <View style={styles.updatesEmptyContainer}>
+                    <IconSymbol
+                      ios_icon_name="clock"
+                      android_material_icon_name="schedule"
+                      size={isCompactScreen ? 40 : 48}
+                      color={theme.textSecondary}
+                    />
+                    <Text style={[styles.updatesEmptyText, { color: theme.textSecondary, fontSize: isCompactScreen ? 16 : 18 }]}>
+                      No updates yet
+                    </Text>
+                    <Text style={[styles.updatesEmptySubtext, { color: theme.textSecondary, fontSize: isCompactScreen ? 13 : 14 }]}>
+                      Add your first update to help personalize your experience
+                    </Text>
+                  </View>
+                ) : (
+                  updates.map((update, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.updateCard,
+                        {
+                          backgroundColor: theme.background,
+                          borderColor: theme.textSecondary + '20',
+                        },
+                      ]}
+                    >
+                      <View style={styles.updateCardHeader}>
+                        <Text style={[styles.updateCardTitle, { color: theme.textPrimary }]}>
+                          {update.title}
+                        </Text>
+                        {update.started_at && (
+                          <Text style={[styles.updateCardDate, { color: theme.textSecondary }]}>
+                            {formatDate(update.started_at)}
+                          </Text>
+                        )}
+                      </View>
+
+                      {update.details && (
+                        <Text
+                          style={[styles.updateCardDetails, { color: theme.textSecondary }]}
+                          numberOfLines={2}
+                        >
+                          {update.details}
                         </Text>
                       )}
-                    </View>
 
-                    {update.details && (
-                      <Text
-                        style={[styles.updateCardDetails, { color: theme.textSecondary }]}
-                        numberOfLines={2}
-                      >
-                        {update.details}
-                      </Text>
-                    )}
+                      {update.ai_preference && (
+                        <View style={[styles.updateCardPreference, { backgroundColor: theme.primary + '15' }]}>
+                          <Text style={[styles.updateCardPreferenceText, { color: theme.primary }]}>
+                            {update.ai_preference}
+                          </Text>
+                        </View>
+                      )}
 
-                    {update.ai_preference && (
-                      <View style={[styles.updateCardPreference, { backgroundColor: theme.primary + '15' }]}>
-                        <Text style={[styles.updateCardPreferenceText, { color: theme.primary }]}>
-                          {update.ai_preference}
-                        </Text>
+                      <View style={styles.updateCardActions}>
+                        <TouchableOpacity
+                          style={styles.updateCardActionButton}
+                          onPress={() => handleOpenEditUpdateModal(update)}
+                          activeOpacity={0.7}
+                        >
+                          <IconSymbol
+                            ios_icon_name="pencil"
+                            android_material_icon_name="edit"
+                            size={18}
+                            color={theme.primary}
+                          />
+                          <Text style={[styles.updateCardActionText, { color: theme.primary }]}>
+                            Edit
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.updateCardActionButton}
+                          onPress={() => handleDeleteUpdate(update.id)}
+                          activeOpacity={0.7}
+                        >
+                          <IconSymbol
+                            ios_icon_name="trash"
+                            android_material_icon_name="delete"
+                            size={18}
+                            color="#FF3B30"
+                          />
+                          <Text style={[styles.updateCardActionText, { color: '#FF3B30' }]}>
+                            Delete
+                          </Text>
+                        </TouchableOpacity>
                       </View>
-                    )}
-
-                    <View style={styles.updateCardActions}>
-                      <TouchableOpacity
-                        style={styles.updateCardActionButton}
-                        onPress={() => handleOpenEditUpdateModal(update)}
-                        activeOpacity={0.7}
-                      >
-                        <IconSymbol
-                          ios_icon_name="pencil"
-                          android_material_icon_name="edit"
-                          size={18}
-                          color={theme.primary}
-                        />
-                        <Text style={[styles.updateCardActionText, { color: theme.primary }]}>
-                          Edit
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.updateCardActionButton}
-                        onPress={() => handleDeleteUpdate(update.id)}
-                        activeOpacity={0.7}
-                      >
-                        <IconSymbol
-                          ios_icon_name="trash"
-                          android_material_icon_name="delete"
-                          size={18}
-                          color="#FF3B30"
-                        />
-                        <Text style={[styles.updateCardActionText, { color: '#FF3B30' }]}>
-                          Delete
-                        </Text>
-                      </TouchableOpacity>
                     </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
       </Modal>
 
       {/* Add/Edit Update Modal */}
@@ -2610,19 +2631,28 @@ const styles = StyleSheet.create({
     boxShadow: '0px -2px 8px rgba(0, 0, 0, 0.05)',
     elevation: 4,
   },
+
+  // FIXED RESPONSIVE UPDATES OVER TIME MODAL STYLES
+  updatesModalSafeArea: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  updatesModalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
   updatesModalContent: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    height: SCREEN_HEIGHT * 0.85,
-    paddingTop: 16,
+    maxHeight: '92%',
+    flex: 1,
   },
   updatesModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.08)',
   },
@@ -2633,12 +2663,15 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
-  updatesModalDescription: {
-    fontSize: 14,
-    lineHeight: 20,
+  updatesModalTopSection: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
+  },
+  updatesModalDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
   },
   addUpdateButton: {
     flexDirection: 'row',
@@ -2647,8 +2680,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,
-    marginHorizontal: 20,
-    marginBottom: 16,
     gap: 8,
   },
   addUpdateButtonText: {
@@ -2661,30 +2692,30 @@ const styles = StyleSheet.create({
   },
   updatesListContent: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingTop: 12,
   },
   updatesLoadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 60,
   },
   updatesEmptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
+    paddingHorizontal: 40,
   },
   updatesEmptyText: {
-    fontSize: 18,
     fontWeight: '600',
     marginTop: 16,
     marginBottom: 8,
+    textAlign: 'center',
   },
   updatesEmptySubtext: {
-    fontSize: 14,
     textAlign: 'center',
-    paddingHorizontal: 40,
+    lineHeight: 20,
   },
   updateCard: {
     borderRadius: 12,
