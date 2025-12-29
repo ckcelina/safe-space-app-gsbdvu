@@ -37,7 +37,7 @@ import { MemorySavedIndicator } from '@/components/ui/MemorySavedIndicator';
 import { showErrorToast } from '@/utils/toast';
 import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
-import { upsertPersonContinuity, getPersonContinuity } from '@/lib/memory/personSummary';
+import { upsertPersonContinuity } from '@/lib/memory/personSummary';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
 import { invokeEdgeSafe } from '@/lib/supabase/invokeEdge';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
@@ -427,28 +427,9 @@ export default function ChatScreen() {
     return false;
   }, []);
 
-  // NEW: Retry handler for failed messages
-  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
-    if (!authUser?.id || !personId) {
-      return;
-    }
-
-    console.log('[Chat] Retrying failed message:', messageId);
-
-    // Remove the failed message from UI
-    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-
-    // Set the input text to the retry content and trigger send
-    setInputText(retryContent);
-    
-    // Small delay to ensure state updates
-    setTimeout(() => {
-      sendMessage();
-    }, 100);
-  }, [authUser?.id, personId, sendMessage]);
-
-  const sendMessage = useCallback(async () => {
-    const text = inputText.trim();
+  const sendMessage = useCallback(async (overrideText?: string) => {
+    const raw = typeof overrideText === 'string' ? overrideText : inputText;
+    const text = raw.trim();
 
     // STEP 1: In-flight guard - prevent multiple rapid sends
     if (isSending) {
@@ -532,67 +513,65 @@ export default function ChatScreen() {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // MEMORY CAPTURE: Fire-and-forget capture of factual statements
+      // MEMORY CAPTURE: Reliable and deterministic
       // ═══════════════════════════════════════════════════════════════════
       // This runs IMMEDIATELY after user message is saved
       // It NEVER blocks the chat flow or throws errors
       // It respects the "Continue conversations" toggle
       // ═══════════════════════════════════════════════════════════════════
       
-      console.log('[Chat] 🧠 Triggering memory capture...');
+      console.log('[Chat] 🧠 Starting memory capture...');
       
-      // Check continuity setting first
-      getPersonContinuity(userId, personId).then((continuityData) => {
-        const continuityEnabled = continuityData.continuity_enabled;
-        
-        console.log('[Chat] Memory capture - continuity enabled:', continuityEnabled);
-        
-        if (continuityEnabled) {
-          console.log('[Chat] Memory capture - calling captureMemoriesFromMessage');
-          // Call the memory capture function (fire-and-forget)
-          captureMemoriesFromMessage(
-            userId,
-            personId,
-            userMessageText,
-            personName,
-            currentSubject
-          ).catch((err) => {
-            // Silent failure - never crash the chat
+      // Helper function to safely check continuity enabled status
+      const safeContinuityEnabled = async (): Promise<boolean> => {
+        try {
+          const { data, error } = await supabase
+            .from('person_chat_summaries')
+            .select('continuity_enabled')
+            .eq('user_id', userId)
+            .eq('person_id', personId)
+            .maybeSingle();
+          
+          if (error) {
             if (__DEV__) {
-              console.log('[Chat] Memory capture failed (silent):', err?.message || 'unknown');
+              console.log('[Chat] Error checking continuity, defaulting to enabled:', error);
             }
-          });
-        } else {
-          console.log('[Chat] Memory capture - skipped (continuity disabled)');
+            return true; // Default to enabled on error
+          }
+          
+          if (!data) {
+            if (__DEV__) {
+              console.log('[Chat] No continuity record found, defaulting to enabled');
+            }
+            return true; // Default to enabled if no record
+          }
+          
+          const enabled = data.continuity_enabled ?? true;
+          if (__DEV__) {
+            console.log('[Chat] Continuity enabled:', enabled);
+          }
+          return Boolean(enabled);
+        } catch (err) {
+          if (__DEV__) {
+            console.log('[Chat] Exception checking continuity, defaulting to enabled:', err);
+          }
+          return true; // Default to enabled on exception
         }
-      }).catch((err) => {
-        // If we can't check continuity, default to enabled
-        if (__DEV__) {
-          console.log('[Chat] Failed to check continuity, defaulting to enabled:', err);
-        }
-        captureMemoriesFromMessage(
-          userId,
-          personId,
-          userMessageText,
-          personName,
-          currentSubject
-        ).catch(() => {
-          // Silent failure
-        });
-      });
+      };
 
-      // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
-      // This runs even if the AI reply fails, ensuring memories are always saved
+      // STEP A: Local memory extraction and upsert (AWAIT THIS)
       try {
         console.log('[Chat] Running local memory extraction...');
         const extractedMemories = extractMemoriesFromUserText(userMessageText, personName);
         
         if (extractedMemories.length > 0) {
           console.log('[Chat] Extracted', extractedMemories.length, 'memories locally');
+          
+          // AWAIT the upsert to ensure it completes
           await upsertPersonMemories(userId, personId, extractedMemories);
           console.log('[Chat] Local memories upserted successfully');
           
-          // Show subtle confirmation indicator
+          // Show subtle confirmation indicator ONLY after successful upsert
           if (isMountedRef.current) {
             setShowMemorySavedIndicator(true);
           }
@@ -601,8 +580,41 @@ export default function ChatScreen() {
         }
       } catch (memoryError: any) {
         // Silent failure - never crash the chat
-        console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
+        if (__DEV__) {
+          console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
+        }
       }
+
+      // STEP B: Server memory capture (fire-and-forget)
+      (async () => {
+        try {
+          const enabled = await safeContinuityEnabled();
+          
+          if (enabled) {
+            console.log('[Chat] Memory capture - calling captureMemoriesFromMessage');
+            // Call the memory capture function (fire-and-forget)
+            captureMemoriesFromMessage(
+              userId,
+              personId,
+              userMessageText,
+              personName,
+              currentSubject
+            ).catch((err) => {
+              // Silent failure - never crash the chat
+              if (__DEV__) {
+                console.log('[Chat] Server memory capture failed (silent):', err?.message || 'unknown');
+              }
+            });
+          } else {
+            console.log('[Chat] Memory capture - skipped (continuity disabled)');
+          }
+        } catch (err) {
+          // Silent failure
+          if (__DEV__) {
+            console.log('[Chat] Server memory capture exception (silent):', err);
+          }
+        }
+      })();
 
       console.log('[Chat] Calling AI Edge Function...');
       console.log('[Chat] Total messages in history:', updatedMessages.length);
@@ -956,6 +968,21 @@ export default function ChatScreen() {
       }
     }
   }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata]);
+
+  // NEW: Retry handler for failed messages (moved BELOW sendMessage)
+  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
+    if (!authUser?.id || !personId) {
+      return;
+    }
+
+    console.log('[Chat] Retrying failed message:', messageId);
+
+    // Remove the failed message from UI
+    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+
+    // Send directly using override text (no setTimeout, no input state race)
+    await sendMessage(retryContent);
+  }, [authUser?.id, personId, sendMessage]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -1329,7 +1356,7 @@ export default function ChatScreen() {
                   { backgroundColor: theme.primary },
                   isSendDisabled && styles.sendButtonDisabled,
                 ]}
-                onPress={sendMessage}
+                onPress={() => sendMessage()}
                 disabled={isSendDisabled}
                 activeOpacity={0.7}
               >
