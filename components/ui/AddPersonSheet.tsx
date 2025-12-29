@@ -21,7 +21,7 @@ interface AddPersonSheetProps {
   visible: boolean;
   onClose: () => void;
   onPersonCreated: (newPerson: Person) => void;
-  userId: string;
+  userId: string | null;
   theme: any;
   insets: any;
 }

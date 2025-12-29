@@ -7,7 +7,7 @@ import { DEFAULT_TONE_ID } from '@/constants/AITones';
 interface UserPreferences {
   ai_tone_id: string;
   ai_science_mode: boolean;
-  therapist_persona_id?: string; // NEW: Therapist persona selection
+  therapist_persona_id?: string | null; // NEW: Therapist persona selection
   conversation_style?: string;
   stress_response?: string;
   processing_style?: string;

@@ -6,7 +6,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, View, Platform, LogBox } from "react-native";
+import { useColorScheme, Alert, View, Platform, LogBox, Text } from "react-native";
 import { useNetworkState } from "expo-network";
 import Constants from "expo-constants";
 import {
@@ -25,6 +25,7 @@ import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { runDevDiagnostics, logStartupError } from "@/utils/devDiagnostics";
 import { setupNetworkDebugging } from "@/utils/networkDebug";
+import { supabaseConfigStatus } from "@/lib/supabase";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // DEV-ONLY: Network Request Failed Error Suppression
@@ -336,19 +337,54 @@ function RootLayoutInner() {
 }
 
 export default function RootLayout() {
-  return (
-    <ErrorBoundary>
+  if (!supabaseConfigStatus.hasUrl || !supabaseConfigStatus.hasAnonKey) {
+    const missingVars = [
+      !supabaseConfigStatus.hasUrl ? "EXPO_PUBLIC_SUPABASE_URL" : null,
+      !supabaseConfigStatus.hasAnonKey ? "EXPO_PUBLIC_SUPABASE_ANON_KEY" : null,
+    ].filter(Boolean);
+
+    return (
       <SafeAreaProvider>
-        <AppThemeProvider>
-          <AuthProvider>
-            <UserPreferencesProvider>
-              <WidgetProvider>
-                <RootLayoutInner />
-              </WidgetProvider>
-            </UserPreferencesProvider>
-          </AuthProvider>
-        </AppThemeProvider>
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0b172a" }}>
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 24,
+              gap: 12,
+            }}
+          >
+            <Text style={{ fontSize: 22, fontWeight: "700", color: "white", textAlign: "center" }}>
+              Safe Space needs configuration
+            </Text>
+            <Text style={{ fontSize: 16, color: "#d1d5db", textAlign: "center" }}>
+              We couldn’t start the app because the Supabase settings are missing.
+            </Text>
+            <Text style={{ fontSize: 14, color: "#9ca3af", textAlign: "center" }}>
+              Add {missingVars.join(" and ")} to your environment and reload.
+            </Text>
+          </View>
+          <SystemBars style="light" />
+        </GestureHandlerRootView>
       </SafeAreaProvider>
-    </ErrorBoundary>
+    );
+  }
+
+  // WidgetProvider must wrap the entire app tree so hooks always have context
+  return (
+    <WidgetProvider>
+      <ErrorBoundary>
+        <SafeAreaProvider>
+          <AppThemeProvider>
+            <AuthProvider>
+              <UserPreferencesProvider>
+                <RootLayoutInner />
+              </UserPreferencesProvider>
+            </AuthProvider>
+          </AppThemeProvider>
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    </WidgetProvider>
   );
 }

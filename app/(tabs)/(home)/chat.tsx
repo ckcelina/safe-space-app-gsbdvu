@@ -37,7 +37,8 @@ import { MemorySavedIndicator } from '@/components/ui/MemorySavedIndicator';
 import { showErrorToast } from '@/utils/toast';
 import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
-import { upsertPersonContinuity, getPersonContinuity } from '@/lib/memory/personSummary';
+import { upsertPersonContinuity } from '@/lib/memory/personSummary';
+import { getPersonContinuity } from '@/lib/memory/personContinuity';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
 import { invokeEdgeSafe } from '@/lib/supabase/invokeEdge';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
@@ -426,26 +427,6 @@ export default function ChatScreen() {
 
     return false;
   }, []);
-
-  // NEW: Retry handler for failed messages
-  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
-    if (!authUser?.id || !personId) {
-      return;
-    }
-
-    console.log('[Chat] Retrying failed message:', messageId);
-
-    // Remove the failed message from UI
-    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-
-    // Set the input text to the retry content and trigger send
-    setInputText(retryContent);
-    
-    // Small delay to ensure state updates
-    setTimeout(() => {
-      sendMessage();
-    }, 100);
-  }, [authUser?.id, personId, sendMessage]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -956,6 +937,26 @@ export default function ChatScreen() {
       }
     }
   }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata]);
+
+  // NEW: Retry handler for failed messages
+  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
+    if (!authUser?.id || !personId) {
+      return;
+    }
+
+    console.log('[Chat] Retrying failed message:', messageId);
+
+    // Remove the failed message from UI
+    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+
+    // Set the input text to the retry content and trigger send
+    setInputText(retryContent);
+
+    // Small delay to ensure state updates
+    setTimeout(() => {
+      sendMessage();
+    }, 100);
+  }, [authUser?.id, personId, sendMessage]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
