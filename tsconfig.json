@@ -18,6 +18,8 @@
     "workbox-config.js",
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "supabase",
+    "supabase-edge-function-example.ts"
   ]
 }

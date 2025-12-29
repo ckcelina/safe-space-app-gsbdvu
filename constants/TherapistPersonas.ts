@@ -731,6 +731,8 @@ export const THERAPIST_PREVIEW_CONTENT: Record<string, TherapistPreviewConfig> =
 
 // Backward-compatible aliases
 export type TherapistPreviewContent = TherapistPreviewConfig;
+// Alias the preview content map for compatibility with existing imports.
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const TherapistPreviewContent = THERAPIST_PREVIEW_CONTENT;
 
 /**

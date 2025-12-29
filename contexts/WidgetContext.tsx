@@ -28,7 +28,22 @@ type WidgetContextType = {
   updateWidgetTheme: (themeData: WidgetThemeData) => void;
 };
 
+const missingProviderMessage =
+  "useWidget was called outside of a WidgetProvider. Make sure WidgetProvider wraps the app.";
+
+const devFallbackContext: WidgetContextType = {
+  refreshWidget: () => console.warn(`[Widget] refreshWidget noop: ${missingProviderMessage}`),
+  updateWidgetTheme: () => console.warn(`[Widget] updateWidgetTheme noop: ${missingProviderMessage}`),
+};
+
+const prodFallbackContext: WidgetContextType = {
+  refreshWidget: () => {},
+  updateWidgetTheme: () => {},
+};
+
 const WidgetContext = createContext<WidgetContextType | null>(null);
+
+let hasLoggedMissingProviderWarning = false;
 
 export function WidgetProvider({ children }: { children: React.ReactNode }) {
   const refreshWidget = useCallback(() => {
@@ -73,8 +88,34 @@ export function WidgetProvider({ children }: { children: React.ReactNode }) {
 
 export const useWidget = () => {
   const context = useContext(WidgetContext);
-  if (!context) {
-    throw new Error("useWidget must be used within a WidgetProvider");
+  if (context) {
+    return context;
   }
-  return context;
+
+  if (__DEV__ && !hasLoggedMissingProviderWarning) {
+    console.error(`[Widget] ${missingProviderMessage}`);
+    hasLoggedMissingProviderWarning = true;
+  }
+
+  return __DEV__ ? devFallbackContext : prodFallbackContext;
+  }
+
+  const message =
+    "useWidget was called outside of a WidgetProvider. Make sure WidgetProvider wraps the app.";
+
+  if (__DEV__) {
+    console.error(`[Widget] ${message}`);
+    return {
+      refreshWidget: () => console.warn(`[Widget] refreshWidget noop: ${message}`),
+      updateWidgetTheme: () => console.warn(`[Widget] updateWidgetTheme noop: ${message}`),
+    };
+  }
+
+  return {
+    refreshWidget: () => {},
+    updateWidgetTheme: () => {},
+  };
 };
+
+export const isWidgetContextFallback = (context: WidgetContextType) =>
+  context === devFallbackContext || context === prodFallbackContext;
