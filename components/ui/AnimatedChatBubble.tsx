@@ -103,7 +103,10 @@ function formatMessageTime(timestamp?: string): string {
   }
 }
 
-export function AnimatedChatBubble({ 
+// ═══════════════════════════════════════════════════════════════════
+// PERFORMANCE: Memoized component to prevent unnecessary re-renders
+// ═══════════════════════════════════════════════════════════════════
+export const AnimatedChatBubble = React.memo(({ 
   message, 
   isUser, 
   timestamp, 
@@ -111,7 +114,7 @@ export function AnimatedChatBubble({
   therapistName,
   therapistAvatarSource,
   therapistPersonaId,
-}: AnimatedChatBubbleProps) {
+}: AnimatedChatBubbleProps) => {
   const { theme } = useThemeContext();
   const isReducedMotion = useReducedMotion();
   
@@ -362,7 +365,23 @@ export function AnimatedChatBubble({
       </View>
     </Animated.View>
   );
-}
+}, (prevProps, nextProps) => {
+  // ═══════════════════════════════════════════════════════════════════
+  // PERFORMANCE: Custom comparison function for React.memo
+  // Only re-render if these specific props change
+  // ═══════════════════════════════════════════════════════════════════
+  return (
+    prevProps.message === nextProps.message &&
+    prevProps.isUser === nextProps.isUser &&
+    prevProps.timestamp === nextProps.timestamp &&
+    prevProps.animate === nextProps.animate &&
+    prevProps.therapistName === nextProps.therapistName &&
+    prevProps.therapistAvatarSource === nextProps.therapistAvatarSource &&
+    prevProps.therapistPersonaId === nextProps.therapistPersonaId
+  );
+});
+
+AnimatedChatBubble.displayName = 'AnimatedChatBubble';
 
 const styles = StyleSheet.create({
   outerContainer: {

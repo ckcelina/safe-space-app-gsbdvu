@@ -83,31 +83,34 @@ interface SubjectPillProps {
   isAddButton?: boolean;
 }
 
-function SubjectPill({ subject, isSelected, onPress, isAddButton = false }: SubjectPillProps) {
+// ═══════════════════════════════════════════════════════════════════
+// PERFORMANCE: Memoized SubjectPill component
+// ═══════════════════════════════════════════════════════════════════
+const SubjectPill = React.memo(({ subject, isSelected, onPress, isAddButton = false }: SubjectPillProps) => {
   const { theme } = useThemeContext();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const handlePressIn = () => {
+  const handlePressIn = useCallback(() => {
     Animated.spring(scaleAnim, {
       toValue: 0.95,
       useNativeDriver: true,
       tension: 100,
       friction: 3,
     }).start();
-  };
+  }, [scaleAnim]);
 
-  const handlePressOut = () => {
+  const handlePressOut = useCallback(() => {
     Animated.spring(scaleAnim, {
       toValue: 1,
       useNativeDriver: true,
       tension: 100,
       friction: 3,
     }).start();
-  };
+  }, [scaleAnim]);
 
-  const handlePress = () => {
+  const handlePress = useCallback(() => {
     onPress(subject);
-  };
+  }, [onPress, subject]);
 
   return (
     <TouchableOpacity
@@ -140,10 +143,14 @@ function SubjectPill({ subject, isSelected, onPress, isAddButton = false }: Subj
       </Animated.View>
     </TouchableOpacity>
   );
-}
+});
 
-// NEW: Date Separator Component
-function DateSeparator({ label }: { label: string }) {
+SubjectPill.displayName = 'SubjectPill';
+
+// ═══════════════════════════════════════════════════════════════════
+// PERFORMANCE: Memoized DateSeparator component
+// ═══════════════════════════════════════════════════════════════════
+const DateSeparator = React.memo(({ label }: { label: string }) => {
   const { theme } = useThemeContext();
   
   return (
@@ -155,7 +162,9 @@ function DateSeparator({ label }: { label: string }) {
       </View>
     </View>
   );
-}
+});
+
+DateSeparator.displayName = 'DateSeparator';
 
 // NEW: Helper function to format date separator label
 function getDateSeparatorLabel(date: Date): string {
@@ -199,6 +208,248 @@ function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageLi
   
   return items;
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// PERFORMANCE: Isolated ChatHeader component
+// ═══════════════════════════════════════════════════════════════════
+interface ChatHeaderProps {
+  personName: string;
+  relationshipType?: string;
+  isPremium: boolean;
+  isTopicChat: boolean;
+  personId: string;
+  onBackPress: () => void;
+}
+
+const ChatHeader = React.memo(({ 
+  personName, 
+  relationshipType, 
+  isPremium, 
+  isTopicChat, 
+  personId,
+  onBackPress 
+}: ChatHeaderProps) => {
+  const { theme } = useThemeContext();
+  const insets = useSafeAreaInsets();
+
+  const handleMemoriesPress = useCallback(() => {
+    router.push({
+      pathname: '/(tabs)/(home)/memories',
+      params: { personId, personName }
+    });
+  }, [personId, personName]);
+
+  return (
+    <>
+      {/* Status Bar Gradient - matches theme gradient */}
+      <LinearGradient
+        colors={theme.primaryGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.statusBarGradient, { height: insets.top }]}
+        pointerEvents="none"
+      />
+
+      {/* Header with Gradient Background */}
+      <LinearGradient
+        colors={theme.primaryGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerGradient, { paddingTop: insets.top }]}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity 
+            onPress={onBackPress} 
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <IconSymbol
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow_back"
+              size={24}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <View style={styles.headerTitleRow}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {personName}
+              </Text>
+              {isPremium && !isTopicChat && (
+                <View style={styles.premiumBadgeSmall}>
+                  <Text style={styles.premiumBadgeSmallText}>⭐</Text>
+                </View>
+              )}
+            </View>
+            {relationshipType && (
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
+                {relationshipType}
+              </Text>
+            )}
+          </View>
+          <TouchableOpacity 
+            onPress={handleMemoriesPress} 
+            style={styles.memoriesButton}
+            activeOpacity={0.7}
+          >
+            <IconSymbol
+              ios_icon_name="brain"
+              android_material_icon_name="psychology"
+              size={24}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    </>
+  );
+});
+
+ChatHeader.displayName = 'ChatHeader';
+
+// ═══════════════════════════════════════════════════════════════════
+// PERFORMANCE: Isolated SubjectPillsRow component
+// ═══════════════════════════════════════════════════════════════════
+interface SubjectPillsRowProps {
+  availableSubjects: string[];
+  currentSubject: string;
+  onSubjectPress: (subject: string) => void;
+  onAddSubjectPress: () => void;
+}
+
+const SubjectPillsRow = React.memo(({ 
+  availableSubjects, 
+  currentSubject, 
+  onSubjectPress,
+  onAddSubjectPress 
+}: SubjectPillsRowProps) => {
+  const { theme } = useThemeContext();
+
+  const renderPill = useCallback(({ item, index }: { item: string; index: number }) => (
+    <SubjectPill
+      key={`subject-${index}-${item}`}
+      subject={item}
+      isSelected={currentSubject === item}
+      onPress={item === '+ Add subject' ? onAddSubjectPress : onSubjectPress}
+      isAddButton={item === '+ Add subject'}
+    />
+  ), [currentSubject, onSubjectPress, onAddSubjectPress]);
+
+  const keyExtractor = useCallback((item: string, index: number) => `subject-${index}-${item}`, []);
+
+  const pillsData = React.useMemo(() => [...availableSubjects, '+ Add subject'], [availableSubjects]);
+
+  return (
+    <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
+      <FlatList
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.pillsScrollContent}
+        keyboardShouldPersistTaps="handled"
+        data={pillsData}
+        renderItem={renderPill}
+        keyExtractor={keyExtractor}
+        removeClippedSubviews={Platform.OS === 'android'}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+      />
+    </View>
+  );
+});
+
+SubjectPillsRow.displayName = 'SubjectPillsRow';
+
+// ═══════════════════════════════════════════════════════════════════
+// PERFORMANCE: Isolated ChatInputBar component
+// ═══════════════════════════════════════════════════════════════════
+interface ChatInputBarProps {
+  inputText: string;
+  onChangeText: (text: string) => void;
+  onSend: () => void;
+  isSendDisabled: boolean;
+  loading: boolean;
+  isSending: boolean;
+}
+
+const ChatInputBar = React.memo(({ 
+  inputText, 
+  onChangeText, 
+  onSend, 
+  isSendDisabled,
+  loading,
+  isSending 
+}: ChatInputBarProps) => {
+  const { theme } = useThemeContext();
+  const insets = useSafeAreaInsets();
+  const [inputFocused, setInputFocused] = useState(false);
+
+  const handleFocus = useCallback(() => setInputFocused(true), []);
+  const handleBlur = useCallback(() => setInputFocused(false), []);
+
+  const handleSubmit = useCallback(() => {
+    if (!isSendDisabled) {
+      onSend();
+    }
+  }, [isSendDisabled, onSend]);
+
+  return (
+    <View style={[
+      styles.inputContainer, 
+      { 
+        backgroundColor: theme.card,
+        paddingBottom: insets.bottom || 8,
+      }
+    ]}>
+      <View style={styles.inputRow}>
+        <View style={styles.inputColumn}>
+          <View style={[
+            styles.inputWrapper, 
+            { 
+              backgroundColor: theme.background,
+              borderWidth: inputFocused ? 2 : 1,
+              borderColor: inputFocused ? theme.primary : theme.textSecondary + '40',
+            }
+          ]}>
+            <TextInput
+              style={[styles.input, { color: theme.textPrimary }]}
+              placeholder="Tell me what's going on…"
+              placeholderTextColor={theme.textSecondary}
+              value={inputText}
+              onChangeText={onChangeText}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+              multiline
+              editable={!isSending && !loading}
+              onSubmitEditing={handleSubmit}
+              cursorColor={theme.primary}
+              selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+            />
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.sendButton,
+            { backgroundColor: theme.primary },
+            isSendDisabled && styles.sendButtonDisabled,
+          ]}
+          onPress={onSend}
+          disabled={isSendDisabled}
+          activeOpacity={0.7}
+        >
+          <IconSymbol
+            ios_icon_name="paperplane.fill"
+            android_material_icon_name="send"
+            size={20}
+            color="#FFFFFF"
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
+ChatInputBar.displayName = 'ChatInputBar';
 
 export default function ChatScreen() {
   const params = useLocalSearchParams<{
@@ -245,7 +496,6 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [inputFocused, setInputFocused] = useState(false);
 
   // Track current subject in state
   const [currentSubject, setCurrentSubject] = useState<string>('General');
@@ -1294,7 +1544,9 @@ export default function ChatScreen() {
     }
   }, [allMessages, retryFailedMessage, error]);
 
-  // Render individual list item (message or date separator)
+  // ═══════════════════════════════════════════════════════════════════
+  // PERFORMANCE: Memoized renderListItem with stable callback
+  // ═══════════════════════════════════════════════════════════════════
   const renderListItem = useCallback(({ item }: ListRenderItemInfo<MessageListItem>) => {
     if (item.type === 'date-separator') {
       return <DateSeparator label={item.label} />;
@@ -1335,7 +1587,9 @@ export default function ChatScreen() {
     );
   }, [preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
 
-  // Key extractor for FlatList
+  // ═══════════════════════════════════════════════════════════════════
+  // PERFORMANCE: Stable keyExtractor
+  // ═══════════════════════════════════════════════════════════════════
   const keyExtractor = useCallback((item: MessageListItem, index: number) => {
     if (item.type === 'date-separator') {
       return `date-${item.date.toISOString()}-${index}`;
@@ -1343,7 +1597,9 @@ export default function ChatScreen() {
     return item.data.id;
   }, []);
 
-  // Empty list component
+  // ═══════════════════════════════════════════════════════════════════
+  // PERFORMANCE: Memoized empty list component
+  // ═══════════════════════════════════════════════════════════════════
   const renderEmptyList = useCallback(() => {
     if (loading) return null;
     
@@ -1379,7 +1635,10 @@ export default function ChatScreen() {
     );
   }, [loading, theme, personName, currentSubject, allMessages.length, error, handleRetry]);
 
-  // Footer component (typing indicator at bottom of non-inverted list)
+  // ═══════════════════════════════════════════════════════════════════
+  // PERFORMANCE: Memoized footer component (typing indicator)
+  // This is isolated so typing indicator updates don't re-render messages
+  // ═══════════════════════════════════════════════════════════════════
   const renderListFooter = useCallback(() => {
     // ═══════════════════════════════════════════════════════════════════
     // CRITICAL: Only render typing indicator when isTyping is true
@@ -1398,6 +1657,20 @@ export default function ChatScreen() {
     );
   }, [isTyping, getCurrentTherapistMetadata, preferences.therapist_persona_id]);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // PERFORMANCE: Memoized scroll arrow button handler
+  // ═══════════════════════════════════════════════════════════════════
+  const handleScrollArrowPress = useCallback(() => {
+    scrollToBottom(true);
+  }, [scrollToBottom]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PERFORMANCE: Memoized input change handler (debounced if needed)
+  // ═══════════════════════════════════════════════════════════════════
+  const handleInputChange = useCallback((text: string) => {
+    setInputText(text);
+  }, []);
+
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoidingView
@@ -1406,90 +1679,27 @@ export default function ChatScreen() {
         keyboardVerticalOffset={0}
       >
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-          {/* Status Bar Gradient - matches theme gradient */}
-          <LinearGradient
-            colors={theme.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={[styles.statusBarGradient, { height: insets.top }]}
-            pointerEvents="none"
+          {/* ═══════════════════════════════════════════════════════════════════
+              ISOLATED: Chat Header Component
+              ═══════════════════════════════════════════════════════════════════ */}
+          <ChatHeader
+            personName={personName}
+            relationshipType={relationshipType}
+            isPremium={isPremium}
+            isTopicChat={isTopicChat}
+            personId={personId}
+            onBackPress={handleBackPress}
           />
 
-          {/* Header with Gradient Background */}
-          <LinearGradient
-            colors={theme.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={[styles.headerGradient, { paddingTop: insets.top }]}
-          >
-            <View style={styles.header}>
-              <TouchableOpacity 
-                onPress={handleBackPress} 
-                style={styles.backButton}
-                activeOpacity={0.7}
-              >
-                <IconSymbol
-                  ios_icon_name="chevron.left"
-                  android_material_icon_name="arrow_back"
-                  size={24}
-                  color="#FFFFFF"
-                />
-              </TouchableOpacity>
-              <View style={styles.headerCenter}>
-                <View style={styles.headerTitleRow}>
-                  <Text style={styles.headerTitle} numberOfLines={1}>
-                    {personName}
-                  </Text>
-                  {isPremium && !isTopicChat && (
-                    <View style={styles.premiumBadgeSmall}>
-                      <Text style={styles.premiumBadgeSmallText}>⭐</Text>
-                    </View>
-                  )}
-                </View>
-                {relationshipType && (
-                  <Text style={styles.headerSubtitle} numberOfLines={1}>
-                    {relationshipType}
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity 
-                onPress={() => router.push({
-                  pathname: '/(tabs)/(home)/memories',
-                  params: { personId, personName }
-                })} 
-                style={styles.memoriesButton}
-                activeOpacity={0.7}
-              >
-                <IconSymbol
-                  ios_icon_name="brain"
-                  android_material_icon_name="psychology"
-                  size={24}
-                  color="#FFFFFF"
-                />
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-
-          {/* Subject Pills Row */}
-          <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.pillsScrollContent}
-              keyboardShouldPersistTaps="handled"
-              data={[...availableSubjects, '+ Add subject']}
-              renderItem={({ item, index }) => (
-                <SubjectPill
-                  key={`subject-${index}-${item}`}
-                  subject={item}
-                  isSelected={currentSubject === item}
-                  onPress={item === '+ Add subject' ? openAddSubjectModal : handleSubjectPress}
-                  isAddButton={item === '+ Add subject'}
-                />
-              )}
-              keyExtractor={(item, index) => `subject-${index}-${item}`}
-            />
-          </View>
+          {/* ═══════════════════════════════════════════════════════════════════
+              ISOLATED: Subject Pills Row Component
+              ═══════════════════════════════════════════════════════════════════ */}
+          <SubjectPillsRow
+            availableSubjects={availableSubjects}
+            currentSubject={currentSubject}
+            onSubjectPress={handleSubjectPress}
+            onAddSubjectPress={openAddSubjectModal}
+          />
 
           {/* Memory Saved Indicator */}
           <MemorySavedIndicator 
@@ -1561,7 +1771,9 @@ export default function ChatScreen() {
             </TouchableOpacity>
           )}
 
-          {/* NON-INVERTED FlatList for chat messages - messages start at top */}
+          {/* ═══════════════════════════════════════════════════════════════════
+              OPTIMIZED: FlatList with performance props
+              ═══════════════════════════════════════════════════════════════════ */}
           <FlatList
             ref={flatListRef}
             data={messageListItems}
@@ -1571,13 +1783,22 @@ export default function ChatScreen() {
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             ListEmptyComponent={renderEmptyList}
             ListFooterComponent={renderListFooter}
-            removeClippedSubviews={Platform.OS === 'android'}
+            removeClippedSubviews={true}
             onScroll={handleScroll}
             scrollEventThrottle={16}
             onContentSizeChange={handleContentSizeChange}
             onLayout={handleLayout}
+            // ═══════════════════════════════════════════════════════════════════
+            // PERFORMANCE: FlatList optimization props
+            // ═══════════════════════════════════════════════════════════════════
+            initialNumToRender={15}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+            updateCellsBatchingPeriod={50}
+            getItemLayout={undefined} // Can't use with variable height items
           />
 
           {/* ═══════════════════════════════════════════════════════════════════
@@ -1607,7 +1828,7 @@ export default function ChatScreen() {
                     shadowColor: theme.primary,
                   },
                 ]}
-                onPress={() => scrollToBottom(true)}
+                onPress={handleScrollArrowPress}
                 activeOpacity={0.8}
               >
                 <IconSymbol
@@ -1620,64 +1841,17 @@ export default function ChatScreen() {
             </Animated.View>
           )}
 
-          {/* Input Container */}
-          <View style={[
-            styles.inputContainer, 
-            { 
-              backgroundColor: theme.card,
-              paddingBottom: insets.bottom || 8,
-            }
-          ]}>
-            <View style={styles.inputRow}>
-              <View style={styles.inputColumn}>
-                <View style={[
-                  styles.inputWrapper, 
-                  { 
-                    backgroundColor: theme.background,
-                    borderWidth: inputFocused ? 2 : 1,
-                    borderColor: inputFocused ? theme.primary : theme.textSecondary + '40',
-                  }
-                ]}>
-                  <TextInput
-                    style={[styles.input, { color: theme.textPrimary }]}
-                    placeholder="Tell me what's going on…"
-                    placeholderTextColor={theme.textSecondary}
-                    value={inputText}
-                    onChangeText={setInputText}
-                    onFocus={() => setInputFocused(true)}
-                    onBlur={() => setInputFocused(false)}
-                    multiline
-                    editable={!isSending && !loading}
-                    onSubmitEditing={() => {
-                      if (!isSendDisabled) {
-                        sendMessage();
-                      }
-                    }}
-                    cursorColor={theme.primary}
-                    selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  { backgroundColor: theme.primary },
-                  isSendDisabled && styles.sendButtonDisabled,
-                ]}
-                onPress={sendMessage}
-                disabled={isSendDisabled}
-                activeOpacity={0.7}
-              >
-                <IconSymbol
-                  ios_icon_name="paperplane.fill"
-                  android_material_icon_name="send"
-                  size={20}
-                  color="#FFFFFF"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
+          {/* ═══════════════════════════════════════════════════════════════════
+              ISOLATED: Chat Input Bar Component
+              ═══════════════════════════════════════════════════════════════════ */}
+          <ChatInputBar
+            inputText={inputText}
+            onChangeText={handleInputChange}
+            onSend={sendMessage}
+            isSendDisabled={isSendDisabled}
+            loading={loading}
+            isSending={isSending}
+          />
         </View>
       </KeyboardAvoidingView>
 
