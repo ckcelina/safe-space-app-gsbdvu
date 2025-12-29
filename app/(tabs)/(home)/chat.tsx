@@ -54,6 +54,11 @@ const TYPING_TIMEOUT_MS = 15000;
 // Stuck-typing failsafe timeout (25 seconds)
 const STUCK_TYPING_FAILSAFE_MS = 25000;
 
+// ═══════════════════════════════════════════════════════════════════
+// FALLBACK FETCH TIMEOUT: 3 seconds after sending user message
+// ═══════════════════════════════════════════════════════════════════
+const FALLBACK_FETCH_TIMEOUT_MS = 3000;
+
 // Input height buffer for proper padding
 const INPUT_HEIGHT_BUFFER = 100;
 
@@ -529,6 +534,12 @@ export default function ChatScreen() {
   const isNearBottomRef = useRef(true);
   const shouldAutoScrollRef = useRef(false);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // FALLBACK FETCH: Track last known message timestamp for fallback queries
+  // ═══════════════════════════════════════════════════════════════════
+  const lastKnownMessageTimestampRef = useRef<string | null>(null);
+  const fallbackFetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Dev-only debug state - ONLY stored in __DEV__ mode
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
@@ -613,6 +624,11 @@ export default function ChatScreen() {
         clearTimeout(typingFailsafeRef.current);
         typingFailsafeRef.current = null;
       }
+      // Clear fallback fetch timer on unmount
+      if (fallbackFetchTimeoutRef.current) {
+        clearTimeout(fallbackFetchTimeoutRef.current);
+        fallbackFetchTimeoutRef.current = null;
+      }
       // Force typing to false (defensive cleanup)
       setIsTyping(false);
     };
@@ -648,6 +664,11 @@ export default function ChatScreen() {
           if (typingFailsafeRef.current) {
             clearTimeout(typingFailsafeRef.current);
             typingFailsafeRef.current = null;
+          }
+          
+          if (fallbackFetchTimeoutRef.current) {
+            clearTimeout(fallbackFetchTimeoutRef.current);
+            fallbackFetchTimeoutRef.current = null;
           }
           
           // Insert fallback message
@@ -853,6 +874,12 @@ export default function ChatScreen() {
       if (isMountedRef.current) {
         setAllMessages(messagesWithMetadata);
         
+        // Update last known message timestamp
+        if (messagesWithMetadata.length > 0) {
+          const lastMessage = messagesWithMetadata[messagesWithMetadata.length - 1];
+          lastKnownMessageTimestampRef.current = lastMessage.created_at;
+        }
+        
         // Scroll to bottom after loading messages successfully
         shouldAutoScrollRef.current = true;
         setTimeout(() => {
@@ -874,6 +901,125 @@ export default function ChatScreen() {
       }
     }
   }, [personId, authUser?.id, backfillSubjects, getCurrentTherapistMetadata, scrollToBottom]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FALLBACK FETCH: Query for missed assistant messages
+  // This runs after a timeout if no realtime update is received
+  // ═══════════════════════════════════════════════════════════════════
+  const fetchMissedMessages = useCallback(async () => {
+    if (!personId || !authUser?.id || !lastKnownMessageTimestampRef.current) {
+      if (__DEV__) {
+        console.log('[Chat] Fallback fetch skipped - missing required data');
+      }
+      return;
+    }
+
+    try {
+      console.log('[Chat] 🔍 Fallback fetch: Checking for missed messages...');
+      
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('person_id', personId)
+        .eq('user_id', authUser.id)
+        .gt('created_at', lastKnownMessageTimestampRef.current)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        if (__DEV__) {
+          console.log('[Chat] Fallback fetch error:', error);
+        }
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.log('[Chat] Fallback fetch: No new messages found');
+        return;
+      }
+
+      console.log('[Chat] ✅ Fallback fetch: Found', data.length, 'missed message(s)');
+      
+      // Get current therapist metadata
+      const therapistMeta = getCurrentTherapistMetadata();
+      
+      // Process each new message
+      const newMessages: ExtendedMessage[] = data.map((msg) => {
+        if (msg.role === 'assistant') {
+          return {
+            ...msg,
+            therapist_name: therapistMeta.name,
+            therapist_avatar_source: therapistMeta.avatarSource,
+          };
+        }
+        return msg;
+      });
+
+      // Add new messages to state (avoiding duplicates)
+      setAllMessages((prev) => {
+        const existingIds = new Set(prev.map((m) => m.id));
+        const filteredNewMessages = newMessages.filter((m) => !existingIds.has(m.id));
+        
+        if (filteredNewMessages.length === 0) {
+          console.log('[Chat] Fallback fetch: All messages already in state');
+          return prev;
+        }
+        
+        console.log('[Chat] Fallback fetch: Adding', filteredNewMessages.length, 'new message(s) to state');
+        
+        // Update last known timestamp
+        const lastMessage = filteredNewMessages[filteredNewMessages.length - 1];
+        lastKnownMessageTimestampRef.current = lastMessage.created_at;
+        
+        return [...prev, ...filteredNewMessages];
+      });
+
+      // Clear typing indicator if we found assistant messages
+      const hasAssistantMessage = newMessages.some((m) => m.role === 'assistant');
+      if (hasAssistantMessage) {
+        console.log('[Chat] Fallback fetch: Found assistant message, clearing typing indicator');
+        setIsTyping(false);
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = null;
+        }
+        if (typingFailsafeRef.current) {
+          clearTimeout(typingFailsafeRef.current);
+          typingFailsafeRef.current = null;
+        }
+      }
+
+      // Scroll to bottom after adding new messages
+      shouldAutoScrollRef.current = true;
+      scrollToBottom(true);
+
+    } catch (err) {
+      if (__DEV__) {
+        console.log('[Chat] Fallback fetch exception:', err);
+      }
+    }
+  }, [personId, authUser?.id, getCurrentTherapistMetadata, scrollToBottom]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FALLBACK FETCH: Start fallback timer after sending user message
+  // ═══════════════════════════════════════════════════════════════════
+  const startFallbackFetchTimer = useCallback(() => {
+    // Clear any existing timer
+    if (fallbackFetchTimeoutRef.current) {
+      clearTimeout(fallbackFetchTimeoutRef.current);
+      fallbackFetchTimeoutRef.current = null;
+    }
+
+    console.log('[Chat] Starting fallback fetch timer (3 seconds)...');
+    
+    fallbackFetchTimeoutRef.current = setTimeout(() => {
+      if (!isMountedRef.current) return;
+      
+      console.log('[Chat] Fallback fetch timer triggered');
+      fetchMissedMessages();
+      
+      fallbackFetchTimeoutRef.current = null;
+    }, FALLBACK_FETCH_TIMEOUT_MS);
+  }, [fetchMissedMessages]);
 
   // ═══════════════════════════════════════════════════════════════════
   // REALTIME: Initialize Supabase Realtime subscription BEFORE sending messages
@@ -946,6 +1092,10 @@ export default function ChatScreen() {
             }
             
             console.log('[Chat] Adding assistant message to state');
+            
+            // Update last known timestamp
+            lastKnownMessageTimestampRef.current = newMessage.created_at;
+            
             return [...prev, messageWithMeta];
           });
 
@@ -958,6 +1108,11 @@ export default function ChatScreen() {
           if (typingFailsafeRef.current) {
             clearTimeout(typingFailsafeRef.current);
             typingFailsafeRef.current = null;
+          }
+          // Clear fallback fetch timer since we got the message
+          if (fallbackFetchTimeoutRef.current) {
+            clearTimeout(fallbackFetchTimeoutRef.current);
+            fallbackFetchTimeoutRef.current = null;
           }
 
           // Scroll to bottom when new assistant message arrives
@@ -1082,6 +1237,11 @@ export default function ChatScreen() {
       clearTimeout(typingFailsafeRef.current);
       typingFailsafeRef.current = null;
     }
+    // Also clear fallback fetch timer
+    if (fallbackFetchTimeoutRef.current) {
+      clearTimeout(fallbackFetchTimeoutRef.current);
+      fallbackFetchTimeoutRef.current = null;
+    }
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════
@@ -1165,6 +1325,10 @@ export default function ChatScreen() {
       clearTimeout(typingFailsafeRef.current);
       typingFailsafeRef.current = null;
     }
+    if (fallbackFetchTimeoutRef.current) {
+      clearTimeout(fallbackFetchTimeoutRef.current);
+      fallbackFetchTimeoutRef.current = null;
+    }
     
     // Set pending reply for failsafe
     pendingReplyForUserMessageIdRef.current = lastEdgeRequestRef.current.userMessageId;
@@ -1178,6 +1342,9 @@ export default function ChatScreen() {
         await insertAssistantMessageSafely("I'm taking longer than expected. Tap to retry my response.");
       }
     }, STUCK_TYPING_FAILSAFE_MS);
+    
+    // Start fallback fetch timer
+    startFallbackFetchTimer();
     
     try {
       const result = await invokeEdgeSafe('generate-ai-response', lastEdgeRequestRef.current.payload);
@@ -1231,7 +1398,7 @@ export default function ChatScreen() {
       // Clear pending reply
       pendingReplyForUserMessageIdRef.current = null;
     }
-  }, [insertAssistantMessageSafely, isTyping]);
+  }, [insertAssistantMessageSafely, isTyping, startFallbackFetchTimer]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -1345,6 +1512,10 @@ export default function ChatScreen() {
       if (isMountedRef.current) {
         setAllMessages((prev) => {
           updatedMessages = [...prev, insertedMessage];
+          
+          // Update last known timestamp
+          lastKnownMessageTimestampRef.current = insertedMessage.created_at;
+          
           return updatedMessages;
         });
         
@@ -1370,6 +1541,10 @@ export default function ChatScreen() {
         clearTimeout(typingFailsafeRef.current);
         typingFailsafeRef.current = null;
       }
+      if (fallbackFetchTimeoutRef.current) {
+        clearTimeout(fallbackFetchTimeoutRef.current);
+        fallbackFetchTimeoutRef.current = null;
+      }
       
       // Start hard timeout to force-clear typing indicator after 15 seconds
       typingTimeoutRef.current = setTimeout(() => {
@@ -1393,6 +1568,11 @@ export default function ChatScreen() {
           await insertAssistantMessageSafely("I'm taking longer than expected. Tap to retry my response.");
         }
       }, STUCK_TYPING_FAILSAFE_MS);
+
+      // ═══════════════════════════════════════════════════════════════════
+      // FALLBACK FETCH: Start fallback timer (3 seconds)
+      // ═══════════════════════════════════════════════════════════════════
+      startFallbackFetchTimer();
 
       // ═══════════════════════════════════════════════════════════════════
       // MEMORY CAPTURE: Fire-and-forget capture of factual statements
@@ -1697,7 +1877,7 @@ export default function ChatScreen() {
       
       console.log('[Chat] sendMessage: Finally block complete - all flags reset');
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, clearTypingIndicator, insertAssistantMessageSafely, scrollToBottom, isTyping]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, clearTypingIndicator, insertAssistantMessageSafely, scrollToBottom, isTyping, startFallbackFetchTimer]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
