@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseReady } from '@/lib/supabase';
 
 interface UserProfile {
   id: string;
@@ -35,6 +35,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUserProfile = async (authUserId: string) => {
+    // Check if Supabase is ready
+    if (!supabaseReady || !supabase) {
+      console.warn('[AuthContext] Supabase is not configured, cannot fetch user profile');
+      setUser({ 
+        id: authUserId, 
+        email: null,
+        username: null,
+        role: 'free', 
+        created_at: new Date().toISOString() 
+      });
+      return;
+    }
+
     // Wrap in timeout to prevent blocking startup
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
@@ -162,6 +175,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log('[AuthContext] Initializing...');
     
+    // Check if Supabase is ready
+    if (!supabaseReady || !supabase) {
+      console.warn('[AuthContext] Supabase is not configured');
+      setLoading(false);
+      return;
+    }
+    
     // Wrap initial session fetch in timeout
     const initAuth = async () => {
       try {
@@ -216,6 +236,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string) => {
+    // Check if Supabase is ready
+    if (!supabaseReady || !supabase) {
+      console.warn('[AuthContext] Supabase is not configured');
+      return { error: { message: 'Supabase is not configured' } };
+    }
+
     try {
       console.log('[AuthContext] Signing up user:', email);
       const { data, error } = await supabase.auth.signUp({
@@ -244,6 +270,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    // Check if Supabase is ready
+    if (!supabaseReady || !supabase) {
+      console.warn('[AuthContext] Supabase is not configured');
+      return { error: { message: 'Supabase is not configured' } };
+    }
+
     try {
       console.log('[AuthContext] Signing in user:', email);
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -265,6 +297,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // Check if Supabase is ready
+    if (!supabaseReady || !supabase) {
+      console.warn('[AuthContext] Supabase is not configured');
+      // Still clear local state
+      setSession(null);
+      setCurrentUser(null);
+      setUser(null);
+      return;
+    }
+
     try {
       console.log('[AuthContext] Starting sign out...');
       

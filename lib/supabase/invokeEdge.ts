@@ -1,5 +1,5 @@
 
-import { supabase } from '../supabase';
+import { supabase, supabaseReady } from '../supabase';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 
@@ -26,7 +26,7 @@ export type InvokeEdgeSafeResult<T = any> = {
   ok: boolean;
   data?: T;
   error?: {
-    code: 'EDGE_ABORTED' | 'EDGE_TIMEOUT' | 'EDGE_AUTH' | 'EDGE_UNAVAILABLE' | 'EDGE_HTTP_ERROR' | 'EDGE_UNKNOWN';
+    code: 'EDGE_ABORTED' | 'EDGE_TIMEOUT' | 'EDGE_AUTH' | 'EDGE_UNAVAILABLE' | 'EDGE_HTTP_ERROR' | 'EDGE_UNKNOWN' | 'EDGE_NOT_CONFIGURED';
     message: string;
     status?: number;
     details?: any;
@@ -85,6 +85,7 @@ export async function copyDebugToClipboard(text: any): Promise<boolean> {
  * 
  * Features:
  * - Never throws - always returns { ok, data?, error? }
+ * - Checks supabaseReady before attempting to invoke
  * - Retries transient failures (AbortError, 502/503/504, network errors) up to 3 times
  * - Implements platform-aware timeout (90s iOS, 60s Android/Web) - INCREASED
  * - Exponential backoff with jitter (600ms, 1200ms, 2400ms + random 0-250ms)
@@ -102,6 +103,18 @@ export async function invokeEdgeSafe<T = any>(
   functionName: string,
   payload: any
 ): Promise<InvokeEdgeSafeResult<T>> {
+  // Check if Supabase is configured
+  if (!supabaseReady || !supabase) {
+    console.warn('[invokeEdgeSafe] Supabase is not configured');
+    return {
+      ok: false,
+      error: {
+        code: 'EDGE_NOT_CONFIGURED',
+        message: 'Supabase client is not configured. Check EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.',
+      },
+    };
+  }
+
   let attempt = 0;
   const startTime = Date.now();
 
@@ -531,6 +544,18 @@ export async function invokeEdgeSafe<T = any>(
  * Consider migrating to invokeEdgeSafe for better error handling
  */
 export async function invokeEdge<T = any>(functionName: string, body: any): Promise<InvokeEdgeResult<T>> {
+  // Check if Supabase is configured
+  if (!supabaseReady || !supabase) {
+    console.warn('[invokeEdge] Supabase is not configured');
+    return {
+      data: null,
+      error: {
+        name: 'not_configured',
+        message: 'Supabase client is not configured',
+      },
+    };
+  }
+
   try {
     const { data, error } = await supabase.functions.invoke(functionName, { body });
 

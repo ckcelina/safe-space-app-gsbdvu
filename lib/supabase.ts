@@ -1,6 +1,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 
 // ============================================================================
@@ -47,23 +47,28 @@ function validateSupabaseConfig(): { isValid: boolean; error?: string } {
   return { isValid: true };
 }
 
-// Perform validation
+// Perform validation at module load time (once)
 const validation = validateSupabaseConfig();
 
-// Log configuration status (DEV only)
-if (__DEV__) {
-  if (validation.isValid && supabaseUrl && supabaseAnonKey) {
-    // Extract hostname from URL
-    const urlHost = new URL(supabaseUrl).hostname;
-    // Get last 6 characters of anon key
-    const anonKeySuffix = supabaseAnonKey.slice(-6);
-    
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('[Supabase] ✅ Configuration validated successfully');
-    console.log(`[Supabase] 🌐 urlHost=${urlHost}`);
-    console.log(`[Supabase] 🔑 anon=…${anonKeySuffix}`);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  } else {
+// ============================================================================
+// CREATE SUPABASE CLIENT OR NULL
+// ============================================================================
+
+let supabase: SupabaseClient | null = null;
+let supabaseReady = false;
+let supabaseConfigError: string | undefined = undefined;
+
+if (!validation.isValid) {
+  // Configuration is invalid - do NOT create a client
+  console.warn('[Supabase] Missing env vars');
+  console.warn(`[Supabase] ${validation.error}`);
+  
+  supabase = null;
+  supabaseReady = false;
+  supabaseConfigError = validation.error;
+
+  // Log detailed status in DEV
+  if (__DEV__) {
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('[Supabase] ❌ Configuration validation FAILED');
     console.error(`[Supabase] Error: ${validation.error}`);
@@ -72,41 +77,10 @@ if (__DEV__) {
     if (supabaseUrl) {
       console.error('[Supabase] URL value:', supabaseUrl);
     }
+    console.error('[Supabase] supabase = null');
+    console.error('[Supabase] supabaseReady = false');
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
-}
-
-// ============================================================================
-// CREATE SUPABASE CLIENT
-// ============================================================================
-
-let supabase: ReturnType<typeof createClient>;
-let isSupabaseReady: () => boolean;
-let supabaseConfigError: string | undefined;
-
-// If validation fails, create a non-functional placeholder client
-// This prevents import errors but ensures the app shows the configuration screen
-if (!validation.isValid) {
-  console.error('[Supabase] ⚠️  Configuration invalid - creating non-functional placeholder client');
-  console.error('[Supabase] ⚠️  App will display configuration instructions');
-  
-  // Create a dummy client that will fail gracefully
-  // Using obviously invalid values to prevent accidental usage
-  supabase = createClient(
-    'https://invalid-config.supabase.co',
-    'invalid-anon-key-placeholder',
-    {
-      auth: {
-        storage: AsyncStorage,
-        autoRefreshToken: false,
-        persistSession: false,
-        detectSessionInUrl: false,
-      },
-    }
-  );
-
-  isSupabaseReady = () => false;
-  supabaseConfigError = validation.error;
 } else {
   // ============================================================================
   // VALID CONFIGURATION - CREATE PRODUCTION CLIENT
@@ -123,20 +97,34 @@ if (!validation.isValid) {
     },
   });
 
-  isSupabaseReady = () => true;
+  supabaseReady = true;
   supabaseConfigError = undefined;
 
   // Log successful initialization (DEV only)
   if (__DEV__) {
+    // Extract hostname from URL
+    const urlHost = new URL(supabaseUrl).hostname;
+    // Get last 6 characters of anon key
+    const anonKeySuffix = supabaseAnonKey.slice(-6);
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('[Supabase] ✅ Configuration validated successfully');
+    console.log(`[Supabase] 🌐 urlHost=${urlHost}`);
+    console.log(`[Supabase] 🔑 anon=…${anonKeySuffix}`);
     console.log('[Supabase] ✅ Client initialized and ready for use');
     console.log('[Supabase] ✅ Auth session persistence: ENABLED');
     console.log('[Supabase] ✅ Auto token refresh: ENABLED');
     console.log(`[Supabase] ✅ Session URL detection: ${Platform.OS === 'web' ? 'ENABLED (web)' : 'DISABLED (native)'}`);
+    console.log('[Supabase] supabaseReady = true');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
 }
 
-// Export as named exports
-export { supabase, isSupabaseReady, supabaseConfigError };
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+export { supabase, supabaseReady, supabaseConfigError };
 
 // Export configuration details for debugging
 export const getSupabaseConfig = () => ({

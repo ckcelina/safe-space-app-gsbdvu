@@ -1,5 +1,5 @@
 
-import { getSupabaseConfig, isSupabaseReady, supabaseConfigError } from '@/lib/supabase';
+import { getSupabaseConfig, supabaseReady, supabaseConfigError } from '@/lib/supabase';
 
 /**
  * Utility functions for checking Supabase configuration status
@@ -9,7 +9,7 @@ import { getSupabaseConfig, isSupabaseReady, supabaseConfigError } from '@/lib/s
  * Check if Supabase is properly configured and ready to use
  */
 export function checkSupabaseReady(): boolean {
-  return isSupabaseReady();
+  return supabaseReady;
 }
 
 /**
@@ -18,7 +18,7 @@ export function checkSupabaseReady(): boolean {
 export function getConfigDetails() {
   const config = getSupabaseConfig();
   return {
-    isReady: isSupabaseReady(),
+    isReady: supabaseReady,
     error: supabaseConfigError,
     url: config.url,
     hasKey: config.hasKey,
@@ -72,7 +72,7 @@ export function logConfigStatus() {
  * Assert that Supabase is ready, throw error if not (for critical operations)
  */
 export function assertSupabaseReady() {
-  if (!isSupabaseReady()) {
+  if (!supabaseReady) {
     const error = supabaseConfigError || 'Supabase is not properly configured';
     throw new Error(`[Supabase] ${error}`);
   }
