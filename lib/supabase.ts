@@ -80,6 +80,10 @@ if (__DEV__) {
 // CREATE SUPABASE CLIENT
 // ============================================================================
 
+let supabase: ReturnType<typeof createClient>;
+let isSupabaseReady: () => boolean;
+let supabaseConfigError: string | undefined;
+
 // If validation fails, create a non-functional placeholder client
 // This prevents import errors but ensures the app shows the configuration screen
 if (!validation.isValid) {
@@ -88,7 +92,7 @@ if (!validation.isValid) {
   
   // Create a dummy client that will fail gracefully
   // Using obviously invalid values to prevent accidental usage
-  export const supabase = createClient(
+  supabase = createClient(
     'https://invalid-config.supabase.co',
     'invalid-anon-key-placeholder',
     {
@@ -101,14 +105,14 @@ if (!validation.isValid) {
     }
   );
 
-  export const isSupabaseReady = () => false;
-  export const supabaseConfigError = validation.error;
+  isSupabaseReady = () => false;
+  supabaseConfigError = validation.error;
 } else {
   // ============================================================================
   // VALID CONFIGURATION - CREATE PRODUCTION CLIENT
   // ============================================================================
   
-  export const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
+  supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
     auth: {
       storage: AsyncStorage,
       autoRefreshToken: true,
@@ -119,9 +123,8 @@ if (!validation.isValid) {
     },
   });
 
-  // Export helper functions
-  export const isSupabaseReady = () => true;
-  export const supabaseConfigError = undefined;
+  isSupabaseReady = () => true;
+  supabaseConfigError = undefined;
 
   // Log successful initialization (DEV only)
   if (__DEV__) {
@@ -131,6 +134,9 @@ if (!validation.isValid) {
     console.log(`[Supabase] ✅ Session URL detection: ${Platform.OS === 'web' ? 'ENABLED (web)' : 'DISABLED (native)'}`);
   }
 }
+
+// Export as named exports
+export { supabase, isSupabaseReady, supabaseConfigError };
 
 // Export configuration details for debugging
 export const getSupabaseConfig = () => ({

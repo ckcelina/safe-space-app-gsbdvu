@@ -641,56 +641,6 @@ export default function ChatScreen() {
     };
   }, []);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // APP STATE SAFETY: Handle backgrounding
-  // ═══════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      appStateRef.current = nextAppState;
-      setAppState(nextAppState);
-      
-      if (__DEV__) {
-        console.log('[Chat] App state changed:', nextAppState);
-      }
-      
-      // If app goes background while typing/sending, cancel and insert fallback
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        if (isTyping || isSending) {
-          console.log('[Chat] App backgrounded while AI was responding - inserting fallback');
-          
-          // Clear typing indicator
-          setIsTyping(false);
-          setIsSending(false);
-          isGeneratingRef.current = false;
-          
-          if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current);
-            typingTimeoutRef.current = null;
-          }
-          
-          if (typingFailsafeRef.current) {
-            clearTimeout(typingFailsafeRef.current);
-            typingFailsafeRef.current = null;
-          }
-          
-          if (fallbackFetchTimeoutRef.current) {
-            clearTimeout(fallbackFetchTimeoutRef.current);
-            fallbackFetchTimeoutRef.current = null;
-          }
-          
-          // Insert fallback message
-          insertAssistantMessageSafely("Looks like the app paused. Tap to retry.");
-        }
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [isTyping, isSending]);
-
-  const isFreeUser = role === 'free';
-
   // Helper function to get current therapist metadata
   const getCurrentTherapistMetadata = useCallback(() => {
     const personaId = preferences.therapist_persona_id;
@@ -1077,6 +1027,180 @@ export default function ChatScreen() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════
+  // HELPER: Clear typing indicator and timeout
+  // ═══════════════════════════════════════════════════════════════════
+  const clearTypingIndicator = useCallback(() => {
+    console.log('[Chat] Clearing typing indicator');
+    setIsTyping(false);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    // Also clear failsafe timer
+    if (typingFailsafeRef.current) {
+      clearTimeout(typingFailsafeRef.current);
+      typingFailsafeRef.current = null;
+    }
+    // Also clear fallback fetch timer
+    if (fallbackFetchTimeoutRef.current) {
+      clearTimeout(fallbackFetchTimeoutRef.current);
+      fallbackFetchTimeoutRef.current = null;
+    }
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // HELPER: Insert assistant message safely (used for BOTH real replies + fallbacks)
+  // CRITICAL: ALWAYS updates local state immediately (no reliance on realtime)
+  // ═══════════════════════════════════════════════════════════════════
+  const insertAssistantMessageSafely = useCallback(async (content: string): Promise<void> => {
+    if (!authUser?.id || !personId) {
+      if (__DEV__) {
+        console.warn('[Chat] insertAssistantMessageSafely: Missing userId or personId');
+      }
+      setError('Failed to save AI reply.');
+      setIsTyping(false);
+      return;
+    }
+
+    console.log('[Chat] Inserting assistant message safely');
+    
+    const therapistMeta = getCurrentTherapistMetadata();
+    
+    try {
+      const { data: insertedMessage, error: insertError } = await supabase
+        .from('messages')
+        .insert({
+          user_id: authUser.id,
+          person_id: personId,
+          role: 'assistant',
+          content,
+          subject: currentSubject,
+          created_at: new Date().toISOString(),
+        })
+        .select('*')
+        .single();
+
+      if (insertError || !insertedMessage) {
+        if (__DEV__) {
+          console.error('[Chat] Failed to insert assistant message to DB:', insertError);
+        }
+        setError('Failed to save AI reply.');
+        setIsTyping(false);
+        return;
+      }
+
+      console.log('[Chat] ✅ Assistant message inserted to DB:', insertedMessage.id);
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: ALWAYS update local state immediately (no waiting for realtime)
+      // ═══════════════════════════════════════════════════════════════════
+      const messageWithMeta: ExtendedMessage = {
+        ...insertedMessage,
+        therapist_name: therapistMeta.name,
+        therapist_avatar_source: therapistMeta.avatarSource,
+      };
+      
+      setAllMessages((prev) => {
+        // Check for duplicates (defensive)
+        const exists = prev.some((m) => m.id === insertedMessage.id);
+        if (exists) {
+          console.log('[Chat] Message already exists in state, skipping duplicate');
+          return prev;
+        }
+        
+        console.log('[Chat] ✅ Adding assistant message to local state immediately');
+        
+        // Update last known timestamp
+        lastKnownMessageTimestampRef.current = insertedMessage.created_at;
+        
+        return [...prev, messageWithMeta];
+      });
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: Force reliable scroll-to-bottom after appending
+      // ═══════════════════════════════════════════════════════════════════
+      shouldAutoScrollRef.current = true;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+          shouldAutoScrollRef.current = false;
+        }, 100);
+      });
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // POST-SEND SYNC: Safety net for realtime failures
+      // Schedule a single background refresh after 500ms
+      // ═══════════════════════════════════════════════════════════════════
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          console.log('[Chat] 🔄 Post-send sync: Refreshing messages for consistency');
+          loadMessages();
+        }
+      }, 500);
+      
+    } catch (err) {
+      if (__DEV__) {
+        console.error('[Chat] insertAssistantMessageSafely exception:', err);
+      }
+      setError('Failed to save AI reply.');
+    } finally {
+      // MUST NOT throw - always stop typing
+      setIsTyping(false);
+      clearTypingIndicator();
+    }
+  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator, loadMessages]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // APP STATE SAFETY: Handle backgrounding
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      appStateRef.current = nextAppState;
+      setAppState(nextAppState);
+      
+      if (__DEV__) {
+        console.log('[Chat] App state changed:', nextAppState);
+      }
+      
+      // If app goes background while typing/sending, cancel and insert fallback
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        if (isTyping || isSending) {
+          console.log('[Chat] App backgrounded while AI was responding - inserting fallback');
+          
+          // Clear typing indicator
+          setIsTyping(false);
+          setIsSending(false);
+          isGeneratingRef.current = false;
+          
+          if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = null;
+          }
+          
+          if (typingFailsafeRef.current) {
+            clearTimeout(typingFailsafeRef.current);
+            typingFailsafeRef.current = null;
+          }
+          
+          if (fallbackFetchTimeoutRef.current) {
+            clearTimeout(fallbackFetchTimeoutRef.current);
+            fallbackFetchTimeoutRef.current = null;
+          }
+          
+          // Insert fallback message
+          insertAssistantMessageSafely("Looks like the app paused. Tap to retry.");
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isTyping, isSending, insertAssistantMessageSafely]);
+
+  const isFreeUser = role === 'free';
+
+  // ═══════════════════════════════════════════════════════════════════
   // REALTIME: Initialize Supabase Realtime subscription OR start polling
   // On web: skip realtime, use polling only
   // On native: try realtime first, fallback to polling on errors
@@ -1320,130 +1444,6 @@ export default function ChatScreen() {
 
     return false;
   }, []);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // HELPER: Clear typing indicator and timeout
-  // ═══════════════════════════════════════════════════════════════════
-  const clearTypingIndicator = useCallback(() => {
-    console.log('[Chat] Clearing typing indicator');
-    setIsTyping(false);
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-    // Also clear failsafe timer
-    if (typingFailsafeRef.current) {
-      clearTimeout(typingFailsafeRef.current);
-      typingFailsafeRef.current = null;
-    }
-    // Also clear fallback fetch timer
-    if (fallbackFetchTimeoutRef.current) {
-      clearTimeout(fallbackFetchTimeoutRef.current);
-      fallbackFetchTimeoutRef.current = null;
-    }
-  }, []);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // HELPER: Insert assistant message safely (used for BOTH real replies + fallbacks)
-  // CRITICAL: ALWAYS updates local state immediately (no reliance on realtime)
-  // ═══════════════════════════════════════════════════════════════════
-  const insertAssistantMessageSafely = useCallback(async (content: string): Promise<void> => {
-    if (!authUser?.id || !personId) {
-      if (__DEV__) {
-        console.warn('[Chat] insertAssistantMessageSafely: Missing userId or personId');
-      }
-      setError('Failed to save AI reply.');
-      setIsTyping(false);
-      return;
-    }
-
-    console.log('[Chat] Inserting assistant message safely');
-    
-    const therapistMeta = getCurrentTherapistMetadata();
-    
-    try {
-      const { data: insertedMessage, error: insertError } = await supabase
-        .from('messages')
-        .insert({
-          user_id: authUser.id,
-          person_id: personId,
-          role: 'assistant',
-          content,
-          subject: currentSubject,
-          created_at: new Date().toISOString(),
-        })
-        .select('*')
-        .single();
-
-      if (insertError || !insertedMessage) {
-        if (__DEV__) {
-          console.error('[Chat] Failed to insert assistant message to DB:', insertError);
-        }
-        setError('Failed to save AI reply.');
-        setIsTyping(false);
-        return;
-      }
-
-      console.log('[Chat] ✅ Assistant message inserted to DB:', insertedMessage.id);
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: ALWAYS update local state immediately (no waiting for realtime)
-      // ═══════════════════════════════════════════════════════════════════
-      const messageWithMeta: ExtendedMessage = {
-        ...insertedMessage,
-        therapist_name: therapistMeta.name,
-        therapist_avatar_source: therapistMeta.avatarSource,
-      };
-      
-      setAllMessages((prev) => {
-        // Check for duplicates (defensive)
-        const exists = prev.some((m) => m.id === insertedMessage.id);
-        if (exists) {
-          console.log('[Chat] Message already exists in state, skipping duplicate');
-          return prev;
-        }
-        
-        console.log('[Chat] ✅ Adding assistant message to local state immediately');
-        
-        // Update last known timestamp
-        lastKnownMessageTimestampRef.current = insertedMessage.created_at;
-        
-        return [...prev, messageWithMeta];
-      });
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: Force reliable scroll-to-bottom after appending
-      // ═══════════════════════════════════════════════════════════════════
-      shouldAutoScrollRef.current = true;
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-          shouldAutoScrollRef.current = false;
-        }, 100);
-      });
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // POST-SEND SYNC: Safety net for realtime failures
-      // Schedule a single background refresh after 500ms
-      // ═══════════════════════════════════════════════════════════════════
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          console.log('[Chat] 🔄 Post-send sync: Refreshing messages for consistency');
-          loadMessages();
-        }
-      }, 500);
-      
-    } catch (err) {
-      if (__DEV__) {
-        console.error('[Chat] insertAssistantMessageSafely exception:', err);
-      }
-      setError('Failed to save AI reply.');
-    } finally {
-      // MUST NOT throw - always stop typing
-      setIsTyping(false);
-      clearTypingIndicator();
-    }
-  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator, loadMessages]);
 
   // ═══════════════════════════════════════════════════════════════════
   // RETRY: Implement retryLastAiResponse() (no duplicate user message)

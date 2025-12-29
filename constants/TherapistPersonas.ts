@@ -311,7 +311,7 @@ function detectEmotionalKeywords(text: string): {
   };
 }
 
-export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = {
+export const THERAPIST_PREVIEW_CONTENT: Record<string, TherapistPreviewContent> = {
   dr_elias: {
     title: "Dr. Elias",
     subtitle: "Calm & Grounding",
@@ -733,5 +733,5 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
  * Get preview content for a persona ID
  */
 export function getPreviewContentById(personaId: string): TherapistPreviewContent | undefined {
-  return TherapistPreviewContent[personaId];
+  return THERAPIST_PREVIEW_CONTENT[personaId];
 }
