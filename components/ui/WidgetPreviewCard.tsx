@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { useThemeContext } from '@/contexts/ThemeContext';
 
@@ -8,10 +8,16 @@ import { useThemeContext } from '@/contexts/ThemeContext';
  * Widget Preview Card
  * 
  * Displays a preview of the Safe Space app icon/widget
- * with the current theme applied.
+ * with the current theme applied dynamically.
  * 
  * This component uses the unified SafeSpaceLogo component
  * to ensure consistency across all logo displays.
+ * 
+ * Features:
+ * - Instantly updates when theme changes (no reload required)
+ * - Responsive sizing based on screen dimensions
+ * - Theme-aware colors for background, text, and widget
+ * - Consistent with current design language
  * 
  * This component can be used to:
  * - Show users what their home screen widget will look like
@@ -19,7 +25,12 @@ import { useThemeContext } from '@/contexts/ThemeContext';
  * - Demonstrate the visual identity of Safe Space
  */
 export function WidgetPreviewCard() {
-  const { theme } = useThemeContext();
+  const { theme, themeKey } = useThemeContext();
+  const { width: windowWidth } = useWindowDimensions();
+
+  // Responsive widget size: scale between 140-200 based on screen width
+  // Clamp to ensure it looks good on all devices
+  const widgetSize = Math.min(Math.max(windowWidth * 0.35, 140), 200);
 
   return (
     <View style={[styles.card, { backgroundColor: theme.card }]}>
@@ -31,7 +42,11 @@ export function WidgetPreviewCard() {
       </Text>
       
       <View style={styles.widgetContainer}>
-        <SafeSpaceLogo size={140} useGradient={true} />
+        <SafeSpaceLogo 
+          size={widgetSize} 
+          useGradient={true} 
+          themeKey={themeKey}
+        />
       </View>
 
       <Text style={[styles.description, { color: theme.textSecondary }]}>
