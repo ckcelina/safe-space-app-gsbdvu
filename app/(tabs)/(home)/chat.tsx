@@ -258,12 +258,16 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: Scroll-to-bottom tracking and arrow visibility
+  // IMPROVED: Scroll-to-bottom tracking with better reliability
   // ═══════════════════════════════════════════════════════════════════
-  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isNearBottom, setIsNearBottom] = useState(true);
   const [showScrollArrow, setShowScrollArrow] = useState(false);
   const scrollArrowOpacity = useRef(new Animated.Value(0)).current;
-  const hasScrolledOnceRef = useRef(false); // Track if we've done initial scroll
+  
+  // Track if we've done initial scroll and if content is ready
+  const hasInitialScrolledRef = useRef(false);
+  const contentSizeRef = useRef({ width: 0, height: 0 });
+  const layoutSizeRef = useRef({ width: 0, height: 0 });
 
   // Dev-only debug state - ONLY stored in __DEV__ mode
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
@@ -483,26 +487,50 @@ export default function ChatScreen() {
   }, [displayedMessages]);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: Auto-scroll to bottom when messages load or change
+  // IMPROVED: Reliable scroll-to-bottom implementation
   // ═══════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    // Only auto-scroll if:
-    // 1. Messages exist
-    // 2. Not loading
-    // 3. User is already at bottom OR this is the first scroll
-    if (messageListItems.length > 0 && !loading) {
-      if (isAtBottom || !hasScrolledOnceRef.current) {
-        // Small delay to ensure FlatList has rendered
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: !hasScrolledOnceRef.current ? false : true });
-          hasScrolledOnceRef.current = true;
-        }, 100);
-      }
+  
+  // Scroll to bottom helper - used by multiple triggers
+  const scrollToBottom = useCallback((animated: boolean = true) => {
+    if (flatListRef.current && messageListItems.length > 0) {
+      flatListRef.current.scrollToEnd({ animated });
     }
-  }, [messageListItems.length, loading, isAtBottom]);
+  }, [messageListItems.length]);
+
+  // Handle initial scroll when messages first load
+  useEffect(() => {
+    if (!loading && messageListItems.length > 0 && !hasInitialScrolledRef.current) {
+      // Wait for layout to complete before scrolling
+      setTimeout(() => {
+        scrollToBottom(false); // No animation for initial scroll
+        hasInitialScrolledRef.current = true;
+      }, 150);
+    }
+  }, [loading, messageListItems.length, scrollToBottom]);
+
+  // Handle onContentSizeChange - most reliable trigger for new messages
+  const handleContentSizeChange = useCallback((width: number, height: number) => {
+    contentSizeRef.current = { width, height };
+    
+    // Only auto-scroll if:
+    // 1. User is already near bottom (within 50px)
+    // 2. OR this is the initial load (hasn't scrolled yet)
+    if (isNearBottom || !hasInitialScrolledRef.current) {
+      // Small delay to ensure layout is complete
+      setTimeout(() => {
+        scrollToBottom(true);
+      }, 50);
+    }
+  }, [isNearBottom, scrollToBottom]);
+
+  // Handle onLayout - track layout size
+  const handleLayout = useCallback((event: any) => {
+    const { width, height } = event.nativeEvent.layout;
+    layoutSizeRef.current = { width, height };
+  }, []);
 
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: Handle scroll events to track position
+  // Handle scroll events to track position
   // ═══════════════════════════════════════════════════════════════════
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
@@ -511,14 +539,14 @@ export default function ChatScreen() {
     const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
     const nearBottom = distanceFromBottom < 50;
     
-    setIsAtBottom(nearBottom);
+    setIsNearBottom(nearBottom);
     
     // Show/hide arrow based on position
     // Only show if:
     // 1. Not at bottom
     // 2. Content is scrollable (contentSize > layoutMeasurement)
     // 3. Has scrolled at least once (not initial load)
-    const shouldShowArrow = !nearBottom && contentSize.height > layoutMeasurement.height && hasScrolledOnceRef.current;
+    const shouldShowArrow = !nearBottom && contentSize.height > layoutMeasurement.height && hasInitialScrolledRef.current;
     
     if (shouldShowArrow !== showScrollArrow) {
       setShowScrollArrow(shouldShowArrow);
@@ -531,13 +559,6 @@ export default function ChatScreen() {
       }).start();
     }
   }, [showScrollArrow, scrollArrowOpacity]);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // NEW: Scroll to bottom handler for arrow button
-  // ═══════════════════════════════════════════════════════════════════
-  const scrollToBottom = useCallback(() => {
-    flatListRef.current?.scrollToEnd({ animated: true });
-  }, []);
 
   const handleRetry = useCallback(() => {
     loadMessages();
@@ -886,11 +907,6 @@ export default function ChatScreen() {
                 therapist_avatar_source: therapistMeta.avatarSource,
               };
               setAllMessages((prev) => [...prev, fallbackWithMeta]);
-              
-              // Auto-scroll to show the new message
-              setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
-              }, 100);
             }
             
             setError('Authentication issue. Please try logging out and back in.');
@@ -925,11 +941,6 @@ export default function ChatScreen() {
                 therapist_avatar_source: therapistMeta.avatarSource,
               };
               setAllMessages((prev) => [...prev, fallbackWithMeta]);
-              
-              // Auto-scroll to show the new message
-              setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
-              }, 100);
             }
             
             setError('Service temporarily unavailable. Please try again.');
@@ -968,11 +979,6 @@ export default function ChatScreen() {
                 therapist_avatar_source: therapistMeta.avatarSource,
               };
               setAllMessages((prev) => [...prev, fallbackWithMeta]);
-              
-              // Auto-scroll to show the new message
-              setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
-              }, 100);
             }
             
             setError('An error occurred. Please try again.');
@@ -1035,11 +1041,6 @@ export default function ChatScreen() {
       if (isMountedRef.current) {
         setAllMessages((prev) => [...prev, aiMessageWithMeta]);
         setIsTyping(false);
-        
-        // Auto-scroll to show the new AI message
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
       }
       console.log('[Chat] sendMessage: Complete');
 
@@ -1493,10 +1494,12 @@ export default function ChatScreen() {
             removeClippedSubviews={Platform.OS === 'android'}
             onScroll={handleScroll}
             scrollEventThrottle={16}
+            onContentSizeChange={handleContentSizeChange}
+            onLayout={handleLayout}
           />
 
           {/* ═══════════════════════════════════════════════════════════════════
-              NEW: Floating Scroll-to-Bottom Arrow
+              Floating Scroll-to-Bottom Arrow
               ═══════════════════════════════════════════════════════════════════
               - Only visible when user has scrolled up
               - Positioned above input bar
@@ -1522,7 +1525,7 @@ export default function ChatScreen() {
                     shadowColor: theme.primary,
                   },
                 ]}
-                onPress={scrollToBottom}
+                onPress={() => scrollToBottom(true)}
                 activeOpacity={0.8}
               >
                 <IconSymbol
@@ -1864,7 +1867,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   // ═══════════════════════════════════════════════════════════════════
-  // NEW: Scroll-to-bottom arrow styles
+  // Scroll-to-bottom arrow styles
   // ═══════════════════════════════════════════════════════════════════
   scrollArrowContainer: {
     position: 'absolute',
