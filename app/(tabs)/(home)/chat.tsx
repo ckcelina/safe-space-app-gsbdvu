@@ -44,6 +44,7 @@ import { invokeEdgeSafe, copyDebugToClipboard } from '@/lib/supabase/invokeEdge'
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
 import { getPersonaById } from '@/constants/TherapistPersonas';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -518,6 +519,11 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   // ═══════════════════════════════════════════════════════════════════
+  // REALTIME: Channel ref for Supabase Realtime subscription
+  // ═══════════════════════════════════════════════════════════════════
+  const channelRef = useRef<RealtimeChannel | null>(null);
+
+  // ═══════════════════════════════════════════════════════════════════
   // SCROLL-TO-BOTTOM: Robust tracking refs
   // ═══════════════════════════════════════════════════════════════════
   const isNearBottomRef = useRef(true);
@@ -869,6 +875,123 @@ export default function ChatScreen() {
     }
   }, [personId, authUser?.id, backfillSubjects, getCurrentTherapistMetadata, scrollToBottom]);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // REALTIME: Initialize Supabase Realtime subscription BEFORE sending messages
+  // This ensures the listener is active before any assistant reply can be inserted
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!personId || !authUser?.id) {
+      console.log('[Chat] Skipping realtime setup - missing personId or userId');
+      return;
+    }
+
+    // Check if already subscribed to prevent multiple subscriptions
+    if (channelRef.current?.state === 'subscribed') {
+      console.log('[Chat] Already subscribed to realtime channel');
+      return;
+    }
+
+    console.log('[Chat] 🔴 Initializing Supabase Realtime subscription...');
+    
+    const channelName = `chat:${authUser.id}:${personId}`;
+    console.log('[Chat] Channel name:', channelName);
+
+    const channel = supabase.channel(channelName, {
+      config: {
+        broadcast: { self: false, ack: true },
+        private: true,
+      },
+    });
+
+    channelRef.current = channel;
+
+    // Set auth before subscribing
+    supabase.realtime.setAuth().then(() => {
+      console.log('[Chat] Realtime auth set');
+      
+      channel
+        .on('broadcast', { event: 'INSERT' }, (payload) => {
+          console.log('[Chat] 🟢 Received broadcast INSERT:', payload);
+          
+          if (!payload.new) {
+            console.warn('[Chat] Broadcast payload missing "new" data');
+            return;
+          }
+
+          const newMessage = payload.new as Message;
+          
+          // Only process assistant messages (user messages are added optimistically)
+          if (newMessage.role !== 'assistant') {
+            console.log('[Chat] Ignoring non-assistant message from broadcast');
+            return;
+          }
+
+          console.log('[Chat] Processing assistant message from realtime:', newMessage.id);
+          
+          // Get current therapist metadata
+          const therapistMeta = getCurrentTherapistMetadata();
+          
+          const messageWithMeta: ExtendedMessage = {
+            ...newMessage,
+            therapist_name: therapistMeta.name,
+            therapist_avatar_source: therapistMeta.avatarSource,
+          };
+
+          // Check if message already exists (prevent duplicates)
+          setAllMessages((prev) => {
+            const exists = prev.some((m) => m.id === newMessage.id);
+            if (exists) {
+              console.log('[Chat] Message already exists, skipping duplicate');
+              return prev;
+            }
+            
+            console.log('[Chat] Adding assistant message to state');
+            return [...prev, messageWithMeta];
+          });
+
+          // Clear typing indicator when assistant message arrives
+          setIsTyping(false);
+          if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = null;
+          }
+          if (typingFailsafeRef.current) {
+            clearTimeout(typingFailsafeRef.current);
+            typingFailsafeRef.current = null;
+          }
+
+          // Scroll to bottom when new assistant message arrives
+          shouldAutoScrollRef.current = true;
+          scrollToBottom(true);
+        })
+        .subscribe((status, err) => {
+          console.log('[Chat] Realtime subscription status:', status);
+          
+          if (status === 'SUBSCRIBED') {
+            console.log('[Chat] ✅ Successfully subscribed to realtime channel');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('[Chat] ❌ Realtime channel error:', err);
+          } else if (status === 'TIMED_OUT') {
+            console.warn('[Chat] ⏱️ Realtime subscription timed out');
+          } else if (status === 'CLOSED') {
+            console.log('[Chat] Realtime channel closed');
+          }
+        });
+    }).catch((err) => {
+      console.error('[Chat] Failed to set realtime auth:', err);
+    });
+
+    // Cleanup function
+    return () => {
+      console.log('[Chat] 🔴 Cleaning up realtime subscription');
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [personId, authUser?.id, getCurrentTherapistMetadata, scrollToBottom]);
+
+  // Load messages on mount
   useEffect(() => {
     if (personId && authUser?.id) {
       loadMessages();
@@ -963,6 +1086,8 @@ export default function ChatScreen() {
 
   // ═══════════════════════════════════════════════════════════════════
   // HELPER: Insert assistant message safely (used for BOTH real replies + fallbacks)
+  // NOTE: With realtime, this function is now ONLY used for fallback/error messages
+  // Real assistant replies come through the realtime listener
   // ═══════════════════════════════════════════════════════════════════
   const insertAssistantMessageSafely = useCallback(async (content: string): Promise<void> => {
     if (!authUser?.id || !personId) {
@@ -974,7 +1099,7 @@ export default function ChatScreen() {
       return;
     }
 
-    console.log('[Chat] Inserting assistant message safely');
+    console.log('[Chat] Inserting assistant message safely (fallback/error)');
     
     const therapistMeta = getCurrentTherapistMetadata();
     
@@ -1001,18 +1126,10 @@ export default function ChatScreen() {
         return;
       }
 
-      if (isMountedRef.current) {
-        const messageWithMeta: ExtendedMessage = {
-          ...insertedMessage,
-          therapist_name: therapistMeta.name,
-          therapist_avatar_source: therapistMeta.avatarSource,
-        };
-        setAllMessages((prev) => [...prev, messageWithMeta]);
-        
-        // Scroll to bottom reliably after adding assistant message
-        shouldAutoScrollRef.current = true;
-        scrollToBottom(true);
-      }
+      // NOTE: With realtime enabled, the message will be added to state via the broadcast listener
+      // We don't need to manually add it here anymore
+      console.log('[Chat] Assistant message inserted, waiting for realtime broadcast...');
+      
     } catch (err) {
       if (__DEV__) {
         console.error('[Chat] insertAssistantMessageSafely exception:', err);
@@ -1023,7 +1140,7 @@ export default function ChatScreen() {
       setIsTyping(false);
       clearTypingIndicator();
     }
-  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator, scrollToBottom]);
+  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator]);
 
   // ═══════════════════════════════════════════════════════════════════
   // RETRY: Implement retryLastAiResponse() (no duplicate user message)
@@ -1101,8 +1218,9 @@ export default function ChatScreen() {
       
       replyText = replyText.trim();
       
-      // Insert the successful reply
-      await insertAssistantMessageSafely(replyText);
+      // NOTE: With realtime, we don't insert the message here
+      // The edge function should insert it, and we'll receive it via broadcast
+      console.log('[Chat] Retry successful, waiting for realtime broadcast...');
       
     } catch (e) {
       if (__DEV__) {
@@ -1503,8 +1621,10 @@ export default function ChatScreen() {
         replyText = `I hear you. Can you tell me more about what you're experiencing with ${personName}?`;
       }
 
-      console.log('[Chat] Inserting AI message via insertAssistantMessageSafely...');
-      await insertAssistantMessageSafely(replyText);
+      // NOTE: With realtime enabled, the edge function should insert the assistant message
+      // and we'll receive it via the broadcast listener. We don't insert it here.
+      console.log('[Chat] AI response received, edge function should insert message...');
+      console.log('[Chat] Waiting for realtime broadcast...');
       
       console.log('[Chat] sendMessage: Complete');
 
