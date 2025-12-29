@@ -66,6 +66,10 @@ interface ExtendedMessage extends Message {
   // Client-side only - not stored in DB
   failed_to_send?: boolean;
   retry_content?: string;
+  // NEW: Optimistic flag for messages not yet persisted
+  optimistic?: boolean;
+  // NEW: Temporary ID for optimistic messages
+  temp_id?: string;
 }
 
 // NEW: Message or Date Separator item type
@@ -195,6 +199,11 @@ function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageLi
   });
   
   return items;
+}
+
+// NEW: Generate temporary ID for optimistic messages
+function generateTempId(): string {
+  return `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 export default function ChatScreen() {
@@ -605,6 +614,29 @@ export default function ChatScreen() {
     }, 100);
   }, [authUser?.id, personId]);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // NEW: Deduplication helper
+  // ═══════════════════════════════════════════════════════════════════
+  const isDuplicateMessage = useCallback((newMsg: ExtendedMessage, existingMessages: ExtendedMessage[]): boolean => {
+    // Check by ID first (most reliable)
+    if (existingMessages.some(m => m.id === newMsg.id)) {
+      return true;
+    }
+
+    // Check by content hash for optimistic messages
+    // Match: same role + same content + same subject + within 5 seconds
+    const newTime = new Date(newMsg.created_at).getTime();
+    return existingMessages.some(m => {
+      if (m.role !== newMsg.role) return false;
+      if (m.subject !== newMsg.subject) return false;
+      if (m.content !== newMsg.content) return false;
+      
+      const existingTime = new Date(m.created_at).getTime();
+      const timeDiff = Math.abs(newTime - existingTime);
+      return timeDiff < 5000; // Within 5 seconds
+    });
+  }, []);
+
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
@@ -686,6 +718,7 @@ export default function ChatScreen() {
       
       lastProcessedUserMessageIdRef.current = insertedMessage.id;
 
+      // Add user message to state
       let updatedMessages: ExtendedMessage[] = [];
       if (isMountedRef.current) {
         setAllMessages((prev) => {
@@ -696,10 +729,6 @@ export default function ChatScreen() {
 
       // ═══════════════════════════════════════════════════════════════════
       // MEMORY CAPTURE: Fire-and-forget capture of factual statements
-      // ═══════════════════════════════════════════════════════════════════
-      // This runs IMMEDIATELY after user message is saved
-      // It NEVER blocks the chat flow or throws errors
-      // It respects the "Continue conversations" toggle
       // ═══════════════════════════════════════════════════════════════════
       
       console.log('[Chat] 🧠 Triggering memory capture...');
@@ -745,7 +774,6 @@ export default function ChatScreen() {
       });
 
       // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
-      // This runs even if the AI reply fails, ensuring memories are always saved
       try {
         console.log('[Chat] Running local memory extraction...');
         const extractedMemories = extractMemoriesFromUserText(userMessageText, personName);
@@ -770,6 +798,9 @@ export default function ChatScreen() {
       console.log('[Chat] Calling AI Edge Function...');
       console.log('[Chat] Total messages in history:', updatedMessages.length);
       
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL FIX: Set typing indicator BEFORE calling AI
+      // ═══════════════════════════════════════════════════════════════════
       if (isMountedRef.current) {
         setIsTyping(true);
       }
@@ -812,6 +843,10 @@ export default function ChatScreen() {
         aiScienceMode: preferences.ai_science_mode,
       });
 
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL FIX: ALWAYS append AI response to messages state
+      // ═══════════════════════════════════════════════════════════════════
+      
       // STEP 3: Handle result - check ok flag
       if (!result.ok) {
         const errorCode = result.error?.code || 'UNKNOWN';
@@ -822,7 +857,6 @@ export default function ChatScreen() {
         // PRODUCTION SAFETY: Only log detailed errors in __DEV__ mode
         // ═══════════════════════════════════════════════════════════════════
         if (__DEV__) {
-          // Use console.log instead of console.error to prevent red error overlays
           console.log('[Chat] Edge Function failed:', {
             code: errorCode,
             message: errorMessage,
@@ -852,11 +886,8 @@ export default function ChatScreen() {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           }
         }
-        // In production (__DEV__ === false), do NOT log at all
 
         if (isMountedRef.current) {
-          setIsTyping(false);
-          
           // ═══════════════════════════════════════════════════════════════════
           // STEP 4: Handle different error types gracefully
           // ═══════════════════════════════════════════════════════════════════
@@ -876,121 +907,94 @@ export default function ChatScreen() {
           }
           
           // ═══════════════════════════════════════════════════════════════════
-          // FALLBACK MESSAGE: Only for EDGE_AUTH, EDGE_UNKNOWN, EDGE_UNAVAILABLE
+          // CRITICAL FIX: Create optimistic AI message for ALL other errors
+          // This ensures the AI reply ALWAYS appears in the UI
           // ═══════════════════════════════════════════════════════════════════
           
-          // Handle EDGE_AUTH
+          let fallbackContent = "I'm having trouble responding right now. Please try again.";
+          
           if (errorCode === 'EDGE_AUTH') {
-            if (__DEV__) {
-              console.log('[Chat] Auth error - inserting fallback message');
-            }
-            
-            const fallbackMessage = "I'm having trouble connecting right now. Please try logging out and back in.";
-            
-            const { data: fallbackInserted } = await supabase
-              .from('messages')
-              .insert({
-                user_id: userId,
-                person_id: personId,
-                role: 'assistant',
-                content: fallbackMessage,
-                subject: currentSubject,
-                created_at: new Date().toISOString(),
-              })
-              .select('*')
-              .single();
-
-            if (fallbackInserted) {
-              const fallbackWithMeta: ExtendedMessage = {
-                ...fallbackInserted,
-                therapist_name: therapistMeta.name,
-                therapist_avatar_source: therapistMeta.avatarSource,
-              };
-              setAllMessages((prev) => [...prev, fallbackWithMeta]);
-            }
-            
+            fallbackContent = "I'm having trouble connecting right now. Please try logging out and back in.";
             setError('Authentication issue. Please try logging out and back in.');
-            return;
-          }
-          
-          // Handle EDGE_UNAVAILABLE
-          if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'FUNCTIONS_HTTP_ERROR') {
-            if (__DEV__) {
-              console.log('[Chat] Service unavailable - inserting fallback message');
-            }
-            
-            const fallbackMessage = "I'm having trouble responding right now. Please try again in a moment.";
-            
-            const { data: fallbackInserted } = await supabase
-              .from('messages')
-              .insert({
-                user_id: userId,
-                person_id: personId,
-                role: 'assistant',
-                content: fallbackMessage,
-                subject: currentSubject,
-                created_at: new Date().toISOString(),
-              })
-              .select('*')
-              .single();
-
-            if (fallbackInserted) {
-              const fallbackWithMeta: ExtendedMessage = {
-                ...fallbackInserted,
-                therapist_name: therapistMeta.name,
-                therapist_avatar_source: therapistMeta.avatarSource,
-              };
-              setAllMessages((prev) => [...prev, fallbackWithMeta]);
-            }
-            
+          } else if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'FUNCTIONS_HTTP_ERROR') {
+            fallbackContent = "I'm having trouble responding right now. Please try again in a moment.";
             setError('Service temporarily unavailable. Please try again.');
-            return;
+          } else if (errorCode === 'EDGE_UNKNOWN' || errorCode === 'UNEXPECTED_ERROR' || errorCode === 'MAX_RETRIES_EXCEEDED') {
+            if (errorCode === 'MAX_RETRIES_EXCEEDED') {
+              fallbackContent = "I'm having persistent connection issues. Please check your network and try again.";
+            }
+            setError('An error occurred. Please try again.');
           }
           
-          // Handle EDGE_UNKNOWN and other errors
-          if (errorCode === 'EDGE_UNKNOWN' || errorCode === 'UNEXPECTED_ERROR' || errorCode === 'MAX_RETRIES_EXCEEDED') {
-            if (__DEV__) {
-              console.log('[Chat] Unknown/unexpected error - inserting fallback message');
+          // Create optimistic AI message with temp ID
+          const tempId = generateTempId();
+          const optimisticAiMessage: ExtendedMessage = {
+            id: tempId,
+            temp_id: tempId,
+            user_id: userId,
+            person_id: personId,
+            role: 'assistant',
+            content: fallbackContent,
+            subject: currentSubject,
+            created_at: new Date().toISOString(),
+            therapist_name: therapistMeta.name,
+            therapist_avatar_source: therapistMeta.avatarSource,
+            optimistic: true,
+            failed_to_send: true,
+            retry_content: userMessageText,
+          };
+          
+          // CRITICAL: Append optimistic message to state IMMEDIATELY
+          setAllMessages((prev) => {
+            // Deduplicate before adding
+            if (isDuplicateMessage(optimisticAiMessage, prev)) {
+              console.log('[Chat] Skipping duplicate optimistic AI message');
+              return prev;
             }
-            
-            let fallbackMessage = "I'm having trouble responding right now. Please try again.";
-            
-            if (errorCode === 'MAX_RETRIES_EXCEEDED') {
-              fallbackMessage = "I'm having persistent connection issues. Please check your network and try again.";
-            }
-            
-            const { data: fallbackInserted } = await supabase
-              .from('messages')
-              .insert({
-                user_id: userId,
-                person_id: personId,
-                role: 'assistant',
-                content: fallbackMessage,
-                subject: currentSubject,
-                created_at: new Date().toISOString(),
-              })
-              .select('*')
-              .single();
-
-            if (fallbackInserted) {
-              const fallbackWithMeta: ExtendedMessage = {
-                ...fallbackInserted,
-                therapist_name: therapistMeta.name,
-                therapist_avatar_source: therapistMeta.avatarSource,
-              };
-              setAllMessages((prev) => [...prev, fallbackWithMeta]);
-            }
-            
-            setError('An error occurred. Please try again.');
-            return;
-          }
+            return [...prev, optimisticAiMessage];
+          });
+          
+          // Try to persist to Supabase in background (fire-and-forget)
+          supabase
+            .from('messages')
+            .insert({
+              user_id: userId,
+              person_id: personId,
+              role: 'assistant',
+              content: fallbackContent,
+              subject: currentSubject,
+              created_at: new Date().toISOString(),
+            })
+            .select('*')
+            .single()
+            .then(({ data: persistedMsg, error: persistError }) => {
+              if (persistError) {
+                console.log('[Chat] Failed to persist fallback message (non-blocking):', persistError);
+              } else if (persistedMsg && isMountedRef.current) {
+                // Replace optimistic message with persisted one
+                setAllMessages((prev) => {
+                  return prev.map(m => {
+                    if (m.temp_id === tempId) {
+                      return {
+                        ...persistedMsg,
+                        therapist_name: therapistMeta.name,
+                        therapist_avatar_source: therapistMeta.avatarSource,
+                      };
+                    }
+                    return m;
+                  });
+                });
+              }
+            });
         }
 
         // STEP 5: Return without throwing - safe error handling
         return;
       }
 
-      // Success path - extract reply from data
+      // ═══════════════════════════════════════════════════════════════════
+      // SUCCESS PATH: Extract reply and create optimistic message
+      // ═══════════════════════════════════════════════════════════════════
       const aiResponse = result.data;
       let replyText =
         aiResponse?.reply ||
@@ -1004,7 +1008,42 @@ export default function ChatScreen() {
         replyText = `I hear you. Can you tell me more about what you're experiencing with ${personName}?`;
       }
 
-      console.log('[Chat] Inserting AI message...');
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL FIX: Create optimistic AI message IMMEDIATELY
+      // ═══════════════════════════════════════════════════════════════════
+      const tempId = generateTempId();
+      const optimisticAiMessage: ExtendedMessage = {
+        id: tempId,
+        temp_id: tempId,
+        user_id: userId,
+        person_id: personId,
+        role: 'assistant',
+        content: replyText,
+        subject: currentSubject,
+        created_at: new Date().toISOString(),
+        therapist_name: therapistMeta.name,
+        therapist_avatar_source: therapistMeta.avatarSource,
+        optimistic: true,
+      };
+
+      // CRITICAL: Append optimistic message to state IMMEDIATELY
+      if (isMountedRef.current) {
+        setAllMessages((prev) => {
+          // Deduplicate before adding
+          if (isDuplicateMessage(optimisticAiMessage, prev)) {
+            console.log('[Chat] Skipping duplicate optimistic AI message');
+            return prev;
+          }
+          return [...prev, optimisticAiMessage];
+        });
+      }
+
+      console.log('[Chat] Optimistic AI message added to UI');
+
+      // ═══════════════════════════════════════════════════════════════════
+      // BACKGROUND PERSISTENCE: Try to persist to Supabase
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('[Chat] Persisting AI message to Supabase...');
       const { data: aiInserted, error: aiInsertError } = await supabase
         .from('messages')
         .insert({
@@ -1020,32 +1059,33 @@ export default function ChatScreen() {
 
       if (aiInsertError || !aiInserted) {
         if (__DEV__) {
-          console.log('[Chat] Insert AI message error:', aiInsertError);
+          console.log('[Chat] Insert AI message error (non-blocking):', aiInsertError);
         }
+        // Don't show error - optimistic message is already in UI
+        // User can retry if needed
+      } else {
+        console.log('[Chat] AI message persisted:', aiInserted.id);
+
+        // Replace optimistic message with persisted one
         if (isMountedRef.current) {
-          setIsTyping(false);
-          setError(aiInsertError?.message || 'Failed to save AI reply.');
+          setAllMessages((prev) => {
+            return prev.map(m => {
+              if (m.temp_id === tempId) {
+                return {
+                  ...aiInserted,
+                  therapist_name: therapistMeta.name,
+                  therapist_avatar_source: therapistMeta.avatarSource,
+                };
+              }
+              return m;
+            });
+          });
         }
-        return;
       }
 
-      console.log('[Chat] AI message inserted:', aiInserted.id);
-
-      // Attach therapist metadata to the AI message
-      const aiMessageWithMeta: ExtendedMessage = {
-        ...aiInserted,
-        therapist_name: therapistMeta.name,
-        therapist_avatar_source: therapistMeta.avatarSource,
-      };
-
-      if (isMountedRef.current) {
-        setAllMessages((prev) => [...prev, aiMessageWithMeta]);
-        setIsTyping(false);
-      }
       console.log('[Chat] sendMessage: Complete');
 
       // MEMORY EXTRACTION + CONTINUITY UPDATE: Extract memories and update continuity in the background
-      // This is fire-and-forget and will not block or delay the chat flow
       (async () => {
         try {
           console.log('[Chat] Triggering memory extraction and continuity update...');
@@ -1059,7 +1099,7 @@ export default function ChatScreen() {
             .slice(-5)
             .map(m => m.content);
 
-          // Extract memories and continuity (await to get continuity data)
+          // Extract memories and continuity
           const extractionResult = await extractMemories({
             personName,
             recentUserMessages: userMessages,
@@ -1076,8 +1116,6 @@ export default function ChatScreen() {
           console.log('[Chat] Memory extraction complete');
           
           // Show subtle confirmation indicator if memories were extracted
-          // Note: We don't check the exact count to avoid exposing internal logic
-          // The indicator shows regardless of whether new memories were added or existing ones were updated
           if (isMountedRef.current && !extractionResult.error) {
             setShowMemorySavedIndicator(true);
           }
@@ -1104,16 +1142,18 @@ export default function ChatScreen() {
       if (isMountedRef.current) {
         setInputText(userMessageText); // Restore input on error
         setError(err?.message || 'An unexpected error occurred');
-        setIsTyping(false);
       }
     } finally {
+      // ═══════════════════════════════════════════════════════════════════
       // CRITICAL: Always reset flags in finally block
+      // ═══════════════════════════════════════════════════════════════════
       if (isMountedRef.current) {
         setIsSending(false);
+        setIsTyping(false);
         isGeneratingRef.current = false;
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, isDuplicateMessage]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -1182,8 +1222,6 @@ export default function ChatScreen() {
 
     // Close modal
     closeAddSubjectModal();
-
-    // TODO: Persist to Supabase if needed (currently local state only)
   }, [newSubjectName, availableSubjects, closeAddSubjectModal]);
 
   // Handle debug banner tap (copy to clipboard) - ONLY in __DEV__
@@ -1262,7 +1300,8 @@ export default function ChatScreen() {
     if (item.type === 'date-separator') {
       return `date-${item.date.toISOString()}-${index}`;
     }
-    return item.data.id;
+    // Use temp_id for optimistic messages, otherwise use id
+    return item.data.temp_id || item.data.id;
   }, []);
 
   // Empty list component
@@ -1419,19 +1458,6 @@ export default function ChatScreen() {
             ═══════════════════════════════════════════════════════════════════
             DEVELOPER DEBUG BANNER
             ═══════════════════════════════════════════════════════════════════
-            
-            VISIBILITY RULES:
-            - Production builds (TestFlight/App Store): NEVER shown (__DEV__ === false)
-            - Expo Go / Dev builds: ONLY shown when __DEV__ === true AND debugInfo exists
-            
-            SAFETY GUARANTEES:
-            1. Entire block wrapped in __DEV__ check (compile-time removal in production)
-            2. debugInfo state is only set when __DEV__ === true
-            3. No debug components rendered outside __DEV__ block
-            4. No leftover spacing or margins when hidden
-            
-            This ensures debug information is NEVER exposed in TestFlight or App Store builds.
-            ═══════════════════════════════════════════════════════════════════
           */}
           {__DEV__ && debugInfo && (
             <TouchableOpacity 
@@ -1479,7 +1505,7 @@ export default function ChatScreen() {
             </TouchableOpacity>
           )}
 
-          {/* NON-INVERTED FlatList for chat messages - messages start at top */}
+          {/* NON-INVERTED FlatList for chat messages */}
           <FlatList
             ref={flatListRef}
             data={messageListItems}
@@ -1496,23 +1522,17 @@ export default function ChatScreen() {
             scrollEventThrottle={16}
             onContentSizeChange={handleContentSizeChange}
             onLayout={handleLayout}
+            extraData={messageListItems}
           />
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              Floating Scroll-to-Bottom Arrow
-              ═══════════════════════════════════════════════════════════════════
-              - Only visible when user has scrolled up
-              - Positioned above input bar
-              - Matches Safe Space theme
-              - Smooth fade in/out animation
-              ═══════════════════════════════════════════════════════════════════ */}
+          {/* Floating Scroll-to-Bottom Arrow */}
           {showScrollArrow && (
             <Animated.View
               style={[
                 styles.scrollArrowContainer,
                 {
                   opacity: scrollArrowOpacity,
-                  bottom: insets.bottom + 80, // Position above input bar
+                  bottom: insets.bottom + 80,
                 },
               ]}
               pointerEvents={showScrollArrow ? 'auto' : 'none'}
@@ -1810,7 +1830,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: '5%',
     paddingVertical: 16,
   },
-  // NEW: Date separator styles
   dateSeparatorContainer: {
     alignItems: 'center',
     marginVertical: 16,
@@ -1866,9 +1885,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontStyle: 'italic',
   },
-  // ═══════════════════════════════════════════════════════════════════
-  // Scroll-to-bottom arrow styles
-  // ═══════════════════════════════════════════════════════════════════
   scrollArrowContainer: {
     position: 'absolute',
     right: 20,
@@ -1935,7 +1951,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  // NEW: Simple modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
