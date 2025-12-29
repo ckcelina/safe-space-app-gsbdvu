@@ -92,6 +92,7 @@ export async function copyDebugToClipboard(text: any): Promise<boolean> {
  * - Refreshes session token on each retry attempt
  * - Returns structured error codes for better error handling
  * - DEV-ONLY: Uses console.log/warn for transient errors (no red LogBox)
+ * - CRITICAL: Validates session exists before invoking (returns EDGE_AUTH error if missing)
  * 
  * @param functionName - Name of the Edge Function to invoke
  * @param payload - Request body to send
@@ -105,28 +106,59 @@ export async function invokeEdgeSafe<T = any>(
   const startTime = Date.now();
 
   while (attempt <= MAX_RETRIES) {
+    // ═══════════════════════════════════════════════════════════════════
     // CRITICAL FIX: Get fresh session token on EACH retry attempt
+    // REQUIRED CHANGE A1: Validate session exists before invoking
+    // ═══════════════════════════════════════════════════════════════════
     let authHeaders: Record<string, string> = {};
     let hasSessionToken = false;
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        authHeaders['Authorization'] = `Bearer ${session.access_token}`;
-        hasSessionToken = true;
+      
+      // REQUIRED CHANGE A1: Return error if no session
+      if (!session?.access_token) {
+        if (__DEV__) {
+          console.warn(`[invokeEdgeSafe] No session found (attempt ${attempt + 1}) - returning EDGE_AUTH error`);
+        }
         
-        if (__DEV__) {
-          console.log(`[invokeEdgeSafe] Auth token attached (attempt ${attempt + 1})`);
-        }
-      } else {
-        if (__DEV__) {
-          console.warn(`[invokeEdgeSafe] No session found (attempt ${attempt + 1}) - proceeding without auth token`);
-        }
+        return {
+          ok: false,
+          error: {
+            code: 'EDGE_AUTH',
+            message: 'No session',
+            details: {
+              attempt: attempt + 1,
+              reason: 'Missing access token',
+            },
+          },
+        };
+      }
+      
+      // REQUIRED CHANGE A2: Include Authorization header explicitly
+      authHeaders['Authorization'] = `Bearer ${session.access_token}`;
+      hasSessionToken = true;
+      
+      if (__DEV__) {
+        console.log(`[invokeEdgeSafe] Auth token attached (attempt ${attempt + 1})`);
       }
     } catch (sessionError: any) {
       if (__DEV__) {
         console.warn(`[invokeEdgeSafe] Failed to get session (attempt ${attempt + 1}):`, sessionError?.message);
       }
+      
+      // Return error if session fetch fails
+      return {
+        ok: false,
+        error: {
+          code: 'EDGE_AUTH',
+          message: 'Failed to get session',
+          details: {
+            attempt: attempt + 1,
+            error: sessionError?.message,
+          },
+        },
+      };
     }
 
     // Web-compatible timeout typing
@@ -143,7 +175,7 @@ export async function invokeEdgeSafe<T = any>(
     }
 
     try {
-      // DEV-ONLY: Log invocation with project ref and platform info
+      // REQUIRED CHANGE A3: DEV-ONLY diagnostics with console.warn (no red screen)
       if (__DEV__) {
         const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://zjzvkxvahrbuuyzjzxol.supabase.co';
         const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : 'unknown';
@@ -155,22 +187,17 @@ export async function invokeEdgeSafe<T = any>(
         timeoutId = setTimeout(() => {
           didTimeout = true;
           if (__DEV__) {
-            console.log(`[invokeEdgeSafe] Timeout reached for ${functionName} after ${TIMEOUT_MS}ms (attempt ${attempt + 1})`);
+            console.warn(`[invokeEdgeSafe] Timeout reached for ${functionName} after ${TIMEOUT_MS}ms (attempt ${attempt + 1})`);
           }
           controller?.abort();
         }, TIMEOUT_MS);
       }
 
-      // CRITICAL FIX: Call the Edge Function with timeout signal and auth headers
-      // Ensure headers are passed correctly to supabase.functions.invoke
+      // REQUIRED CHANGE A2: Call the Edge Function with explicit Authorization header
       const invokeOptions: any = {
         body: payload,
+        headers: authHeaders, // Always include headers (even if empty object)
       };
-      
-      // Add headers if we have auth token
-      if (Object.keys(authHeaders).length > 0) {
-        invokeOptions.headers = authHeaders;
-      }
       
       // Only add signal if AbortController is available
       if (signal) {
@@ -181,6 +208,7 @@ export async function invokeEdgeSafe<T = any>(
         console.log(`[invokeEdgeSafe] Calling supabase.functions.invoke with:`, {
           functionName,
           hasHeaders: !!invokeOptions.headers,
+          hasAuthHeader: !!authHeaders['Authorization'],
           hasSignal: !!invokeOptions.signal,
           payloadKeys: Object.keys(payload || {}),
         });
@@ -202,24 +230,25 @@ export async function invokeEdgeSafe<T = any>(
         const duration = Date.now() - startTime;
 
         if (__DEV__) {
-          // Use console.log/warn for transient errors (no red LogBox)
-          console.log(`[invokeEdgeSafe] ${functionName} error (attempt ${attempt + 1}):`, {
+          // REQUIRED CHANGE A3: Use console.warn for failures (no red LogBox)
+          console.warn(`[invokeEdgeSafe] ${functionName} error (attempt ${attempt + 1}):`, {
             name: (error as any)?.name,
             message: (error as any)?.message,
             status,
             statusText,
+            hasSession: hasSessionToken,
           });
 
           // DEV-ONLY: Log compact diagnostic line
           const normalizedCode = (error as any)?.name || 'EDGE_FUNCTION_ERROR';
-          console.log(`[Edge] code=${normalizedCode} status=${status || 'none'} duration_ms=${duration}`);
+          console.log(`[Edge] code=${normalizedCode} status=${status || 'none'} duration_ms=${duration} hasSession=${hasSessionToken}`);
         }
 
         // Check if this is a transient error that should be retried
         if (status && TRANSIENT_STATUS_CODES.includes(status) && attempt < MAX_RETRIES) {
           const delay = getRetryDelay(attempt);
           if (__DEV__) {
-            console.log(`[invokeEdgeSafe] Transient error ${status}, retrying in ${delay}ms...`);
+            console.warn(`[invokeEdgeSafe] Transient error ${status}, retrying in ${delay}ms...`);
           }
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
@@ -245,6 +274,7 @@ export async function invokeEdgeSafe<T = any>(
               statusText,
               context,
               attempt: attempt + 1,
+              hasSession: hasSessionToken,
             },
           },
         };
@@ -319,15 +349,15 @@ export async function invokeEdgeSafe<T = any>(
         const errorCode: InvokeEdgeSafeResult['error']['code'] = didTimeout ? 'EDGE_TIMEOUT' : 'EDGE_ABORTED';
         
         if (__DEV__) {
-          // Use console.log for transient errors (no red LogBox)
-          console.log(`[Edge] code=${errorCode} status=N/A duration_ms=${duration}`);
+          // REQUIRED CHANGE A3: Use console.warn for transient errors (no red LogBox)
+          console.warn(`[Edge] code=${errorCode} status=N/A duration_ms=${duration} hasSession=${hasSessionToken}`);
         }
 
         // Retry abort/timeout errors
         if (attempt < MAX_RETRIES) {
           const delay = getRetryDelay(attempt);
           if (__DEV__) {
-            console.log(`[invokeEdgeSafe] ${didTimeout ? 'Timeout' : 'Abort'} detected, retrying in ${delay}ms...`);
+            console.warn(`[invokeEdgeSafe] ${didTimeout ? 'Timeout' : 'Abort'} detected, retrying in ${delay}ms...`);
           }
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
@@ -343,6 +373,7 @@ export async function invokeEdgeSafe<T = any>(
             details: { 
               attempt: attempt + 1,
               timeoutMs: TIMEOUT_MS,
+              hasSession: hasSessionToken,
             },
           },
         };
@@ -354,15 +385,16 @@ export async function invokeEdgeSafe<T = any>(
         const statusText = e.statusText;
 
         if (__DEV__) {
-          // Use console.log for transient errors (no red LogBox)
-          console.log(`[invokeEdgeSafe] FunctionsHttpError for ${functionName} (attempt ${attempt + 1}):`, {
+          // REQUIRED CHANGE A3: Use console.warn for transient errors (no red LogBox)
+          console.warn(`[invokeEdgeSafe] FunctionsHttpError for ${functionName} (attempt ${attempt + 1}):`, {
             status,
             statusText,
             message: e.message,
+            hasSession: hasSessionToken,
           });
 
           // DEV-ONLY: Log compact diagnostic line
-          console.log(`[Edge] code=FUNCTIONS_HTTP_ERROR status=${status} duration_ms=${duration}`);
+          console.log(`[Edge] code=FUNCTIONS_HTTP_ERROR status=${status} duration_ms=${duration} hasSession=${hasSessionToken}`);
         }
 
         // Try to extract response body
@@ -395,7 +427,7 @@ export async function invokeEdgeSafe<T = any>(
         if (TRANSIENT_STATUS_CODES.includes(status) && attempt < MAX_RETRIES) {
           const delay = getRetryDelay(attempt);
           if (__DEV__) {
-            console.log(`[invokeEdgeSafe] Transient HTTP error ${status}, retrying in ${delay}ms...`);
+            console.warn(`[invokeEdgeSafe] Transient HTTP error ${status}, retrying in ${delay}ms...`);
           }
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
@@ -422,6 +454,7 @@ export async function invokeEdgeSafe<T = any>(
               body: bodyJson || bodyText,
               headers,
               attempt: attempt + 1,
+              hasSession: hasSessionToken,
             },
           },
         };
@@ -429,15 +462,16 @@ export async function invokeEdgeSafe<T = any>(
 
       // Handle other unexpected errors (network errors, etc.)
       if (__DEV__) {
-        // Use console.log for transient errors (no red LogBox)
-        console.log(`[invokeEdgeSafe] Unexpected error for ${functionName} (attempt ${attempt + 1}):`, {
+        // REQUIRED CHANGE A3: Use console.warn for transient errors (no red LogBox)
+        console.warn(`[invokeEdgeSafe] Unexpected error for ${functionName} (attempt ${attempt + 1}):`, {
           name: e?.name,
           message: e?.message,
           stack: e?.stack,
+          hasSession: hasSessionToken,
         });
 
         // DEV-ONLY: Log compact diagnostic line
-        console.log(`[Edge] code=UNEXPECTED_ERROR status=none duration_ms=${duration}`);
+        console.log(`[Edge] code=UNEXPECTED_ERROR status=none duration_ms=${duration} hasSession=${hasSessionToken}`);
       }
 
       // Check if this is a network error that should be retried
@@ -450,7 +484,7 @@ export async function invokeEdgeSafe<T = any>(
       if (isNetworkError && attempt < MAX_RETRIES) {
         const delay = getRetryDelay(attempt);
         if (__DEV__) {
-          console.log(`[invokeEdgeSafe] Network error, retrying in ${delay}ms...`);
+          console.warn(`[invokeEdgeSafe] Network error, retrying in ${delay}ms...`);
         }
         await new Promise(resolve => setTimeout(resolve, delay));
         attempt++;
@@ -467,6 +501,7 @@ export async function invokeEdgeSafe<T = any>(
             name: e?.name,
             stack: e?.stack,
             attempt: attempt + 1,
+            hasSession: hasSessionToken,
           },
         },
       };
@@ -478,7 +513,7 @@ export async function invokeEdgeSafe<T = any>(
   
   if (__DEV__) {
     // DEV-ONLY: Log compact diagnostic line
-    console.log(`[Edge] code=MAX_RETRIES_EXCEEDED status=none duration_ms=${duration}`);
+    console.warn(`[Edge] code=MAX_RETRIES_EXCEEDED status=none duration_ms=${duration}`);
   }
 
   return {
