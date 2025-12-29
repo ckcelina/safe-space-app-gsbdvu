@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { AIHeaderRow } from './AIHeaderRow';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { format } from 'date-fns';
 
 interface AnimatedChatBubbleProps {
   message: string;
@@ -83,6 +84,23 @@ function getInitials(name?: string): string {
   
   // Multiple names - take first letter of first two parts
   return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+/**
+ * Format timestamp for display inside bubble
+ * Returns time in "h:mm a" format (e.g., "7:44 PM")
+ */
+function formatMessageTime(timestamp?: string): string {
+  if (!timestamp) return '';
+  
+  try {
+    const date = new Date(timestamp);
+    // Format as "7:44 PM" using device locale
+    return format(date, 'h:mm a');
+  } catch (error) {
+    console.error('[AnimatedChatBubble] Error formatting message time:', error);
+    return '';
+  }
 }
 
 export function AnimatedChatBubble({ 
@@ -167,29 +185,6 @@ export function AnimatedChatBubble({
     };
   }, [fadeAnim, slideAnim, glowAnim, animate, isUser, isReducedMotion, therapistPersonaId]);
 
-  const formatTimestamp = (ts?: string) => {
-    if (!ts) return '';
-    
-    try {
-      const date = new Date(ts);
-      const now = new Date();
-      const diffInMs = now.getTime() - date.getTime();
-      const diffInMinutes = Math.floor(diffInMs / 60000);
-      const diffInHours = Math.floor(diffInMs / 3600000);
-      const diffInDays = Math.floor(diffInMs / 86400000);
-
-      if (diffInMinutes < 1) return 'Just now';
-      if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-      if (diffInHours < 24) return `${diffInHours}h ago`;
-      if (diffInDays < 7) return `${diffInDays}d ago`;
-
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } catch (error) {
-      console.error('[AnimatedChatBubble] Error formatting timestamp:', error);
-      return '';
-    }
-  };
-
   const renderMessageText = (text: string) => {
     const parts: React.ReactNode[] = [];
     let currentIndex = 0;
@@ -264,6 +259,9 @@ export function AnimatedChatBubble({
     outputRange: [0, 0.15], // Very subtle glow
   });
 
+  // Format the timestamp for display
+  const formattedTime = formatMessageTime(timestamp);
+
   return (
     <Animated.View
       style={[
@@ -315,6 +313,12 @@ export function AnimatedChatBubble({
               style={[styles.bubble, styles.userBubble]}
             >
               <Text style={[styles.userText, { color: theme.buttonText }]}>{message}</Text>
+              {/* NEW: Timestamp inside bubble */}
+              {formattedTime && (
+                <Text style={[styles.timestampInBubble, styles.timestampInBubbleUser]}>
+                  {formattedTime}
+                </Text>
+              )}
             </LinearGradient>
           ) : (
             <View style={styles.aiBubbleWrapper}>
@@ -345,20 +349,14 @@ export function AnimatedChatBubble({
                 <Text style={[styles.aiText, { color: theme.textPrimary }]}>
                   {renderMessageText(message)}
                 </Text>
+                {/* NEW: Timestamp inside bubble */}
+                {formattedTime && (
+                  <Text style={[styles.timestampInBubble, styles.timestampInBubbleAI, { color: theme.textSecondary }]}>
+                    {formattedTime}
+                  </Text>
+                )}
               </View>
             </View>
-          )}
-
-          {timestamp && (
-            <Text
-              style={[
-                styles.timestamp,
-                { color: theme.textSecondary },
-                isUser ? styles.timestampRight : styles.timestampLeft,
-              ]}
-            >
-              {formatTimestamp(timestamp)}
-            </Text>
           )}
         </View>
       </View>
@@ -452,17 +450,17 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     flexWrap: 'wrap',
   },
-  timestamp: {
+  // NEW: Timestamp inside bubble styles
+  timestampInBubble: {
     fontSize: 11,
-    marginTop: 4,
+    marginTop: 6,
     opacity: 0.7,
   },
-  timestampRight: {
+  timestampInBubbleUser: {
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'right',
-    marginRight: 4,
   },
-  timestampLeft: {
+  timestampInBubbleAI: {
     textAlign: 'left',
-    marginLeft: 4,
   },
 });

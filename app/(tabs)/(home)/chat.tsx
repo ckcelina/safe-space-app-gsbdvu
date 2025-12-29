@@ -42,6 +42,7 @@ import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
 import { invokeEdgeSafe, copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
 import { getPersonaById } from '@/constants/TherapistPersonas';
+import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -66,6 +67,11 @@ interface ExtendedMessage extends Message {
   failed_to_send?: boolean;
   retry_content?: string;
 }
+
+// NEW: Message or Date Separator item type
+type MessageListItem = 
+  | { type: 'message'; data: ExtendedMessage; shouldAnimate: boolean }
+  | { type: 'date-separator'; date: Date; label: string };
 
 interface SubjectPillProps {
   subject: string;
@@ -131,6 +137,64 @@ function SubjectPill({ subject, isSelected, onPress, isAddButton = false }: Subj
       </Animated.View>
     </TouchableOpacity>
   );
+}
+
+// NEW: Date Separator Component
+function DateSeparator({ label }: { label: string }) {
+  const { theme } = useThemeContext();
+  
+  return (
+    <View style={styles.dateSeparatorContainer}>
+      <View style={[styles.dateSeparatorPill, { backgroundColor: theme.card }]}>
+        <Text style={[styles.dateSeparatorText, { color: theme.textSecondary }]}>
+          {label}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// NEW: Helper function to format date separator label
+function getDateSeparatorLabel(date: Date): string {
+  if (isToday(date)) {
+    return 'Today';
+  }
+  if (isYesterday(date)) {
+    return 'Yesterday';
+  }
+  // Format as "Dec 15, 2025"
+  return format(date, 'MMM d, yyyy');
+}
+
+// NEW: Transform messages into list items with date separators
+function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageListItem[] {
+  const items: MessageListItem[] = [];
+  let lastDate: Date | null = null;
+  
+  messages.forEach((message, index) => {
+    const messageDate = new Date(message.created_at);
+    
+    // Check if we need to insert a date separator
+    if (!lastDate || !isSameDay(lastDate, messageDate)) {
+      items.push({
+        type: 'date-separator',
+        date: messageDate,
+        label: getDateSeparatorLabel(messageDate),
+      });
+      lastDate = messageDate;
+    }
+    
+    // Add the message
+    // Animate only the most recent AI message (last in list)
+    const shouldAnimate = message.role === 'assistant' && index === messages.length - 1;
+    items.push({
+      type: 'message',
+      data: message,
+      shouldAnimate,
+    });
+  });
+  
+  return items;
 }
 
 export default function ChatScreen() {
@@ -413,6 +477,11 @@ export default function ChatScreen() {
     });
   }, [allMessages, currentSubject]);
 
+  // NEW: Transform messages with date separators
+  const messageListItems = React.useMemo(() => {
+    return transformMessagesWithSeparators(displayedMessages);
+  }, [displayedMessages]);
+
   // ═══════════════════════════════════════════════════════════════════
   // NEW: Auto-scroll to bottom when messages load or change
   // ═══════════════════════════════════════════════════════════════════
@@ -421,7 +490,7 @@ export default function ChatScreen() {
     // 1. Messages exist
     // 2. Not loading
     // 3. User is already at bottom OR this is the first scroll
-    if (displayedMessages.length > 0 && !loading) {
+    if (messageListItems.length > 0 && !loading) {
       if (isAtBottom || !hasScrolledOnceRef.current) {
         // Small delay to ensure FlatList has rendered
         setTimeout(() => {
@@ -430,7 +499,7 @@ export default function ChatScreen() {
         }, 100);
       }
     }
-  }, [displayedMessages.length, loading, isAtBottom]);
+  }, [messageListItems.length, loading, isAtBottom]);
 
   // ═══════════════════════════════════════════════════════════════════
   // NEW: Handle scroll events to track position
@@ -1146,29 +1215,31 @@ export default function ChatScreen() {
     }
   }, [allMessages, retryFailedMessage, error]);
 
-  // Render individual message item
-  const renderMessageItem = useCallback(({ item, index }: ListRenderItemInfo<ExtendedMessage>) => {
-    // Animate only the most recent AI message (last in non-inverted list)
-    const shouldAnimate = item.role === 'assistant' && index === displayedMessages.length - 1;
+  // Render individual list item (message or date separator)
+  const renderListItem = useCallback(({ item }: ListRenderItemInfo<MessageListItem>) => {
+    if (item.type === 'date-separator') {
+      return <DateSeparator label={item.label} />;
+    }
     
-    // Check if this message failed to send
-    const isFailed = item.failed_to_send === true;
+    // Message item
+    const message = item.data;
+    const isFailed = message.failed_to_send === true;
     
     return (
       <View>
         <AnimatedChatBubble
-          message={item.content}
-          isUser={item.role === 'user'}
-          timestamp={item.created_at}
-          animate={shouldAnimate}
-          therapistName={item.therapist_name}
-          therapistAvatarSource={item.therapist_avatar_source}
+          message={message.content}
+          isUser={message.role === 'user'}
+          timestamp={message.created_at}
+          animate={item.shouldAnimate}
+          therapistName={message.therapist_name}
+          therapistAvatarSource={message.therapist_avatar_source}
           therapistPersonaId={preferences.therapist_persona_id}
         />
-        {isFailed && item.retry_content && (
+        {isFailed && message.retry_content && (
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: theme.primary }]}
-            onPress={() => retryFailedMessage(item.id, item.retry_content!)}
+            onPress={() => retryFailedMessage(message.id, message.retry_content!)}
             activeOpacity={0.7}
           >
             <IconSymbol
@@ -1183,10 +1254,15 @@ export default function ChatScreen() {
         )}
       </View>
     );
-  }, [displayedMessages.length, preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
+  }, [preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
 
   // Key extractor for FlatList
-  const keyExtractor = useCallback((item: ExtendedMessage) => item.id, []);
+  const keyExtractor = useCallback((item: MessageListItem, index: number) => {
+    if (item.type === 'date-separator') {
+      return `date-${item.date.toISOString()}-${index}`;
+    }
+    return item.data.id;
+  }, []);
 
   // Empty list component
   const renderEmptyList = useCallback(() => {
@@ -1405,8 +1481,8 @@ export default function ChatScreen() {
           {/* NON-INVERTED FlatList for chat messages - messages start at top */}
           <FlatList
             ref={flatListRef}
-            data={displayedMessages}
-            renderItem={renderMessageItem}
+            data={messageListItems}
+            renderItem={renderListItem}
             keyExtractor={keyExtractor}
             inverted={false}
             contentContainerStyle={styles.messagesContent}
@@ -1730,6 +1806,27 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingHorizontal: '5%',
     paddingVertical: 16,
+  },
+  // NEW: Date separator styles
+  dateSeparatorContainer: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dateSeparatorPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  dateSeparatorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   emptyChat: {
     flex: 1,

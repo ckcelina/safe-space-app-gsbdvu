@@ -12,6 +12,10 @@ interface ChatBubbleProps {
   therapistName?: string;
   therapistAvatarSource?: ImageSourcePropType;
   therapistPersonaId?: string;
+  // Legacy props for backward compatibility
+  sender?: 'user' | 'ai';
+  content?: string;
+  createdAt?: string;
 }
 
 /**
@@ -20,6 +24,8 @@ interface ChatBubbleProps {
  * This component now wraps AnimatedChatBubble to provide
  * backward compatibility for existing code while adding
  * subtle animations that respect reduced motion settings.
+ * 
+ * Now includes WhatsApp-like timestamps inside bubbles.
  */
 export function ChatBubble({ 
   message, 
@@ -29,12 +35,21 @@ export function ChatBubble({
   therapistName,
   therapistAvatarSource,
   therapistPersonaId,
+  // Legacy props
+  sender,
+  content,
+  createdAt,
 }: ChatBubbleProps) {
+  // Handle legacy props
+  const finalMessage = message || content || '';
+  const finalIsUser = sender ? sender === 'user' : isUser;
+  const finalTimestamp = timestamp || createdAt;
+  
   return (
     <AnimatedChatBubble
-      message={message}
-      isUser={isUser}
-      timestamp={timestamp}
+      message={finalMessage}
+      isUser={finalIsUser}
+      timestamp={finalTimestamp}
       animate={animate}
       therapistName={therapistName}
       therapistAvatarSource={therapistAvatarSource}
