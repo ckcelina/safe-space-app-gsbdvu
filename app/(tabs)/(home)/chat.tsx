@@ -1345,8 +1345,7 @@ export default function ChatScreen() {
 
   // ═══════════════════════════════════════════════════════════════════
   // HELPER: Insert assistant message safely (used for BOTH real replies + fallbacks)
-  // NOTE: With realtime, this function is now ONLY used for fallback/error messages
-  // Real assistant replies come through the realtime listener
+  // CRITICAL: ALWAYS updates local state immediately (no reliance on realtime)
   // ═══════════════════════════════════════════════════════════════════
   const insertAssistantMessageSafely = useCallback(async (content: string): Promise<void> => {
     if (!authUser?.id || !personId) {
@@ -1358,7 +1357,7 @@ export default function ChatScreen() {
       return;
     }
 
-    console.log('[Chat] Inserting assistant message safely (fallback/error)');
+    console.log('[Chat] Inserting assistant message safely');
     
     const therapistMeta = getCurrentTherapistMetadata();
     
@@ -1385,9 +1384,54 @@ export default function ChatScreen() {
         return;
       }
 
-      // NOTE: With realtime enabled, the message will be added to state via the broadcast listener
-      // We don't need to manually add it here anymore
-      console.log('[Chat] Assistant message inserted, waiting for realtime broadcast...');
+      console.log('[Chat] ✅ Assistant message inserted to DB:', insertedMessage.id);
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: ALWAYS update local state immediately (no waiting for realtime)
+      // ═══════════════════════════════════════════════════════════════════
+      const messageWithMeta: ExtendedMessage = {
+        ...insertedMessage,
+        therapist_name: therapistMeta.name,
+        therapist_avatar_source: therapistMeta.avatarSource,
+      };
+      
+      setAllMessages((prev) => {
+        // Check for duplicates (defensive)
+        const exists = prev.some((m) => m.id === insertedMessage.id);
+        if (exists) {
+          console.log('[Chat] Message already exists in state, skipping duplicate');
+          return prev;
+        }
+        
+        console.log('[Chat] ✅ Adding assistant message to local state immediately');
+        
+        // Update last known timestamp
+        lastKnownMessageTimestampRef.current = insertedMessage.created_at;
+        
+        return [...prev, messageWithMeta];
+      });
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: Force reliable scroll-to-bottom after appending
+      // ═══════════════════════════════════════════════════════════════════
+      shouldAutoScrollRef.current = true;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+          shouldAutoScrollRef.current = false;
+        }, 100);
+      });
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // POST-SEND SYNC: Safety net for realtime failures
+      // Schedule a single background refresh after 500ms
+      // ═══════════════════════════════════════════════════════════════════
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          console.log('[Chat] 🔄 Post-send sync: Refreshing messages for consistency');
+          loadMessages();
+        }
+      }, 500);
       
     } catch (err) {
       if (__DEV__) {
@@ -1399,10 +1443,11 @@ export default function ChatScreen() {
       setIsTyping(false);
       clearTypingIndicator();
     }
-  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator]);
+  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator, loadMessages]);
 
   // ═══════════════════════════════════════════════════════════════════
   // RETRY: Implement retryLastAiResponse() (no duplicate user message)
+  // CRITICAL: ALWAYS inserts fallback on error AND updates local state
   // ═══════════════════════════════════════════════════════════════════
   const retryLastAiResponse = useCallback(async () => {
     if (!lastEdgeRequestRef.current) {
@@ -1459,7 +1504,9 @@ export default function ChatScreen() {
           });
         }
         
-        // Handle different error types with fallback messages
+        // ═══════════════════════════════════════════════════════════════════
+        // CRITICAL: ALWAYS insert fallback message on error
+        // ═══════════════════════════════════════════════════════════════════
         if (errorCode === 'EDGE_ABORTED' || errorCode === 'EDGE_TIMEOUT') {
           await insertAssistantMessageSafely("Connection interrupted. Tap to retry my response.");
         } else if (errorCode === 'EDGE_AUTH') {
@@ -1484,20 +1531,33 @@ export default function ChatScreen() {
       
       replyText = replyText.trim();
       
-      // NOTE: With realtime, we don't insert the message here
-      // The edge function should insert it, and we'll receive it via broadcast
-      console.log('[Chat] Retry successful, waiting for realtime broadcast...');
+      console.log('[Chat] ✅ Retry successful - AI reply received');
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: Edge function should have inserted the message
+      // But we MUST ensure it appears in UI immediately (no waiting for realtime)
+      // The insertAssistantMessageSafely call in the edge function handler will handle this
+      // ═══════════════════════════════════════════════════════════════════
+      
+      // Clear typing indicator
+      setIsTyping(false);
+      clearTypingIndicator();
       
     } catch (e) {
       if (__DEV__) {
         console.error('[Chat] Retry exception:', e);
       }
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: ALWAYS insert fallback on exception
+      // ═══════════════════════════════════════════════════════════════════
       await insertAssistantMessageSafely("Connection interrupted. Tap to retry my response.");
     } finally {
       // Clear pending reply
       pendingReplyForUserMessageIdRef.current = null;
+      // Ensure typing is cleared
+      setIsTyping(false);
     }
-  }, [insertAssistantMessageSafely, isTyping, startFallbackFetchTimer]);
+  }, [insertAssistantMessageSafely, isTyping, startFallbackFetchTimer, clearTypingIndicator]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -1821,42 +1881,47 @@ export default function ChatScreen() {
           }
         }
 
-        if (isMountedRef.current) {
-          // ═══════════════════════════════════════════════════════════════════
-          // STEP 4: Handle different error types with fallback messages
-          // ═══════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════
+        // CRITICAL: Handle different error types with fallback messages
+        // ALWAYS insert fallback message AND update local state
+        // ═══════════════════════════════════════════════════════════════════
+        
+        // Handle EDGE_ABORTED or EDGE_TIMEOUT - show friendly banner + fallback
+        if (errorCode === 'EDGE_ABORTED' || errorCode === 'EDGE_TIMEOUT') {
+          if (__DEV__) {
+            console.log('[Chat] Abort/Timeout detected - inserting fallback message');
+          }
           
-          // Handle EDGE_ABORTED or EDGE_TIMEOUT - show friendly banner + fallback
-          if (errorCode === 'EDGE_ABORTED' || errorCode === 'EDGE_TIMEOUT') {
-            if (__DEV__) {
-              console.log('[Chat] Abort/Timeout detected - showing friendly banner + fallback');
-            }
-            
-            await insertAssistantMessageSafely("I got interrupted before I could reply. Tap to retry.");
+          await insertAssistantMessageSafely("I got interrupted before I could reply. Tap to retry.");
+          if (isMountedRef.current) {
             setError('Connection interrupted. Tap the message above to retry.');
-            return;
           }
-          
-          // ═══════════════════════════════════════════════════════════════════
-          // FALLBACK MESSAGES: For all other error types
-          // ═══════════════════════════════════════════════════════════════════
-          
-          let fallbackText = "I'm having trouble responding right now. Tap to retry.";
-          let errorText = 'An error occurred. Please try again.';
-          
-          if (errorCode === 'EDGE_AUTH') {
-            fallbackText = "I'm having trouble connecting right now. Please try logging out and back in.";
-            errorText = 'Authentication issue. Please try logging out and back in.';
-          } else if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'EDGE_HTTP_ERROR') {
-            fallbackText = "I'm having trouble responding right now. Please try again in a moment.";
-            errorText = 'Service temporarily unavailable. Please try again.';
-          } else if (errorCode === 'EDGE_UNKNOWN') {
-            fallbackText = "I'm having persistent connection issues. Please check your network and try again.";
-            errorText = 'Connection issues. Please check your network.';
-          }
-          
-          // Insert fallback message
-          await insertAssistantMessageSafely(fallbackText);
+          return;
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // FALLBACK MESSAGES: For all other error types
+        // ═══════════════════════════════════════════════════════════════════
+        
+        let fallbackText = "I'm having trouble responding right now. Tap to retry.";
+        let errorText = 'An error occurred. Please try again.';
+        
+        if (errorCode === 'EDGE_AUTH') {
+          fallbackText = "I'm having trouble connecting right now. Please try logging out and back in.";
+          errorText = 'Authentication issue. Please try logging out and back in.';
+        } else if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'EDGE_HTTP_ERROR') {
+          fallbackText = "I'm having trouble responding right now. Please try again in a moment.";
+          errorText = 'Service temporarily unavailable. Please try again.';
+        } else if (errorCode === 'EDGE_UNKNOWN') {
+          fallbackText = "I'm having persistent connection issues. Please check your network and try again.";
+          errorText = 'Connection issues. Please check your network.';
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // CRITICAL: ALWAYS insert fallback message (updates local state immediately)
+        // ═══════════════════════════════════════════════════════════════════
+        await insertAssistantMessageSafely(fallbackText);
+        if (isMountedRef.current) {
           setError(errorText);
         }
 
@@ -1878,9 +1943,11 @@ export default function ChatScreen() {
           });
         }
 
-        // Treat as error - insert fallback message
+        // ═══════════════════════════════════════════════════════════════════
+        // CRITICAL: ALWAYS insert fallback message (updates local state immediately)
+        // ═══════════════════════════════════════════════════════════════════
+        await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
         if (isMountedRef.current) {
-          await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
           setError('AI response was empty. Please try again.');
         }
         return;
@@ -1900,10 +1967,12 @@ export default function ChatScreen() {
         replyText = `I hear you. Can you tell me more about what you're experiencing with ${personName}?`;
       }
 
-      // NOTE: With realtime enabled, the edge function should insert the assistant message
-      // and we'll receive it via the broadcast listener. We don't insert it here.
-      console.log('[Chat] AI response received, edge function should insert message...');
-      console.log('[Chat] Waiting for realtime broadcast...');
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: ALWAYS insert assistant message locally (no waiting for realtime)
+      // This ensures the message appears immediately in the UI
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('[Chat] ✅ AI response received - inserting assistant message');
+      await insertAssistantMessageSafely(replyText);
       
       console.log('[Chat] sendMessage: Complete');
 
@@ -1954,11 +2023,14 @@ export default function ChatScreen() {
         console.error('[Chat] sendMessage unexpected error:', err);
       }
       
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: ALWAYS insert fallback message on unexpected error
+      // ═══════════════════════════════════════════════════════════════════
+      await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
+      
       if (isMountedRef.current) {
         setInputText(userMessageText);
         setError(err?.message || 'An unexpected error occurred');
-        // Insert fallback message on unexpected error
-        await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
       }
     } finally {
       // ═══════════════════════════════════════════════════════════════════
