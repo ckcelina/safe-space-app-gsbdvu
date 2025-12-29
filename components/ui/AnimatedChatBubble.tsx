@@ -1,9 +1,8 @@
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, ImageSourcePropType, Easing } from 'react-native';
+import { View, Text, StyleSheet, Animated, ImageSourcePropType, Easing, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeContext } from '@/contexts/ThemeContext';
-import { IconSymbol } from '@/components/IconSymbol';
 import { AIHeaderRow } from './AIHeaderRow';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
@@ -66,6 +65,24 @@ function getDurationForPersona(personaId?: string): number {
 
   // Steady pacing (Maya, Aisha, Ken)
   return 200;
+}
+
+/**
+ * Get initials from therapist name for avatar placeholder
+ */
+function getInitials(name?: string): string {
+  if (!name) return 'SS'; // Safe Space default
+  
+  const parts = name.trim().split(' ');
+  if (parts.length === 0) return 'SS';
+  
+  if (parts.length === 1) {
+    // Single name - take first two letters
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+  
+  // Multiple names - take first letter of first two parts
+  return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
 export function AnimatedChatBubble({ 
@@ -273,12 +290,19 @@ export function AnimatedChatBubble({
       >
         {!isUser && (
           <View style={[styles.aiIcon, { backgroundColor: theme.background }]}>
-            <IconSymbol
-              ios_icon_name="sparkles"
-              android_material_icon_name="auto_awesome"
-              size={16}
-              color={theme.primary}
-            />
+            {therapistAvatarSource ? (
+              <Image
+                source={therapistAvatarSource}
+                style={styles.avatarImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.avatarPlaceholder, { backgroundColor: theme.primary }]}>
+                <Text style={styles.avatarInitials}>
+                  {getInitials(therapistName)}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -366,6 +390,24 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)',
     elevation: 1,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  avatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitials: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   bubbleContainer: {
     maxWidth: '75%',
