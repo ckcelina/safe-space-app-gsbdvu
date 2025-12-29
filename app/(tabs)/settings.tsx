@@ -16,6 +16,7 @@ import {
   Switch,
   Linking,
   Image,
+  useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -87,6 +88,7 @@ export default function SettingsScreen() {
   const { themeKey, theme, setTheme } = useThemeContext();
   const { preferences, updatePreferences } = useUserPreferences();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -136,6 +138,11 @@ export default function SettingsScreen() {
   const [updateAiPreference, setUpdateAiPreference] = useState('');
   const [isSavingUpdate, setIsSavingUpdate] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Responsive layout calculations
+  const isCompactScreen = windowHeight < 700;
+  const modalMaxWidth = Math.min(windowWidth * 0.92, 520);
+  const actionBarHeight = 140; // Approximate height for action buttons area
 
   useEffect(() => {
     setSelectedTheme(themeKey);
@@ -1661,47 +1668,63 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* Personalization Modal */}
+      {/* Personalization Modal - FIXED RESPONSIVE VERSION */}
       <Modal
         visible={showPersonalizationModal}
         transparent={true}
         animationType="slide"
         onRequestClose={handleClosePersonalizationModal}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <ScrollView
-            contentContainerStyle={styles.modalScrollContent}
-            keyboardShouldPersistTaps="handled"
-            bounces={false}
+        <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.personalizationModalContainer}
           >
-            <View style={[styles.personalizationModalContent, { backgroundColor: '#FFFFFF' }]}>
-              <View style={styles.modalIconContainer}>
-                <IconSymbol
-                  ios_icon_name="person.fill"
-                  android_material_icon_name="person"
-                  size={48}
-                  color={theme.primary}
-                />
+            <View 
+              style={[
+                styles.personalizationModalContent, 
+                { 
+                  backgroundColor: '#FFFFFF',
+                  width: modalMaxWidth,
+                  maxWidth: '100%',
+                  alignSelf: 'center',
+                }
+              ]}
+            >
+              {/* Header */}
+              <View style={[styles.personalizationModalHeader, { paddingTop: isCompactScreen ? 12 : 16 }]}>
+                <View style={styles.modalIconContainer}>
+                  <IconSymbol
+                    ios_icon_name="person.fill"
+                    android_material_icon_name="person"
+                    size={isCompactScreen ? 40 : 48}
+                    color={theme.primary}
+                  />
+                </View>
+
+                <Text style={[styles.modalTitle, { color: theme.textPrimary, fontSize: isCompactScreen ? 20 : 24 }]}>
+                  Personalization (Optional)
+                </Text>
+
+                <Text style={[styles.modalText, { color: theme.textSecondary, marginBottom: isCompactScreen ? 12 : 16 }]}>
+                  Share what helps conversations feel natural for you. You can change or remove this anytime.
+                </Text>
               </View>
 
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                Personalization (Optional)
-              </Text>
-
-              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
-                Share what helps conversations feel natural for you. You can change or remove this anytime.
-              </Text>
-
+              {/* Scrollable Content */}
               <ScrollView 
                 style={styles.personalizationScrollView}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
+                contentContainerStyle={[
+                  styles.personalizationScrollContent,
+                  { 
+                    paddingBottom: actionBarHeight + insets.bottom + 20,
+                  }
+                ]}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
               >
                 {/* Preferred conversation style */}
-                <View style={styles.personalizationSection}>
+                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
                   <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                     Preferred conversation style
                   </Text>
@@ -1712,7 +1735,7 @@ export default function SettingsScreen() {
                 </View>
 
                 {/* When you're stressed, what helps most? */}
-                <View style={styles.personalizationSection}>
+                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
                   <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                     When you&apos;re stressed, what helps most?
                   </Text>
@@ -1723,7 +1746,7 @@ export default function SettingsScreen() {
                 </View>
 
                 {/* How do you prefer to process feelings? */}
-                <View style={styles.personalizationSection}>
+                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
                   <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                     How do you prefer to process feelings?
                   </Text>
@@ -1734,7 +1757,7 @@ export default function SettingsScreen() {
                 </View>
 
                 {/* Decision-making style */}
-                <View style={styles.personalizationSection}>
+                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
                   <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                     Decision-making style
                   </Text>
@@ -1745,7 +1768,7 @@ export default function SettingsScreen() {
                 </View>
 
                 {/* Cultural context (optional) */}
-                <View style={styles.personalizationSection}>
+                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
                   <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                     Cultural context (optional)
                   </Text>
@@ -1772,7 +1795,7 @@ export default function SettingsScreen() {
                 </View>
 
                 {/* Values or boundaries (optional) */}
-                <View style={styles.personalizationSection}>
+                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
                   <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                     Values or boundaries (optional)
                   </Text>
@@ -1799,7 +1822,7 @@ export default function SettingsScreen() {
                 </View>
 
                 {/* Recent changes you've noticed (optional) */}
-                <View style={styles.personalizationSection}>
+                <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
                   <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                     Recent changes you&apos;ve noticed (optional)
                   </Text>
@@ -1831,10 +1854,18 @@ export default function SettingsScreen() {
                 </Text>
               </ScrollView>
 
-              {/* Buttons */}
-              <View style={styles.personalizationButtonsContainer}>
+              {/* Sticky Action Bar */}
+              <View 
+                style={[
+                  styles.personalizationActionBar,
+                  { 
+                    paddingBottom: insets.bottom + 12,
+                    backgroundColor: '#FFFFFF',
+                  }
+                ]}
+              >
                 <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: theme.primary, marginBottom: 12 }]}
+                  style={[styles.modalButton, { backgroundColor: theme.primary, marginBottom: 10 }]}
                   onPress={handleSavePersonalization}
                   disabled={isUpdatingPersonalization}
                   activeOpacity={0.8}
@@ -1869,8 +1900,8 @@ export default function SettingsScreen() {
                 </View>
               </View>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
       </Modal>
 
       {/* Updates Over Time Modal */}
@@ -2365,15 +2396,6 @@ const styles = StyleSheet.create({
     boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
     elevation: 5,
   },
-  personalizationModalContent: {
-    borderRadius: 20,
-    padding: '6%',
-    width: '100%',
-    maxWidth: 500,
-    maxHeight: SCREEN_HEIGHT * 0.9,
-    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.2)',
-    elevation: 5,
-  },
   addUpdateModalContent: {
     borderRadius: 20,
     padding: '6%',
@@ -2507,12 +2529,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  // NEW RESPONSIVE PERSONALIZATION MODAL STYLES
+  personalizationModalSafeArea: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  personalizationModalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  personalizationModalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '92%',
+    flex: 1,
+  },
+  personalizationModalHeader: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
+  },
   personalizationScrollView: {
-    maxHeight: SCREEN_HEIGHT * 0.55,
-    marginBottom: 16,
+    flex: 1,
+  },
+  personalizationScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
   personalizationSection: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   personalizationFieldLabel: {
     fontSize: 16,
@@ -2556,8 +2602,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
-  personalizationButtonsContainer: {
-    marginTop: 8,
+  personalizationActionBar: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.08)',
+    boxShadow: '0px -2px 8px rgba(0, 0, 0, 0.05)',
+    elevation: 4,
   },
   updatesModalContent: {
     backgroundColor: '#FFFFFF',
