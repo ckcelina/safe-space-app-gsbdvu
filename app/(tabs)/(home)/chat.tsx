@@ -59,6 +59,11 @@ const STUCK_TYPING_FAILSAFE_MS = 25000;
 // ═══════════════════════════════════════════════════════════════════
 const FALLBACK_FETCH_TIMEOUT_MS = 3000;
 
+// ═══════════════════════════════════════════════════════════════════
+// POLLING INTERVAL: 4-6 seconds for fallback polling
+// ═══════════════════════════════════════════════════════════════════
+const POLLING_INTERVAL_MS = 5000;
+
 // Input height buffer for proper padding
 const INPUT_HEIGHT_BUFFER = 100;
 
@@ -524,9 +529,11 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   // ═══════════════════════════════════════════════════════════════════
-  // REALTIME: Channel ref for Supabase Realtime subscription
+  // REALTIME FALLBACK: State and refs for realtime health + polling
   // ═══════════════════════════════════════════════════════════════════
-  const channelRef = useRef<RealtimeChannel | null>(null);
+  const [realtimeHealthy, setRealtimeHealthy] = useState(true);
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ═══════════════════════════════════════════════════════════════════
   // SCROLL-TO-BOTTOM: Robust tracking refs
@@ -1022,22 +1029,88 @@ export default function ChatScreen() {
   }, [fetchMissedMessages]);
 
   // ═══════════════════════════════════════════════════════════════════
-  // REALTIME: Initialize Supabase Realtime subscription BEFORE sending messages
-  // This ensures the listener is active before any assistant reply can be inserted
+  // POLLING: Start polling for new messages (fallback when realtime fails)
   // ═══════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!personId || !authUser?.id) {
-      console.log('[Chat] Skipping realtime setup - missing personId or userId');
+  const startPolling = useCallback(() => {
+    // Don't start if already polling
+    if (pollRef.current) {
+      console.log('[Chat] Polling already active');
       return;
     }
 
+    console.log('[Chat] 🔄 Starting polling fallback (5 second interval)');
+    
+    pollRef.current = setInterval(() => {
+      // Only poll if:
+      // 1. Screen is mounted
+      // 2. App is active
+      // 3. Not currently loading
+      if (!isMountedRef.current) {
+        console.log('[Chat] Polling: Screen unmounted, skipping');
+        return;
+      }
+      
+      if (appStateRef.current !== 'active') {
+        console.log('[Chat] Polling: App not active, skipping');
+        return;
+      }
+      
+      if (loading) {
+        console.log('[Chat] Polling: Currently loading, skipping');
+        return;
+      }
+      
+      console.log('[Chat] Polling: Fetching messages...');
+      loadMessages();
+    }, POLLING_INTERVAL_MS);
+  }, [loading, loadMessages]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // POLLING: Stop polling
+  // ═══════════════════════════════════════════════════════════════════
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      console.log('[Chat] 🛑 Stopping polling');
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // REALTIME: Initialize Supabase Realtime subscription OR start polling
+  // On web: skip realtime, use polling only
+  // On native: try realtime first, fallback to polling on errors
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!personId || !authUser?.id) {
+      console.log('[Chat] Skipping realtime/polling setup - missing personId or userId');
+      return;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // WEB PLATFORM: Skip realtime entirely, use polling only
+    // ═══════════════════════════════════════════════════════════════════
+    if (Platform.OS === 'web') {
+      console.log('[Chat] 🌐 Web platform detected - skipping realtime, using polling only');
+      startPolling();
+      
+      return () => {
+        console.log('[Chat] 🔴 Cleaning up polling (web)');
+        stopPolling();
+      };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // NATIVE PLATFORM: Try realtime first, fallback to polling on errors
+    // ═══════════════════════════════════════════════════════════════════
+    
     // Check if already subscribed to prevent multiple subscriptions
-    if (channelRef.current?.state === 'subscribed') {
+    if (realtimeChannelRef.current?.state === 'subscribed') {
       console.log('[Chat] Already subscribed to realtime channel');
       return;
     }
 
-    console.log('[Chat] 🔴 Initializing Supabase Realtime subscription...');
+    console.log('[Chat] 🔴 Initializing Supabase Realtime subscription (native)...');
     
     const channelName = `chat:${authUser.id}:${personId}`;
     console.log('[Chat] Channel name:', channelName);
@@ -1049,7 +1122,7 @@ export default function ChatScreen() {
       },
     });
 
-    channelRef.current = channel;
+    realtimeChannelRef.current = channel;
 
     // Set auth before subscribing
     supabase.realtime.setAuth().then(() => {
@@ -1060,7 +1133,7 @@ export default function ChatScreen() {
           console.log('[Chat] 🟢 Received broadcast INSERT:', payload);
           
           if (!payload.new) {
-            console.warn('[Chat] Broadcast payload missing "new" data');
+            console.log('[Chat] ⚠️ Broadcast payload missing "new" data');
             return;
           }
 
@@ -1120,31 +1193,57 @@ export default function ChatScreen() {
           scrollToBottom(true);
         })
         .subscribe((status, err) => {
+          // ═══════════════════════════════════════════════════════════════════
+          // CRITICAL: Use console.log/warn instead of console.error to avoid red screen
+          // ═══════════════════════════════════════════════════════════════════
           console.log('[Chat] Realtime subscription status:', status);
           
           if (status === 'SUBSCRIBED') {
             console.log('[Chat] ✅ Successfully subscribed to realtime channel');
+            setRealtimeHealthy(true);
+            // Stop polling if it was running
+            stopPolling();
           } else if (status === 'CHANNEL_ERROR') {
-            console.error('[Chat] ❌ Realtime channel error:', err);
+            console.warn('[Chat] ⚠️ Realtime channel error:', err?.message || 'Unknown error');
+            setRealtimeHealthy(false);
+            // Start polling fallback
+            startPolling();
           } else if (status === 'TIMED_OUT') {
             console.warn('[Chat] ⏱️ Realtime subscription timed out');
+            setRealtimeHealthy(false);
+            // Start polling fallback
+            startPolling();
           } else if (status === 'CLOSED') {
             console.log('[Chat] Realtime channel closed');
+            setRealtimeHealthy(false);
+            // Start polling fallback
+            startPolling();
           }
         });
     }).catch((err) => {
-      console.error('[Chat] Failed to set realtime auth:', err);
+      console.warn('[Chat] ⚠️ Failed to set realtime auth:', err?.message || 'Unknown error');
+      setRealtimeHealthy(false);
+      // Start polling fallback
+      startPolling();
     });
 
     // Cleanup function
     return () => {
-      console.log('[Chat] 🔴 Cleaning up realtime subscription');
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+      console.log('[Chat] 🔴 Cleaning up realtime subscription and polling (native)');
+      
+      // Unsubscribe from realtime
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
       }
+      
+      // Stop polling
+      stopPolling();
+      
+      // Reset realtime health
+      setRealtimeHealthy(true);
     };
-  }, [personId, authUser?.id, getCurrentTherapistMetadata, scrollToBottom]);
+  }, [personId, authUser?.id, getCurrentTherapistMetadata, scrollToBottom, startPolling, stopPolling]);
 
   // Load messages on mount
   useEffect(() => {
