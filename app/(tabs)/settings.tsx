@@ -83,6 +83,27 @@ interface PersonalizationUpdate {
   updated_at: string;
 }
 
+// Format date for display with relative dates
+function formatRelativeDate(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) {
+    return 'Today';
+  } else if (diffDays === 1) {
+    return 'Yesterday';
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`;
+  } else if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
+  } else {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+}
+
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
@@ -130,6 +151,7 @@ export default function SettingsScreen() {
   const [updates, setUpdates] = useState<PersonalizationUpdate[]>([]);
   const [isLoadingUpdates, setIsLoadingUpdates] = useState(false);
   const [editingUpdate, setEditingUpdate] = useState<PersonalizationUpdate | null>(null);
+  const [expandedUpdateIds, setExpandedUpdateIds] = useState<Set<string>>(new Set());
   
   // Add/Edit Update Form State
   const [updateTitle, setUpdateTitle] = useState('');
@@ -138,6 +160,7 @@ export default function SettingsScreen() {
   const [updateAiPreference, setUpdateAiPreference] = useState('');
   const [isSavingUpdate, setIsSavingUpdate] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [validationError, setValidationError] = useState('');
 
   // Responsive layout calculations
   const isCompactScreen = windowHeight < 700;
@@ -587,6 +610,7 @@ export default function SettingsScreen() {
 
   const handleCloseUpdatesModal = () => {
     setShowUpdatesModal(false);
+    setExpandedUpdateIds(new Set());
   };
 
   const handleOpenAddUpdateModal = () => {
@@ -595,6 +619,7 @@ export default function SettingsScreen() {
     setUpdateDetails('');
     setUpdateStartedAt('');
     setUpdateAiPreference('');
+    setValidationError('');
     setShowAddUpdateModal(true);
   };
 
@@ -604,6 +629,7 @@ export default function SettingsScreen() {
     setUpdateDetails(update.details || '');
     setUpdateStartedAt(update.started_at || '');
     setUpdateAiPreference(update.ai_preference || '');
+    setValidationError('');
     setShowAddUpdateModal(true);
   };
 
@@ -614,6 +640,24 @@ export default function SettingsScreen() {
     setUpdateDetails('');
     setUpdateStartedAt('');
     setUpdateAiPreference('');
+    setValidationError('');
+  };
+
+  const validateUpdateInput = (): boolean => {
+    const trimmedTitle = updateTitle.trim();
+    
+    if (!trimmedTitle) {
+      setValidationError('Please enter what changed');
+      return false;
+    }
+
+    if (trimmedTitle.length < 1 || trimmedTitle.length > 500) {
+      setValidationError('Update must be between 1 and 500 characters');
+      return false;
+    }
+
+    setValidationError('');
+    return true;
   };
 
   const handleSaveUpdate = async () => {
@@ -622,8 +666,7 @@ export default function SettingsScreen() {
       return;
     }
 
-    if (!updateTitle.trim()) {
-      showErrorToast('Please enter what changed');
+    if (!validateUpdateInput()) {
       return;
     }
 
@@ -644,7 +687,8 @@ export default function SettingsScreen() {
         const { error } = await supabase
           .from('user_personalization_updates')
           .update(updateData)
-          .eq('id', editingUpdate.id);
+          .eq('id', editingUpdate.id)
+          .eq('user_id', userId);
 
         if (error) {
           console.error('[Settings] Error updating update:', error);
@@ -655,23 +699,38 @@ export default function SettingsScreen() {
           await fetchUpdates();
         }
       } else {
-        // Insert new
-        const { error } = await supabase
+        // Insert new - optimistic update
+        const newUpdate: PersonalizationUpdate = {
+          id: 'temp-' + Date.now(),
+          ...updateData,
+          created_at: new Date().toISOString(),
+        };
+        
+        // Optimistically add to list
+        setUpdates(prev => [newUpdate, ...prev]);
+        
+        const { data, error } = await supabase
           .from('user_personalization_updates')
-          .insert([updateData]);
+          .insert([updateData])
+          .select()
+          .single();
 
         if (error) {
           console.error('[Settings] Error creating update:', error);
           showErrorToast('Failed to save update');
+          // Revert optimistic update
+          await fetchUpdates();
         } else {
           showSuccessToast('Update added');
           handleCloseAddUpdateModal();
+          // Replace temp with real data
           await fetchUpdates();
         }
       }
     } catch (error) {
       console.error('[Settings] Exception saving update:', error);
       showErrorToast('Failed to save update');
+      await fetchUpdates();
     } finally {
       setIsSavingUpdate(false);
     }
@@ -691,7 +750,8 @@ export default function SettingsScreen() {
               const { error } = await supabase
                 .from('user_personalization_updates')
                 .delete()
-                .eq('id', updateId);
+                .eq('id', updateId)
+                .eq('user_id', userId);
 
               if (error) {
                 console.error('[Settings] Error deleting update:', error);
@@ -708,6 +768,18 @@ export default function SettingsScreen() {
         },
       ]
     );
+  };
+
+  const toggleUpdateExpanded = (updateId: string) => {
+    setExpandedUpdateIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(updateId)) {
+        newSet.delete(updateId);
+      } else {
+        newSet.add(updateId);
+      }
+      return newSet;
+    });
   };
 
   const formatDate = (dateString: string) => {
@@ -2057,80 +2129,98 @@ export default function SettingsScreen() {
                       </Text>
                     </View>
                   ) : (
-                    updates.map((update, index) => (
-                      <View
-                        key={index}
-                        style={[
-                          styles.updateCard,
-                          {
-                            backgroundColor: theme.background,
-                            borderColor: theme.textSecondary + '20',
-                          },
-                        ]}
-                      >
-                        <View style={styles.updateCardHeader}>
-                          <Text style={[styles.updateCardTitle, { color: theme.textPrimary }]}>
-                            {update.title}
-                          </Text>
-                          {update.started_at && (
-                            <Text style={[styles.updateCardDate, { color: theme.textSecondary }]}>
-                              {formatDate(update.started_at)}
+                    updates.map((update, index) => {
+                      const isExpanded = expandedUpdateIds.has(update.id);
+                      const hasLongContent = update.title.length > 100;
+                      
+                      return (
+                        <View
+                          key={index}
+                          style={[
+                            styles.updateCard,
+                            {
+                              backgroundColor: theme.background,
+                              borderColor: theme.textSecondary + '20',
+                            },
+                          ]}
+                        >
+                          <TouchableOpacity
+                            onPress={() => hasLongContent && toggleUpdateExpanded(update.id)}
+                            activeOpacity={hasLongContent ? 0.7 : 1}
+                            disabled={!hasLongContent}
+                          >
+                            <View style={styles.updateCardHeader}>
+                              <Text 
+                                style={[styles.updateCardTitle, { color: theme.textPrimary }]}
+                                numberOfLines={isExpanded ? undefined : 3}
+                              >
+                                {update.title}
+                              </Text>
+                              <Text style={[styles.updateCardDate, { color: theme.textSecondary }]}>
+                                {formatRelativeDate(update.created_at)}
+                              </Text>
+                            </View>
+
+                            {hasLongContent && (
+                              <Text style={[styles.expandText, { color: theme.primary }]}>
+                                {isExpanded ? 'Show less' : 'Show more'}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+
+                          {update.details && (
+                            <Text
+                              style={[styles.updateCardDetails, { color: theme.textSecondary }]}
+                              numberOfLines={isExpanded ? undefined : 2}
+                            >
+                              {update.details}
                             </Text>
                           )}
-                        </View>
 
-                        {update.details && (
-                          <Text
-                            style={[styles.updateCardDetails, { color: theme.textSecondary }]}
-                            numberOfLines={2}
-                          >
-                            {update.details}
-                          </Text>
-                        )}
+                          {update.ai_preference && (
+                            <View style={[styles.updateCardPreference, { backgroundColor: theme.primary + '15' }]}>
+                              <Text style={[styles.updateCardPreferenceText, { color: theme.primary }]}>
+                                {update.ai_preference}
+                              </Text>
+                            </View>
+                          )}
 
-                        {update.ai_preference && (
-                          <View style={[styles.updateCardPreference, { backgroundColor: theme.primary + '15' }]}>
-                            <Text style={[styles.updateCardPreferenceText, { color: theme.primary }]}>
-                              {update.ai_preference}
-                            </Text>
+                          <View style={styles.updateCardActions}>
+                            <TouchableOpacity
+                              style={styles.updateCardActionButton}
+                              onPress={() => handleOpenEditUpdateModal(update)}
+                              activeOpacity={0.7}
+                            >
+                              <IconSymbol
+                                ios_icon_name="pencil"
+                                android_material_icon_name="edit"
+                                size={18}
+                                color={theme.primary}
+                              />
+                              <Text style={[styles.updateCardActionText, { color: theme.primary }]}>
+                                Edit
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={styles.updateCardActionButton}
+                              onPress={() => handleDeleteUpdate(update.id)}
+                              activeOpacity={0.7}
+                            >
+                              <IconSymbol
+                                ios_icon_name="trash"
+                                android_material_icon_name="delete"
+                                size={18}
+                                color="#FF3B30"
+                              />
+                              <Text style={[styles.updateCardActionText, { color: '#FF3B30' }]}>
+                                Delete
+                              </Text>
+                            </TouchableOpacity>
                           </View>
-                        )}
-
-                        <View style={styles.updateCardActions}>
-                          <TouchableOpacity
-                            style={styles.updateCardActionButton}
-                            onPress={() => handleOpenEditUpdateModal(update)}
-                            activeOpacity={0.7}
-                          >
-                            <IconSymbol
-                              ios_icon_name="pencil"
-                              android_material_icon_name="edit"
-                              size={18}
-                              color={theme.primary}
-                            />
-                            <Text style={[styles.updateCardActionText, { color: theme.primary }]}>
-                              Edit
-                            </Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={styles.updateCardActionButton}
-                            onPress={() => handleDeleteUpdate(update.id)}
-                            activeOpacity={0.7}
-                          >
-                            <IconSymbol
-                              ios_icon_name="trash"
-                              android_material_icon_name="delete"
-                              size={18}
-                              color="#FF3B30"
-                            />
-                            <Text style={[styles.updateCardActionText, { color: '#FF3B30' }]}>
-                              Delete
-                            </Text>
-                          </TouchableOpacity>
                         </View>
-                      </View>
-                    ))
+                      );
+                    })
                   )}
                 </ScrollView>
               </View>
@@ -2168,28 +2258,42 @@ export default function SettingsScreen() {
                 </View>
 
                 <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
-                  {editingUpdate ? 'Edit Update' : 'Add Update'}
+                  {editingUpdate ? 'Edit Update' : 'Add an update'}
                 </Text>
 
                 <View style={styles.inputContainer}>
                   <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                    What changed? *
+                    What&apos;s changed recently? *
                   </Text>
                   <TextInput
                     style={[
-                      styles.textInput,
+                      styles.multilineTextInput,
                       {
                         backgroundColor: theme.background,
                         color: theme.textPrimary,
-                        borderColor: theme.primary,
+                        borderColor: validationError ? '#FF3B30' : theme.primary,
                       },
                     ]}
-                    placeholder="e.g., Feeling more sensitive lately"
+                    placeholder="What's changed recently?"
                     placeholderTextColor={theme.textSecondary}
                     value={updateTitle}
-                    onChangeText={setUpdateTitle}
+                    onChangeText={(text) => {
+                      setUpdateTitle(text);
+                      if (validationError) setValidationError('');
+                    }}
+                    multiline
+                    numberOfLines={3}
+                    maxLength={500}
                     editable={!isSavingUpdate}
                   />
+                  <View style={styles.inputFooter}>
+                    {validationError ? (
+                      <Text style={styles.errorText}>{validationError}</Text>
+                    ) : null}
+                    <Text style={[styles.charCount, { color: theme.textSecondary }]}>
+                      {updateTitle.trim().length}/500
+                    </Text>
+                  </View>
                 </View>
 
                 <View style={styles.inputContainer}>
@@ -2256,9 +2360,15 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
+                    style={[
+                      styles.modalButtonHalf, 
+                      { 
+                        backgroundColor: theme.primary,
+                        opacity: (!updateTitle.trim() || isSavingUpdate) ? 0.5 : 1,
+                      }
+                    ]}
                     onPress={handleSaveUpdate}
-                    disabled={isSavingUpdate}
+                    disabled={!updateTitle.trim() || isSavingUpdate}
                     activeOpacity={0.8}
                   >
                     {isSavingUpdate ? (
@@ -2557,6 +2667,21 @@ const styles = StyleSheet.create({
     fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     borderWidth: 1,
   },
+  inputFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#FF3B30',
+    flex: 1,
+  },
+  charCount: {
+    fontSize: 12,
+    marginLeft: 8,
+  },
   personaScrollView: {
     maxHeight: SCREEN_HEIGHT * 0.5,
     marginBottom: 16,
@@ -2801,6 +2926,11 @@ const styles = StyleSheet.create({
   },
   updateCardDate: {
     fontSize: 13,
+  },
+  expandText: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
   },
   updateCardDetails: {
     fontSize: 14,
