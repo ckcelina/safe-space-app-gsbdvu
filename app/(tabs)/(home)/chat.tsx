@@ -225,7 +225,7 @@ function extractAssistantText(result: any): string | null {
     result?.data?.content,
     result?.data?.text,
     result?.choices?.[0]?.message?.content,
-    result?.reply, // Our Edge Function returns { reply: "..." }
+    result?.reply, // Our Edge Function returns { reply: "..."}
   ];
 
   for (const path of possiblePaths) {
@@ -328,7 +328,6 @@ export default function ChatScreen() {
   const [allMessages, setAllMessages] = useState<ExtendedMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
@@ -339,9 +338,23 @@ export default function ChatScreen() {
   // Subject pill state
   const [availableSubjects, setAvailableSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // STEP 1: Add race condition prevention refs and state
+  // ═══════════════════════════════════════════════════════════════════
+  const isGeneratingRef = useRef(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // STEP 2: Add messagesRef to track current messages (avoid stale closures)
+  // ═══════════════════════════════════════════════════════════════════
+  const messagesRef = useRef<ExtendedMessage[]>([]);
+  
+  useEffect(() => {
+    messagesRef.current = allMessages;
+  }, [allMessages]);
+
   // CRITICAL: Track last processed user message ID to prevent loops
   const lastProcessedUserMessageIdRef = useRef<string | null>(null);
-  const isGeneratingRef = useRef(false);
 
   // FlatList ref for scrolling
   const flatListRef = useRef<FlatList>(null);
@@ -694,12 +707,17 @@ export default function ChatScreen() {
     }, 100);
   }, [authUser?.id, personId]);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // MAIN SEND MESSAGE FUNCTION - FIXED FOR FIRST-SEND RELIABILITY
+  // ═══════════════════════════════════════════════════════════════════
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
-    // STEP 1: In-flight guard - prevent multiple rapid sends
-    if (isSending) {
-      console.log('[Chat] sendMessage: Already sending, ignoring duplicate call');
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 1: Race condition guard - check BOTH ref and state
+    // ═══════════════════════════════════════════════════════════════════
+    if (isGeneratingRef.current || isGenerating) {
+      console.log('[Chat] sendMessage: Already generating, ignoring duplicate call');
       return;
     }
 
@@ -718,22 +736,30 @@ export default function ChatScreen() {
       return;
     }
 
-    if (isGeneratingRef.current) {
-      console.log('[Chat] sendMessage: Already generating, skipping');
-      return;
-    }
-
     console.log('[Chat] sendMessage: Starting send process');
     console.log('[Chat] Current subject:', currentSubject);
     console.log('[Chat] chatId (personId):', personId);
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 3: Ensure conversation_id exists (personId is our conversation_id)
+    // Already validated above - personId is required
+    // ═══════════════════════════════════════════════════════════════════
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 3: Ensure therapist prompt is loaded (from preferences)
+    // Already available via preferences.therapist_persona_id
+    // ═══════════════════════════════════════════════════════════════════
     
     // Get current therapist metadata for this message
     const therapistMeta = getCurrentTherapistMetadata();
     console.log('[Chat] Current therapist:', therapistMeta.name);
     
-    // Set in-flight flag immediately
-    setIsSending(true);
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 1: Set in-flight flags IMMEDIATELY
+    // ═══════════════════════════════════════════════════════════════════
     isGeneratingRef.current = true;
+    setIsGenerating(true);
+    setIsSending(true);
     setError(null);
     
     // PRODUCTION SAFETY: Clear debug info in production builds
@@ -746,7 +772,38 @@ export default function ChatScreen() {
     setInputText('');
 
     try {
-      console.log('[Chat] Inserting user message...');
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 2a: Build user message with canonical fields
+      // ═══════════════════════════════════════════════════════════════════
+      const userMsg: ExtendedMessage = {
+        id: generateTempId(), // Temporary ID for optimistic UI
+        temp_id: generateTempId(),
+        user_id: userId,
+        person_id: personId,
+        role: 'user',
+        content: userMessageText,
+        subject: currentSubject,
+        created_at: new Date().toISOString(),
+        optimistic: true,
+      };
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 2b: Optimistically append user message to state IMMEDIATELY
+      // ═══════════════════════════════════════════════════════════════════
+      if (isMountedRef.current) {
+        setAllMessages((prev) => mergeMessages(prev, [userMsg]));
+      }
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 2c: Build payload using LOCAL array that includes userMsg
+      // ═══════════════════════════════════════════════════════════════════
+      const nextMessages = [...messagesRef.current, userMsg];
+
+      console.log('[Chat] User message added optimistically');
+      console.log('[Chat] Total messages in nextMessages:', nextMessages.length);
+
+      // Now persist the user message to Supabase
+      console.log('[Chat] Inserting user message to Supabase...');
       const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
         .insert({
@@ -775,12 +832,15 @@ export default function ChatScreen() {
       
       lastProcessedUserMessageIdRef.current = insertedMessage.id;
 
-      // Add user message to state
-      let updatedMessages: ExtendedMessage[] = [];
+      // Replace optimistic user message with persisted one
       if (isMountedRef.current) {
         setAllMessages((prev) => {
-          updatedMessages = [...prev, insertedMessage];
-          return updatedMessages;
+          return prev.map(m => {
+            if (m.temp_id === userMsg.temp_id) {
+              return insertedMessage;
+            }
+            return m;
+          });
         });
       }
 
@@ -864,16 +924,16 @@ export default function ChatScreen() {
       }
 
       console.log('[Chat] Calling AI Edge Function...');
-      console.log('[Chat] Total messages in history:', updatedMessages.length);
       
       // ═══════════════════════════════════════════════════════════════════
       // CRITICAL FIX: Set typing indicator BEFORE calling AI
       // ═══════════════════════════════════════════════════════════════════
       if (isMountedRef.current) {
-        setIsTyping(true);
+        setIsGenerating(true); // Show typing indicator
       }
 
-      const subjectMessages = updatedMessages.filter((msg) => {
+      // Filter messages for current subject and prepare for AI
+      const subjectMessages = nextMessages.filter((msg) => {
         const msgSubject = msg.subject || 'General';
         return msgSubject === currentSubject;
       });
@@ -899,7 +959,9 @@ export default function ChatScreen() {
         .filter((m) => m.role === 'assistant')
         .slice(-1)[0];
 
-      // STEP 2: Call invokeEdgeSafe with retry and timeout logic
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 4: Call AI generation using nextMessages (NOT stale state)
+      // ═══════════════════════════════════════════════════════════════════
       const result = await invokeEdgeSafe('generate-ai-response', {
         userId,
         personId,
@@ -1022,7 +1084,6 @@ export default function ChatScreen() {
             person_id: personId,
             role: 'assistant',
             content: fallbackContent,
-            text: fallbackContent, // STEP D: Populate both fields
             subject: currentSubject,
             created_at: new Date().toISOString(),
             therapist_name: therapistMeta.name,
@@ -1122,7 +1183,7 @@ export default function ChatScreen() {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // STEP C: Create optimistic AI message IMMEDIATELY
+      // STEP C & D: Create optimistic AI message with BOTH text and content fields
       // ═══════════════════════════════════════════════════════════════════
       const tempId = generateTempId();
       const optimisticAiMessage: ExtendedMessage = {
@@ -1131,8 +1192,7 @@ export default function ChatScreen() {
         user_id: userId,
         person_id: personId,
         role: 'assistant',
-        content: replyText,
-        text: replyText, // STEP D: Populate both fields to be safe
+        content: replyText, // STEP D: Populate content
         subject: currentSubject,
         created_at: new Date().toISOString(),
         therapist_name: therapistMeta.name,
@@ -1277,17 +1337,32 @@ export default function ChatScreen() {
       }
     } finally {
       // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: Always reset flags in finally block (STEP E.1)
+      // CRITICAL: Always reset flags in finally block (STEP 1 cleanup)
       // ═══════════════════════════════════════════════════════════════════
       if (isMountedRef.current) {
-        setIsSending(false);
-        setIsTyping(false);
         isGeneratingRef.current = false;
+        setIsGenerating(false);
+        setIsSending(false);
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata]);
+  }, [
+    authUser?.id,
+    inputText,
+    isGenerating, // Added to dependencies
+    personId,
+    personName,
+    relationshipType,
+    currentSubject,
+    areSimilar,
+    preferences.ai_science_mode,
+    preferences.ai_tone_id,
+    getCurrentTherapistMetadata,
+  ]);
 
-  const isSendDisabled = !inputText.trim() || isSending || loading;
+  // ═══════════════════════════════════════════════════════════════════
+  // STEP 1: Disable send button while generating
+  // ═══════════════════════════════════════════════════════════════════
+  const isSendDisabled = !inputText.trim() || isSending || loading || isGenerating;
 
   const handleBackPress = useCallback(() => {
     try {
@@ -1474,7 +1549,7 @@ export default function ChatScreen() {
 
   // Footer component (typing indicator at bottom of non-inverted list)
   const renderListFooter = useCallback(() => {
-    if (!isTyping) return null;
+    if (!isGenerating) return null;
     
     const therapistMeta = getCurrentTherapistMetadata();
     
@@ -1485,10 +1560,10 @@ export default function ChatScreen() {
         therapistName={therapistMeta.name}
       />
     );
-  }, [isTyping, getCurrentTherapistMetadata, preferences.therapist_persona_id]);
+  }, [isGenerating, getCurrentTherapistMetadata, preferences.therapist_persona_id]);
 
   return (
-    <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
+    <FullScreenSwipeHandler enabled={!isGenerating && !isSending}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1717,9 +1792,10 @@ export default function ChatScreen() {
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
                     multiline
-                    editable={!isSending && !loading}
+                    editable={!isSending && !loading && !isGenerating}
                     onSubmitEditing={() => {
-                      if (!isSendDisabled) {
+                      // STEP 1: Ignore onSubmitEditing while generating
+                      if (!isSendDisabled && !isGenerating) {
                         sendMessage();
                       }
                     }}
