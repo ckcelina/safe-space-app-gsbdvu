@@ -18,7 +18,6 @@ import {
   ImageSourcePropType,
   AppState,
   AppStateStatus,
-  Keyboard,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,28 +43,8 @@ import { invokeEdgeSafe, copyDebugToClipboard } from '@/lib/supabase/invokeEdge'
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
 import { getPersonaById } from '@/constants/TherapistPersonas';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// Typing indicator timeout (15 seconds as per requirements)
-const TYPING_TIMEOUT_MS = 15000;
-
-// Stuck-typing failsafe timeout (25 seconds)
-const STUCK_TYPING_FAILSAFE_MS = 25000;
-
-// ═══════════════════════════════════════════════════════════════════
-// FALLBACK FETCH TIMEOUT: 3 seconds after sending user message
-// ═══════════════════════════════════════════════════════════════════
-const FALLBACK_FETCH_TIMEOUT_MS = 3000;
-
-// ═══════════════════════════════════════════════════════════════════
-// POLLING INTERVAL: 4-6 seconds for fallback polling
-// ═══════════════════════════════════════════════════════════════════
-const POLLING_INTERVAL_MS = 5000;
-
-// Input height buffer for proper padding
-const INPUT_HEIGHT_BUFFER = 100;
 
 // Default subjects list - IMPROVED LABELS
 const DEFAULT_SUBJECTS = [
@@ -89,7 +68,7 @@ interface ExtendedMessage extends Message {
   retry_content?: string;
 }
 
-// Message or Date Separator item type
+// NEW: Message or Date Separator item type
 type MessageListItem = 
   | { type: 'message'; data: ExtendedMessage; shouldAnimate: boolean }
   | { type: 'date-separator'; date: Date; label: string };
@@ -101,34 +80,31 @@ interface SubjectPillProps {
   isAddButton?: boolean;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// PERFORMANCE: Memoized SubjectPill component
-// ═══════════════════════════════════════════════════════════════════
-const SubjectPill = React.memo(({ subject, isSelected, onPress, isAddButton = false }: SubjectPillProps) => {
+function SubjectPill({ subject, isSelected, onPress, isAddButton = false }: SubjectPillProps) {
   const { theme } = useThemeContext();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const handlePressIn = useCallback(() => {
+  const handlePressIn = () => {
     Animated.spring(scaleAnim, {
       toValue: 0.95,
       useNativeDriver: true,
       tension: 100,
       friction: 3,
     }).start();
-  }, [scaleAnim]);
+  };
 
-  const handlePressOut = useCallback(() => {
+  const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
       useNativeDriver: true,
       tension: 100,
       friction: 3,
     }).start();
-  }, [scaleAnim]);
+  };
 
-  const handlePress = useCallback(() => {
+  const handlePress = () => {
     onPress(subject);
-  }, [onPress, subject]);
+  };
 
   return (
     <TouchableOpacity
@@ -161,14 +137,10 @@ const SubjectPill = React.memo(({ subject, isSelected, onPress, isAddButton = fa
       </Animated.View>
     </TouchableOpacity>
   );
-});
+}
 
-SubjectPill.displayName = 'SubjectPill';
-
-// ═══════════════════════════════════════════════════════════════════
-// PERFORMANCE: Memoized DateSeparator component
-// ═══════════════════════════════════════════════════════════════════
-const DateSeparator = React.memo(({ label }: { label: string }) => {
+// NEW: Date Separator Component
+function DateSeparator({ label }: { label: string }) {
   const { theme } = useThemeContext();
   
   return (
@@ -180,11 +152,9 @@ const DateSeparator = React.memo(({ label }: { label: string }) => {
       </View>
     </View>
   );
-});
+}
 
-DateSeparator.displayName = 'DateSeparator';
-
-// Helper function to format date separator label
+// NEW: Helper function to format date separator label
 function getDateSeparatorLabel(date: Date): string {
   if (isToday(date)) {
     return 'Today';
@@ -196,7 +166,7 @@ function getDateSeparatorLabel(date: Date): string {
   return format(date, 'MMM d, yyyy');
 }
 
-// Transform messages into list items with date separators
+// NEW: Transform messages into list items with date separators
 function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageListItem[] {
   const items: MessageListItem[] = [];
   let lastDate: Date | null = null;
@@ -226,248 +196,6 @@ function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageLi
   
   return items;
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// PERFORMANCE: Isolated ChatHeader component
-// ═══════════════════════════════════════════════════════════════════
-interface ChatHeaderProps {
-  personName: string;
-  relationshipType?: string;
-  isPremium: boolean;
-  isTopicChat: boolean;
-  personId: string;
-  onBackPress: () => void;
-}
-
-const ChatHeader = React.memo(({ 
-  personName, 
-  relationshipType, 
-  isPremium, 
-  isTopicChat, 
-  personId,
-  onBackPress 
-}: ChatHeaderProps) => {
-  const { theme } = useThemeContext();
-  const insets = useSafeAreaInsets();
-
-  const handleMemoriesPress = useCallback(() => {
-    router.push({
-      pathname: '/(tabs)/(home)/memories',
-      params: { personId, personName }
-    });
-  }, [personId, personName]);
-
-  return (
-    <>
-      {/* Status Bar Gradient - matches theme gradient */}
-      <LinearGradient
-        colors={theme.primaryGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={[styles.statusBarGradient, { height: insets.top }]}
-        pointerEvents="none"
-      />
-
-      {/* Header with Gradient Background */}
-      <LinearGradient
-        colors={theme.primaryGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={[styles.headerGradient, { paddingTop: insets.top }]}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={onBackPress} 
-            style={styles.backButton}
-            activeOpacity={0.7}
-          >
-            <IconSymbol
-              ios_icon_name="chevron.left"
-              android_material_icon_name="arrow_back"
-              size={24}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <View style={styles.headerTitleRow}>
-              <Text style={styles.headerTitle} numberOfLines={1}>
-                {personName}
-              </Text>
-              {isPremium && !isTopicChat && (
-                <View style={styles.premiumBadgeSmall}>
-                  <Text style={styles.premiumBadgeSmallText}>⭐</Text>
-                </View>
-              )}
-            </View>
-            {relationshipType && (
-              <Text style={styles.headerSubtitle} numberOfLines={1}>
-                {relationshipType}
-              </Text>
-            )}
-          </View>
-          <TouchableOpacity 
-            onPress={handleMemoriesPress} 
-            style={styles.memoriesButton}
-            activeOpacity={0.7}
-          >
-            <IconSymbol
-              ios_icon_name="brain"
-              android_material_icon_name="psychology"
-              size={24}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
-    </>
-  );
-});
-
-ChatHeader.displayName = 'ChatHeader';
-
-// ═══════════════════════════════════════════════════════════════════
-// PERFORMANCE: Isolated SubjectPillsRow component
-// ═══════════════════════════════════════════════════════════════════
-interface SubjectPillsRowProps {
-  availableSubjects: string[];
-  currentSubject: string;
-  onSubjectPress: (subject: string) => void;
-  onAddSubjectPress: () => void;
-}
-
-const SubjectPillsRow = React.memo(({ 
-  availableSubjects, 
-  currentSubject, 
-  onSubjectPress,
-  onAddSubjectPress 
-}: SubjectPillsRowProps) => {
-  const { theme } = useThemeContext();
-
-  const renderPill = useCallback(({ item, index }: { item: string; index: number }) => (
-    <SubjectPill
-      key={`subject-${index}-${item}`}
-      subject={item}
-      isSelected={currentSubject === item}
-      onPress={item === '+ Add subject' ? onAddSubjectPress : onSubjectPress}
-      isAddButton={item === '+ Add subject'}
-    />
-  ), [currentSubject, onSubjectPress, onAddSubjectPress]);
-
-  const keyExtractor = useCallback((item: string, index: number) => `subject-${index}-${item}`, []);
-
-  const pillsData = React.useMemo(() => [...availableSubjects, '+ Add subject'], [availableSubjects]);
-
-  return (
-    <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.pillsScrollContent}
-        keyboardShouldPersistTaps="handled"
-        data={pillsData}
-        renderItem={renderPill}
-        keyExtractor={keyExtractor}
-        removeClippedSubviews={Platform.OS === 'android'}
-        maxToRenderPerBatch={10}
-        windowSize={5}
-      />
-    </View>
-  );
-});
-
-SubjectPillsRow.displayName = 'SubjectPillsRow';
-
-// ═══════════════════════════════════════════════════════════════════
-// PERFORMANCE: Isolated ChatInputBar component
-// ═══════════════════════════════════════════════════════════════════
-interface ChatInputBarProps {
-  inputText: string;
-  onChangeText: (text: string) => void;
-  onSend: () => void;
-  isSendDisabled: boolean;
-  loading: boolean;
-  isSending: boolean;
-}
-
-const ChatInputBar = React.memo(({ 
-  inputText, 
-  onChangeText, 
-  onSend, 
-  isSendDisabled,
-  loading,
-  isSending 
-}: ChatInputBarProps) => {
-  const { theme } = useThemeContext();
-  const insets = useSafeAreaInsets();
-  const [inputFocused, setInputFocused] = useState(false);
-
-  const handleFocus = useCallback(() => setInputFocused(true), []);
-  const handleBlur = useCallback(() => setInputFocused(false), []);
-
-  const handleSubmit = useCallback(() => {
-    if (!isSendDisabled) {
-      onSend();
-    }
-  }, [isSendDisabled, onSend]);
-
-  return (
-    <View style={[
-      styles.inputContainer, 
-      { 
-        backgroundColor: theme.card,
-        paddingBottom: insets.bottom || 8,
-      }
-    ]}>
-      <View style={styles.inputRow}>
-        <View style={styles.inputColumn}>
-          <View style={[
-            styles.inputWrapper, 
-            { 
-              backgroundColor: theme.background,
-              borderWidth: inputFocused ? 2 : 1,
-              borderColor: inputFocused ? theme.primary : theme.textSecondary + '40',
-            }
-          ]}>
-            <TextInput
-              style={[styles.input, { color: theme.textPrimary }]}
-              placeholder="Tell me what's going on…"
-              placeholderTextColor={theme.textSecondary}
-              value={inputText}
-              onChangeText={onChangeText}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-              multiline
-              editable={!isSending && !loading}
-              onSubmitEditing={handleSubmit}
-              cursorColor={theme.primary}
-              selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-            />
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={[
-            styles.sendButton,
-            { backgroundColor: theme.primary },
-            isSendDisabled && styles.sendButtonDisabled,
-          ]}
-          onPress={onSend}
-          disabled={isSendDisabled}
-          activeOpacity={0.7}
-        >
-          <IconSymbol
-            ios_icon_name="paperplane.fill"
-            android_material_icon_name="send"
-            size={20}
-            color="#FFFFFF"
-          />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-});
-
-ChatInputBar.displayName = 'ChatInputBar';
 
 export default function ChatScreen() {
   const params = useLocalSearchParams<{
@@ -514,6 +242,7 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
 
   // Track current subject in state
   const [currentSubject, setCurrentSubject] = useState<string>('General');
@@ -529,24 +258,16 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   // ═══════════════════════════════════════════════════════════════════
-  // REALTIME INDEPENDENCE: Realtime is OPTIONAL and ONLY for cross-device sync
-  // AI replies NEVER depend on Realtime events
+  // IMPROVED: Scroll-to-bottom tracking with better reliability
   // ═══════════════════════════════════════════════════════════════════
-  const [realtimeEnabled, setRealtimeEnabled] = useState(true);
-  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // SCROLL-TO-BOTTOM: Robust tracking refs
-  // ═══════════════════════════════════════════════════════════════════
-  const isNearBottomRef = useRef(true);
-  const shouldAutoScrollRef = useRef(false);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // FALLBACK FETCH: Track last known message timestamp for fallback queries
-  // ═══════════════════════════════════════════════════════════════════
-  const lastKnownMessageTimestampRef = useRef<string | null>(null);
-  const fallbackFetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
+  const [showScrollArrow, setShowScrollArrow] = useState(false);
+  const scrollArrowOpacity = useRef(new Animated.Value(0)).current;
+  
+  // Track if we've done initial scroll and if content is ready
+  const hasInitialScrolledRef = useRef(false);
+  const contentSizeRef = useRef({ width: 0, height: 0 });
+  const layoutSizeRef = useRef({ width: 0, height: 0 });
 
   // Dev-only debug state - ONLY stored in __DEV__ mode
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
@@ -554,34 +275,6 @@ export default function ChatScreen() {
   // Track app state for detecting backgrounding
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // TYPING INDICATOR TIMEOUT: Force-clear after 15 seconds
-  // ═══════════════════════════════════════════════════════════════════
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // RETRY: Stuck-typing failsafe timer refs
-  // ═══════════════════════════════════════════════════════════════════
-  const typingFailsafeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingReplyForUserMessageIdRef = useRef<string | null>(null);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // RETRY: Store last edge request payload for retry (NO new user message)
-  // ═══════════════════════════════════════════════════════════════════
-  const lastEdgeRequestRef = useRef<null | {
-    payload: {
-      userId: string;
-      personId: string;
-      personName: string;
-      personRelationshipType: string;
-      messages: { role: string; content: string; createdAt: string }[];
-      currentSubject: string;
-      aiToneId: string | null;
-      aiScienceMode: boolean;
-    };
-    userMessageId: string;
-  }>(null);
 
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
@@ -601,7 +294,7 @@ export default function ChatScreen() {
     }
   }, [initialSubject]);
 
-  // Simple modal state for adding subjects
+  // NEW: Simple modal state for adding subjects
   const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState('');
 
@@ -617,30 +310,23 @@ export default function ChatScreen() {
     };
   }, []);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // DEFENSIVE CLEANUP: Force-clear typing indicator on unmount
-  // ═══════════════════════════════════════════════════════════════════
+  // Track app state changes
   useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      appStateRef.current = nextAppState;
+      setAppState(nextAppState);
+      
+      if (__DEV__) {
+        console.log('[Chat] App state changed:', nextAppState);
+      }
+    });
+
     return () => {
-      // Clear typing indicator on unmount
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
-      }
-      // Clear failsafe timer on unmount
-      if (typingFailsafeRef.current) {
-        clearTimeout(typingFailsafeRef.current);
-        typingFailsafeRef.current = null;
-      }
-      // Clear fallback fetch timer on unmount
-      if (fallbackFetchTimeoutRef.current) {
-        clearTimeout(fallbackFetchTimeoutRef.current);
-        fallbackFetchTimeoutRef.current = null;
-      }
-      // Force typing to false (defensive cleanup)
-      setIsTyping(false);
+      subscription.remove();
     };
   }, []);
+
+  const isFreeUser = role === 'free';
 
   // Helper function to get current therapist metadata
   const getCurrentTherapistMetadata = useCallback(() => {
@@ -665,80 +351,6 @@ export default function ChatScreen() {
       avatarSource: persona.image,
     };
   }, [preferences.therapist_persona_id]);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // SCROLL-TO-BOTTOM: Robust helper function
-  // Uses requestAnimationFrame + setTimeout for reliable scrolling
-  // ═══════════════════════════════════════════════════════════════════
-  const scrollToBottom = useCallback((animated: boolean = true) => {
-    if (!flatListRef.current) {
-      return;
-    }
-
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated });
-        // Reset auto-scroll flag after scrolling
-        shouldAutoScrollRef.current = false;
-      }, 50);
-    });
-  }, []);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // SCROLL-TO-BOTTOM: Track scroll position to determine if user is near bottom
-  // ═══════════════════════════════════════════════════════════════════
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
-    
-    // Calculate if we're near the bottom (within 80px tolerance)
-    const isNear = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80;
-    isNearBottomRef.current = isNear;
-  }, []);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // SCROLL-TO-BOTTOM: Handle content size change - scroll when appropriate
-  // ═══════════════════════════════════════════════════════════════════
-  const handleContentSizeChange = useCallback(() => {
-    // Only auto-scroll if:
-    // 1. User is near bottom OR
-    // 2. shouldAutoScrollRef is true (message was just sent/received)
-    if (isNearBottomRef.current || shouldAutoScrollRef.current) {
-      scrollToBottom(false);
-    }
-  }, [scrollToBottom]);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // SCROLL-TO-BOTTOM: Handle layout changes
-  // ═══════════════════════════════════════════════════════════════════
-  const handleLayout = useCallback(() => {
-    // Scroll to bottom on layout (initial render)
-    if (shouldAutoScrollRef.current) {
-      scrollToBottom(false);
-    }
-  }, [scrollToBottom]);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // SCROLL-TO-BOTTOM: Keyboard listeners for auto-scrolling
-  // ═══════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
-      if (__DEV__) {
-        console.log('[Chat] Keyboard shown - scrolling to bottom');
-      }
-      scrollToBottom(true);
-    });
-
-    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
-      if (__DEV__) {
-        console.log('[Chat] Keyboard hidden');
-      }
-    });
-
-    return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
-    };
-  }, [scrollToBottom]);
 
   // Safe backfill function - updates NULL/empty subjects to 'General'
   const backfillSubjects = useCallback(async () => {
@@ -831,18 +443,6 @@ export default function ChatScreen() {
       
       if (isMountedRef.current) {
         setAllMessages(messagesWithMetadata);
-        
-        // Update last known message timestamp
-        if (messagesWithMetadata.length > 0) {
-          const lastMessage = messagesWithMetadata[messagesWithMetadata.length - 1];
-          lastKnownMessageTimestampRef.current = lastMessage.created_at;
-        }
-        
-        // Scroll to bottom after loading messages successfully
-        shouldAutoScrollRef.current = true;
-        setTimeout(() => {
-          scrollToBottom(false);
-        }, 100);
       }
 
       backfillSubjects();
@@ -858,500 +458,8 @@ export default function ChatScreen() {
         setLoading(false);
       }
     }
-  }, [personId, authUser?.id, backfillSubjects, getCurrentTherapistMetadata, scrollToBottom]);
+  }, [personId, authUser?.id, backfillSubjects, getCurrentTherapistMetadata]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // FALLBACK FETCH: Query for missed assistant messages
-  // This runs after a timeout if no realtime update is received
-  // ═══════════════════════════════════════════════════════════════════
-  const fetchMissedMessages = useCallback(async () => {
-    if (!personId || !authUser?.id || !lastKnownMessageTimestampRef.current) {
-      if (__DEV__) {
-        console.log('[Chat] Fallback fetch skipped - missing required data');
-      }
-      return;
-    }
-
-    try {
-      console.log('[Chat] 🔍 Fallback fetch: Checking for missed messages...');
-      
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('person_id', personId)
-        .eq('user_id', authUser.id)
-        .gt('created_at', lastKnownMessageTimestampRef.current)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        if (__DEV__) {
-          console.log('[Chat] Fallback fetch error:', error);
-        }
-        return;
-      }
-
-      if (!data || data.length === 0) {
-        console.log('[Chat] Fallback fetch: No new messages found');
-        return;
-      }
-
-      console.log('[Chat] ✅ Fallback fetch: Found', data.length, 'missed message(s)');
-      
-      // Get current therapist metadata
-      const therapistMeta = getCurrentTherapistMetadata();
-      
-      // Process each new message
-      const newMessages: ExtendedMessage[] = data.map((msg) => {
-        if (msg.role === 'assistant') {
-          return {
-            ...msg,
-            therapist_name: therapistMeta.name,
-            therapist_avatar_source: therapistMeta.avatarSource,
-          };
-        }
-        return msg;
-      });
-
-      // Add new messages to state (avoiding duplicates)
-      setAllMessages((prev) => {
-        const existingIds = new Set(prev.map((m) => m.id));
-        const filteredNewMessages = newMessages.filter((m) => !existingIds.has(m.id));
-        
-        if (filteredNewMessages.length === 0) {
-          console.log('[Chat] Fallback fetch: All messages already in state');
-          return prev;
-        }
-        
-        console.log('[Chat] Fallback fetch: Adding', filteredNewMessages.length, 'new message(s) to state');
-        
-        // Update last known timestamp
-        const lastMessage = filteredNewMessages[filteredNewMessages.length - 1];
-        lastKnownMessageTimestampRef.current = lastMessage.created_at;
-        
-        return [...prev, ...filteredNewMessages];
-      });
-
-      // Clear typing indicator if we found assistant messages
-      const hasAssistantMessage = newMessages.some((m) => m.role === 'assistant');
-      if (hasAssistantMessage) {
-        console.log('[Chat] Fallback fetch: Found assistant message, clearing typing indicator');
-        setIsTyping(false);
-        if (typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
-          typingTimeoutRef.current = null;
-        }
-        if (typingFailsafeRef.current) {
-          clearTimeout(typingFailsafeRef.current);
-          typingFailsafeRef.current = null;
-        }
-      }
-
-      // Scroll to bottom after adding new messages
-      shouldAutoScrollRef.current = true;
-      scrollToBottom(true);
-
-    } catch (err) {
-      if (__DEV__) {
-        console.log('[Chat] Fallback fetch exception:', err);
-      }
-    }
-  }, [personId, authUser?.id, getCurrentTherapistMetadata, scrollToBottom]);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // FALLBACK FETCH: Start fallback timer after sending user message
-  // ═══════════════════════════════════════════════════════════════════
-  const startFallbackFetchTimer = useCallback(() => {
-    // Clear any existing timer
-    if (fallbackFetchTimeoutRef.current) {
-      clearTimeout(fallbackFetchTimeoutRef.current);
-      fallbackFetchTimeoutRef.current = null;
-    }
-
-    console.log('[Chat] Starting fallback fetch timer (3 seconds)...');
-    
-    fallbackFetchTimeoutRef.current = setTimeout(() => {
-      if (!isMountedRef.current) return;
-      
-      console.log('[Chat] Fallback fetch timer triggered');
-      fetchMissedMessages();
-      
-      fallbackFetchTimeoutRef.current = null;
-    }, FALLBACK_FETCH_TIMEOUT_MS);
-  }, [fetchMissedMessages]);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // POLLING: Start polling for new messages (fallback when realtime fails)
-  // ═══════════════════════════════════════════════════════════════════
-  const startPolling = useCallback(() => {
-    // Don't start if already polling
-    if (pollRef.current) {
-      console.log('[Chat] Polling already active');
-      return;
-    }
-
-    console.log('[Chat] 🔄 Starting polling fallback (5 second interval)');
-    
-    pollRef.current = setInterval(() => {
-      // Only poll if:
-      // 1. Screen is mounted
-      // 2. App is active
-      // 3. Not currently loading
-      if (!isMountedRef.current) {
-        console.log('[Chat] Polling: Screen unmounted, skipping');
-        return;
-      }
-      
-      if (appStateRef.current !== 'active') {
-        console.log('[Chat] Polling: App not active, skipping');
-        return;
-      }
-      
-      if (loading) {
-        console.log('[Chat] Polling: Currently loading, skipping');
-        return;
-      }
-      
-      console.log('[Chat] Polling: Fetching messages...');
-      loadMessages();
-    }, POLLING_INTERVAL_MS);
-  }, [loading, loadMessages]);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // POLLING: Stop polling
-  // ═══════════════════════════════════════════════════════════════════
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      console.log('[Chat] 🛑 Stopping polling');
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, []);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // HELPER: Clear typing indicator and timeout
-  // ═══════════════════════════════════════════════════════════════════
-  const clearTypingIndicator = useCallback(() => {
-    console.log('[Chat] Clearing typing indicator');
-    setIsTyping(false);
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-    // Also clear failsafe timer
-    if (typingFailsafeRef.current) {
-      clearTimeout(typingFailsafeRef.current);
-      typingFailsafeRef.current = null;
-    }
-    // Also clear fallback fetch timer
-    if (fallbackFetchTimeoutRef.current) {
-      clearTimeout(fallbackFetchTimeoutRef.current);
-      fallbackFetchTimeoutRef.current = null;
-    }
-  }, []);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // HELPER: Insert assistant message safely (used for BOTH real replies + fallbacks)
-  // CRITICAL: ALWAYS updates local state immediately (no reliance on realtime)
-  // ═══════════════════════════════════════════════════════════════════
-  const insertAssistantMessageSafely = useCallback(async (content: string): Promise<void> => {
-    if (!authUser?.id || !personId) {
-      if (__DEV__) {
-        console.warn('[Chat] insertAssistantMessageSafely: Missing userId or personId');
-      }
-      setError('Failed to save AI reply.');
-      setIsTyping(false);
-      return;
-    }
-
-    console.log('[Chat] Inserting assistant message safely');
-    
-    const therapistMeta = getCurrentTherapistMetadata();
-    
-    try {
-      const { data: insertedMessage, error: insertError } = await supabase
-        .from('messages')
-        .insert({
-          user_id: authUser.id,
-          person_id: personId,
-          role: 'assistant',
-          content,
-          subject: currentSubject,
-          created_at: new Date().toISOString(),
-        })
-        .select('*')
-        .single();
-
-      if (insertError || !insertedMessage) {
-        if (__DEV__) {
-          console.error('[Chat] Failed to insert assistant message to DB:', insertError);
-        }
-        setError('Failed to save AI reply.');
-        setIsTyping(false);
-        return;
-      }
-
-      console.log('[Chat] ✅ Assistant message inserted to DB:', insertedMessage.id);
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: ALWAYS update local state immediately (no waiting for realtime)
-      // ═══════════════════════════════════════════════════════════════════
-      const messageWithMeta: ExtendedMessage = {
-        ...insertedMessage,
-        therapist_name: therapistMeta.name,
-        therapist_avatar_source: therapistMeta.avatarSource,
-      };
-      
-      setAllMessages((prev) => {
-        // Check for duplicates (defensive)
-        const exists = prev.some((m) => m.id === insertedMessage.id);
-        if (exists) {
-          console.log('[Chat] Message already exists in state, skipping duplicate');
-          return prev;
-        }
-        
-        console.log('[Chat] ✅ Adding assistant message to local state immediately');
-        
-        // Update last known timestamp
-        lastKnownMessageTimestampRef.current = insertedMessage.created_at;
-        
-        return [...prev, messageWithMeta];
-      });
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: Force reliable scroll-to-bottom after appending
-      // ═══════════════════════════════════════════════════════════════════
-      shouldAutoScrollRef.current = true;
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-          shouldAutoScrollRef.current = false;
-        }, 100);
-      });
-      
-    } catch (err) {
-      if (__DEV__) {
-        console.error('[Chat] insertAssistantMessageSafely exception:', err);
-      }
-      setError('Failed to save AI reply.');
-    } finally {
-      // MUST NOT throw - always stop typing
-      setIsTyping(false);
-      clearTypingIndicator();
-    }
-  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator]);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // APP STATE SAFETY: Handle backgrounding
-  // ═══════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      appStateRef.current = nextAppState;
-      setAppState(nextAppState);
-      
-      if (__DEV__) {
-        console.log('[Chat] App state changed:', nextAppState);
-      }
-      
-      // If app goes background while typing/sending, cancel and insert fallback
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        if (isTyping || isSending) {
-          console.log('[Chat] App backgrounded while AI was responding - inserting fallback');
-          
-          // Clear typing indicator
-          setIsTyping(false);
-          setIsSending(false);
-          isGeneratingRef.current = false;
-          
-          if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current);
-            typingTimeoutRef.current = null;
-          }
-          
-          if (typingFailsafeRef.current) {
-            clearTimeout(typingFailsafeRef.current);
-            typingFailsafeRef.current = null;
-          }
-          
-          if (fallbackFetchTimeoutRef.current) {
-            clearTimeout(fallbackFetchTimeoutRef.current);
-            fallbackFetchTimeoutRef.current = null;
-          }
-          
-          // Insert fallback message
-          insertAssistantMessageSafely("Looks like the app paused. Tap to retry.");
-        }
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [isTyping, isSending, insertAssistantMessageSafely]);
-
-  const isFreeUser = role === 'free';
-
-  // ═══════════════════════════════════════════════════════════════════
-  // REALTIME: OPTIONAL subscription for cross-device sync ONLY
-  // CRITICAL: AI replies NEVER depend on Realtime events
-  // Realtime is ONLY used to sync messages from OTHER devices
-  // ═══════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!personId || !authUser?.id) {
-      console.log('[Chat] Skipping realtime/polling setup - missing personId or userId');
-      return;
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // WEB PLATFORM: Skip realtime entirely, use polling only
-    // ═══════════════════════════════════════════════════════════════════
-    if (Platform.OS === 'web') {
-      console.log('[Chat] 🌐 Web platform detected - skipping realtime, using polling only');
-      startPolling();
-      
-      return () => {
-        console.log('[Chat] 🔴 Cleaning up polling (web)');
-        stopPolling();
-      };
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // NATIVE PLATFORM: Try realtime for cross-device sync, fallback to polling
-    // CRITICAL: Realtime is OPTIONAL - chat works without it
-    // ═══════════════════════════════════════════════════════════════════
-    
-    // Check if already subscribed to prevent multiple subscriptions
-    if (realtimeChannelRef.current?.state === 'subscribed') {
-      console.log('[Chat] Already subscribed to realtime channel');
-      return;
-    }
-
-    // Skip if realtime is disabled for this session
-    if (!realtimeEnabled) {
-      console.log('[Chat] Realtime disabled for this session - using polling only');
-      startPolling();
-      return;
-    }
-
-    console.log('[Chat] 🔴 Initializing OPTIONAL Realtime subscription (native)...');
-    console.log('[Chat] ⚠️ IMPORTANT: AI replies do NOT depend on Realtime');
-    
-    const channelName = `chat:${authUser.id}:${personId}`;
-    console.log('[Chat] Channel name:', channelName);
-
-    const channel = supabase.channel(channelName, {
-      config: {
-        broadcast: { self: false, ack: true },
-        private: true,
-      },
-    });
-
-    realtimeChannelRef.current = channel;
-
-    // Set auth before subscribing
-    supabase.realtime.setAuth().then(() => {
-      console.log('[Chat] Realtime auth set');
-      
-      channel
-        .on('broadcast', { event: 'INSERT' }, (payload) => {
-          console.log('[Chat] 🟢 Received broadcast INSERT (cross-device sync):', payload);
-          
-          if (!payload.new) {
-            console.log('[Chat] ⚠️ Broadcast payload missing "new" data');
-            return;
-          }
-
-          const newMessage = payload.new as Message;
-          
-          // ═══════════════════════════════════════════════════════════════════
-          // CRITICAL: Realtime is ONLY for cross-device sync
-          // Process ALL messages (user + assistant) from other devices
-          // ═══════════════════════════════════════════════════════════════════
-          console.log('[Chat] Processing message from other device:', newMessage.id, 'role:', newMessage.role);
-          
-          // Get current therapist metadata
-          const therapistMeta = getCurrentTherapistMetadata();
-          
-          const messageWithMeta: ExtendedMessage = {
-            ...newMessage,
-            therapist_name: newMessage.role === 'assistant' ? therapistMeta.name : undefined,
-            therapist_avatar_source: newMessage.role === 'assistant' ? therapistMeta.avatarSource : undefined,
-          };
-
-          // Check if message already exists (prevent duplicates)
-          setAllMessages((prev) => {
-            const exists = prev.some((m) => m.id === newMessage.id);
-            if (exists) {
-              console.log('[Chat] Message already exists, skipping duplicate');
-              return prev;
-            }
-            
-            console.log('[Chat] Adding message from other device to state');
-            
-            // Update last known timestamp
-            lastKnownMessageTimestampRef.current = newMessage.created_at;
-            
-            return [...prev, messageWithMeta];
-          });
-
-          // Scroll to bottom when new message arrives from other device
-          shouldAutoScrollRef.current = true;
-          scrollToBottom(true);
-        })
-        .subscribe((status, err) => {
-          // ═══════════════════════════════════════════════════════════════════
-          // CRITICAL: Use console.warn instead of console.error (no red screen)
-          // Realtime failures do NOT block chat functionality
-          // ═══════════════════════════════════════════════════════════════════
-          console.log('[Chat] Realtime subscription status:', status);
-          
-          if (status === 'SUBSCRIBED') {
-            console.log('[Chat] ✅ Realtime subscribed (cross-device sync enabled)');
-            // Stop polling if it was running
-            stopPolling();
-          } else if (status === 'CHANNEL_ERROR') {
-            console.warn('[Chat] ⚠️ Realtime channel error - disabling for this session');
-            console.warn('[Chat] Error details:', err?.message || 'Unknown error');
-            // Disable realtime for this session
-            setRealtimeEnabled(false);
-            // Start polling fallback
-            startPolling();
-          } else if (status === 'TIMED_OUT') {
-            console.warn('[Chat] ⏱️ Realtime subscription timed out - disabling for this session');
-            // Disable realtime for this session
-            setRealtimeEnabled(false);
-            // Start polling fallback
-            startPolling();
-          } else if (status === 'CLOSED') {
-            console.log('[Chat] Realtime channel closed');
-            // Start polling fallback
-            startPolling();
-          }
-        });
-    }).catch((err) => {
-      console.warn('[Chat] ⚠️ Failed to set realtime auth - disabling for this session');
-      console.warn('[Chat] Error details:', err?.message || 'Unknown error');
-      // Disable realtime for this session
-      setRealtimeEnabled(false);
-      // Start polling fallback
-      startPolling();
-    });
-
-    // Cleanup function
-    return () => {
-      console.log('[Chat] 🔴 Cleaning up realtime subscription and polling (native)');
-      
-      // Unsubscribe from realtime
-      if (realtimeChannelRef.current) {
-        supabase.removeChannel(realtimeChannelRef.current);
-        realtimeChannelRef.current = null;
-      }
-      
-      // Stop polling
-      stopPolling();
-    };
-  }, [personId, authUser?.id, realtimeEnabled, getCurrentTherapistMetadata, scrollToBottom, startPolling, stopPolling]);
-
-  // Load messages on mount
   useEffect(() => {
     if (personId && authUser?.id) {
       loadMessages();
@@ -1373,34 +481,84 @@ export default function ChatScreen() {
     });
   }, [allMessages, currentSubject]);
 
-  // Transform messages with date separators
+  // NEW: Transform messages with date separators
   const messageListItems = React.useMemo(() => {
     return transformMessagesWithSeparators(displayedMessages);
   }, [displayedMessages]);
 
   // ═══════════════════════════════════════════════════════════════════
-  // SCROLL-TO-BOTTOM: Scroll when currentSubject changes (switching tabs)
+  // IMPROVED: Reliable scroll-to-bottom implementation
   // ═══════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!loading && messageListItems.length > 0) {
-      console.log('[Chat] Subject changed - scrolling to bottom');
-      shouldAutoScrollRef.current = true;
-      setTimeout(() => {
-        scrollToBottom(false);
-      }, 100);
+  
+  // Scroll to bottom helper - used by multiple triggers
+  const scrollToBottom = useCallback((animated: boolean = true) => {
+    if (flatListRef.current && messageListItems.length > 0) {
+      flatListRef.current.scrollToEnd({ animated });
     }
-  }, [currentSubject, loading, messageListItems.length, scrollToBottom]);
+  }, [messageListItems.length]);
+
+  // Handle initial scroll when messages first load
+  useEffect(() => {
+    if (!loading && messageListItems.length > 0 && !hasInitialScrolledRef.current) {
+      // Wait for layout to complete before scrolling
+      setTimeout(() => {
+        scrollToBottom(false); // No animation for initial scroll
+        hasInitialScrolledRef.current = true;
+      }, 150);
+    }
+  }, [loading, messageListItems.length, scrollToBottom]);
+
+  // Handle onContentSizeChange - most reliable trigger for new messages
+  const handleContentSizeChange = useCallback((width: number, height: number) => {
+    contentSizeRef.current = { width, height };
+    
+    // Only auto-scroll if:
+    // 1. User is already near bottom (within 50px)
+    // 2. OR this is the initial load (hasn't scrolled yet)
+    if (isNearBottom || !hasInitialScrolledRef.current) {
+      // Small delay to ensure layout is complete
+      setTimeout(() => {
+        scrollToBottom(true);
+      }, 50);
+    }
+  }, [isNearBottom, scrollToBottom]);
+
+  // Handle onLayout - track layout size
+  const handleLayout = useCallback((event: any) => {
+    const { width, height } = event.nativeEvent.layout;
+    layoutSizeRef.current = { width, height };
+  }, []);
 
   // ═══════════════════════════════════════════════════════════════════
-  // SCROLL-TO-BOTTOM: Scroll when typing indicator changes
+  // Handle scroll events to track position
   // ═══════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (isTyping) {
-      console.log('[Chat] Typing indicator appeared - scrolling to bottom');
-      shouldAutoScrollRef.current = true;
-      scrollToBottom(true);
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+    
+    // Calculate if we're near the bottom (within 50px tolerance)
+    const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    const nearBottom = distanceFromBottom < 50;
+    
+    setIsNearBottom(nearBottom);
+    
+    // Show/hide arrow based on position
+    // Only show if:
+    // 1. Not at bottom
+    // 2. Content is scrollable (contentSize > layoutMeasurement)
+    // 3. Has scrolled at least once (not initial load)
+    const shouldShowArrow = !nearBottom && contentSize.height > layoutMeasurement.height && hasInitialScrolledRef.current;
+    
+    if (shouldShowArrow !== showScrollArrow) {
+      setShowScrollArrow(shouldShowArrow);
+      
+      // Animate arrow appearance/disappearance
+      Animated.timing(scrollArrowOpacity, {
+        toValue: shouldShowArrow ? 1 : 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
     }
-  }, [isTyping, scrollToBottom]);
+  }, [showScrollArrow, scrollArrowOpacity]);
 
   const handleRetry = useCallback(() => {
     loadMessages();
@@ -1427,171 +585,52 @@ export default function ChatScreen() {
     return false;
   }, []);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // RETRY: Implement retryLastAiResponse() (no duplicate user message)
-  // CRITICAL: ALWAYS inserts fallback on error AND updates local state
-  // CRITICAL: Does NOT resubscribe to Realtime
-  // ═══════════════════════════════════════════════════════════════════
-  const retryLastAiResponse = useCallback(async () => {
-    if (!lastEdgeRequestRef.current) {
-      console.log('[Chat] No last edge request to retry');
+  // NEW: Retry handler for failed messages
+  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
+    if (!authUser?.id || !personId) {
       return;
     }
 
-    console.log('[Chat] 🔄 Retrying last AI response (no duplicate user message, no realtime resubscribe)');
+    console.log('[Chat] Retrying failed message:', messageId);
+
+    // Remove the failed message from UI
+    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+
+    // Set the input text to the retry content and trigger send
+    setInputText(retryContent);
     
-    setIsTyping(true);
-    setError(null);
-    
-    // Clear any existing timers
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-    if (typingFailsafeRef.current) {
-      clearTimeout(typingFailsafeRef.current);
-      typingFailsafeRef.current = null;
-    }
-    if (fallbackFetchTimeoutRef.current) {
-      clearTimeout(fallbackFetchTimeoutRef.current);
-      fallbackFetchTimeoutRef.current = null;
-    }
-    
-    // Set pending reply for failsafe
-    pendingReplyForUserMessageIdRef.current = lastEdgeRequestRef.current.userMessageId;
-    
-    // Start failsafe timer
-    typingFailsafeRef.current = setTimeout(async () => {
-      if (!isMountedRef.current) return;
-      // still typing AND still waiting on the same user message
-      if (isTyping && pendingReplyForUserMessageIdRef.current === lastEdgeRequestRef.current?.userMessageId) {
-        console.warn('[Chat] ⚠️ FAILSAFE TIMEOUT: Inserting fallback after 25s');
-        await insertAssistantMessageSafely("I'm taking longer than expected. Tap to retry my response.");
-      }
-    }, STUCK_TYPING_FAILSAFE_MS);
-    
-    // Start fallback fetch timer
-    startFallbackFetchTimer();
-    
-    try {
-      const result = await invokeEdgeSafe('generate-ai-response', lastEdgeRequestRef.current.payload);
-      
-      // Apply the SAME reply guarantee logic
-      if (!result.ok) {
-        const errorCode = result.error?.code || 'EDGE_UNKNOWN';
-        
-        if (__DEV__) {
-          console.log('[Chat] Retry edge function failed:', {
-            code: errorCode,
-            message: result.error?.message,
-          });
-        }
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // CRITICAL: ALWAYS insert fallback message on error
-        // ═══════════════════════════════════════════════════════════════════
-        if (errorCode === 'EDGE_ABORTED' || errorCode === 'EDGE_TIMEOUT') {
-          await insertAssistantMessageSafely("Connection interrupted. Tap to retry my response.");
-        } else if (errorCode === 'EDGE_AUTH') {
-          await insertAssistantMessageSafely("I'm having trouble connecting. Please log out and back in.");
-        } else {
-          await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
-        }
-        return;
-      }
-      
-      // Check if reply is empty, null, or whitespace
-      const aiResponse = result.data;
-      let replyText = aiResponse?.reply;
-      
-      if (!replyText || typeof replyText !== 'string' || !replyText.trim()) {
-        if (__DEV__) {
-          console.error('[Chat] Retry: AI returned empty/null/whitespace reply');
-        }
-        await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
-        return;
-      }
-      
-      replyText = replyText.trim();
-      
-      console.log('[Chat] ✅ Retry successful - AI reply received');
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: Insert assistant message directly (no waiting for realtime)
-      // ═══════════════════════════════════════════════════════════════════
-      await insertAssistantMessageSafely(replyText);
-      
-      // Clear typing indicator
-      setIsTyping(false);
-      clearTypingIndicator();
-      
-    } catch (e) {
-      if (__DEV__) {
-        console.error('[Chat] Retry exception:', e);
-      }
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: ALWAYS insert fallback on exception
-      // ═══════════════════════════════════════════════════════════════════
-      await insertAssistantMessageSafely("Connection interrupted. Tap to retry my response.");
-    } finally {
-      // Clear pending reply
-      pendingReplyForUserMessageIdRef.current = null;
-      // Ensure typing is cleared
-      setIsTyping(false);
-    }
-  }, [insertAssistantMessageSafely, isTyping, startFallbackFetchTimer, clearTypingIndicator]);
+    // Small delay to ensure state updates
+    setTimeout(() => {
+      sendMessage();
+    }, 100);
+  }, [authUser?.id, personId]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
-    // ═══════════════════════════════════════════════════════════════════
-    // DEFENSIVE GUARD 1: Validate required inputs BEFORE setting isTyping
-    // ═══════════════════════════════════════════════════════════════════
+    // STEP 1: In-flight guard - prevent multiple rapid sends
+    if (isSending) {
+      console.log('[Chat] sendMessage: Already sending, ignoring duplicate call');
+      return;
+    }
+
+    if (!text || !personId) {
+      console.log('[Chat] sendMessage: validation failed', {
+        hasText: !!text,
+        personId,
+      });
+      return;
+    }
+
     const userId = authUser?.id;
-    
     if (!userId) {
-      if (__DEV__) {
-        console.warn('[Chat] sendMessage: Missing userId');
-      }
+      console.warn('[Chat] sendMessage: No userId available');
       showErrorToast('You must be logged in to send messages');
       return;
     }
 
-    if (!personId) {
-      if (__DEV__) {
-        console.warn('[Chat] sendMessage: Missing personId');
-      }
-      showErrorToast('Invalid person ID');
-      return;
-    }
-
-    if (!currentSubject) {
-      if (__DEV__) {
-        console.warn('[Chat] sendMessage: Missing subject');
-      }
-      showErrorToast('Please select a subject');
-      return;
-    }
-
-    if (!text) {
-      if (__DEV__) {
-        console.warn('[Chat] sendMessage: Empty message text');
-      }
-      return;
-    }
-
-    // STEP 1: In-flight guard - prevent multiple rapid sends
-    if (isSending) {
-      if (__DEV__) {
-        console.log('[Chat] sendMessage: Already sending, ignoring duplicate call');
-      }
-      return;
-    }
-
     if (isGeneratingRef.current) {
-      if (__DEV__) {
-        console.log('[Chat] sendMessage: Already generating, skipping');
-      }
+      console.log('[Chat] sendMessage: Already generating, skipping');
       return;
     }
 
@@ -1603,9 +642,7 @@ export default function ChatScreen() {
     const therapistMeta = getCurrentTherapistMetadata();
     console.log('[Chat] Current therapist:', therapistMeta.name);
     
-    // ═══════════════════════════════════════════════════════════════════
-    // CRITICAL: Set flags and clear typing IMMEDIATELY
-    // ═══════════════════════════════════════════════════════════════════
+    // Set in-flight flag immediately
     setIsSending(true);
     isGeneratingRef.current = true;
     setError(null);
@@ -1636,7 +673,7 @@ export default function ChatScreen() {
 
       if (insertError || !insertedMessage) {
         if (__DEV__) {
-          console.error('[Chat] Insert user message error:', insertError);
+          console.log('[Chat] Insert user message error:', insertError);
         }
         if (isMountedRef.current) {
           setInputText(userMessageText); // Restore input on error
@@ -1653,72 +690,18 @@ export default function ChatScreen() {
       if (isMountedRef.current) {
         setAllMessages((prev) => {
           updatedMessages = [...prev, insertedMessage];
-          
-          // Update last known timestamp
-          lastKnownMessageTimestampRef.current = insertedMessage.created_at;
-          
           return updatedMessages;
         });
-        
-        // Scroll after adding user message
-        shouldAutoScrollRef.current = true;
-        scrollToBottom(true);
       }
-
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: Start typing indicator + timeout BEFORE any async work
-      // Typing indicator MUST ALWAYS stop in finally{} block
-      // ═══════════════════════════════════════════════════════════════════
-      setIsTyping(true);
-      
-      // Set pending reply for failsafe
-      pendingReplyForUserMessageIdRef.current = insertedMessage.id;
-      
-      // Clear any existing timers
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
-      }
-      if (typingFailsafeRef.current) {
-        clearTimeout(typingFailsafeRef.current);
-        typingFailsafeRef.current = null;
-      }
-      if (fallbackFetchTimeoutRef.current) {
-        clearTimeout(fallbackFetchTimeoutRef.current);
-        fallbackFetchTimeoutRef.current = null;
-      }
-      
-      // Start hard timeout to force-clear typing indicator after 15 seconds
-      typingTimeoutRef.current = setTimeout(() => {
-        if (__DEV__) {
-          console.warn('[Chat] ⚠️ HARD TIMEOUT: Force-clearing typing indicator after 15s');
-        }
-        if (isMountedRef.current) {
-          setIsTyping(false);
-          // Insert fallback message on timeout
-          insertAssistantMessageSafely("I'm having trouble responding right now. Please try again.");
-        }
-        typingTimeoutRef.current = null;
-      }, TYPING_TIMEOUT_MS);
-      
-      // Start failsafe timer (25 seconds)
-      typingFailsafeRef.current = setTimeout(async () => {
-        if (!isMountedRef.current) return;
-        // still typing AND still waiting on the same user message
-        if (isTyping && pendingReplyForUserMessageIdRef.current === insertedMessage.id) {
-          console.warn('[Chat] ⚠️ FAILSAFE TIMEOUT: Inserting fallback after 25s');
-          await insertAssistantMessageSafely("I'm taking longer than expected. Tap to retry my response.");
-        }
-      }, STUCK_TYPING_FAILSAFE_MS);
-
-      // ═══════════════════════════════════════════════════════════════════
-      // FALLBACK FETCH: Start fallback timer (3 seconds)
-      // ═══════════════════════════════════════════════════════════════════
-      startFallbackFetchTimer();
 
       // ═══════════════════════════════════════════════════════════════════
       // MEMORY CAPTURE: Fire-and-forget capture of factual statements
       // ═══════════════════════════════════════════════════════════════════
+      // This runs IMMEDIATELY after user message is saved
+      // It NEVER blocks the chat flow or throws errors
+      // It respects the "Continue conversations" toggle
+      // ═══════════════════════════════════════════════════════════════════
+      
       console.log('[Chat] 🧠 Triggering memory capture...');
       
       // Check continuity setting first
@@ -1729,6 +712,7 @@ export default function ChatScreen() {
         
         if (continuityEnabled) {
           console.log('[Chat] Memory capture - calling captureMemoriesFromMessage');
+          // Call the memory capture function (fire-and-forget)
           captureMemoriesFromMessage(
             userId,
             personId,
@@ -1736,6 +720,7 @@ export default function ChatScreen() {
             personName,
             currentSubject
           ).catch((err) => {
+            // Silent failure - never crash the chat
             if (__DEV__) {
               console.log('[Chat] Memory capture failed (silent):', err?.message || 'unknown');
             }
@@ -1744,6 +729,7 @@ export default function ChatScreen() {
           console.log('[Chat] Memory capture - skipped (continuity disabled)');
         }
       }).catch((err) => {
+        // If we can't check continuity, default to enabled
         if (__DEV__) {
           console.log('[Chat] Failed to check continuity, defaulting to enabled:', err);
         }
@@ -1759,6 +745,7 @@ export default function ChatScreen() {
       });
 
       // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
+      // This runs even if the AI reply fails, ensuring memories are always saved
       try {
         console.log('[Chat] Running local memory extraction...');
         const extractedMemories = extractMemoriesFromUserText(userMessageText, personName);
@@ -1768,6 +755,7 @@ export default function ChatScreen() {
           await upsertPersonMemories(userId, personId, extractedMemories);
           console.log('[Chat] Local memories upserted successfully');
           
+          // Show subtle confirmation indicator
           if (isMountedRef.current) {
             setShowMemorySavedIndicator(true);
           }
@@ -1775,13 +763,16 @@ export default function ChatScreen() {
           console.log('[Chat] No memories extracted from user text');
         }
       } catch (memoryError: any) {
-        if (__DEV__) {
-          console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
-        }
+        // Silent failure - never crash the chat
+        console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
       }
 
       console.log('[Chat] Calling AI Edge Function...');
       console.log('[Chat] Total messages in history:', updatedMessages.length);
+      
+      if (isMountedRef.current) {
+        setIsTyping(true);
+      }
 
       const subjectMessages = updatedMessages.filter((msg) => {
         const msgSubject = msg.subject || 'General';
@@ -1809,8 +800,8 @@ export default function ChatScreen() {
         .filter((m) => m.role === 'assistant')
         .slice(-1)[0];
 
-      // RETRY: Store last edge request payload for retry
-      const edgePayload = {
+      // STEP 2: Call invokeEdgeSafe with retry and timeout logic
+      const result = await invokeEdgeSafe('generate-ai-response', {
         userId,
         personId,
         personName,
@@ -1819,24 +810,19 @@ export default function ChatScreen() {
         currentSubject: currentSubject,
         aiToneId: preferences.ai_tone_id,
         aiScienceMode: preferences.ai_science_mode,
-      };
-      
-      lastEdgeRequestRef.current = {
-        payload: edgePayload,
-        userMessageId: insertedMessage.id,
-      };
-
-      // STEP 2: Call invokeEdgeSafe with retry and timeout logic
-      const result = await invokeEdgeSafe('generate-ai-response', edgePayload);
+      });
 
       // STEP 3: Handle result - check ok flag
       if (!result.ok) {
-        const errorCode = result.error?.code || 'EDGE_UNKNOWN';
+        const errorCode = result.error?.code || 'UNKNOWN';
         const errorMessage = result.error?.message || 'Unknown error';
         const errorStatus = result.error?.status;
 
+        // ═══════════════════════════════════════════════════════════════════
+        // PRODUCTION SAFETY: Only log detailed errors in __DEV__ mode
+        // ═══════════════════════════════════════════════════════════════════
         if (__DEV__) {
-          // Use console.log for expected errors (no red LogBox)
+          // Use console.log instead of console.error to prevent red error overlays
           console.log('[Chat] Edge Function failed:', {
             code: errorCode,
             message: errorMessage,
@@ -1844,6 +830,7 @@ export default function ChatScreen() {
             details: result.error?.details,
           });
 
+          // Build detailed debug string for DEV mode
           const debugString = JSON.stringify({
             functionName: 'generate-ai-response',
             timestamp: new Date().toISOString(),
@@ -1851,8 +838,10 @@ export default function ChatScreen() {
             error: result.error,
           }, null, 2);
 
+          // Store debug info for dev mode banner
           setDebugInfo(debugString);
 
+          // DEV-ONLY: Show clear auth error hint
           if (errorCode === 'EDGE_AUTH' || errorStatus === 401 || errorStatus === 403) {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             console.log('🔐 EDGE AUTH FAILED - CHECK:');
@@ -1863,114 +852,214 @@ export default function ChatScreen() {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           }
         }
+        // In production (__DEV__ === false), do NOT log at all
 
-        // ═══════════════════════════════════════════════════════════════════
-        // CRITICAL: Handle different error types with fallback messages
-        // ALWAYS insert fallback message AND update local state
-        // ═══════════════════════════════════════════════════════════════════
-        
-        // Handle EDGE_ABORTED or EDGE_TIMEOUT - show friendly banner + fallback
-        if (errorCode === 'EDGE_ABORTED' || errorCode === 'EDGE_TIMEOUT') {
-          if (__DEV__) {
-            console.log('[Chat] Abort/Timeout detected - inserting fallback message');
+        if (isMountedRef.current) {
+          setIsTyping(false);
+          
+          // ═══════════════════════════════════════════════════════════════════
+          // STEP 4: Handle different error types gracefully
+          // ═══════════════════════════════════════════════════════════════════
+          
+          // Handle EDGE_ABORTED or EDGE_TIMEOUT - NO fallback message
+          if (errorCode === 'EDGE_ABORTED' || errorCode === 'EDGE_TIMEOUT') {
+            if (__DEV__) {
+              console.log('[Chat] Abort/Timeout detected - showing clean error, no fallback message');
+            }
+            
+            // Show non-blocking error message
+            setError('Connection interrupted. Please try again.');
+            
+            // Do NOT insert fallback assistant message
+            // Chat state remains stable (input cleared, user message remains)
+            return;
           }
           
-          await insertAssistantMessageSafely("I got interrupted before I could reply. Tap to retry.");
-          if (isMountedRef.current) {
-            setError('Connection interrupted. Tap the message above to retry.');
+          // ═══════════════════════════════════════════════════════════════════
+          // FALLBACK MESSAGE: Only for EDGE_AUTH, EDGE_UNKNOWN, EDGE_UNAVAILABLE
+          // ═══════════════════════════════════════════════════════════════════
+          
+          // Handle EDGE_AUTH
+          if (errorCode === 'EDGE_AUTH') {
+            if (__DEV__) {
+              console.log('[Chat] Auth error - inserting fallback message');
+            }
+            
+            const fallbackMessage = "I'm having trouble connecting right now. Please try logging out and back in.";
+            
+            const { data: fallbackInserted } = await supabase
+              .from('messages')
+              .insert({
+                user_id: userId,
+                person_id: personId,
+                role: 'assistant',
+                content: fallbackMessage,
+                subject: currentSubject,
+                created_at: new Date().toISOString(),
+              })
+              .select('*')
+              .single();
+
+            if (fallbackInserted) {
+              const fallbackWithMeta: ExtendedMessage = {
+                ...fallbackInserted,
+                therapist_name: therapistMeta.name,
+                therapist_avatar_source: therapistMeta.avatarSource,
+              };
+              setAllMessages((prev) => [...prev, fallbackWithMeta]);
+            }
+            
+            setError('Authentication issue. Please try logging out and back in.');
+            return;
           }
-          return;
-        }
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // FALLBACK MESSAGES: For all other error types
-        // ═══════════════════════════════════════════════════════════════════
-        
-        let fallbackText = "I'm having trouble responding right now. Tap to retry.";
-        let errorText = 'An error occurred. Please try again.';
-        
-        if (errorCode === 'EDGE_AUTH') {
-          fallbackText = "I'm having trouble connecting right now. Please try logging out and back in.";
-          errorText = 'Authentication issue. Please try logging out and back in.';
-        } else if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'EDGE_HTTP_ERROR') {
-          fallbackText = "I'm having trouble responding right now. Please try again in a moment.";
-          errorText = 'Service temporarily unavailable. Please try again.';
-        } else if (errorCode === 'EDGE_UNKNOWN') {
-          fallbackText = "I'm having persistent connection issues. Please check your network and try again.";
-          errorText = 'Connection issues. Please check your network.';
-        }
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // CRITICAL: ALWAYS insert fallback message (updates local state immediately)
-        // ═══════════════════════════════════════════════════════════════════
-        await insertAssistantMessageSafely(fallbackText);
-        if (isMountedRef.current) {
-          setError(errorText);
+          
+          // Handle EDGE_UNAVAILABLE
+          if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'FUNCTIONS_HTTP_ERROR') {
+            if (__DEV__) {
+              console.log('[Chat] Service unavailable - inserting fallback message');
+            }
+            
+            const fallbackMessage = "I'm having trouble responding right now. Please try again in a moment.";
+            
+            const { data: fallbackInserted } = await supabase
+              .from('messages')
+              .insert({
+                user_id: userId,
+                person_id: personId,
+                role: 'assistant',
+                content: fallbackMessage,
+                subject: currentSubject,
+                created_at: new Date().toISOString(),
+              })
+              .select('*')
+              .single();
+
+            if (fallbackInserted) {
+              const fallbackWithMeta: ExtendedMessage = {
+                ...fallbackInserted,
+                therapist_name: therapistMeta.name,
+                therapist_avatar_source: therapistMeta.avatarSource,
+              };
+              setAllMessages((prev) => [...prev, fallbackWithMeta]);
+            }
+            
+            setError('Service temporarily unavailable. Please try again.');
+            return;
+          }
+          
+          // Handle EDGE_UNKNOWN and other errors
+          if (errorCode === 'EDGE_UNKNOWN' || errorCode === 'UNEXPECTED_ERROR' || errorCode === 'MAX_RETRIES_EXCEEDED') {
+            if (__DEV__) {
+              console.log('[Chat] Unknown/unexpected error - inserting fallback message');
+            }
+            
+            let fallbackMessage = "I'm having trouble responding right now. Please try again.";
+            
+            if (errorCode === 'MAX_RETRIES_EXCEEDED') {
+              fallbackMessage = "I'm having persistent connection issues. Please check your network and try again.";
+            }
+            
+            const { data: fallbackInserted } = await supabase
+              .from('messages')
+              .insert({
+                user_id: userId,
+                person_id: personId,
+                role: 'assistant',
+                content: fallbackMessage,
+                subject: currentSubject,
+                created_at: new Date().toISOString(),
+              })
+              .select('*')
+              .single();
+
+            if (fallbackInserted) {
+              const fallbackWithMeta: ExtendedMessage = {
+                ...fallbackInserted,
+                therapist_name: therapistMeta.name,
+                therapist_avatar_source: therapistMeta.avatarSource,
+              };
+              setAllMessages((prev) => [...prev, fallbackWithMeta]);
+            }
+            
+            setError('An error occurred. Please try again.');
+            return;
+          }
         }
 
+        // STEP 5: Return without throwing - safe error handling
         return;
       }
 
-      // ═══════════════════════════════════════════════════════════════════
-      // DEFENSIVE GUARD 2: Validate AI response is not empty/null/whitespace
-      // ═══════════════════════════════════════════════════════════════════
+      // Success path - extract reply from data
       const aiResponse = result.data;
-      let replyText = aiResponse?.reply;
+      let replyText =
+        aiResponse?.reply ||
+        "I'm having trouble responding right now. Please try again.";
 
-      // Check if reply is empty, null, or whitespace
-      if (!replyText || typeof replyText !== 'string' || !replyText.trim()) {
-        if (__DEV__) {
-          console.error('[Chat] AI returned empty/null/whitespace reply:', {
-            reply: replyText,
-            type: typeof replyText,
-          });
-        }
-
-        // ═══════════════════════════════════════════════════════════════════
-        // CRITICAL: ALWAYS insert fallback message (updates local state immediately)
-        // ═══════════════════════════════════════════════════════════════════
-        await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
-        if (isMountedRef.current) {
-          setError('AI response was empty. Please try again.');
-        }
-        return;
-      }
-
-      // Trim the reply
-      replyText = replyText.trim();
-
-      // Check for loop detection
       if (lastAssistantMessage && areSimilar(replyText, lastAssistantMessage.content)) {
-        if (__DEV__) {
-          console.warn('[Chat] Loop detected! AI response is too similar to previous response');
-          console.log('[Chat] Previous:', lastAssistantMessage.content.substring(0, 50));
-          console.log('[Chat] Current:', replyText.substring(0, 50));
-        }
+        console.warn('[Chat] Loop detected! AI response is too similar to previous response');
+        console.log('[Chat] Previous:', lastAssistantMessage.content.substring(0, 50));
+        console.log('[Chat] Current:', replyText.substring(0, 50));
         
         replyText = `I hear you. Can you tell me more about what you're experiencing with ${personName}?`;
       }
 
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: ALWAYS insert assistant message locally (no waiting for realtime)
-      // This ensures the message appears immediately in the UI
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('[Chat] ✅ AI response received - inserting assistant message directly');
-      await insertAssistantMessageSafely(replyText);
-      
+      console.log('[Chat] Inserting AI message...');
+      const { data: aiInserted, error: aiInsertError } = await supabase
+        .from('messages')
+        .insert({
+          user_id: userId,
+          person_id: personId,
+          role: 'assistant',
+          content: replyText,
+          subject: currentSubject,
+          created_at: new Date().toISOString(),
+        })
+        .select('*')
+        .single();
+
+      if (aiInsertError || !aiInserted) {
+        if (__DEV__) {
+          console.log('[Chat] Insert AI message error:', aiInsertError);
+        }
+        if (isMountedRef.current) {
+          setIsTyping(false);
+          setError(aiInsertError?.message || 'Failed to save AI reply.');
+        }
+        return;
+      }
+
+      console.log('[Chat] AI message inserted:', aiInserted.id);
+
+      // Attach therapist metadata to the AI message
+      const aiMessageWithMeta: ExtendedMessage = {
+        ...aiInserted,
+        therapist_name: therapistMeta.name,
+        therapist_avatar_source: therapistMeta.avatarSource,
+      };
+
+      if (isMountedRef.current) {
+        setAllMessages((prev) => [...prev, aiMessageWithMeta]);
+        setIsTyping(false);
+      }
       console.log('[Chat] sendMessage: Complete');
 
-      // MEMORY EXTRACTION + CONTINUITY UPDATE: Background task
+      // MEMORY EXTRACTION + CONTINUITY UPDATE: Extract memories and update continuity in the background
+      // This is fire-and-forget and will not block or delay the chat flow
       (async () => {
         try {
           console.log('[Chat] Triggering memory extraction and continuity update...');
           
+          // Get existing memories for context
           const existingMemories = await getPersonMemories(userId, personId, 50);
           
+          // Extract last 5 user messages for context
           const userMessages = subjectMessages
             .filter(m => m.role === 'user')
             .slice(-5)
             .map(m => m.content);
 
+          // Extract memories and continuity (await to get continuity data)
           const extractionResult = await extractMemories({
             personName,
             recentUserMessages: userMessages,
@@ -1986,52 +1075,45 @@ export default function ChatScreen() {
           
           console.log('[Chat] Memory extraction complete');
           
+          // Show subtle confirmation indicator if memories were extracted
+          // Note: We don't check the exact count to avoid exposing internal logic
+          // The indicator shows regardless of whether new memories were added or existing ones were updated
           if (isMountedRef.current && !extractionResult.error) {
             setShowMemorySavedIndicator(true);
           }
           
+          // Update continuity if we got valid data
           if (extractionResult.continuity) {
             console.log('[Chat] Updating conversation continuity...');
             await upsertPersonContinuity(userId, personId, extractionResult.continuity);
             console.log('[Chat] Continuity updated successfully');
           }
         } catch (memoryError) {
+          // Silently fail - memory extraction should never break chat
           if (__DEV__) {
             console.log('[Chat] Memory extraction/continuity update failed (silent):', memoryError);
           }
         }
       })();
     } catch (err: any) {
+      // Only log detailed errors in __DEV__ mode
       if (__DEV__) {
-        console.error('[Chat] sendMessage unexpected error:', err);
+        console.log('[Chat] sendMessage unexpected error:', err);
       }
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: ALWAYS insert fallback message on unexpected error
-      // ═══════════════════════════════════════════════════════════════════
-      await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
       
       if (isMountedRef.current) {
-        setInputText(userMessageText);
+        setInputText(userMessageText); // Restore input on error
         setError(err?.message || 'An unexpected error occurred');
+        setIsTyping(false);
       }
     } finally {
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: Always reset flags and clear typing in finally block
-      // This ensures typing indicator is ALWAYS cleared, no matter what
-      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: Always reset flags in finally block
       if (isMountedRef.current) {
         setIsSending(false);
         isGeneratingRef.current = false;
-        // Final safety: ensure typing is cleared
-        clearTypingIndicator();
-        // Clear pending reply
-        pendingReplyForUserMessageIdRef.current = null;
       }
-      
-      console.log('[Chat] sendMessage: Finally block complete - all flags reset');
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, clearTypingIndicator, insertAssistantMessageSafely, scrollToBottom, isTyping, startFallbackFetchTimer]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -2055,21 +1137,21 @@ export default function ChatScreen() {
     setCurrentSubject(subject);
   }, []);
 
-  // Open simple add subject modal
+  // NEW: Open simple add subject modal
   const openAddSubjectModal = useCallback(() => {
     console.log('[Chat] Opening Add Subject modal');
     setShowAddSubjectModal(true);
     setNewSubjectName('');
   }, []);
 
-  // Close simple add subject modal
+  // NEW: Close simple add subject modal
   const closeAddSubjectModal = useCallback(() => {
     console.log('[Chat] Closing Add Subject modal');
     setShowAddSubjectModal(false);
     setNewSubjectName('');
   }, []);
 
-  // Add subject handler
+  // NEW: Add subject handler
   const addSubject = useCallback(() => {
     const trimmedSubject = newSubjectName.trim();
     
@@ -2100,6 +1182,8 @@ export default function ChatScreen() {
 
     // Close modal
     closeAddSubjectModal();
+
+    // TODO: Persist to Supabase if needed (currently local state only)
   }, [newSubjectName, availableSubjects, closeAddSubjectModal]);
 
   // Handle debug banner tap (copy to clipboard) - ONLY in __DEV__
@@ -2110,29 +1194,29 @@ export default function ChatScreen() {
     }
   }, [debugInfo]);
 
-  // RETRY: Wire retry to existing UI (no redesign)
   // Handle error banner tap for retry
   const handleErrorBannerTap = useCallback(() => {
-    // Check if this is a retry-able error
-    const isRetryableError = error && (
-      error.includes('Tap to retry') || 
-      error.includes('Connection interrupted') ||
-      error.includes('Tap the message above')
-    );
+    // For abort/timeout errors, just dismiss
+    if (error && error.includes('Connection interrupted')) {
+      setError(null);
+      return;
+    }
     
-    if (isRetryableError && lastEdgeRequestRef.current) {
-      console.log('[Chat] Retrying from error banner tap');
-      retryLastAiResponse();
+    // Find the most recent failed message
+    const failedMessage = allMessages
+      .filter((msg) => msg.failed_to_send && msg.retry_content)
+      .slice(-1)[0];
+    
+    if (failedMessage && failedMessage.retry_content) {
+      retryFailedMessage(failedMessage.id, failedMessage.retry_content);
       setError(null);
     } else {
-      // Just dismiss error
+      // No failed message to retry, just dismiss error
       setError(null);
     }
-  }, [error, retryLastAiResponse]);
+  }, [allMessages, retryFailedMessage, error]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // PERFORMANCE: Memoized renderListItem with stable callback
-  // ═══════════════════════════════════════════════════════════════════
+  // Render individual list item (message or date separator)
   const renderListItem = useCallback(({ item }: ListRenderItemInfo<MessageListItem>) => {
     if (item.type === 'date-separator') {
       return <DateSeparator label={item.label} />;
@@ -2140,10 +1224,7 @@ export default function ChatScreen() {
     
     // Message item
     const message = item.data;
-    
-    // RETRY: Check if this is a retry-able message (contains "Tap to retry")
-    const isRetryableMessage = message.role === 'assistant' && 
-      message.content.includes('Tap to retry');
+    const isFailed = message.failed_to_send === true;
     
     return (
       <View>
@@ -2156,10 +1237,10 @@ export default function ChatScreen() {
           therapistAvatarSource={message.therapist_avatar_source}
           therapistPersonaId={preferences.therapist_persona_id}
         />
-        {isRetryableMessage && lastEdgeRequestRef.current && (
+        {isFailed && message.retry_content && (
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: theme.primary }]}
-            onPress={retryLastAiResponse}
+            onPress={() => retryFailedMessage(message.id, message.retry_content!)}
             activeOpacity={0.7}
           >
             <IconSymbol
@@ -2174,11 +1255,9 @@ export default function ChatScreen() {
         )}
       </View>
     );
-  }, [preferences.therapist_persona_id, theme.primary, retryLastAiResponse]);
+  }, [preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // PERFORMANCE: Stable keyExtractor
-  // ═══════════════════════════════════════════════════════════════════
+  // Key extractor for FlatList
   const keyExtractor = useCallback((item: MessageListItem, index: number) => {
     if (item.type === 'date-separator') {
       return `date-${item.date.toISOString()}-${index}`;
@@ -2186,9 +1265,7 @@ export default function ChatScreen() {
     return item.data.id;
   }, []);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // PERFORMANCE: Memoized empty list component
-  // ═══════════════════════════════════════════════════════════════════
+  // Empty list component
   const renderEmptyList = useCallback(() => {
     if (loading) return null;
     
@@ -2224,15 +1301,8 @@ export default function ChatScreen() {
     );
   }, [loading, theme, personName, currentSubject, allMessages.length, error, handleRetry]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // PERFORMANCE: Memoized footer component (typing indicator)
-  // This is isolated so typing indicator updates don't re-render messages
-  // ═══════════════════════════════════════════════════════════════════
+  // Footer component (typing indicator at bottom of non-inverted list)
   const renderListFooter = useCallback(() => {
-    // ═══════════════════════════════════════════════════════════════════
-    // CRITICAL: Only render typing indicator when isTyping is true
-    // This ensures the component fully unmounts when not needed
-    // ═══════════════════════════════════════════════════════════════════
     if (!isTyping) return null;
     
     const therapistMeta = getCurrentTherapistMetadata();
@@ -2246,13 +1316,6 @@ export default function ChatScreen() {
     );
   }, [isTyping, getCurrentTherapistMetadata, preferences.therapist_persona_id]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // PERFORMANCE: Memoized input change handler (debounced if needed)
-  // ═══════════════════════════════════════════════════════════════════
-  const handleInputChange = useCallback((text: string) => {
-    setInputText(text);
-  }, []);
-
   return (
     <FullScreenSwipeHandler enabled={!isTyping && !isSending}>
       <KeyboardAvoidingView
@@ -2261,27 +1324,90 @@ export default function ChatScreen() {
         keyboardVerticalOffset={0}
       >
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-          {/* ═══════════════════════════════════════════════════════════════════
-              ISOLATED: Chat Header Component
-              ═══════════════════════════════════════════════════════════════════ */}
-          <ChatHeader
-            personName={personName}
-            relationshipType={relationshipType}
-            isPremium={isPremium}
-            isTopicChat={isTopicChat}
-            personId={personId}
-            onBackPress={handleBackPress}
+          {/* Status Bar Gradient - matches theme gradient */}
+          <LinearGradient
+            colors={theme.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={[styles.statusBarGradient, { height: insets.top }]}
+            pointerEvents="none"
           />
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              ISOLATED: Subject Pills Row Component
-              ═══════════════════════════════════════════════════════════════════ */}
-          <SubjectPillsRow
-            availableSubjects={availableSubjects}
-            currentSubject={currentSubject}
-            onSubjectPress={handleSubjectPress}
-            onAddSubjectPress={openAddSubjectModal}
-          />
+          {/* Header with Gradient Background */}
+          <LinearGradient
+            colors={theme.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={[styles.headerGradient, { paddingTop: insets.top }]}
+          >
+            <View style={styles.header}>
+              <TouchableOpacity 
+                onPress={handleBackPress} 
+                style={styles.backButton}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="chevron.left"
+                  android_material_icon_name="arrow_back"
+                  size={24}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+              <View style={styles.headerCenter}>
+                <View style={styles.headerTitleRow}>
+                  <Text style={styles.headerTitle} numberOfLines={1}>
+                    {personName}
+                  </Text>
+                  {isPremium && !isTopicChat && (
+                    <View style={styles.premiumBadgeSmall}>
+                      <Text style={styles.premiumBadgeSmallText}>⭐</Text>
+                    </View>
+                  )}
+                </View>
+                {relationshipType && (
+                  <Text style={styles.headerSubtitle} numberOfLines={1}>
+                    {relationshipType}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity 
+                onPress={() => router.push({
+                  pathname: '/(tabs)/(home)/memories',
+                  params: { personId, personName }
+                })} 
+                style={styles.memoriesButton}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="brain"
+                  android_material_icon_name="psychology"
+                  size={24}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+
+          {/* Subject Pills Row */}
+          <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.pillsScrollContent}
+              keyboardShouldPersistTaps="handled"
+              data={[...availableSubjects, '+ Add subject']}
+              renderItem={({ item, index }) => (
+                <SubjectPill
+                  key={`subject-${index}-${item}`}
+                  subject={item}
+                  isSelected={currentSubject === item}
+                  onPress={item === '+ Add subject' ? openAddSubjectModal : handleSubjectPress}
+                  isAddButton={item === '+ Add subject'}
+                />
+              )}
+              keyExtractor={(item, index) => `subject-${index}-${item}`}
+            />
+          </View>
 
           {/* Memory Saved Indicator */}
           <MemorySavedIndicator 
@@ -2292,6 +1418,19 @@ export default function ChatScreen() {
           {/* 
             ═══════════════════════════════════════════════════════════════════
             DEVELOPER DEBUG BANNER
+            ═══════════════════════════════════════════════════════════════════
+            
+            VISIBILITY RULES:
+            - Production builds (TestFlight/App Store): NEVER shown (__DEV__ === false)
+            - Expo Go / Dev builds: ONLY shown when __DEV__ === true AND debugInfo exists
+            
+            SAFETY GUARANTEES:
+            1. Entire block wrapped in __DEV__ check (compile-time removal in production)
+            2. debugInfo state is only set when __DEV__ === true
+            3. No debug components rendered outside __DEV__ block
+            4. No leftover spacing or margins when hidden
+            
+            This ensures debug information is NEVER exposed in TestFlight or App Store builds.
             ═══════════════════════════════════════════════════════════════════
           */}
           {__DEV__ && debugInfo && (
@@ -2340,55 +1479,129 @@ export default function ChatScreen() {
             </TouchableOpacity>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              OPTIMIZED: FlatList with performance props and auto-scroll
-              ═══════════════════════════════════════════════════════════════════ */}
+          {/* NON-INVERTED FlatList for chat messages - messages start at top */}
           <FlatList
             ref={flatListRef}
             data={messageListItems}
             renderItem={renderListItem}
             keyExtractor={keyExtractor}
             inverted={false}
-            contentContainerStyle={[
-              styles.messagesContent,
-              {
-                paddingBottom: insets.bottom + INPUT_HEIGHT_BUFFER,
-              }
-            ]}
+            contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
             ListEmptyComponent={renderEmptyList}
             ListFooterComponent={renderListFooter}
-            removeClippedSubviews={true}
+            removeClippedSubviews={Platform.OS === 'android'}
             onScroll={handleScroll}
             scrollEventThrottle={16}
             onContentSizeChange={handleContentSizeChange}
             onLayout={handleLayout}
-            initialNumToRender={15}
-            maxToRenderPerBatch={10}
-            windowSize={7}
-            updateCellsBatchingPeriod={50}
-            getItemLayout={undefined}
           />
 
           {/* ═══════════════════════════════════════════════════════════════════
-              ISOLATED: Chat Input Bar Component
+              Floating Scroll-to-Bottom Arrow
+              ═══════════════════════════════════════════════════════════════════
+              - Only visible when user has scrolled up
+              - Positioned above input bar
+              - Matches Safe Space theme
+              - Smooth fade in/out animation
               ═══════════════════════════════════════════════════════════════════ */}
-          <ChatInputBar
-            inputText={inputText}
-            onChangeText={handleInputChange}
-            onSend={sendMessage}
-            isSendDisabled={isSendDisabled}
-            loading={loading}
-            isSending={isSending}
-          />
+          {showScrollArrow && (
+            <Animated.View
+              style={[
+                styles.scrollArrowContainer,
+                {
+                  opacity: scrollArrowOpacity,
+                  bottom: insets.bottom + 80, // Position above input bar
+                },
+              ]}
+              pointerEvents={showScrollArrow ? 'auto' : 'none'}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.scrollArrowButton,
+                  {
+                    backgroundColor: theme.primary,
+                    shadowColor: theme.primary,
+                  },
+                ]}
+                onPress={() => scrollToBottom(true)}
+                activeOpacity={0.8}
+              >
+                <IconSymbol
+                  ios_icon_name="chevron.down"
+                  android_material_icon_name="keyboard_arrow_down"
+                  size={24}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          {/* Input Container */}
+          <View style={[
+            styles.inputContainer, 
+            { 
+              backgroundColor: theme.card,
+              paddingBottom: insets.bottom || 8,
+            }
+          ]}>
+            <View style={styles.inputRow}>
+              <View style={styles.inputColumn}>
+                <View style={[
+                  styles.inputWrapper, 
+                  { 
+                    backgroundColor: theme.background,
+                    borderWidth: inputFocused ? 2 : 1,
+                    borderColor: inputFocused ? theme.primary : theme.textSecondary + '40',
+                  }
+                ]}>
+                  <TextInput
+                    style={[styles.input, { color: theme.textPrimary }]}
+                    placeholder="Tell me what's going on…"
+                    placeholderTextColor={theme.textSecondary}
+                    value={inputText}
+                    onChangeText={setInputText}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
+                    multiline
+                    editable={!isSending && !loading}
+                    onSubmitEditing={() => {
+                      if (!isSendDisabled) {
+                        sendMessage();
+                      }
+                    }}
+                    cursorColor={theme.primary}
+                    selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  { backgroundColor: theme.primary },
+                  isSendDisabled && styles.sendButtonDisabled,
+                ]}
+                onPress={sendMessage}
+                disabled={isSendDisabled}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="paperplane.fill"
+                  android_material_icon_name="send"
+                  size={20}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </KeyboardAvoidingView>
 
       <LoadingOverlay visible={loading && !error} />
 
-      {/* Simple Add Subject Modal */}
+      {/* NEW: Simple Add Subject Modal */}
       <Modal
         visible={showAddSubjectModal}
         animationType="fade"
@@ -2597,6 +1810,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: '5%',
     paddingVertical: 16,
   },
+  // NEW: Date separator styles
   dateSeparatorContainer: {
     alignItems: 'center',
     marginVertical: 16,
@@ -2652,6 +1866,25 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontStyle: 'italic',
   },
+  // ═══════════════════════════════════════════════════════════════════
+  // Scroll-to-bottom arrow styles
+  // ═══════════════════════════════════════════════════════════════════
+  scrollArrowContainer: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 100,
+  },
+  scrollArrowButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
   inputContainer: {
     paddingHorizontal: '5%',
     paddingTop: 12,
@@ -2702,6 +1935,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  // NEW: Simple modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

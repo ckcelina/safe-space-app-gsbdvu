@@ -25,7 +25,6 @@ import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { runDevDiagnostics, logStartupError } from "@/utils/devDiagnostics";
 import { setupNetworkDebugging } from "@/utils/networkDebug";
-import { logConfigStatus, verifyProjectMatch } from "@/utils/supabaseConfig";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // DEV-ONLY: Network Request Failed Error Suppression
@@ -121,21 +120,6 @@ function RootLayoutInner() {
       if (__DEV__) {
         console.log(`[Startup] Network connected: ${networkState.isConnected}`);
         console.log(`[Startup] Internet reachable: ${networkState.isInternetReachable}`);
-      }
-
-      // Log Supabase configuration status
-      if (__DEV__) {
-        console.log('');
-        logConfigStatus();
-        
-        // Verify project match
-        const projectMatch = verifyProjectMatch();
-        if (projectMatch.matches) {
-          console.log(`[Startup] ✅ ${projectMatch.message}`);
-        } else {
-          console.log(`[Startup] ⚠️  ${projectMatch.message}`);
-        }
-        console.log('');
       }
     } catch (error) {
       logStartupError('Startup Logging', error);

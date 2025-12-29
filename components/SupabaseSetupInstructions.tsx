@@ -1,159 +1,73 @@
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useThemeContext } from '@/contexts/ThemeContext';
-import { getSupabaseConfig } from '@/lib/supabase';
-
-// Default colors for when theme context is not available
-const DEFAULT_COLORS = {
-  background: '#FFFFFF',
-  text: '#000000',
-  card: '#F5F5F5',
-  primary: '#007AFF',
-  textSecondary: '#666666',
-};
 
 export default function SupabaseSetupInstructions() {
-  // Guard against undefined theme context during early boot
-  const themeContext = useThemeContext();
-  const colors = themeContext?.colors ?? DEFAULT_COLORS;
-  
-  const config = getSupabaseConfig();
+  const { colors } = useThemeContext();
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]}>
-          ⚙️ Safe Space Needs Configuration
+          Supabase Setup Required
         </Text>
         
         <Text style={[styles.text, { color: colors.text }]}>
-          The app cannot start because Supabase environment variables are missing or invalid.
+          To use Safe Space, you need to connect to your Supabase project:
         </Text>
 
-        {config.problems.length > 0 && (
-          <View style={[styles.errorBox, { backgroundColor: colors.card, borderColor: '#ff4444' }]}>
-            <Text style={[styles.errorTitle, { color: '#ff4444' }]}>
-              ❌ Configuration Errors
-            </Text>
-            {config.problems.map((problem, index) => (
-              <Text key={index} style={[styles.errorText, { color: colors.text }]}>
-                • {problem}
-              </Text>
-            ))}
-          </View>
-        )}
-
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-            Current Configuration Status
-          </Text>
-          <View style={[styles.statusBox, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statusText, { color: colors.text }]}>
-              EXPO_PUBLIC_SUPABASE_URL: {config.url ? '✅ Present' : '❌ Missing'}
-            </Text>
-            {config.url && (
-              <Text style={[styles.statusTextSmall, { color: colors.text }]}>
-                Value: {config.url}
-              </Text>
-            )}
-            <Text style={[styles.statusText, { color: colors.text }]}>
-              EXPO_PUBLIC_SUPABASE_ANON_KEY: {config.anonKey ? '✅ Present' : '❌ Missing'}
-            </Text>
-            <Text style={[styles.statusText, { color: colors.text }]}>
-              Valid Configuration: {config.isValid ? '✅ Yes' : '❌ No'}
-            </Text>
-            <Text style={[styles.statusText, { color: colors.text }]}>
-              Source: {config.source || 'none'}
-            </Text>
-            <Text style={[styles.statusText, { color: colors.text }]}>
-              Platform: {Platform.OS}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-            How to Fix This in Natively
+            1. Enable Supabase
           </Text>
           <Text style={[styles.text, { color: colors.text }]}>
-            1. Click the &quot;Connect to Project&quot; button in Natively
-          </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            2. Select your Supabase project: &quot;Safe Space&quot;
-          </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            3. Verify these CLIENT environment variables are set:
-          </Text>
-          <View style={[styles.codeBox, { backgroundColor: colors.card }]}>
-            <Text style={[styles.code, { color: colors.text }]}>
-              EXPO_PUBLIC_SUPABASE_URL
-            </Text>
-            <Text style={[styles.code, { color: colors.text }]}>
-              EXPO_PUBLIC_SUPABASE_ANON_KEY
-            </Text>
-          </View>
-          <Text style={[styles.text, { color: colors.text }]}>
-            4. Restart the app preview (stop and start again)
+            Press the Supabase button in Natively and connect to your existing Supabase project.
           </Text>
         </View>
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-            Important Notes
+            2. Database Tables
           </Text>
           <Text style={[styles.text, { color: colors.text }]}>
-            • Environment variables MUST start with EXPO_PUBLIC_ to be available in the client
+            Make sure your Supabase project has these tables:
           </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            • The URL must start with https:// and contain &quot;supabase.co&quot;
-          </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            • Both variables are required for the app to function
-          </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            • These are CLIENT variables (not server secrets)
+          <Text style={[styles.code, { color: colors.text, backgroundColor: colors.card }]}>
+            - auth.users (built-in){'\n'}
+            - public.users (id, user_id, role, created_at){'\n'}
+            - public.persons (id, user_id, name, relationship_type, created_at){'\n'}
+            - public.messages (id, user_id, person_id, sender, content, created_at)
           </Text>
         </View>
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-            Expected Supabase Project
+            3. Row Level Security (RLS)
           </Text>
-          <View style={[styles.codeBox, { backgroundColor: colors.card }]}>
-            <Text style={[styles.code, { color: colors.text }]}>
-              Project: Safe Space
-            </Text>
-            <Text style={[styles.code, { color: colors.text }]}>
-              Project ID: zjzvkxvahrbuuyzjzxol
-            </Text>
-            <Text style={[styles.code, { color: colors.text }]}>
-              URL: https://zjzvkxvahrbuuyzjzxol.supabase.co
-            </Text>
-          </View>
+          <Text style={[styles.text, { color: colors.text }]}>
+            Enable RLS on all tables with policies that enforce user_id = auth.uid()
+          </Text>
         </View>
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-            Troubleshooting
+            4. Edge Function
           </Text>
           <Text style={[styles.text, { color: colors.text }]}>
-            If you&apos;ve set the variables but still see this screen:
+            Deploy an Edge Function named &quot;generate-ai-response&quot; that accepts:
+          </Text>
+          <Text style={[styles.code, { color: colors.text, backgroundColor: colors.card }]}>
+            {`{
+  person_id: string,
+  messages: Array<{role: string, content: string}>
+}`}
           </Text>
           <Text style={[styles.text, { color: colors.text }]}>
-            • Make sure you&apos;re using EXPO_PUBLIC_ prefix (not just SUPABASE_)
+            And returns:
           </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            • Verify the variables are in the &quot;Environment Variables&quot; section (not Edge Function secrets)
-          </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            • Completely stop and restart the preview (not just refresh)
-          </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            • Check the console logs for the actual values being read
-          </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            • Current source: {config.source || 'none detected'}
+          <Text style={[styles.code, { color: colors.text, backgroundColor: colors.card }]}>
+            {`{ reply: string }`}
           </Text>
         </View>
       </View>
@@ -167,7 +81,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
-    paddingTop: 60,
   },
   title: {
     fontSize: 28,
@@ -187,47 +100,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 12,
   },
-  errorBox: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    marginVertical: 16,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  errorText: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  statusBox: {
-    padding: 16,
-    borderRadius: 12,
-    marginVertical: 8,
-  },
-  statusText: {
-    fontSize: 14,
-    lineHeight: 24,
-    fontFamily: 'monospace',
-  },
-  statusTextSmall: {
-    fontSize: 12,
-    lineHeight: 18,
-    fontFamily: 'monospace',
-    marginLeft: 16,
-    marginBottom: 8,
-  },
-  codeBox: {
-    padding: 12,
-    borderRadius: 8,
-    marginVertical: 8,
-  },
   code: {
     fontFamily: 'monospace',
     fontSize: 14,
-    lineHeight: 20,
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 8,
   },
 });
