@@ -98,23 +98,6 @@ export const useWidget = () => {
   }
 
   return __DEV__ ? devFallbackContext : prodFallbackContext;
-  }
-
-  const message =
-    "useWidget was called outside of a WidgetProvider. Make sure WidgetProvider wraps the app.";
-
-  if (__DEV__) {
-    console.error(`[Widget] ${message}`);
-    return {
-      refreshWidget: () => console.warn(`[Widget] refreshWidget noop: ${message}`),
-      updateWidgetTheme: () => console.warn(`[Widget] updateWidgetTheme noop: ${message}`),
-    };
-  }
-
-  return {
-    refreshWidget: () => {},
-    updateWidgetTheme: () => {},
-  };
 };
 
 export const isWidgetContextFallback = (context: WidgetContextType) =>
