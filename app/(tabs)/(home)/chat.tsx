@@ -585,7 +585,9 @@ export default function ChatScreen() {
     };
   }, []);
 
-  // Track app state changes
+  // ═══════════════════════════════════════════════════════════════════
+  // APP STATE SAFETY: Handle backgrounding
+  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       appStateRef.current = nextAppState;
@@ -595,17 +597,23 @@ export default function ChatScreen() {
         console.log('[Chat] App state changed:', nextAppState);
       }
       
-      // ═══════════════════════════════════════════════════════════════════
-      // DEFENSIVE: Clear typing indicator when app goes to background
-      // ═══════════════════════════════════════════════════════════════════
+      // If app goes background while typing/sending, cancel and insert fallback
       if (nextAppState === 'background' || nextAppState === 'inactive') {
-        if (isTyping) {
-          console.log('[Chat] App backgrounded - clearing typing indicator');
+        if (isTyping || isSending) {
+          console.log('[Chat] App backgrounded while AI was responding - inserting fallback');
+          
+          // Clear typing indicator
           setIsTyping(false);
+          setIsSending(false);
+          isGeneratingRef.current = false;
+          
           if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
             typingTimeoutRef.current = null;
           }
+          
+          // Insert fallback message
+          insertFallbackMessage("Looks like the app paused. Tap to retry.");
         }
       }
     });
@@ -613,7 +621,7 @@ export default function ChatScreen() {
     return () => {
       subscription.remove();
     };
-  }, [isTyping]);
+  }, [isTyping, isSending]);
 
   const isFreeUser = role === 'free';
 
@@ -1234,12 +1242,13 @@ export default function ChatScreen() {
 
       // STEP 3: Handle result - check ok flag
       if (!result.ok) {
-        const errorCode = result.error?.code || 'UNKNOWN';
+        const errorCode = result.error?.code || 'EDGE_UNKNOWN';
         const errorMessage = result.error?.message || 'Unknown error';
         const errorStatus = result.error?.status;
 
         if (__DEV__) {
-          console.error('[Chat] Edge Function failed:', {
+          // Use console.log for expected errors (no red LogBox)
+          console.log('[Chat] Edge Function failed:', {
             code: errorCode,
             message: errorMessage,
             status: errorStatus,
@@ -1271,13 +1280,14 @@ export default function ChatScreen() {
           // STEP 4: Handle different error types with fallback messages
           // ═══════════════════════════════════════════════════════════════════
           
-          // Handle EDGE_ABORTED or EDGE_TIMEOUT - NO fallback message
+          // Handle EDGE_ABORTED or EDGE_TIMEOUT - show friendly banner + fallback
           if (errorCode === 'EDGE_ABORTED' || errorCode === 'EDGE_TIMEOUT') {
             if (__DEV__) {
-              console.log('[Chat] Abort/Timeout detected - showing clean error, no fallback message');
+              console.log('[Chat] Abort/Timeout detected - showing friendly banner + fallback');
             }
             
-            setError('Connection interrupted. Please try again.');
+            await insertFallbackMessage("I got interrupted before I could reply. Tap to retry.");
+            setError('Connection interrupted. Tap the message above to retry.');
             return;
           }
           
@@ -1291,10 +1301,10 @@ export default function ChatScreen() {
           if (errorCode === 'EDGE_AUTH') {
             fallbackText = "I'm having trouble connecting right now. Please try logging out and back in.";
             errorText = 'Authentication issue. Please try logging out and back in.';
-          } else if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'FUNCTIONS_HTTP_ERROR') {
+          } else if (errorCode === 'EDGE_UNAVAILABLE' || errorCode === 'EDGE_HTTP_ERROR') {
             fallbackText = "I'm having trouble responding right now. Please try again in a moment.";
             errorText = 'Service temporarily unavailable. Please try again.';
-          } else if (errorCode === 'MAX_RETRIES_EXCEEDED') {
+          } else if (errorCode === 'EDGE_UNKNOWN') {
             fallbackText = "I'm having persistent connection issues. Please check your network and try again.";
             errorText = 'Connection issues. Please check your network.';
           }
@@ -1537,7 +1547,7 @@ export default function ChatScreen() {
   // Handle error banner tap for retry
   const handleErrorBannerTap = useCallback(() => {
     // For abort/timeout errors, just dismiss
-    if (error && error.includes('Connection interrupted')) {
+    if (error && (error.includes('Connection interrupted') || error.includes('Tap the message above'))) {
       setError(null);
       return;
     }
