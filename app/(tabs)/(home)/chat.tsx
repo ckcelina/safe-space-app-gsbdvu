@@ -51,6 +51,9 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Typing indicator timeout (15 seconds as per requirements)
 const TYPING_TIMEOUT_MS = 15000;
 
+// NEW: Stuck-typing failsafe timeout (25 seconds)
+const STUCK_TYPING_FAILSAFE_MS = 25000;
+
 // Input height buffer for proper padding
 const INPUT_HEIGHT_BUFFER = 100;
 
@@ -536,6 +539,29 @@ export default function ChatScreen() {
   // ═══════════════════════════════════════════════════════════════════
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // NEW A) Stuck-typing failsafe timer refs
+  // ═══════════════════════════════════════════════════════════════════
+  const typingFailsafeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingReplyForUserMessageIdRef = useRef<string | null>(null);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // NEW B) Store last edge request payload for retry (NO new user message)
+  // ═══════════════════════════════════════════════════════════════════
+  const lastEdgeRequestRef = useRef<null | {
+    payload: {
+      userId: string;
+      personId: string;
+      personName: string;
+      personRelationshipType: string;
+      messages: { role: string; content: string; createdAt: string }[];
+      currentSubject: string;
+      aiToneId: string | null;
+      aiScienceMode: boolean;
+    };
+    userMessageId: string;
+  }>(null);
+
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
     if (initialSubject && initialSubject.trim()) {
@@ -580,6 +606,11 @@ export default function ChatScreen() {
         clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = null;
       }
+      // Clear failsafe timer on unmount
+      if (typingFailsafeRef.current) {
+        clearTimeout(typingFailsafeRef.current);
+        typingFailsafeRef.current = null;
+      }
       // Force typing to false (defensive cleanup)
       setIsTyping(false);
     };
@@ -612,8 +643,13 @@ export default function ChatScreen() {
             typingTimeoutRef.current = null;
           }
           
+          if (typingFailsafeRef.current) {
+            clearTimeout(typingFailsafeRef.current);
+            typingFailsafeRef.current = null;
+          }
+          
           // Insert fallback message
-          insertFallbackMessage("Looks like the app paused. Tap to retry.");
+          insertAssistantMessageSafely("Looks like the app paused. Tap to retry my response.");
         }
       }
     });
@@ -910,26 +946,6 @@ export default function ChatScreen() {
     return false;
   }, []);
 
-  // NEW: Retry handler for failed messages
-  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
-    if (!authUser?.id || !personId) {
-      return;
-    }
-
-    console.log('[Chat] Retrying failed message:', messageId);
-
-    // Remove the failed message from UI
-    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-
-    // Set the input text to the retry content and trigger send
-    setInputText(retryContent);
-    
-    // Small delay to ensure state updates
-    setTimeout(() => {
-      sendMessage();
-    }, 100);
-  }, [authUser?.id, personId]);
-
   // ═══════════════════════════════════════════════════════════════════
   // HELPER: Clear typing indicator and timeout
   // ═══════════════════════════════════════════════════════════════════
@@ -940,62 +956,170 @@ export default function ChatScreen() {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
+    // NEW: Also clear failsafe timer
+    if (typingFailsafeRef.current) {
+      clearTimeout(typingFailsafeRef.current);
+      typingFailsafeRef.current = null;
+    }
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════
-  // HELPER: Insert fallback message when AI fails
+  // NEW: HELPER - Insert assistant message safely (used for BOTH real replies + fallbacks)
   // ═══════════════════════════════════════════════════════════════════
-  const insertFallbackMessage = useCallback(async (fallbackText: string) => {
+  const insertAssistantMessageSafely = useCallback(async (content: string): Promise<void> => {
     if (!authUser?.id || !personId) {
       if (__DEV__) {
-        console.warn('[Chat] insertFallbackMessage: Missing userId or personId');
+        console.warn('[Chat] insertAssistantMessageSafely: Missing userId or personId');
       }
+      setError('Failed to save AI reply.');
+      setIsTyping(false);
       return;
     }
 
-    console.log('[Chat] Inserting fallback message');
+    console.log('[Chat] Inserting assistant message safely');
     
     const therapistMeta = getCurrentTherapistMetadata();
     
     try {
-      const { data: fallbackInserted, error: fallbackError } = await supabase
+      const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
         .insert({
           user_id: authUser.id,
           person_id: personId,
           role: 'assistant',
-          content: fallbackText,
+          content,
           subject: currentSubject,
           created_at: new Date().toISOString(),
         })
         .select('*')
         .single();
 
-      if (fallbackError) {
+      if (insertError || !insertedMessage) {
         if (__DEV__) {
-          console.error('[Chat] Failed to insert fallback message to DB:', fallbackError);
+          console.error('[Chat] Failed to insert assistant message to DB:', insertError);
         }
+        setError('Failed to save AI reply.');
+        setIsTyping(false);
         return;
       }
 
-      if (fallbackInserted && isMountedRef.current) {
-        const fallbackWithMeta: ExtendedMessage = {
-          ...fallbackInserted,
+      if (isMountedRef.current) {
+        const messageWithMeta: ExtendedMessage = {
+          ...insertedMessage,
           therapist_name: therapistMeta.name,
           therapist_avatar_source: therapistMeta.avatarSource,
         };
-        setAllMessages((prev) => [...prev, fallbackWithMeta]);
+        setAllMessages((prev) => [...prev, messageWithMeta]);
         
-        // C) Scroll after adding assistant message
+        // Scroll to bottom reliably
         shouldAutoScrollRef.current = true;
-        scrollToBottom(true);
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 80);
+        });
       }
     } catch (err) {
       if (__DEV__) {
-        console.error('[Chat] insertFallbackMessage exception:', err);
+        console.error('[Chat] insertAssistantMessageSafely exception:', err);
       }
+      setError('Failed to save AI reply.');
+    } finally {
+      // MUST NOT throw - always stop typing
+      setIsTyping(false);
+      clearTypingIndicator();
     }
-  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, scrollToBottom]);
+  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // NEW C) Implement retryLastAiResponse() (no duplicate user message)
+  // ═══════════════════════════════════════════════════════════════════
+  const retryLastAiResponse = useCallback(async () => {
+    if (!lastEdgeRequestRef.current) {
+      console.log('[Chat] No last edge request to retry');
+      return;
+    }
+
+    console.log('[Chat] Retrying last AI response without duplicating user message');
+    
+    setIsTyping(true);
+    setError(null);
+    
+    // Clear any existing timers
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    if (typingFailsafeRef.current) {
+      clearTimeout(typingFailsafeRef.current);
+      typingFailsafeRef.current = null;
+    }
+    
+    // Set pending reply for failsafe
+    pendingReplyForUserMessageIdRef.current = lastEdgeRequestRef.current.userMessageId;
+    
+    // Start failsafe timer
+    typingFailsafeRef.current = setTimeout(async () => {
+      if (!isMountedRef.current) return;
+      // still typing AND still waiting on the same user message
+      if (isTyping && pendingReplyForUserMessageIdRef.current === lastEdgeRequestRef.current?.userMessageId) {
+        console.warn('[Chat] ⚠️ FAILSAFE TIMEOUT: Inserting fallback after 25s');
+        await insertAssistantMessageSafely("I'm taking longer than expected. Tap to retry my response.");
+      }
+    }, STUCK_TYPING_FAILSAFE_MS);
+    
+    try {
+      const result = await invokeEdgeSafe('generate-ai-response', lastEdgeRequestRef.current.payload);
+      
+      // Apply the SAME reply guarantee logic as Prompt 1
+      if (!result.ok) {
+        const errorCode = result.error?.code || 'EDGE_UNKNOWN';
+        
+        if (__DEV__) {
+          console.log('[Chat] Retry edge function failed:', {
+            code: errorCode,
+            message: result.error?.message,
+          });
+        }
+        
+        // Handle different error types with fallback messages
+        if (errorCode === 'EDGE_ABORTED' || errorCode === 'EDGE_TIMEOUT') {
+          await insertAssistantMessageSafely("Connection interrupted. Tap to retry my response.");
+        } else if (errorCode === 'EDGE_AUTH') {
+          await insertAssistantMessageSafely("I'm having trouble connecting. Please log out and back in.");
+        } else {
+          await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
+        }
+        return;
+      }
+      
+      // Check if reply is empty, null, or whitespace
+      const aiResponse = result.data;
+      let replyText = aiResponse?.reply;
+      
+      if (!replyText || typeof replyText !== 'string' || !replyText.trim()) {
+        if (__DEV__) {
+          console.error('[Chat] Retry: AI returned empty/null/whitespace reply');
+        }
+        await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
+        return;
+      }
+      
+      replyText = replyText.trim();
+      
+      // Insert the successful reply
+      await insertAssistantMessageSafely(replyText);
+      
+    } catch (e) {
+      if (__DEV__) {
+        console.error('[Chat] Retry exception:', e);
+      }
+      await insertAssistantMessageSafely("Connection interrupted. Tap to retry my response.");
+    } finally {
+      // Clear pending reply
+      pendingReplyForUserMessageIdRef.current = null;
+    }
+  }, [insertAssistantMessageSafely, isTyping]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -1075,24 +1199,6 @@ export default function ChatScreen() {
     const userMessageText = text;
     setInputText('');
 
-    // ═══════════════════════════════════════════════════════════════════
-    // CRITICAL: Start typing indicator + timeout BEFORE any async work
-    // ═══════════════════════════════════════════════════════════════════
-    setIsTyping(true);
-    
-    // Start hard timeout to force-clear typing indicator after 15 seconds
-    typingTimeoutRef.current = setTimeout(() => {
-      if (__DEV__) {
-        console.warn('[Chat] ⚠️ HARD TIMEOUT: Force-clearing typing indicator after 15s');
-      }
-      if (isMountedRef.current) {
-        setIsTyping(false);
-        // Insert fallback message on timeout
-        insertFallbackMessage("I'm having trouble responding right now. Please try again.");
-      }
-      typingTimeoutRef.current = null;
-    }, TYPING_TIMEOUT_MS);
-
     try {
       console.log('[Chat] Inserting user message...');
       const { data: insertedMessage, error: insertError } = await supabase
@@ -1134,6 +1240,47 @@ export default function ChatScreen() {
         shouldAutoScrollRef.current = true;
         scrollToBottom(true);
       }
+
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: Start typing indicator + timeout BEFORE any async work
+      // ═══════════════════════════════════════════════════════════════════
+      setIsTyping(true);
+      
+      // NEW A) Set pending reply for failsafe
+      pendingReplyForUserMessageIdRef.current = insertedMessage.id;
+      
+      // Clear any existing timers
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      if (typingFailsafeRef.current) {
+        clearTimeout(typingFailsafeRef.current);
+        typingFailsafeRef.current = null;
+      }
+      
+      // Start hard timeout to force-clear typing indicator after 15 seconds
+      typingTimeoutRef.current = setTimeout(() => {
+        if (__DEV__) {
+          console.warn('[Chat] ⚠️ HARD TIMEOUT: Force-clearing typing indicator after 15s');
+        }
+        if (isMountedRef.current) {
+          setIsTyping(false);
+          // Insert fallback message on timeout
+          insertAssistantMessageSafely("I'm having trouble responding right now. Please try again.");
+        }
+        typingTimeoutRef.current = null;
+      }, TYPING_TIMEOUT_MS);
+      
+      // NEW A) Start failsafe timer (25 seconds)
+      typingFailsafeRef.current = setTimeout(async () => {
+        if (!isMountedRef.current) return;
+        // still typing AND still waiting on the same user message
+        if (isTyping && pendingReplyForUserMessageIdRef.current === insertedMessage.id) {
+          console.warn('[Chat] ⚠️ FAILSAFE TIMEOUT: Inserting fallback after 25s');
+          await insertAssistantMessageSafely("I'm taking longer than expected. Tap to retry my response.");
+        }
+      }, STUCK_TYPING_FAILSAFE_MS);
 
       // ═══════════════════════════════════════════════════════════════════
       // MEMORY CAPTURE: Fire-and-forget capture of factual statements
@@ -1228,8 +1375,8 @@ export default function ChatScreen() {
         .filter((m) => m.role === 'assistant')
         .slice(-1)[0];
 
-      // STEP 2: Call invokeEdgeSafe with retry and timeout logic
-      const result = await invokeEdgeSafe('generate-ai-response', {
+      // NEW B) Store last edge request payload for retry
+      const edgePayload = {
         userId,
         personId,
         personName,
@@ -1238,7 +1385,15 @@ export default function ChatScreen() {
         currentSubject: currentSubject,
         aiToneId: preferences.ai_tone_id,
         aiScienceMode: preferences.ai_science_mode,
-      });
+      };
+      
+      lastEdgeRequestRef.current = {
+        payload: edgePayload,
+        userMessageId: insertedMessage.id,
+      };
+
+      // STEP 2: Call invokeEdgeSafe with retry and timeout logic
+      const result = await invokeEdgeSafe('generate-ai-response', edgePayload);
 
       // STEP 3: Handle result - check ok flag
       if (!result.ok) {
@@ -1286,7 +1441,7 @@ export default function ChatScreen() {
               console.log('[Chat] Abort/Timeout detected - showing friendly banner + fallback');
             }
             
-            await insertFallbackMessage("I got interrupted before I could reply. Tap to retry.");
+            await insertAssistantMessageSafely("I got interrupted before I could reply. Tap to retry my response.");
             setError('Connection interrupted. Tap the message above to retry.');
             return;
           }
@@ -1295,7 +1450,7 @@ export default function ChatScreen() {
           // FALLBACK MESSAGES: For all other error types
           // ═══════════════════════════════════════════════════════════════════
           
-          let fallbackText = "I'm having trouble responding right now. Please try again.";
+          let fallbackText = "I'm having trouble responding right now. Tap to retry.";
           let errorText = 'An error occurred. Please try again.';
           
           if (errorCode === 'EDGE_AUTH') {
@@ -1310,7 +1465,7 @@ export default function ChatScreen() {
           }
           
           // Insert fallback message
-          await insertFallbackMessage(fallbackText);
+          await insertAssistantMessageSafely(fallbackText);
           setError(errorText);
         }
 
@@ -1334,7 +1489,7 @@ export default function ChatScreen() {
 
         // Treat as error - insert fallback message
         if (isMountedRef.current) {
-          await insertFallbackMessage("I'm having trouble responding right now. Please try again.");
+          await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
           setError('AI response was empty. Please try again.');
         }
         return;
@@ -1354,48 +1509,9 @@ export default function ChatScreen() {
         replyText = `I hear you. Can you tell me more about what you're experiencing with ${personName}?`;
       }
 
-      console.log('[Chat] Inserting AI message...');
-      const { data: aiInserted, error: aiInsertError } = await supabase
-        .from('messages')
-        .insert({
-          user_id: userId,
-          person_id: personId,
-          role: 'assistant',
-          content: replyText,
-          subject: currentSubject,
-          created_at: new Date().toISOString(),
-        })
-        .select('*')
-        .single();
-
-      if (aiInsertError || !aiInserted) {
-        if (__DEV__) {
-          console.error('[Chat] Insert AI message error:', aiInsertError);
-        }
-        if (isMountedRef.current) {
-          setError(aiInsertError?.message || 'Failed to save AI reply.');
-          // Insert fallback message if we couldn't save the AI response
-          await insertFallbackMessage("I'm having trouble responding right now. Please try again.");
-        }
-        return;
-      }
-
-      console.log('[Chat] AI message inserted:', aiInserted.id);
-
-      // Attach therapist metadata to the AI message
-      const aiMessageWithMeta: ExtendedMessage = {
-        ...aiInserted,
-        therapist_name: therapistMeta.name,
-        therapist_avatar_source: therapistMeta.avatarSource,
-      };
-
-      if (isMountedRef.current) {
-        setAllMessages((prev) => [...prev, aiMessageWithMeta]);
-        
-        // C) Scroll after adding assistant message
-        shouldAutoScrollRef.current = true;
-        scrollToBottom(true);
-      }
+      console.log('[Chat] Inserting AI message via insertAssistantMessageSafely...');
+      await insertAssistantMessageSafely(replyText);
+      
       console.log('[Chat] sendMessage: Complete');
 
       // MEMORY EXTRACTION + CONTINUITY UPDATE: Background task
@@ -1449,7 +1565,7 @@ export default function ChatScreen() {
         setInputText(userMessageText);
         setError(err?.message || 'An unexpected error occurred');
         // Insert fallback message on unexpected error
-        await insertFallbackMessage("I'm having trouble responding right now. Please try again.");
+        await insertAssistantMessageSafely("I'm having trouble responding right now. Tap to retry.");
       }
     } finally {
       // ═══════════════════════════════════════════════════════════════════
@@ -1461,11 +1577,13 @@ export default function ChatScreen() {
         isGeneratingRef.current = false;
         // Final safety: ensure typing is cleared
         clearTypingIndicator();
+        // NEW: Clear pending reply
+        pendingReplyForUserMessageIdRef.current = null;
       }
       
       console.log('[Chat] sendMessage: Finally block complete - all flags reset');
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, clearTypingIndicator, insertFallbackMessage, scrollToBottom]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, clearTypingIndicator, insertAssistantMessageSafely, scrollToBottom, isTyping]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -1544,27 +1662,25 @@ export default function ChatScreen() {
     }
   }, [debugInfo]);
 
+  // NEW D) Wire retry to existing UI (no redesign)
   // Handle error banner tap for retry
   const handleErrorBannerTap = useCallback(() => {
-    // For abort/timeout errors, just dismiss
-    if (error && (error.includes('Connection interrupted') || error.includes('Tap the message above'))) {
-      setError(null);
-      return;
-    }
+    // Check if this is a retry-able error
+    const isRetryableError = error && (
+      error.includes('Tap to retry') || 
+      error.includes('Connection interrupted') ||
+      error.includes('Tap the message above')
+    );
     
-    // Find the most recent failed message
-    const failedMessage = allMessages
-      .filter((msg) => msg.failed_to_send && msg.retry_content)
-      .slice(-1)[0];
-    
-    if (failedMessage && failedMessage.retry_content) {
-      retryFailedMessage(failedMessage.id, failedMessage.retry_content);
+    if (isRetryableError && lastEdgeRequestRef.current) {
+      console.log('[Chat] Retrying from error banner tap');
+      retryLastAiResponse();
       setError(null);
     } else {
-      // No failed message to retry, just dismiss error
+      // Just dismiss error
       setError(null);
     }
-  }, [allMessages, retryFailedMessage, error]);
+  }, [error, retryLastAiResponse]);
 
   // ═══════════════════════════════════════════════════════════════════
   // PERFORMANCE: Memoized renderListItem with stable callback
@@ -1578,6 +1694,10 @@ export default function ChatScreen() {
     const message = item.data;
     const isFailed = message.failed_to_send === true;
     
+    // NEW D) Check if this is a retry-able message (contains "Tap to retry")
+    const isRetryableMessage = message.role === 'assistant' && 
+      message.content.includes('Tap to retry');
+    
     return (
       <View>
         <AnimatedChatBubble
@@ -1589,10 +1709,10 @@ export default function ChatScreen() {
           therapistAvatarSource={message.therapist_avatar_source}
           therapistPersonaId={preferences.therapist_persona_id}
         />
-        {isFailed && message.retry_content && (
+        {isRetryableMessage && lastEdgeRequestRef.current && (
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: theme.primary }]}
-            onPress={() => retryFailedMessage(message.id, message.retry_content!)}
+            onPress={retryLastAiResponse}
             activeOpacity={0.7}
           >
             <IconSymbol
@@ -1607,7 +1727,7 @@ export default function ChatScreen() {
         )}
       </View>
     );
-  }, [preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
+  }, [preferences.therapist_persona_id, theme.primary, retryLastAiResponse]);
 
   // ═══════════════════════════════════════════════════════════════════
   // PERFORMANCE: Stable keyExtractor
