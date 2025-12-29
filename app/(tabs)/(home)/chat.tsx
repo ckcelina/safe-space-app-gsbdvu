@@ -529,9 +529,10 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   // ═══════════════════════════════════════════════════════════════════
-  // REALTIME FALLBACK: State and refs for realtime health + polling
+  // REALTIME INDEPENDENCE: Realtime is OPTIONAL and ONLY for cross-device sync
+  // AI replies NEVER depend on Realtime events
   // ═══════════════════════════════════════════════════════════════════
-  const [realtimeHealthy, setRealtimeHealthy] = useState(true);
+  const [realtimeEnabled, setRealtimeEnabled] = useState(true);
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -1127,17 +1128,6 @@ export default function ChatScreen() {
         }, 100);
       });
       
-      // ═══════════════════════════════════════════════════════════════════
-      // POST-SEND SYNC: Safety net for realtime failures
-      // Schedule a single background refresh after 500ms
-      // ═══════════════════════════════════════════════════════════════════
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          console.log('[Chat] 🔄 Post-send sync: Refreshing messages for consistency');
-          loadMessages();
-        }
-      }, 500);
-      
     } catch (err) {
       if (__DEV__) {
         console.error('[Chat] insertAssistantMessageSafely exception:', err);
@@ -1148,7 +1138,7 @@ export default function ChatScreen() {
       setIsTyping(false);
       clearTypingIndicator();
     }
-  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator, loadMessages]);
+  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, clearTypingIndicator]);
 
   // ═══════════════════════════════════════════════════════════════════
   // APP STATE SAFETY: Handle backgrounding
@@ -1201,9 +1191,9 @@ export default function ChatScreen() {
   const isFreeUser = role === 'free';
 
   // ═══════════════════════════════════════════════════════════════════
-  // REALTIME: Initialize Supabase Realtime subscription OR start polling
-  // On web: skip realtime, use polling only
-  // On native: try realtime first, fallback to polling on errors
+  // REALTIME: OPTIONAL subscription for cross-device sync ONLY
+  // CRITICAL: AI replies NEVER depend on Realtime events
+  // Realtime is ONLY used to sync messages from OTHER devices
   // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!personId || !authUser?.id) {
@@ -1225,7 +1215,8 @@ export default function ChatScreen() {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // NATIVE PLATFORM: Try realtime first, fallback to polling on errors
+    // NATIVE PLATFORM: Try realtime for cross-device sync, fallback to polling
+    // CRITICAL: Realtime is OPTIONAL - chat works without it
     // ═══════════════════════════════════════════════════════════════════
     
     // Check if already subscribed to prevent multiple subscriptions
@@ -1234,7 +1225,15 @@ export default function ChatScreen() {
       return;
     }
 
-    console.log('[Chat] 🔴 Initializing Supabase Realtime subscription (native)...');
+    // Skip if realtime is disabled for this session
+    if (!realtimeEnabled) {
+      console.log('[Chat] Realtime disabled for this session - using polling only');
+      startPolling();
+      return;
+    }
+
+    console.log('[Chat] 🔴 Initializing OPTIONAL Realtime subscription (native)...');
+    console.log('[Chat] ⚠️ IMPORTANT: AI replies do NOT depend on Realtime');
     
     const channelName = `chat:${authUser.id}:${personId}`;
     console.log('[Chat] Channel name:', channelName);
@@ -1254,7 +1253,7 @@ export default function ChatScreen() {
       
       channel
         .on('broadcast', { event: 'INSERT' }, (payload) => {
-          console.log('[Chat] 🟢 Received broadcast INSERT:', payload);
+          console.log('[Chat] 🟢 Received broadcast INSERT (cross-device sync):', payload);
           
           if (!payload.new) {
             console.log('[Chat] ⚠️ Broadcast payload missing "new" data');
@@ -1263,21 +1262,19 @@ export default function ChatScreen() {
 
           const newMessage = payload.new as Message;
           
-          // Only process assistant messages (user messages are added optimistically)
-          if (newMessage.role !== 'assistant') {
-            console.log('[Chat] Ignoring non-assistant message from broadcast');
-            return;
-          }
-
-          console.log('[Chat] Processing assistant message from realtime:', newMessage.id);
+          // ═══════════════════════════════════════════════════════════════════
+          // CRITICAL: Realtime is ONLY for cross-device sync
+          // Process ALL messages (user + assistant) from other devices
+          // ═══════════════════════════════════════════════════════════════════
+          console.log('[Chat] Processing message from other device:', newMessage.id, 'role:', newMessage.role);
           
           // Get current therapist metadata
           const therapistMeta = getCurrentTherapistMetadata();
           
           const messageWithMeta: ExtendedMessage = {
             ...newMessage,
-            therapist_name: therapistMeta.name,
-            therapist_avatar_source: therapistMeta.avatarSource,
+            therapist_name: newMessage.role === 'assistant' ? therapistMeta.name : undefined,
+            therapist_avatar_source: newMessage.role === 'assistant' ? therapistMeta.avatarSource : undefined,
           };
 
           // Check if message already exists (prevent duplicates)
@@ -1288,7 +1285,7 @@ export default function ChatScreen() {
               return prev;
             }
             
-            console.log('[Chat] Adding assistant message to state');
+            console.log('[Chat] Adding message from other device to state');
             
             // Update last known timestamp
             lastKnownMessageTimestampRef.current = newMessage.created_at;
@@ -1296,57 +1293,45 @@ export default function ChatScreen() {
             return [...prev, messageWithMeta];
           });
 
-          // Clear typing indicator when assistant message arrives
-          setIsTyping(false);
-          if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current);
-            typingTimeoutRef.current = null;
-          }
-          if (typingFailsafeRef.current) {
-            clearTimeout(typingFailsafeRef.current);
-            typingFailsafeRef.current = null;
-          }
-          // Clear fallback fetch timer since we got the message
-          if (fallbackFetchTimeoutRef.current) {
-            clearTimeout(fallbackFetchTimeoutRef.current);
-            fallbackFetchTimeoutRef.current = null;
-          }
-
-          // Scroll to bottom when new assistant message arrives
+          // Scroll to bottom when new message arrives from other device
           shouldAutoScrollRef.current = true;
           scrollToBottom(true);
         })
         .subscribe((status, err) => {
           // ═══════════════════════════════════════════════════════════════════
-          // CRITICAL: Use console.log/warn instead of console.error to avoid red screen
+          // CRITICAL: Use console.warn instead of console.error (no red screen)
+          // Realtime failures do NOT block chat functionality
           // ═══════════════════════════════════════════════════════════════════
           console.log('[Chat] Realtime subscription status:', status);
           
           if (status === 'SUBSCRIBED') {
-            console.log('[Chat] ✅ Successfully subscribed to realtime channel');
-            setRealtimeHealthy(true);
+            console.log('[Chat] ✅ Realtime subscribed (cross-device sync enabled)');
             // Stop polling if it was running
             stopPolling();
           } else if (status === 'CHANNEL_ERROR') {
-            console.warn('[Chat] ⚠️ Realtime channel error:', err?.message || 'Unknown error');
-            setRealtimeHealthy(false);
+            console.warn('[Chat] ⚠️ Realtime channel error - disabling for this session');
+            console.warn('[Chat] Error details:', err?.message || 'Unknown error');
+            // Disable realtime for this session
+            setRealtimeEnabled(false);
             // Start polling fallback
             startPolling();
           } else if (status === 'TIMED_OUT') {
-            console.warn('[Chat] ⏱️ Realtime subscription timed out');
-            setRealtimeHealthy(false);
+            console.warn('[Chat] ⏱️ Realtime subscription timed out - disabling for this session');
+            // Disable realtime for this session
+            setRealtimeEnabled(false);
             // Start polling fallback
             startPolling();
           } else if (status === 'CLOSED') {
             console.log('[Chat] Realtime channel closed');
-            setRealtimeHealthy(false);
             // Start polling fallback
             startPolling();
           }
         });
     }).catch((err) => {
-      console.warn('[Chat] ⚠️ Failed to set realtime auth:', err?.message || 'Unknown error');
-      setRealtimeHealthy(false);
+      console.warn('[Chat] ⚠️ Failed to set realtime auth - disabling for this session');
+      console.warn('[Chat] Error details:', err?.message || 'Unknown error');
+      // Disable realtime for this session
+      setRealtimeEnabled(false);
       // Start polling fallback
       startPolling();
     });
@@ -1363,11 +1348,8 @@ export default function ChatScreen() {
       
       // Stop polling
       stopPolling();
-      
-      // Reset realtime health
-      setRealtimeHealthy(true);
     };
-  }, [personId, authUser?.id, getCurrentTherapistMetadata, scrollToBottom, startPolling, stopPolling]);
+  }, [personId, authUser?.id, realtimeEnabled, getCurrentTherapistMetadata, scrollToBottom, startPolling, stopPolling]);
 
   // Load messages on mount
   useEffect(() => {
@@ -1448,6 +1430,7 @@ export default function ChatScreen() {
   // ═══════════════════════════════════════════════════════════════════
   // RETRY: Implement retryLastAiResponse() (no duplicate user message)
   // CRITICAL: ALWAYS inserts fallback on error AND updates local state
+  // CRITICAL: Does NOT resubscribe to Realtime
   // ═══════════════════════════════════════════════════════════════════
   const retryLastAiResponse = useCallback(async () => {
     if (!lastEdgeRequestRef.current) {
@@ -1455,7 +1438,7 @@ export default function ChatScreen() {
       return;
     }
 
-    console.log('[Chat] Retrying last AI response without duplicating user message');
+    console.log('[Chat] 🔄 Retrying last AI response (no duplicate user message, no realtime resubscribe)');
     
     setIsTyping(true);
     setError(null);
@@ -1534,10 +1517,9 @@ export default function ChatScreen() {
       console.log('[Chat] ✅ Retry successful - AI reply received');
       
       // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: Edge function should have inserted the message
-      // But we MUST ensure it appears in UI immediately (no waiting for realtime)
-      // The insertAssistantMessageSafely call in the edge function handler will handle this
+      // CRITICAL: Insert assistant message directly (no waiting for realtime)
       // ═══════════════════════════════════════════════════════════════════
+      await insertAssistantMessageSafely(replyText);
       
       // Clear typing indicator
       setIsTyping(false);
@@ -1685,6 +1667,7 @@ export default function ChatScreen() {
 
       // ═══════════════════════════════════════════════════════════════════
       // CRITICAL: Start typing indicator + timeout BEFORE any async work
+      // Typing indicator MUST ALWAYS stop in finally{} block
       // ═══════════════════════════════════════════════════════════════════
       setIsTyping(true);
       
@@ -1971,7 +1954,7 @@ export default function ChatScreen() {
       // CRITICAL: ALWAYS insert assistant message locally (no waiting for realtime)
       // This ensures the message appears immediately in the UI
       // ═══════════════════════════════════════════════════════════════════
-      console.log('[Chat] ✅ AI response received - inserting assistant message');
+      console.log('[Chat] ✅ AI response received - inserting assistant message directly');
       await insertAssistantMessageSafely(replyText);
       
       console.log('[Chat] sendMessage: Complete');
