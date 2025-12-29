@@ -9,6 +9,8 @@ import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { isSupabaseReady, supabaseConfigError } from '@/lib/supabase';
+import SupabaseSetupInstructions from '@/components/SupabaseSetupInstructions';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -19,13 +21,22 @@ export default function OnboardingScreen() {
   const [showReviewerModal, setShowReviewerModal] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // Check if Supabase is properly configured
+  const supabaseReady = isSupabaseReady();
+
   // Skip onboarding if user is already authenticated
   useEffect(() => {
-    if (!loading && session) {
+    if (!loading && session && supabaseReady) {
       console.log('User already authenticated, skipping onboarding');
       router.replace('/(tabs)/(home)');
     }
-  }, [session, loading]);
+  }, [session, loading, supabaseReady]);
+
+  // If Supabase is not configured, show setup instructions
+  if (!supabaseReady) {
+    console.error('[Onboarding] Supabase not ready:', supabaseConfigError);
+    return <SupabaseSetupInstructions />;
+  }
 
   const handleCreateSpace = () => {
     router.push('/theme-selection');
