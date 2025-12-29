@@ -21,6 +21,13 @@ module.exports = {
   env: {
     browser: true,
   },
+  settings: {
+    'import/resolver': {
+      node: {
+        extensions: ['.js', '.jsx', '.ts', '.tsx']
+      }
+    }
+  },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-explicit-any": "off",
@@ -48,6 +55,13 @@ module.exports = {
     },
     {
       files: ['*.ts', '*.tsx', '*.d.ts'],
+      settings: {
+        'import/resolver': {
+          node: {
+            extensions: ['.js', '.jsx', '.ts', '.tsx', '.d.ts']
+          }
+        }
+      },
       rules: {
         'import/namespace': 'off'
       }
