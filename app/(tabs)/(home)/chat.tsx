@@ -780,7 +780,10 @@ export default function ChatScreen() {
   // Scroll to bottom helper - used by multiple triggers
   const scrollToBottom = useCallback((animated: boolean = true) => {
     if (flatListRef.current && messageListItems.length > 0) {
-      flatListRef.current.scrollToEnd({ animated });
+      // DEFENSIVE: Ensure FlatList updates by using requestAnimationFrame
+      requestAnimationFrame(() => {
+        flatListRef.current?.scrollToEnd({ animated });
+      });
     }
   }, [messageListItems.length]);
 
@@ -909,6 +912,9 @@ export default function ChatScreen() {
   // ═══════════════════════════════════════════════════════════════════
   const insertFallbackMessage = useCallback(async (fallbackText: string) => {
     if (!authUser?.id || !personId) {
+      if (__DEV__) {
+        console.warn('[Chat] insertFallbackMessage: Missing userId or personId');
+      }
       return;
     }
 
@@ -917,7 +923,7 @@ export default function ChatScreen() {
     const therapistMeta = getCurrentTherapistMetadata();
     
     try {
-      const { data: fallbackInserted } = await supabase
+      const { data: fallbackInserted, error: fallbackError } = await supabase
         .from('messages')
         .insert({
           user_id: authUser.id,
@@ -930,6 +936,13 @@ export default function ChatScreen() {
         .select('*')
         .single();
 
+      if (fallbackError) {
+        if (__DEV__) {
+          console.error('[Chat] Failed to insert fallback message to DB:', fallbackError);
+        }
+        return;
+      }
+
       if (fallbackInserted && isMountedRef.current) {
         const fallbackWithMeta: ExtendedMessage = {
           ...fallbackInserted,
@@ -937,40 +950,70 @@ export default function ChatScreen() {
           therapist_avatar_source: therapistMeta.avatarSource,
         };
         setAllMessages((prev) => [...prev, fallbackWithMeta]);
+        
+        // DEFENSIVE: Force FlatList update after fallback insert
+        setTimeout(() => {
+          scrollToBottom(true);
+        }, 100);
       }
     } catch (err) {
       if (__DEV__) {
-        console.log('[Chat] Failed to insert fallback message:', err);
+        console.error('[Chat] insertFallbackMessage exception:', err);
       }
     }
-  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata]);
+  }, [authUser?.id, personId, currentSubject, getCurrentTherapistMetadata, scrollToBottom]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
-    // STEP 1: In-flight guard - prevent multiple rapid sends
-    if (isSending) {
-      console.log('[Chat] sendMessage: Already sending, ignoring duplicate call');
-      return;
-    }
-
-    if (!text || !personId) {
-      console.log('[Chat] sendMessage: validation failed', {
-        hasText: !!text,
-        personId,
-      });
-      return;
-    }
-
+    // ═══════════════════════════════════════════════════════════════════
+    // DEFENSIVE GUARD 1: Validate required inputs BEFORE setting isTyping
+    // ═══════════════════════════════════════════════════════════════════
     const userId = authUser?.id;
+    
     if (!userId) {
-      console.warn('[Chat] sendMessage: No userId available');
+      if (__DEV__) {
+        console.warn('[Chat] sendMessage: Missing userId');
+      }
       showErrorToast('You must be logged in to send messages');
       return;
     }
 
+    if (!personId) {
+      if (__DEV__) {
+        console.warn('[Chat] sendMessage: Missing personId');
+      }
+      showErrorToast('Invalid person ID');
+      return;
+    }
+
+    if (!currentSubject) {
+      if (__DEV__) {
+        console.warn('[Chat] sendMessage: Missing subject');
+      }
+      showErrorToast('Please select a subject');
+      return;
+    }
+
+    if (!text) {
+      if (__DEV__) {
+        console.warn('[Chat] sendMessage: Empty message text');
+      }
+      return;
+    }
+
+    // STEP 1: In-flight guard - prevent multiple rapid sends
+    if (isSending) {
+      if (__DEV__) {
+        console.log('[Chat] sendMessage: Already sending, ignoring duplicate call');
+      }
+      return;
+    }
+
     if (isGeneratingRef.current) {
-      console.log('[Chat] sendMessage: Already generating, skipping');
+      if (__DEV__) {
+        console.log('[Chat] sendMessage: Already generating, skipping');
+      }
       return;
     }
 
@@ -1005,7 +1048,9 @@ export default function ChatScreen() {
     
     // Start hard timeout to force-clear typing indicator after 15 seconds
     typingTimeoutRef.current = setTimeout(() => {
-      console.log('[Chat] ⚠️ HARD TIMEOUT: Force-clearing typing indicator after 15s');
+      if (__DEV__) {
+        console.warn('[Chat] ⚠️ HARD TIMEOUT: Force-clearing typing indicator after 15s');
+      }
       if (isMountedRef.current) {
         setIsTyping(false);
         // Insert fallback message on timeout
@@ -1031,7 +1076,7 @@ export default function ChatScreen() {
 
       if (insertError || !insertedMessage) {
         if (__DEV__) {
-          console.log('[Chat] Insert user message error:', insertError);
+          console.error('[Chat] Insert user message error:', insertError);
         }
         if (isMountedRef.current) {
           setInputText(userMessageText); // Restore input on error
@@ -1050,6 +1095,11 @@ export default function ChatScreen() {
           updatedMessages = [...prev, insertedMessage];
           return updatedMessages;
         });
+        
+        // DEFENSIVE: Force FlatList update after user message insert
+        setTimeout(() => {
+          scrollToBottom(true);
+        }, 100);
       }
 
       // ═══════════════════════════════════════════════════════════════════
@@ -1111,7 +1161,9 @@ export default function ChatScreen() {
           console.log('[Chat] No memories extracted from user text');
         }
       } catch (memoryError: any) {
-        console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
+        if (__DEV__) {
+          console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
+        }
       }
 
       console.log('[Chat] Calling AI Edge Function...');
@@ -1162,7 +1214,7 @@ export default function ChatScreen() {
         const errorStatus = result.error?.status;
 
         if (__DEV__) {
-          console.log('[Chat] Edge Function failed:', {
+          console.error('[Chat] Edge Function failed:', {
             code: errorCode,
             message: errorMessage,
             status: errorStatus,
@@ -1230,16 +1282,39 @@ export default function ChatScreen() {
         return;
       }
 
-      // Success path - extract reply from data
+      // ═══════════════════════════════════════════════════════════════════
+      // DEFENSIVE GUARD 2: Validate AI response is not empty/null/whitespace
+      // ═══════════════════════════════════════════════════════════════════
       const aiResponse = result.data;
-      let replyText =
-        aiResponse?.reply ||
-        "I'm having trouble responding right now. Please try again.";
+      let replyText = aiResponse?.reply;
 
+      // Check if reply is empty, null, or whitespace
+      if (!replyText || typeof replyText !== 'string' || !replyText.trim()) {
+        if (__DEV__) {
+          console.error('[Chat] AI returned empty/null/whitespace reply:', {
+            reply: replyText,
+            type: typeof replyText,
+          });
+        }
+
+        // Treat as error - insert fallback message
+        if (isMountedRef.current) {
+          await insertFallbackMessage("I'm having trouble responding right now. Please try again.");
+          setError('AI response was empty. Please try again.');
+        }
+        return;
+      }
+
+      // Trim the reply
+      replyText = replyText.trim();
+
+      // Check for loop detection
       if (lastAssistantMessage && areSimilar(replyText, lastAssistantMessage.content)) {
-        console.warn('[Chat] Loop detected! AI response is too similar to previous response');
-        console.log('[Chat] Previous:', lastAssistantMessage.content.substring(0, 50));
-        console.log('[Chat] Current:', replyText.substring(0, 50));
+        if (__DEV__) {
+          console.warn('[Chat] Loop detected! AI response is too similar to previous response');
+          console.log('[Chat] Previous:', lastAssistantMessage.content.substring(0, 50));
+          console.log('[Chat] Current:', replyText.substring(0, 50));
+        }
         
         replyText = `I hear you. Can you tell me more about what you're experiencing with ${personName}?`;
       }
@@ -1260,7 +1335,7 @@ export default function ChatScreen() {
 
       if (aiInsertError || !aiInserted) {
         if (__DEV__) {
-          console.log('[Chat] Insert AI message error:', aiInsertError);
+          console.error('[Chat] Insert AI message error:', aiInsertError);
         }
         if (isMountedRef.current) {
           setError(aiInsertError?.message || 'Failed to save AI reply.');
@@ -1281,6 +1356,11 @@ export default function ChatScreen() {
 
       if (isMountedRef.current) {
         setAllMessages((prev) => [...prev, aiMessageWithMeta]);
+        
+        // DEFENSIVE: Force FlatList update after assistant message insert
+        setTimeout(() => {
+          scrollToBottom(true);
+        }, 100);
       }
       console.log('[Chat] sendMessage: Complete');
 
@@ -1328,7 +1408,7 @@ export default function ChatScreen() {
       })();
     } catch (err: any) {
       if (__DEV__) {
-        console.log('[Chat] sendMessage unexpected error:', err);
+        console.error('[Chat] sendMessage unexpected error:', err);
       }
       
       if (isMountedRef.current) {
@@ -1351,7 +1431,7 @@ export default function ChatScreen() {
       
       console.log('[Chat] sendMessage: Finally block complete - all flags reset');
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, clearTypingIndicator, insertFallbackMessage]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, clearTypingIndicator, insertFallbackMessage, scrollToBottom]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
