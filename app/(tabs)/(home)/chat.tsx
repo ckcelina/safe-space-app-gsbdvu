@@ -46,6 +46,9 @@ import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// Typing indicator timeout (30 seconds)
+const TYPING_TIMEOUT_MS = 30000;
+
 // Default subjects list - IMPROVED LABELS
 const DEFAULT_SUBJECTS = [
   'General',
@@ -276,6 +279,11 @@ export default function ChatScreen() {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // TYPING INDICATOR TIMEOUT: Force-clear after 30 seconds
+  // ═══════════════════════════════════════════════════════════════════
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Set initial subject from params if provided (from Library)
   useEffect(() => {
     if (initialSubject && initialSubject.trim()) {
@@ -310,6 +318,21 @@ export default function ChatScreen() {
     };
   }, []);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // DEFENSIVE CLEANUP: Force-clear typing indicator on unmount
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    return () => {
+      // Clear typing indicator on unmount
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      // Force typing to false (defensive cleanup)
+      setIsTyping(false);
+    };
+  }, []);
+
   // Track app state changes
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -319,12 +342,26 @@ export default function ChatScreen() {
       if (__DEV__) {
         console.log('[Chat] App state changed:', nextAppState);
       }
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // DEFENSIVE: Clear typing indicator when app goes to background
+      // ═══════════════════════════════════════════════════════════════════
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        if (isTyping) {
+          console.log('[Chat] App backgrounded - clearing typing indicator');
+          setIsTyping(false);
+          if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = null;
+          }
+        }
+      }
     });
 
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [isTyping]);
 
   const isFreeUser = role === 'free';
 
@@ -605,6 +642,18 @@ export default function ChatScreen() {
     }, 100);
   }, [authUser?.id, personId]);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // HELPER: Clear typing indicator and timeout
+  // ═══════════════════════════════════════════════════════════════════
+  const clearTypingIndicator = useCallback(() => {
+    console.log('[Chat] Clearing typing indicator');
+    setIsTyping(false);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  }, []);
+
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
@@ -770,8 +819,20 @@ export default function ChatScreen() {
       console.log('[Chat] Calling AI Edge Function...');
       console.log('[Chat] Total messages in history:', updatedMessages.length);
       
+      // ═══════════════════════════════════════════════════════════════════
+      // SET TYPING INDICATOR: Start typing animation + timeout
+      // ═══════════════════════════════════════════════════════════════════
       if (isMountedRef.current) {
         setIsTyping(true);
+        
+        // Start timeout to force-clear typing indicator after 30 seconds
+        typingTimeoutRef.current = setTimeout(() => {
+          console.log('[Chat] ⚠️ Typing indicator timeout reached - force clearing');
+          if (isMountedRef.current) {
+            setIsTyping(false);
+          }
+          typingTimeoutRef.current = null;
+        }, TYPING_TIMEOUT_MS);
       }
 
       const subjectMessages = updatedMessages.filter((msg) => {
@@ -855,7 +916,10 @@ export default function ChatScreen() {
         // In production (__DEV__ === false), do NOT log at all
 
         if (isMountedRef.current) {
-          setIsTyping(false);
+          // ═══════════════════════════════════════════════════════════════════
+          // CRITICAL: Clear typing indicator on error
+          // ═══════════════════════════════════════════════════════════════════
+          clearTypingIndicator();
           
           // ═══════════════════════════════════════════════════════════════════
           // STEP 4: Handle different error types gracefully
@@ -1023,7 +1087,10 @@ export default function ChatScreen() {
           console.log('[Chat] Insert AI message error:', aiInsertError);
         }
         if (isMountedRef.current) {
-          setIsTyping(false);
+          // ═══════════════════════════════════════════════════════════════════
+          // CRITICAL: Clear typing indicator on error
+          // ═══════════════════════════════════════════════════════════════════
+          clearTypingIndicator();
           setError(aiInsertError?.message || 'Failed to save AI reply.');
         }
         return;
@@ -1040,7 +1107,10 @@ export default function ChatScreen() {
 
       if (isMountedRef.current) {
         setAllMessages((prev) => [...prev, aiMessageWithMeta]);
-        setIsTyping(false);
+        // ═══════════════════════════════════════════════════════════════════
+        // CRITICAL: Clear typing indicator on success
+        // ═══════════════════════════════════════════════════════════════════
+        clearTypingIndicator();
       }
       console.log('[Chat] sendMessage: Complete');
 
@@ -1104,16 +1174,24 @@ export default function ChatScreen() {
       if (isMountedRef.current) {
         setInputText(userMessageText); // Restore input on error
         setError(err?.message || 'An unexpected error occurred');
-        setIsTyping(false);
+        // ═══════════════════════════════════════════════════════════════════
+        // CRITICAL: Clear typing indicator on error
+        // ═══════════════════════════════════════════════════════════════════
+        clearTypingIndicator();
       }
     } finally {
-      // CRITICAL: Always reset flags in finally block
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: Always reset flags and clear typing in finally block
+      // This ensures typing indicator is ALWAYS cleared, no matter what
+      // ═══════════════════════════════════════════════════════════════════
       if (isMountedRef.current) {
         setIsSending(false);
         isGeneratingRef.current = false;
+        // Final safety: ensure typing is cleared
+        clearTypingIndicator();
       }
     }
-  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata]);
+  }, [authUser?.id, inputText, isSending, personId, personName, relationshipType, currentSubject, areSimilar, preferences.ai_science_mode, preferences.ai_tone_id, getCurrentTherapistMetadata, clearTypingIndicator]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading;
 
@@ -1303,6 +1381,10 @@ export default function ChatScreen() {
 
   // Footer component (typing indicator at bottom of non-inverted list)
   const renderListFooter = useCallback(() => {
+    // ═══════════════════════════════════════════════════════════════════
+    // CRITICAL: Only render typing indicator when isTyping is true
+    // This ensures the component fully unmounts when not needed
+    // ═══════════════════════════════════════════════════════════════════
     if (!isTyping) return null;
     
     const therapistMeta = getCurrentTherapistMetadata();

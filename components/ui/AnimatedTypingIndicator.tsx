@@ -128,13 +128,24 @@ export function AnimatedTypingIndicator({
     pulseAnimationRef.current = pulseAnimation;
     pulseAnimation.start();
 
+    // ═══════════════════════════════════════════════════════════════════
+    // CRITICAL: Cleanup function to stop animations on unmount
+    // This ensures animations are properly stopped when isTyping becomes false
+    // ═══════════════════════════════════════════════════════════════════
     return () => {
+      console.log('[AnimatedTypingIndicator] Cleaning up animations');
+      
+      // Stop all animations
       if (animationRef.current) {
         animationRef.current.stop();
+        animationRef.current = null;
       }
       if (pulseAnimationRef.current) {
         pulseAnimationRef.current.stop();
+        pulseAnimationRef.current = null;
       }
+      
+      // Reset animation values to initial state
       dot1Anim.setValue(0);
       dot2Anim.setValue(0);
       dot3Anim.setValue(0);
