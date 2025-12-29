@@ -88,17 +88,23 @@ if (typeof global !== 'undefined') {
   });
 }
 
-// Fallback UI component to prevent white screen
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FALLBACK UI COMPONENTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// These components prevent white screen crashes by always rendering something
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Loading fallback - shown during app initialization
 function LoadingFallback() {
   return (
     <SafeAreaView style={styles.fallbackContainer}>
       <ActivityIndicator size="large" color="#ffffff" />
-      <Text style={styles.fallbackText}>Loading...</Text>
+      <Text style={styles.fallbackText}>Loading Safe Space...</Text>
     </SafeAreaView>
   );
 }
 
-// Supabase configuration error UI
+// Supabase configuration error UI - shown when env vars are missing
 function SupabaseConfigError() {
   const missingVars = [
     !supabaseConfigStatus.hasUrl ? "EXPO_PUBLIC_SUPABASE_URL" : null,
@@ -107,8 +113,12 @@ function SupabaseConfigError() {
 
   // Log missing variables in dev mode only
   if (__DEV__) {
-    console.error('[Supabase] Missing environment variables:', missingVars.join(', '));
-    console.error('[Supabase] Please add these variables to your .env file and restart the app');
+    console.error('[Supabase] ❌ Missing environment variables:', missingVars.join(', '));
+    console.error('[Supabase] 📝 To fix this:');
+    console.error('[Supabase]    1. Open Natively dashboard');
+    console.error('[Supabase]    2. Go to Environment Variables');
+    console.error('[Supabase]    3. Add the missing variables');
+    console.error('[Supabase]    4. Restart the preview');
   }
 
   return (
@@ -116,14 +126,24 @@ function SupabaseConfigError() {
       <GestureHandlerRootView style={styles.errorContainer}>
         <View style={styles.errorContent}>
           <Text style={styles.errorTitle}>
-            Safe Space needs configuration
+            🔧 Configuration Required
           </Text>
           <Text style={styles.errorMessage}>
-            Supabase settings are missing.
+            Safe Space needs Supabase configuration to work.
           </Text>
+          <Text style={styles.errorMessage}>
+            Please add the following environment variables:
+          </Text>
+          <View style={styles.errorVarList}>
+            {missingVars.map((varName, index) => (
+              <Text key={index} style={styles.errorVarName}>
+                • {varName}
+              </Text>
+            ))}
+          </View>
           {__DEV__ && (
             <Text style={styles.errorDetails}>
-              Missing: {missingVars.join(" and ")}
+              Check the console for detailed instructions
             </Text>
           )}
         </View>
@@ -395,6 +415,23 @@ function RootLayoutInner() {
   );
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ROOT LAYOUT - ENTRY POINT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// This is the root component that wraps the entire app.
+// It performs early validation and ensures the app never shows a white screen.
+//
+// VALIDATION ORDER:
+// 1. Check Supabase configuration (EXPO_PUBLIC_* env vars)
+// 2. Show loading fallback during initialization
+// 3. Render main app with all providers
+//
+// COMPATIBILITY:
+// ✅ Expo Go
+// ✅ Natively Preview
+// ✅ Production builds (TestFlight, App Store)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
 
@@ -408,18 +445,36 @@ export default function RootLayout() {
     return () => clearTimeout(timer);
   }, []);
 
-  // CHECK SUPABASE CONFIG FIRST - before any other rendering
-  // This prevents white screen by always rendering something
-  if (!supabaseConfigStatus.hasUrl || !supabaseConfigStatus.hasAnonKey) {
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 1: CHECK SUPABASE CONFIGURATION
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // This check happens FIRST, before any other rendering.
+  // If configuration is missing, show the error screen instead of crashing.
+  // This ensures the app ALWAYS renders something, never a white screen.
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  if (!supabaseConfigStatus.isConfigured) {
     return <SupabaseConfigError />;
   }
 
-  // Show loading fallback before app is ready
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 2: SHOW LOADING FALLBACK
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Show a loading screen while the app initializes.
+  // This prevents white screen flashes during startup.
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   if (!appReady) {
     return <LoadingFallback />;
   }
 
-  // WidgetProvider must wrap the entire app tree so hooks always have context
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 3: RENDER MAIN APP
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // All validation passed - render the main app with all providers.
+  // Provider order is critical: WidgetProvider must be outermost.
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   return (
     <WidgetProvider>
       <ErrorBoundary>
@@ -436,6 +491,10 @@ export default function RootLayout() {
     </WidgetProvider>
   );
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STYLES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const styles = StyleSheet.create({
   fallbackContainer: {
@@ -458,10 +517,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    gap: 12,
+    gap: 16,
   },
   errorTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: 'white',
     textAlign: 'center',
@@ -470,11 +529,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#d1d5db',
     textAlign: 'center',
+    lineHeight: 24,
+  },
+  errorVarList: {
+    marginTop: 8,
+    gap: 8,
+  },
+  errorVarName: {
+    fontSize: 14,
+    color: '#60a5fa',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    textAlign: 'center',
   },
   errorDetails: {
     fontSize: 14,
     color: '#9ca3af',
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: 16,
+    fontStyle: 'italic',
   },
 });
