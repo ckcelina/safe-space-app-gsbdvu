@@ -745,7 +745,7 @@ export default function ChatScreen() {
   }, [authUser?.id, personId]);
 
   // ═══════════════════════════════════════════════════════════════════
-  // MAIN SEND MESSAGE FUNCTION - WITH RETRY LOGIC AND ENHANCED ERROR HANDLING
+  // MAIN SEND MESSAGE FUNCTION - FIXED TO USE EDGE FUNCTION AS SOURCE OF TRUTH
   // ═══════════════════════════════════════════════════════════════════
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -1081,18 +1081,24 @@ export default function ChatScreen() {
         return; // Exit - error handled
       }
 
-      // Check for missing or empty reply
-      if (!data || typeof data.reply !== 'string' || data.reply.trim() === '') {
-        console.error('[Chat] Empty or invalid AI response:', {
+      // ═══════════════════════════════════════════════════════════════════
+      // SUCCESS: Extract assistant message from Edge Function response
+      // ═══════════════════════════════════════════════════════════════════
+      
+      // The Edge Function now returns { ok: true, data: { replyText, assistantMessage } }
+      const assistantMessage = data?.data?.assistantMessage;
+      
+      if (!assistantMessage || !assistantMessage.id) {
+        console.error('[Chat] Edge Function did not return assistantMessage:', {
           hasData: !!data,
-          dataType: typeof data,
-          hasReply: data?.reply !== undefined,
-          replyType: typeof data?.reply,
+          hasDataData: !!data?.data,
+          hasAssistantMessage: !!assistantMessage,
+          dataKeys: data ? Object.keys(data) : null,
         });
 
         // Log error for debugging
         if (__DEV__) {
-          logAIError('AI_REQUEST', new Error('EMPTY_ASSISTANT_RESPONSE'), {
+          logAIError('AI_REQUEST', new Error('MISSING_ASSISTANT_MESSAGE'), {
             conversationId: personId,
             userId,
             messageCount: recentMessages.length,
@@ -1106,7 +1112,7 @@ export default function ChatScreen() {
             functionName: 'generate-ai-response',
             timestamp: new Date().toISOString(),
             lastUserMessageId: insertedMessage.id,
-            error: 'EMPTY_ASSISTANT_RESPONSE',
+            error: 'MISSING_ASSISTANT_MESSAGE',
             data,
           }, null, 2);
 
@@ -1139,88 +1145,27 @@ export default function ChatScreen() {
         return; // Exit - error handled
       }
 
-      // ═══════════════════════════════════════════════════════════════════
-      // SUCCESS: Extract and display AI response
-      // ═══════════════════════════════════════════════════════════════════
-      
-      let replyText = data.reply.trim();
+      console.log('[Chat] Assistant message received from Edge Function:', assistantMessage.id);
 
-      // Check for loop detection
-      if (lastAssistantMessage && areSimilar(replyText, lastAssistantMessage.content)) {
-        console.warn('[Chat] Loop detected! AI response is too similar to previous response');
-        console.log('[Chat] Previous:', lastAssistantMessage.content.substring(0, 50));
-        console.log('[Chat] Current:', replyText.substring(0, 50));
-        
-        replyText = `I hear you. Can you tell me more about what you're experiencing with ${personName}?`;
-      }
-
-      // Create optimistic AI message
-      const tempId = generateTempId();
-      const optimisticAiMessage: ExtendedMessage = {
-        id: tempId,
-        temp_id: tempId,
-        user_id: userId,
-        person_id: personId,
-        role: 'assistant',
-        content: replyText,
-        subject: currentSubject,
-        created_at: new Date().toISOString(),
+      // Attach therapist metadata to the assistant message
+      const assistantMessageWithMetadata: ExtendedMessage = {
+        ...assistantMessage,
         therapist_name: therapistMeta.name,
         therapist_avatar_source: therapistMeta.avatarSource,
-        optimistic: true,
       };
 
-      // Append optimistic message
+      // Append assistant message directly to chat state
       if (isMountedRef.current) {
-        setAllMessages((prev) => mergeMessages(prev, [optimisticAiMessage]));
+        setAllMessages((prev) => mergeMessages(prev, [assistantMessageWithMetadata]));
       }
 
-      console.log('[Chat] Optimistic AI message added to UI');
+      console.log('[Chat] Assistant message added to UI');
 
-      // Persist to Supabase in background
-      console.log('[Chat] Persisting AI message to Supabase...');
-      const { data: aiInserted, error: aiInsertError } = await supabase
-        .from('messages')
-        .insert({
-          user_id: userId,
-          person_id: personId,
-          role: 'assistant',
-          content: replyText,
-          subject: currentSubject,
-          created_at: new Date().toISOString(),
-        })
-        .select('*')
-        .single();
-
-      if (aiInsertError || !aiInserted) {
-        if (__DEV__) {
-          console.log('[Chat] Insert AI message error (non-blocking):', aiInsertError);
-        }
-      } else {
-        console.log('[Chat] AI message persisted:', aiInserted.id);
-
-        // Replace optimistic message with persisted one
-        if (isMountedRef.current) {
-          setAllMessages((prev) => {
-            return prev.map(m => {
-              if (m.temp_id === tempId) {
-                return {
-                  ...aiInserted,
-                  therapist_name: therapistMeta.name,
-                  therapist_avatar_source: therapistMeta.avatarSource,
-                };
-              }
-              return m;
-            });
-          });
-        }
-
-        // ═══════════════════════════════════════════════════════════════════
-        // ACTIVITY TRACKING: Update last_activity_at after assistant message saved
-        // ═══════════════════════════════════════════════════════════════════
-        console.log('[Chat] Updating last_activity_at after assistant message');
-        await updatePersonActivity(userId, personId, 'message', aiInserted.created_at);
-      }
+      // ═══════════════════════════════════════════════════════════════════
+      // ACTIVITY TRACKING: Update last_activity_at after assistant message saved
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('[Chat] Updating last_activity_at after assistant message');
+      await updatePersonActivity(userId, personId, 'message', assistantMessage.created_at);
 
       console.log('[Chat] sendMessage: Complete');
 
@@ -1243,7 +1188,7 @@ export default function ChatScreen() {
           const extractionResult = await extractMemories({
             personName,
             recentUserMessages: userMessages,
-            lastAssistantMessage: replyText,
+            lastAssistantMessage: assistantMessage.content,
             existingMemories: existingMemories.map(m => ({
               key: m.key,
               value: m.value,
@@ -1293,6 +1238,8 @@ export default function ChatScreen() {
         setIsGenerating(false);
         setIsSending(false);
       }
+      
+      console.log('[Chat] Flags reset - isGenerating:', false, 'isSending:', false);
     }
   }, [
     authUser?.id,
