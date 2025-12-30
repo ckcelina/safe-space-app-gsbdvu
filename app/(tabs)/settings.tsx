@@ -579,9 +579,14 @@ export default function SettingsScreen() {
 
   // Updates Over Time Handlers
   const fetchUpdates = async () => {
-    if (!userId) return;
+    if (!userId) {
+      console.log('[Settings] fetchUpdates: No userId available');
+      return;
+    }
 
+    console.log('[Settings] fetchUpdates: Starting fetch for userId:', userId);
     setIsLoadingUpdates(true);
+    
     try {
       const { data, error } = await supabase
         .from('user_personalization_updates')
@@ -590,30 +595,42 @@ export default function SettingsScreen() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('[Settings] Error fetching updates:', error);
-        showErrorToast('Failed to load updates');
+        console.error('[Settings] fetchUpdates: Error fetching updates:', error);
+        if (__DEV__) {
+          showErrorToast(`Failed to load updates: ${error.message}`);
+        } else {
+          showErrorToast('Failed to load updates');
+        }
       } else {
+        console.log('[Settings] fetchUpdates: Successfully fetched', data?.length || 0, 'updates');
         setUpdates(data || []);
       }
     } catch (error) {
-      console.error('[Settings] Exception fetching updates:', error);
-      showErrorToast('Failed to load updates');
+      console.error('[Settings] fetchUpdates: Exception fetching updates:', error);
+      if (__DEV__) {
+        showErrorToast(`Exception: ${error}`);
+      } else {
+        showErrorToast('Failed to load updates');
+      }
     } finally {
       setIsLoadingUpdates(false);
     }
   };
 
   const handleOpenUpdatesModal = async () => {
+    console.log('[Settings] handleOpenUpdatesModal: Opening Updates Over Time modal');
     setShowUpdatesModal(true);
     await fetchUpdates();
   };
 
   const handleCloseUpdatesModal = () => {
+    console.log('[Settings] handleCloseUpdatesModal: Closing Updates Over Time modal');
     setShowUpdatesModal(false);
     setExpandedUpdateIds(new Set());
   };
 
   const handleOpenAddUpdateModal = () => {
+    console.log('[Settings] handleOpenAddUpdateModal: Opening Add Update modal');
     setEditingUpdate(null);
     setUpdateTitle('');
     setUpdateDetails('');
@@ -624,6 +641,7 @@ export default function SettingsScreen() {
   };
 
   const handleOpenEditUpdateModal = (update: PersonalizationUpdate) => {
+    console.log('[Settings] handleOpenEditUpdateModal: Opening Edit Update modal for update:', update.id);
     setEditingUpdate(update);
     setUpdateTitle(update.title);
     setUpdateDetails(update.details || '');
@@ -634,6 +652,7 @@ export default function SettingsScreen() {
   };
 
   const handleCloseAddUpdateModal = () => {
+    console.log('[Settings] handleCloseAddUpdateModal: Closing Add/Edit Update modal');
     setShowAddUpdateModal(false);
     setEditingUpdate(null);
     setUpdateTitle('');
@@ -661,15 +680,20 @@ export default function SettingsScreen() {
   };
 
   const handleSaveUpdate = async () => {
+    console.log('[Settings] handleSaveUpdate: Starting save process');
+    
     if (!userId) {
+      console.error('[Settings] handleSaveUpdate: No userId available');
       showErrorToast('User ID not found');
       return;
     }
 
     if (!validateUpdateInput()) {
+      console.log('[Settings] handleSaveUpdate: Validation failed');
       return;
     }
 
+    console.log('[Settings] handleSaveUpdate: Validation passed, proceeding with save');
     setIsSavingUpdate(true);
 
     try {
@@ -682,8 +706,11 @@ export default function SettingsScreen() {
         updated_at: new Date().toISOString(),
       };
 
+      console.log('[Settings] handleSaveUpdate: Update data prepared:', updateData);
+
       if (editingUpdate) {
         // Update existing
+        console.log('[Settings] handleSaveUpdate: Updating existing update:', editingUpdate.id);
         const { error } = await supabase
           .from('user_personalization_updates')
           .update(updateData)
@@ -691,22 +718,30 @@ export default function SettingsScreen() {
           .eq('user_id', userId);
 
         if (error) {
-          console.error('[Settings] Error updating update:', error);
-          showErrorToast('Failed to save update');
+          console.error('[Settings] handleSaveUpdate: Error updating update:', error);
+          if (__DEV__) {
+            showErrorToast(`Failed to save update: ${error.message}`);
+          } else {
+            showErrorToast('Failed to save update');
+          }
         } else {
+          console.log('[Settings] handleSaveUpdate: Update saved successfully');
           showSuccessToast('Update saved');
           handleCloseAddUpdateModal();
           await fetchUpdates();
         }
       } else {
         // Insert new - optimistic update
+        console.log('[Settings] handleSaveUpdate: Creating new update');
+        const tempId = 'temp-' + Date.now();
         const newUpdate: PersonalizationUpdate = {
-          id: 'temp-' + Date.now(),
+          id: tempId,
           ...updateData,
           created_at: new Date().toISOString(),
         };
         
         // Optimistically add to list
+        console.log('[Settings] handleSaveUpdate: Adding optimistic update to list');
         setUpdates(prev => [newUpdate, ...prev]);
         
         const { data, error } = await supabase
@@ -716,11 +751,17 @@ export default function SettingsScreen() {
           .single();
 
         if (error) {
-          console.error('[Settings] Error creating update:', error);
-          showErrorToast('Failed to save update');
+          console.error('[Settings] handleSaveUpdate: Error creating update:', error);
+          if (__DEV__) {
+            showErrorToast(`Failed to save update: ${error.message}`);
+          } else {
+            showErrorToast('Failed to save update');
+          }
           // Revert optimistic update
+          console.log('[Settings] handleSaveUpdate: Reverting optimistic update');
           await fetchUpdates();
         } else {
+          console.log('[Settings] handleSaveUpdate: Update created successfully:', data);
           showSuccessToast('Update added');
           handleCloseAddUpdateModal();
           // Replace temp with real data
@@ -728,15 +769,21 @@ export default function SettingsScreen() {
         }
       }
     } catch (error) {
-      console.error('[Settings] Exception saving update:', error);
-      showErrorToast('Failed to save update');
+      console.error('[Settings] handleSaveUpdate: Exception saving update:', error);
+      if (__DEV__) {
+        showErrorToast(`Exception: ${error}`);
+      } else {
+        showErrorToast('Failed to save update');
+      }
       await fetchUpdates();
     } finally {
       setIsSavingUpdate(false);
+      console.log('[Settings] handleSaveUpdate: Save process complete');
     }
   };
 
   const handleDeleteUpdate = async (updateId: string) => {
+    console.log('[Settings] handleDeleteUpdate: Deleting update:', updateId);
     Alert.alert(
       'Delete Update',
       'Are you sure you want to delete this update?',
@@ -754,15 +801,24 @@ export default function SettingsScreen() {
                 .eq('user_id', userId);
 
               if (error) {
-                console.error('[Settings] Error deleting update:', error);
-                showErrorToast('Failed to delete update');
+                console.error('[Settings] handleDeleteUpdate: Error deleting update:', error);
+                if (__DEV__) {
+                  showErrorToast(`Failed to delete update: ${error.message}`);
+                } else {
+                  showErrorToast('Failed to delete update');
+                }
               } else {
+                console.log('[Settings] handleDeleteUpdate: Update deleted successfully');
                 showSuccessToast('Update deleted');
                 await fetchUpdates();
               }
             } catch (error) {
-              console.error('[Settings] Exception deleting update:', error);
-              showErrorToast('Failed to delete update');
+              console.error('[Settings] handleDeleteUpdate: Exception deleting update:', error);
+              if (__DEV__) {
+                showErrorToast(`Exception: ${error}`);
+              } else {
+                showErrorToast('Failed to delete update');
+              }
             }
           },
         },
