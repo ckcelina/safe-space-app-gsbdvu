@@ -69,52 +69,92 @@ export function logAIError(
     attempt?: number;
   }
 ): void {
-  if (!__DEV__) return;
+  // Build a comprehensive error message from all possible sources
+  const message = 
+    error?.message || 
+    error?.error?.message || 
+    error?.details || 
+    (error && typeof error === 'object' ? JSON.stringify(error) : null) || 
+    'Unknown error';
   
   // Extract error fields from normalized error structure
-  const status = error?.status ?? error?.error?.status ?? null;
-  const code = error?.code ?? error?.error?.code ?? error?.name ?? 'UNKNOWN';
-  const message = error?.message ?? error?.error?.message ?? 'Unknown error';
-  const details = error?.details ?? error?.error?.details;
+  const code = error?.code ?? error?.error?.code ?? error?.name ?? undefined;
+  const status = error?.status ?? error?.error?.status ?? undefined;
   
-  // Extract response body snippet if available (DEV-only)
-  let bodySnippet = null;
-  
-  // Check details.bodySnippet first (from invokeEdgeSafe)
-  if (details?.bodySnippet) {
-    bodySnippet = details.bodySnippet;
-  }
-  // Check details.body
-  else if (details?.body) {
-    const bodyStr = typeof details.body === 'string' 
-      ? details.body 
-      : JSON.stringify(details.body);
-    bodySnippet = bodyStr.substring(0, 500);
-  }
-  // Check details.context
-  else if (details?.context) {
-    const contextStr = typeof details.context === 'string'
-      ? details.context
-      : JSON.stringify(details.context);
-    bodySnippet = contextStr.substring(0, 500);
-  }
-  // Check error.data
-  else if (error?.data) {
-    const dataStr = typeof error.data === 'string'
-      ? error.data
-      : JSON.stringify(error.data);
-    bodySnippet = dataStr.substring(0, 500);
-  }
-  
-  console.error(`[${stage}]`, {
+  // Build the base payload
+  const payload: any = {
     stage,
-    code,
-    status: status ?? 'none',
     message,
-    bodySnippet,
-    context,
     timestamp: new Date().toISOString(),
-  });
+  };
+  
+  // Add optional fields only if they exist
+  if (code !== undefined) {
+    payload.code = code;
+  }
+  
+  if (status !== undefined) {
+    payload.status = status;
+  }
+  
+  // Add context if provided
+  if (context) {
+    payload.context = context;
+  }
+  
+  // DEV-only: Add verbose fields including bodySnippet
+  if (__DEV__) {
+    // Extract response body snippet if available
+    let bodySnippet: string | null = null;
+    
+    try {
+      // Check details.bodySnippet first (from invokeEdgeSafe)
+      if (error?.details?.bodySnippet) {
+        bodySnippet = error.details.bodySnippet;
+      }
+      // Check details.body
+      else if (error?.details?.body) {
+        const bodyStr = typeof error.details.body === 'string' 
+          ? error.details.body 
+          : JSON.stringify(error.details.body);
+        bodySnippet = bodyStr.substring(0, 500);
+      }
+      // Check details.context
+      else if (error?.details?.context) {
+        const contextStr = typeof error.details.context === 'string'
+          ? error.details.context
+          : JSON.stringify(error.details.context);
+        bodySnippet = contextStr.substring(0, 500);
+      }
+      // Check error.data
+      else if (error?.data) {
+        const dataStr = typeof error.data === 'string'
+          ? error.data
+          : JSON.stringify(error.data);
+        bodySnippet = dataStr.substring(0, 500);
+      }
+      // Check error.error.data
+      else if (error?.error?.data) {
+        const dataStr = typeof error.error.data === 'string'
+          ? error.error.data
+          : JSON.stringify(error.error.data);
+        bodySnippet = dataStr.substring(0, 500);
+      }
+      // Try to stringify the entire error object as last resort
+      else if (error && typeof error === 'object') {
+        const errorStr = JSON.stringify(error);
+        bodySnippet = errorStr.substring(0, 500);
+      }
+    } catch (e) {
+      bodySnippet = '[Error stringifying body]';
+    }
+    
+    if (bodySnippet !== null) {
+      payload.bodySnippet = bodySnippet;
+    }
+  }
+  
+  console.error(`[${stage}]`, payload);
 }
 
 /**
