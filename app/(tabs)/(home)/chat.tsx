@@ -258,6 +258,68 @@ function mergeMessages(existing: ExtendedMessage[], incoming: ExtendedMessage[])
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// ACTIVITY TRACKING: Update person metadata
+// ═══════════════════════════════════════════════════════════════════
+async function updatePersonActivity(
+  userId: string,
+  personId: string,
+  activityType: 'opened' | 'message',
+  timestamp?: string
+): Promise<void> {
+  if (!userId || !personId) {
+    if (__DEV__) {
+      console.warn('[Chat] updatePersonActivity: Missing userId or personId');
+    }
+    return;
+  }
+
+  try {
+    const now = timestamp || new Date().toISOString();
+    
+    if (activityType === 'opened') {
+      // Update both last_opened_at and last_activity_at when chat is opened
+      const { error } = await supabase
+        .from('persons')
+        .update({
+          last_opened_at: now,
+          last_activity_at: now,
+        })
+        .eq('id', personId)
+        .eq('user_id', userId);
+
+      if (error) {
+        if (__DEV__) {
+          console.warn('[Chat] Failed to update last_opened_at:', error.message);
+        }
+      } else {
+        console.log('[Chat] Updated last_opened_at and last_activity_at for person:', personId);
+      }
+    } else if (activityType === 'message') {
+      // Update only last_activity_at when a message is sent/received
+      const { error } = await supabase
+        .from('persons')
+        .update({
+          last_activity_at: now,
+        })
+        .eq('id', personId)
+        .eq('user_id', userId);
+
+      if (error) {
+        if (__DEV__) {
+          console.warn('[Chat] Failed to update last_activity_at:', error.message);
+        }
+      } else {
+        console.log('[Chat] Updated last_activity_at for person:', personId);
+      }
+    }
+  } catch (err: any) {
+    if (__DEV__) {
+      console.warn('[Chat] updatePersonActivity error:', err?.message || 'unknown');
+    }
+  }
+}
+
 export default function ChatScreen() {
   const params = useLocalSearchParams<{
     personId?: string | string[];
@@ -544,6 +606,16 @@ export default function ChatScreen() {
     }
   }, [personId, authUser?.id, loadMessages]);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ACTIVITY TRACKING: Update last_opened_at when chat screen mounts
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (personId && authUser?.id) {
+      console.log('[Chat] Chat screen mounted - updating last_opened_at');
+      updatePersonActivity(authUser.id, personId, 'opened');
+    }
+  }, [personId, authUser?.id]);
+
   // Filter messages for display based on current subject
   const displayedMessages = React.useMemo(() => {
     return allMessages.filter((msg) => {
@@ -802,6 +874,12 @@ export default function ChatScreen() {
           });
         });
       }
+
+      // ═══════════════════════════════════════════════════════════════════
+      // ACTIVITY TRACKING: Update last_activity_at after user message sent
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('[Chat] Updating last_activity_at after user message');
+      await updatePersonActivity(userId, personId, 'message', insertedMessage.created_at);
 
       // ═══════════════════════════════════════════════════════════════════
       // MEMORY CAPTURE: Fire-and-forget capture of factual statements
@@ -1181,6 +1259,12 @@ export default function ChatScreen() {
             });
           });
         }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ACTIVITY TRACKING: Update last_activity_at after assistant message saved
+        // ═══════════════════════════════════════════════════════════════════
+        console.log('[Chat] Updating last_activity_at after assistant message');
+        await updatePersonActivity(userId, personId, 'message', aiInserted.created_at);
       }
 
       console.log('[Chat] sendMessage: Complete');
