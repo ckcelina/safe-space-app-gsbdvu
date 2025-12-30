@@ -15,10 +15,10 @@ import {
   KeyboardAvoidingView,
   Switch,
   Linking,
-  Image,
   useWindowDimensions,
   Pressable,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -874,7 +874,10 @@ export default function SettingsScreen() {
           <Image
             source={persona.image}
             style={styles.personaImage}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            priority="high"
+            transition={0}
             accessible={true}
             accessibilityLabel={`${persona.name} avatar`}
           />

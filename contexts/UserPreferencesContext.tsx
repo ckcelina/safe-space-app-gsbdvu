@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { DEFAULT_TONE_ID } from '@/constants/AITones';
+import { prefetchSelectedAvatar } from '@/lib/avatarPrefetch';
 
 interface UserPreferences {
   ai_tone_id: string;
@@ -74,7 +75,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
         });
       } else if (data) {
         console.log('[UserPreferences] Preferences loaded');
-        setPreferences({
+        const loadedPreferences = {
           ai_tone_id: data.ai_tone_id || DEFAULT_TONE_ID,
           ai_science_mode: data.ai_science_mode ?? false,
           therapist_persona_id: data.therapist_persona_id,
@@ -85,7 +86,16 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
           cultural_context: data.cultural_context,
           values_boundaries: data.values_boundaries,
           recent_changes: data.recent_changes,
-        });
+        };
+        setPreferences(loadedPreferences);
+        
+        // Prefetch selected therapist avatar if set
+        if (data.therapist_persona_id) {
+          console.log('[UserPreferences] Prefetching selected therapist avatar');
+          prefetchSelectedAvatar(data.therapist_persona_id).catch((err) => {
+            console.warn('[UserPreferences] Avatar prefetch failed (non-critical):', err);
+          });
+        }
       } else {
         console.log('[UserPreferences] No preferences found, using defaults');
         // No row exists yet - use defaults
@@ -154,6 +164,15 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
       // Update local state
       setPreferences((prev) => ({ ...prev, ...patch }));
       console.log('[UserPreferences] Preferences updated successfully');
+      
+      // Prefetch new therapist avatar if persona changed
+      if (patch.therapist_persona_id && patch.therapist_persona_id !== preferences.therapist_persona_id) {
+        console.log('[UserPreferences] Therapist persona changed, prefetching new avatar');
+        prefetchSelectedAvatar(patch.therapist_persona_id).catch((err) => {
+          console.warn('[UserPreferences] Avatar prefetch failed (non-critical):', err);
+        });
+      }
+      
       return { success: true };
     } catch (err: any) {
       console.log('[UserPreferences] Unexpected update error:', err?.message || 'Unknown error');

@@ -1,11 +1,12 @@
 
 import React from 'react';
-import { View, Text, StyleSheet, Image, ImageSourcePropType } from 'react-native';
+import { View, Text, StyleSheet, ImageSourcePropType } from 'react-native';
+import { Image } from 'expo-image';
 import { useThemeContext } from '@/contexts/ThemeContext';
 
 interface AIHeaderRowProps {
   therapistName?: string;
-  therapistAvatarSource?: ImageSourcePropType; // Changed to accept ImageSourcePropType
+  therapistAvatarSource?: ImageSourcePropType;
   theme?: any; // Optional override
 }
 
@@ -20,7 +21,10 @@ export function AIHeaderRow({ therapistName, therapistAvatarSource }: AIHeaderRo
         <Image
           source={therapistAvatarSource}
           style={styles.avatar}
-          resizeMode="cover"
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          priority="high"
+          transition={0}
         />
       ) : (
         <View style={[styles.avatarPlaceholder, { borderColor: theme.textSecondary + '40' }]} />
