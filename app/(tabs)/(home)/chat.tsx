@@ -976,6 +976,24 @@ export default function ChatScreen() {
         aiScienceMode: preferences.ai_science_mode,
       };
 
+      // ═══════════════════════════════════════════════════════════════════
+      // DEV-ONLY PAYLOAD LOGGING (CRITICAL FOR DEBUGGING)
+      // ═══════════════════════════════════════════════════════════════════
+      if (__DEV__) {
+        const lastMessage = aiPayload.messages[aiPayload.messages.length - 1];
+        console.log('[AI_PAYLOAD]', {
+          messageCount: aiPayload.messages.length,
+          lastRole: lastMessage?.role || 'none',
+          hasPersonId: !!aiPayload.personId,
+          hasUserId: !!aiPayload.userId,
+          hasPersonName: !!aiPayload.personName,
+          hasRelationshipType: !!aiPayload.personRelationshipType,
+          hasCurrentSubject: !!aiPayload.currentSubject,
+          hasAiToneId: !!aiPayload.aiToneId,
+          aiScienceMode: aiPayload.aiScienceMode,
+        });
+      }
+
       console.log('[Chat] Sending to AI:', {
         chatId: personId,
         messageCount: recentMessages.length,
@@ -1125,7 +1143,7 @@ export default function ChatScreen() {
       // SUCCESS: Extract and display AI response
       // ═══════════════════════════════════════════════════════════════════
       
-      const replyText = data.reply.trim();
+      let replyText = data.reply.trim();
 
       // Check for loop detection
       if (lastAssistantMessage && areSimilar(replyText, lastAssistantMessage.content)) {
