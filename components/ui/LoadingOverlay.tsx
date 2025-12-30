@@ -10,16 +10,17 @@ interface LoadingOverlayProps {
 export function LoadingOverlay({ visible }: LoadingOverlayProps) {
   const { theme } = useThemeContext();
 
+  // CRITICAL: Unmount completely when not visible to prevent touch blocking
   if (!visible) return null;
 
   return (
     <Modal
       transparent
-      visible={visible}
+      visible={true}
       animationType="fade"
       statusBarTranslucent
     >
-      <View style={styles.overlay}>
+      <View style={styles.overlay} pointerEvents="auto">
         <View style={[styles.container, { backgroundColor: theme.card }]}>
           <ActivityIndicator size="large" color={theme.primary} />
         </View>

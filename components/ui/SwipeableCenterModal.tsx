@@ -73,11 +73,12 @@ export function SwipeableCenterModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
+      <View style={styles.overlay} pointerEvents="box-none">
         <TouchableOpacity
           style={styles.backdrop}
           activeOpacity={1}
           onPress={onClose}
+          pointerEvents="auto"
         />
         <Animated.View
           style={[
@@ -88,6 +89,7 @@ export function SwipeableCenterModal({
             },
           ]}
           {...panResponder.panHandlers}
+          pointerEvents="auto"
         >
           {showHandle && (
             <View style={styles.handleContainer}>

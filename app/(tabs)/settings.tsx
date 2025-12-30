@@ -1019,45 +1019,15 @@ export default function SettingsScreen() {
 
   return (
     <>
-      {/* DEV-ONLY TOUCH BLOCKER DETECTOR */}
-      {__DEV__ && (
-        <Pressable
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 9999,
-            backgroundColor: 'transparent',
-          }}
-          pointerEvents={isAnyModalOpen ? 'none' : 'box-none'}
-          onPress={() => {
-            console.log('[Settings] DEV: Touch captured by overlay detector - Settings screen');
-            console.log('[Settings] DEV: Modal states:', {
-              showInfoModal,
-              showDeleteModal,
-              showChangePasswordModal,
-              showPersonaModal,
-              showPersonalizationInfoModal,
-              showClearPersonalizationModal,
-              showPersonalizationModal,
-              showUpdatesModal,
-              showAddUpdateModal,
-            });
-          }}
-        />
-      )}
-
       <LinearGradient
         colors={theme.primaryGradient}
         style={styles.gradientBackground}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        pointerEvents="box-none"
+        pointerEvents="none"
       >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-          <View style={styles.container} pointerEvents="box-none">
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']} pointerEvents="none">
+          <View style={styles.container} pointerEvents="none">
             {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
             <View style={styles.topHeader}>
               <Pressable 
@@ -1103,6 +1073,7 @@ export default function SettingsScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
+              pointerEvents="auto"
             >
               {/* Header */}
               <View style={styles.header}>
@@ -1506,6 +1477,7 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCloseInfoModal}
+            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1551,6 +1523,7 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCancelDelete}
+            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1614,10 +1587,12 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
+            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleCloseChangePasswordModal}
+              pointerEvents="auto"
             >
               <ScrollView
                 contentContainerStyle={styles.modalScrollContent}
@@ -1758,10 +1733,12 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
+            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleClosePersonaModal}
+              pointerEvents="auto"
             >
               <Pressable 
                 style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}
@@ -1838,6 +1815,7 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleClosePersonalizationInfoModal}
+            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1883,6 +1861,7 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCloseClearPersonalizationModal}
+            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1943,14 +1922,16 @@ export default function SettingsScreen() {
           animationType="slide"
           onRequestClose={handleClosePersonalizationModal}
         >
-          <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']}>
+          <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']} pointerEvents="box-none">
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={styles.personalizationModalContainer}
+              pointerEvents="box-none"
             >
               <Pressable 
                 style={{ flex: 1 }}
                 onPress={handleClosePersonalizationModal}
+                pointerEvents="auto"
               >
                 <Pressable 
                   style={[
@@ -2188,14 +2169,16 @@ export default function SettingsScreen() {
           animationType="slide"
           onRequestClose={handleCloseUpdatesModal}
         >
-          <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']}>
+          <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']} pointerEvents="box-none">
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={styles.updatesModalContainer}
+              pointerEvents="box-none"
             >
               <Pressable 
                 style={{ flex: 1 }}
                 onPress={handleCloseUpdatesModal}
+                pointerEvents="auto"
               >
                 <Pressable 
                   style={[
@@ -2394,10 +2377,12 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
+            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleCloseAddUpdateModal}
+              pointerEvents="auto"
             >
               <ScrollView
                 contentContainerStyle={styles.modalScrollContent}
