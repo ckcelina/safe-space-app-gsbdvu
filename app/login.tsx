@@ -34,75 +34,99 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      console.log('Attempting to sign in:', email);
+      console.log('[Login] Attempting to sign in:', email);
       
       // Step 1: Sign in with Supabase Auth
       const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
       if (signInError) {
-        console.error('Sign in error:', signInError);
-        setError('Invalid email or password. Please try again.');
+        console.error('[Login] Sign in error:', signInError);
+        
+        // Handle specific error cases
+        if (signInError.message.includes('Email not confirmed')) {
+          setError('Please verify your email before logging in. Check your inbox for the verification link.');
+          setIsLoading(false);
+          return;
+        }
+        
+        if (signInError.message.includes('Invalid login credentials')) {
+          setError('Invalid email or password. Please try again.');
+          setIsLoading(false);
+          return;
+        }
+
+        // Generic error
+        setError(signInError.message || 'Login failed. Please try again.');
         setIsLoading(false);
         return;
       }
 
       if (!authData.user) {
-        console.error('No user returned from sign in');
+        console.error('[Login] No user returned from sign in');
         setError('Login failed. Please try again.');
         setIsLoading(false);
         return;
       }
 
-      console.log('Sign in successful:', authData.user.email);
+      console.log('[Login] Sign in successful:', authData.user.email);
 
-      // Step 2: Fetch or create user profile in public.users
+      // Step 2: Ensure user profile exists in public.users
       const userId = authData.user.id;
-      console.log('Fetching user profile for:', userId);
+      console.log('[Login] Checking user profile for:', userId);
 
-      const { data: userProfile, error: fetchError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        // PGRST116 is "not found" error, which is expected for new users
-        console.error('Error fetching user profile:', fetchError);
-      }
-
-      // Step 3: If user profile doesn't exist, create it
-      if (!userProfile) {
-        console.log('User profile not found, creating one...');
-        const { data: newProfile, error: insertError } = await supabase
+      try {
+        const { data: userProfile, error: fetchError } = await supabase
           .from('users')
-          .insert([{
-            id: userId,
-            email: authData.user.email,
-            role: 'free',
-          }])
-          .select()
-          .single();
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
 
-        if (insertError) {
-          console.warn('Failed to create user profile:', insertError);
-          // Don't block login if profile creation fails
-        } else {
-          console.log('User profile created successfully:', newProfile);
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          console.warn('[Login] Error fetching user profile:', fetchError);
         }
-      } else {
-        console.log('User profile found:', userProfile);
+
+        // Step 3: If user profile doesn't exist, create it
+        if (!userProfile) {
+          console.log('[Login] User profile not found, creating one...');
+          
+          const { error: insertError } = await supabase
+            .from('users')
+            .insert([{
+              id: userId,
+              email: authData.user.email,
+              role: 'free',
+            }]);
+
+          if (insertError) {
+            // Check if it's a duplicate key error (race condition)
+            if (insertError.code === '23505') {
+              console.log('[Login] User profile already exists (race condition)');
+            } else {
+              console.warn('[Login] Failed to create user profile:', insertError);
+              // Don't block login - the AuthContext will handle this
+            }
+          } else {
+            console.log('[Login] User profile created successfully');
+          }
+        } else {
+          console.log('[Login] User profile found');
+        }
+      } catch (profileError) {
+        console.warn('[Login] Exception handling user profile:', profileError);
+        // Don't block login - the AuthContext will handle this
       }
 
       // Step 4: Navigate to Home screen
-      console.log('Navigating to Home screen...');
+      console.log('[Login] Navigating to Home screen...');
       router.replace('/(tabs)/(home)/');
       
     } catch (err: any) {
-      console.error('Unexpected login error:', err);
+      console.error('[Login] Unexpected login error:', err);
       setError('An unexpected error occurred. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -122,7 +146,7 @@ export default function LoginScreen() {
         {
           text: 'Send Reset Link',
           onPress: async (inputEmail) => {
-            const emailAddress = inputEmail?.trim() || emailToReset;
+            const emailAddress = inputEmail?.trim().toLowerCase() || emailToReset.trim().toLowerCase();
             if (!emailAddress) {
               Alert.alert('Error', 'Please enter a valid email address.');
               return;
@@ -139,21 +163,21 @@ export default function LoginScreen() {
 
   const sendPasswordResetEmail = async (emailAddress: string) => {
     setIsResettingPassword(true);
-    console.log('Sending password reset email to:', emailAddress);
+    console.log('[Login] Sending password reset email to:', emailAddress);
 
     try {
-      const { data, error } = await supabase.auth.resetPasswordForEmail(emailAddress, {
+      const { error } = await supabase.auth.resetPasswordForEmail(emailAddress, {
         redirectTo: 'https://natively.dev/reset-password',
       });
 
       if (error) {
-        console.error('Password reset error:', error);
+        console.error('[Login] Password reset error:', error);
         Alert.alert(
           'Error',
           'Failed to send password reset email. Please check your email address and try again.'
         );
       } else {
-        console.log('Password reset email sent successfully');
+        console.log('[Login] Password reset email sent successfully');
         Alert.alert(
           'Check Your Email',
           'If an account exists with this email, you will receive a password reset link shortly.',
@@ -161,7 +185,7 @@ export default function LoginScreen() {
         );
       }
     } catch (err: any) {
-      console.error('Unexpected password reset error:', err);
+      console.error('[Login] Unexpected password reset error:', err);
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setIsResettingPassword(false);

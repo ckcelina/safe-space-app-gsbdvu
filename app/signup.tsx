@@ -11,6 +11,7 @@ import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -19,6 +20,8 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -30,6 +33,13 @@ export default function SignupScreen() {
     // Validation
     if (!email || !password) {
       setErrorMessage('Please fill in all fields');
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setErrorMessage('Please enter a valid email address');
       return;
     }
 
@@ -51,73 +61,120 @@ export default function SignupScreen() {
     setLoading(true);
     
     try {
-      console.log('Attempting to sign up:', email);
+      const trimmedEmail = email.trim().toLowerCase();
+      console.log('[Signup] Attempting to sign up:', trimmedEmail);
       
       // Step 1: Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
+        email: trimmedEmail,
         password,
         options: {
-          emailRedirectTo: 'https://natively.dev/email-confirmed'
+          emailRedirectTo: 'https://natively.dev/email-confirmed',
+          data: {
+            email: trimmedEmail,
+          }
         }
       });
 
       if (authError) {
-        console.error('Signup error:', authError);
+        console.error('[Signup] Signup error:', authError);
+        
+        // Handle specific error cases
+        if (authError.message.includes('User already registered')) {
+          setErrorMessage('An account with this email already exists. Please log in instead.');
+          setLoading(false);
+          return;
+        }
+        
+        if (authError.message.includes('Password should be at least')) {
+          setErrorMessage('Password must be at least 6 characters long');
+          setLoading(false);
+          return;
+        }
+
         setErrorMessage(authError.message || 'An error occurred during signup');
+        setLoading(false);
         return;
       }
 
       if (!authData.user) {
-        console.error('No user returned from signup');
+        console.error('[Signup] No user returned from signup');
         setErrorMessage('Failed to create account. Please try again.');
+        setLoading(false);
         return;
       }
 
-      console.log('Auth signup successful:', authData.user.id);
+      console.log('[Signup] Auth signup successful:', authData.user.id);
 
       // Step 2: Insert into public.users
       // If this fails, log a warning but still treat signup as successful
       try {
+        console.log('[Signup] Creating user profile...');
+        
         const { error: insertError } = await supabase
           .from('users')
-          .insert([
-            {
-              id: authData.user.id,
-              email: authData.user.email,
-              role: 'free',
-            },
-          ]);
+          .insert([{
+            id: authData.user.id,
+            email: authData.user.email,
+            role: 'free',
+          }]);
 
         if (insertError) {
-          console.warn('Warning: Failed to insert user profile:', insertError);
-          // Don't block the user - they can still use the app
+          // Check if it's a duplicate key error (race condition or user already exists)
+          if (insertError.code === '23505') {
+            console.log('[Signup] User profile already exists (this is OK)');
+          } else {
+            console.warn('[Signup] Failed to create user profile:', insertError);
+            // Don't block the user - they can still use the app
+            // The AuthContext will handle creating the profile on next login
+          }
         } else {
-          console.log('User profile created successfully');
+          console.log('[Signup] User profile created successfully');
         }
       } catch (profileError) {
-        console.warn('Warning: Exception creating user profile:', profileError);
-        // Don't block the user
+        console.warn('[Signup] Exception creating user profile:', profileError);
+        // Don't block the user - the AuthContext will handle this
       }
 
-      // Step 3: Show success message and navigate to AI preferences
-      Alert.alert(
-        'Account Created!',
-        'Please check your email to verify your account. You can still use the app while waiting for verification.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              console.log('Navigating to AI preferences onboarding');
-              router.replace('/ai-preferences-onboarding');
+      // Step 3: Determine if email confirmation is required
+      const needsEmailConfirmation = !authData.session;
+      
+      if (needsEmailConfirmation) {
+        // Email confirmation is required
+        console.log('[Signup] Email confirmation required');
+        Alert.alert(
+          'Verify Your Email',
+          'We\'ve sent a verification link to your email. Please check your inbox and click the link to verify your account.\n\nYou can close this app and come back after verifying.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                console.log('[Signup] Redirecting to login after email verification prompt');
+                router.replace('/login');
+              },
             },
-          },
-        ]
-      );
+          ]
+        );
+      } else {
+        // Email confirmation is disabled or user is auto-confirmed
+        console.log('[Signup] User auto-confirmed, proceeding to app');
+        Alert.alert(
+          'Account Created!',
+          'Welcome to Safe Space! Let\'s personalize your experience.',
+          [
+            {
+              text: 'Continue',
+              onPress: () => {
+                console.log('[Signup] Navigating to AI preferences onboarding');
+                router.replace('/ai-preferences-onboarding');
+              },
+            },
+          ]
+        );
+      }
     } catch (err: any) {
-      console.error('Unexpected signup error:', err);
+      console.error('[Signup] Unexpected signup error:', err);
       setErrorMessage('An unexpected error occurred. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
@@ -176,27 +233,55 @@ export default function SignupScreen() {
                   editable={!loading}
                 />
 
-                <SafeSpaceTextInput
-                  placeholder="Password"
-                  value={password}
-                  onChangeText={(text) => {
-                    setPassword(text);
-                    if (errorMessage) setErrorMessage(null);
-                  }}
-                  secureTextEntry
-                  editable={!loading}
-                />
+                <View style={styles.passwordContainer}>
+                  <SafeSpaceTextInput
+                    placeholder="Password (min 6 characters)"
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
+                    secureTextEntry={!showPassword}
+                    editable={!loading}
+                    containerStyle={styles.passwordInputContainer}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeIconContainer}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={24}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
 
-                <SafeSpaceTextInput
-                  placeholder="Confirm Password"
-                  value={confirmPassword}
-                  onChangeText={(text) => {
-                    setConfirmPassword(text);
-                    if (errorMessage) setErrorMessage(null);
-                  }}
-                  secureTextEntry
-                  editable={!loading}
-                />
+                <View style={styles.passwordContainer}>
+                  <SafeSpaceTextInput
+                    placeholder="Confirm Password"
+                    value={confirmPassword}
+                    onChangeText={(text) => {
+                      setConfirmPassword(text);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
+                    secureTextEntry={!showConfirmPassword}
+                    editable={!loading}
+                    containerStyle={styles.passwordInputContainer}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={styles.eyeIconContainer}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={24}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
 
                 <View style={styles.checkboxSection}>
                   <TouchableOpacity
@@ -320,6 +405,20 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
+  },
+  passwordContainer: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInputContainer: {
+    marginBottom: 0,
+  },
+  eyeIconContainer: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 4,
+    zIndex: 1,
   },
   checkboxSection: {
     marginTop: 8,

@@ -35,7 +35,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (authUserId: string) => {
+  const fetchUserProfile = async (authUserId: string, retryCount = 0) => {
+    const MAX_RETRIES = 2;
+    
     // Wrap in timeout to prevent blocking startup
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
@@ -117,6 +119,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             // Real error - log it but don't block the user
             console.log('[AuthContext] Error creating user profile:', insertError.message);
+            
+            // Retry logic for transient errors
+            if (retryCount < MAX_RETRIES && insertError.message.includes('network')) {
+              console.log(`[AuthContext] Retrying profile creation (${retryCount + 1}/${MAX_RETRIES})...`);
+              await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+              return fetchUserProfile(authUserId, retryCount + 1);
+            }
+            
             setUser({ 
               id: authUserId, 
               email: authUser.user?.email || null,
@@ -200,12 +210,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log('[AuthContext] Auth state changed:', _event, session?.user?.email || 'No session');
       setSession(session);
       setCurrentUser(session?.user ?? null);
+      
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        await fetchUserProfile(session.user.id);
       } else {
         setUser(null);
       }
@@ -220,10 +231,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('[AuthContext] Signing up user:', email);
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         options: {
-          emailRedirectTo: 'https://natively.dev/email-confirmed'
+          emailRedirectTo: 'https://natively.dev/email-confirmed',
+          data: {
+            email: email.trim().toLowerCase(),
+          }
         }
       });
 
@@ -248,7 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('[AuthContext] Signing in user:', email);
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
