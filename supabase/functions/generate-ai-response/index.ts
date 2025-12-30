@@ -2643,9 +2643,88 @@ serve(async (req) => {
       );
     }
 
-    let reply =
-      data?.choices?.[0]?.message?.content ??
-      "I'm here with you. Tell me more about what's on your mind.";
+    // ═══════════════════════════════════════════════════════════════════
+    // ROBUST OPENAI RESPONSE PARSING WITH FALLBACK
+    // ═══════════════════════════════════════════════════════════════════
+    // This section ensures we NEVER return an empty assistant reply
+    // Handles all possible OpenAI response shapes and edge cases
+    // ═══════════════════════════════════════════════════════════════════
+
+    const DEFAULT_FALLBACK_MESSAGE = "I'm having a little trouble understanding. Could you please rephrase your question?";
+
+    // DEV-only: Log raw OpenAI response shape (truncated for safety)
+    if (isDevEnv()) {
+      const rawResponsePreview = JSON.stringify(data, null, 2).substring(0, 500);
+      console.log(`[Edge][Chat][${requestId}] Raw OpenAI response (truncated):`, rawResponsePreview + "...");
+    }
+
+    // Extract reply using robust parsing logic
+    let extractedText: string | null = null;
+
+    // CASE 1: Standard OpenAI response structure
+    if (data?.choices?.[0]?.message?.content) {
+      extractedText = data.choices[0].message.content;
+      console.log(`[Edge][Chat][${requestId}] Extracted from choices[0].message.content`);
+    }
+    // CASE 2: Alternative response structure (e.g., 'reply' field)
+    else if (data?.reply && typeof data.reply === 'string') {
+      extractedText = data.reply;
+      console.log(`[Edge][Chat][${requestId}] Extracted from data.reply`);
+    }
+    // CASE 3: Direct string response
+    else if (typeof data === 'string') {
+      extractedText = data;
+      console.log(`[Edge][Chat][${requestId}] Extracted from direct string`);
+    }
+    // CASE 4: Tool calls only (no text content)
+    else if (data?.choices?.[0]?.message?.tool_calls) {
+      console.warn(`[Edge][Chat][${requestId}] OpenAI returned tool_calls only - using fallback`);
+      extractedText = null;
+    }
+    // CASE 5: Refusal content
+    else if (data?.choices?.[0]?.message?.refusal) {
+      console.warn(`[Edge][Chat][${requestId}] OpenAI refused to answer - using fallback`);
+      extractedText = null;
+    }
+    // CASE 6: Unexpected response shape
+    else {
+      console.warn(`[Edge][Chat][${requestId}] Unexpected OpenAI response shape:`, {
+        hasChoices: !!data?.choices,
+        choicesLength: data?.choices?.length,
+        hasMessage: !!data?.choices?.[0]?.message,
+        messageKeys: data?.choices?.[0]?.message ? Object.keys(data.choices[0].message) : [],
+        dataKeys: data ? Object.keys(data) : []
+      });
+      extractedText = null;
+    }
+
+    // Trim and validate extracted text
+    let reply = extractedText?.trim() || "";
+
+    // DEV-only: Log extracted reply length
+    if (isDevEnv()) {
+      console.log(`[Edge][Chat][${requestId}] Extracted reply length: ${reply.length} characters`);
+    }
+
+    // CRITICAL: If reply is empty or whitespace-only, use fallback
+    if (!reply || reply.length === 0) {
+      console.warn(`[Edge][Chat][${requestId}] Empty reply detected - using fallback message`);
+      reply = DEFAULT_FALLBACK_MESSAGE;
+    }
+
+    // Additional safety check: ensure reply is not just whitespace
+    if (reply.trim().length === 0) {
+      console.warn(`[Edge][Chat][${requestId}] Reply is whitespace only - using fallback message`);
+      reply = DEFAULT_FALLBACK_MESSAGE;
+    }
+
+    // Final validation: ensure reply is a non-empty string
+    if (typeof reply !== 'string' || reply.trim().length === 0) {
+      console.error(`[Edge][Chat][${requestId}] Reply validation failed - forcing fallback`);
+      reply = DEFAULT_FALLBACK_MESSAGE;
+    }
+
+    console.log(`[Edge][Chat][${requestId}] Final reply length: ${reply.length} characters`);
 
     // ═══════════════════════════════════════════════════════════════════
     // APPLY PERSONA-SPECIFIC CLOSING STYLE IF APPROPRIATE
