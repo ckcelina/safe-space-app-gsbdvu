@@ -210,9 +210,7 @@ function generateTempId(): string {
   return `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// STEP C: Helper to merge messages with deduplication
-// ═══════════════════════════════════════════════════════════════════
+// Helper to merge messages with deduplication
 function mergeMessages(existing: ExtendedMessage[], incoming: ExtendedMessage[]): ExtendedMessage[] {
   const merged = [...existing];
   
@@ -256,9 +254,7 @@ function mergeMessages(existing: ExtendedMessage[], incoming: ExtendedMessage[])
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // ACTIVITY TRACKING: Update person metadata
-// ═══════════════════════════════════════════════════════════════════
 async function updatePersonActivity(
   userId: string,
   personId: string,
@@ -370,15 +366,11 @@ export default function ChatScreen() {
   // Subject pill state
   const [availableSubjects, setAvailableSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // STEP 1: Add race condition prevention refs and state
-  // ═══════════════════════════════════════════════════════════════════
+  // Add race condition prevention refs and state
   const isGeneratingRef = useRef(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // STEP 2: Add messagesRef to track current messages (avoid stale closures)
-  // ═══════════════════════════════════════════════════════════════════
+  // Add messagesRef to track current messages (avoid stale closures)
   const messagesRef = useRef<ExtendedMessage[]>([]);
   
   useEffect(() => {
@@ -391,14 +383,10 @@ export default function ChatScreen() {
   // FlatList ref for scrolling
   const flatListRef = useRef<FlatList>(null);
 
-  // ═══════════════════════════════════════════════════════════════════
   // REALTIME SAFETY NET: Channel ref for cleanup
-  // ═══════════════════════════════════════════════════════════════════
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
 
-  // ═══════════════════════════════════════════════════════════════════
   // IMPROVED: Scroll-to-bottom tracking with better reliability
-  // ═══════════════════════════════════════════════════════════════════
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [showScrollArrow, setShowScrollArrow] = useState(false);
   const scrollArrowOpacity = useRef(new Animated.Value(0)).current;
@@ -609,9 +597,7 @@ export default function ChatScreen() {
     }
   }, [personId, authUser?.id, loadMessages]);
 
-  // ═══════════════════════════════════════════════════════════════════
   // ACTIVITY TRACKING: Update last_opened_at when chat screen mounts
-  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (personId && authUser?.id) {
       console.log('[Chat] Chat screen mounted - updating last_opened_at');
@@ -619,9 +605,7 @@ export default function ChatScreen() {
     }
   }, [personId, authUser?.id]);
 
-  // ═══════════════════════════════════════════════════════════════════
   // REALTIME SAFETY NET: Subscribe to assistant message inserts
-  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     // Only subscribe if we have valid user and person IDs
     if (!authUser?.id || !personId) {
@@ -725,9 +709,7 @@ export default function ChatScreen() {
     return transformMessagesWithSeparators(displayedMessages);
   }, [displayedMessages]);
 
-  // ═══════════════════════════════════════════════════════════════════
   // IMPROVED: Reliable scroll-to-bottom implementation
-  // ═══════════════════════════════════════════════════════════════════
   
   // Scroll to bottom helper - used by multiple triggers
   const scrollToBottom = useCallback((animated: boolean = true) => {
@@ -755,7 +737,7 @@ export default function ChatScreen() {
     // 1. User is already near bottom (within 50px)
     // 2. OR this is the initial load (hasn't scrolled yet)
     if (isNearBottom || !hasInitialScrolledRef.current) {
-      // Small delay to ensure layout is complete (STEP F.3)
+      // Small delay to ensure layout is complete
       setTimeout(() => {
         scrollToBottom(true);
       }, 100);
@@ -768,9 +750,7 @@ export default function ChatScreen() {
     layoutSizeRef.current = { width, height };
   }, []);
 
-  // ═══════════════════════════════════════════════════════════════════
   // Handle scroll events to track position
-  // ═══════════════════════════════════════════════════════════════════
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
     
@@ -844,15 +824,11 @@ export default function ChatScreen() {
     }, 100);
   }, [authUser?.id, personId]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // MAIN SEND MESSAGE FUNCTION - FIXED TO USE EDGE FUNCTION AS SOURCE OF TRUTH
-  // ═══════════════════════════════════════════════════════════════════
+  // MAIN SEND MESSAGE FUNCTION - WITH SESSION VALIDATION
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 1: Race condition guard - check BOTH ref and state
-    // ═══════════════════════════════════════════════════════════════════
+    // Race condition guard - check BOTH ref and state
     if (isGeneratingRef.current || isGenerating) {
       console.log('[Chat] sendMessage: Already generating, ignoring duplicate call');
       return;
@@ -873,6 +849,27 @@ export default function ChatScreen() {
       return;
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // NEW: VALIDATE SESSION BEFORE EDGE FUNCTION CALL
+    // ═══════════════════════════════════════════════════════════════════
+    console.log('[Chat] Validating session before Edge Function call...');
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      console.error('[Chat] Session validation error:', sessionError);
+      showErrorToast('Session error. Please try logging in again.');
+      return;
+    }
+
+    if (!session) {
+      console.error('[Chat] No valid session - user needs to re-authenticate');
+      showErrorToast('Your session has expired. Please log in again.');
+      router.replace('/login');
+      return;
+    }
+
+    console.log('[Chat] Session validated successfully');
+
     console.log('[Chat] sendMessage: Starting send process');
     console.log('[Chat] Current subject:', currentSubject);
     console.log('[Chat] chatId (personId):', personId);
@@ -881,9 +878,7 @@ export default function ChatScreen() {
     const therapistMeta = getCurrentTherapistMetadata();
     console.log('[Chat] Current therapist:', therapistMeta.name);
     
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 1: Set in-flight flags IMMEDIATELY
-    // ═══════════════════════════════════════════════════════════════════
+    // Set in-flight flags IMMEDIATELY
     isGeneratingRef.current = true;
     setIsGenerating(true);
     setIsSending(true);
@@ -899,9 +894,7 @@ export default function ChatScreen() {
     setInputText('');
 
     try {
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 2a: Build user message with canonical fields
-      // ═══════════════════════════════════════════════════════════════════
+      // Build user message with canonical fields
       const userMsg: ExtendedMessage = {
         id: generateTempId(), // Temporary ID for optimistic UI
         temp_id: generateTempId(),
@@ -914,16 +907,12 @@ export default function ChatScreen() {
         optimistic: true,
       };
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 2b: Optimistically append user message to state IMMEDIATELY
-      // ═══════════════════════════════════════════════════════════════════
+      // Optimistically append user message to state IMMEDIATELY
       if (isMountedRef.current) {
         setAllMessages((prev) => mergeMessages(prev, [userMsg]));
       }
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 2c: Build payload using LOCAL array that includes userMsg
-      // ═══════════════════════════════════════════════════════════════════
+      // Build payload using LOCAL array that includes userMsg
       const nextMessages = [...messagesRef.current, userMsg];
 
       console.log('[Chat] User message added optimistically');
@@ -971,19 +960,14 @@ export default function ChatScreen() {
         });
       }
 
-      // ═══════════════════════════════════════════════════════════════════
       // ACTIVITY TRACKING: Update last_activity_at after user message sent
-      // ═══════════════════════════════════════════════════════════════════
       console.log('[Chat] Updating last_activity_at after user message');
       await updatePersonActivity(userId, personId, 'message', insertedMessage.created_at);
       
       // Update cache with new activity timestamp
       memoryCache.setLastActivity(personId, insertedMessage.created_at);
 
-      // ═══════════════════════════════════════════════════════════════════
       // MEMORY CAPTURE: Fire-and-forget capture of factual statements
-      // ═══════════════════════════════════════════════════════════════════
-      
       console.log('[Chat] 🧠 Triggering memory capture...');
       
       // Check continuity setting first
@@ -1036,7 +1020,6 @@ export default function ChatScreen() {
           console.log('[Chat] Extracted', extractedMemories.length, 'memories locally');
           await upsertPersonMemories(userId, personId, extractedMemories);
           console.log('[Chat] Local memories upserted successfully');
-          // REMOVED: No UI indicator shown
         } else {
           console.log('[Chat] No memories extracted from user text');
         }
@@ -1045,9 +1028,7 @@ export default function ChatScreen() {
         console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
       }
 
-      // ═══════════════════════════════════════════════════════════════════
       // AI GENERATION WITH DIRECT EDGE FUNCTION INVOCATION
-      // ═══════════════════════════════════════════════════════════════════
       
       // Filter messages for current subject and prepare for AI
       const subjectMessages = nextMessages.filter((msg) => {
@@ -1079,9 +1060,7 @@ export default function ChatScreen() {
         aiScienceMode: preferences.ai_science_mode,
       };
 
-      // ═══════════════════════════════════════════════════════════════════
       // DEV-ONLY PAYLOAD LOGGING (CRITICAL FOR DEBUGGING)
-      // ═══════════════════════════════════════════════════════════════════
       if (__DEV__) {
         const lastMessage = aiPayload.messages[aiPayload.messages.length - 1];
         console.log('[AI_PAYLOAD]', {
@@ -1106,10 +1085,7 @@ export default function ChatScreen() {
         aiScienceMode: preferences.ai_science_mode,
       });
 
-      // ═══════════════════════════════════════════════════════════════════
       // DIRECT EDGE FUNCTION INVOCATION (NO WRAPPER)
-      // ═══════════════════════════════════════════════════════════════════
-      
       const { data, error } = await supabase.functions.invoke('generate-ai-response', { 
         body: aiPayload 
       });
@@ -1128,10 +1104,7 @@ export default function ChatScreen() {
         });
       }
 
-      // ═══════════════════════════════════════════════════════════════════
       // ERROR HANDLING
-      // ═══════════════════════════════════════════════════════════════════
-
       if (error) {
         const errorMessage = (error as any)?.message || 'Edge invoke error';
         console.error('[Chat] Edge function error:', errorMessage);
@@ -1184,11 +1157,8 @@ export default function ChatScreen() {
         return; // Exit - error handled
       }
 
-      // ═══════════════════════════════════════════════════════════════════
       // SUCCESS: Edge Function will insert assistant message
       // Realtime subscription will handle UI update
-      // ═══════════════════════════════════════════════════════════════════
-      
       console.log('[Chat] Edge Function invoked successfully');
       console.log('[Chat] Waiting for realtime subscription to deliver assistant message...');
 
@@ -1204,9 +1174,7 @@ export default function ChatScreen() {
         console.log('[Chat] Realtime subscription should also deliver this message');
       }
 
-      // ═══════════════════════════════════════════════════════════════════
       // ACTIVITY TRACKING: Update last_activity_at after assistant message saved
-      // ═══════════════════════════════════════════════════════════════════
       if (assistantMessage?.created_at) {
         console.log('[Chat] Updating last_activity_at after assistant message');
         await updatePersonActivity(userId, personId, 'message', assistantMessage.created_at);
@@ -1249,8 +1217,6 @@ export default function ChatScreen() {
             
             console.log('[Chat] Memory extraction complete');
             
-            // REMOVED: No UI indicator shown - memories saved silently
-            
             // Update continuity if we got valid data
             if (extractionResult.continuity) {
               console.log('[Chat] Updating conversation continuity...');
@@ -1280,9 +1246,7 @@ export default function ChatScreen() {
         setError(err?.message || 'An unexpected error occurred');
       }
     } finally {
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL: Always reset flags in finally block (STEP 4)
-      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL: Always reset flags in finally block
       if (isMountedRef.current) {
         isGeneratingRef.current = false;
         setIsGenerating(false);
@@ -1305,9 +1269,7 @@ export default function ChatScreen() {
     getCurrentTherapistMetadata,
   ]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // STEP 1: Disable send button while generating
-  // ═══════════════════════════════════════════════════════════════════
+  // Disable send button while generating
   const isSendDisabled = !inputText.trim() || isSending || loading || isGenerating;
 
   const handleBackPress = useCallback(() => {
@@ -1448,7 +1410,7 @@ export default function ChatScreen() {
     );
   }, [preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
 
-  // STEP F.1: Key extractor using message.id (string)
+  // Key extractor using message.id (string)
   const keyExtractor = useCallback((item: MessageListItem, index: number) => {
     if (item.type === 'date-separator') {
       return `date-${item.date.toISOString()}-${index}`;
@@ -1601,11 +1563,7 @@ export default function ChatScreen() {
             />
           </View>
 
-          {/* 
-            ═══════════════════════════════════════════════════════════════════
-            DEVELOPER DEBUG BANNER
-            ═══════════════════════════════════════════════════════════════════
-          */}
+          {/* DEVELOPER DEBUG BANNER */}
           {__DEV__ && debugInfo && (
             <TouchableOpacity 
               style={[styles.debugBanner, { backgroundColor: '#FF9500' }]}
@@ -1652,7 +1610,6 @@ export default function ChatScreen() {
             </TouchableOpacity>
           )}
 
-          {/* STEP F.2: FlatList with extraData to ensure re-render */}
           <FlatList
             ref={flatListRef}
             data={messageListItems}
@@ -1734,7 +1691,6 @@ export default function ChatScreen() {
                     multiline
                     editable={!isSending && !loading && !isGenerating}
                     onSubmitEditing={() => {
-                      // STEP 1: Ignore onSubmitEditing while generating
                       if (!isSendDisabled && !isGenerating) {
                         sendMessage();
                       }
