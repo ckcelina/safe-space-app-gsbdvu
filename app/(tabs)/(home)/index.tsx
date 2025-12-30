@@ -28,6 +28,7 @@ LogBox.ignoreLogs([
 interface PersonWithLastMessage extends Person {
   lastMessage?: string;
   lastMessageTime?: string;
+  lastActivityAt?: string; // For sorting: last_message_at || created_at
 }
 
 const DeleteAction = ({ onPress }: { onPress: () => void }) => (
@@ -98,9 +99,10 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * FIXED: Fetch data with correct filtering logic
+   * FIXED: Fetch data with correct filtering logic + AUTOMATIC REORDERING
    * - People: relationship_type != 'Topic' (includes null)
    * - Topics: relationship_type == 'Topic'
+   * - REORDERING: Sort by most recent activity (last_message_at || created_at)
    */
   const fetchData = useCallback(async () => {
     if (!userId) {
@@ -113,13 +115,40 @@ export default function HomeScreen() {
       setError(null);
       console.log('[Home] Fetching people and topics for user:', userId);
       
-      // Fetch people: relationship_type IS NULL OR relationship_type != 'Topic'
+      // STEP 1: Fetch last message timestamps for ALL persons (people + topics)
+      // This query computes MAX(created_at) grouped by person_id
+      const { data: lastMessageData, error: lastMessageError } = await supabase
+        .from('messages')
+        .select('person_id, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (lastMessageError) {
+        console.error('[Home] Error fetching last messages:', lastMessageError);
+      }
+
+      // Build a map: person_id -> last_message_at
+      const lastMessageMap = new Map<string, string>();
+      if (lastMessageData && lastMessageData.length > 0) {
+        // Group by person_id and find the most recent created_at
+        lastMessageData.forEach((msg) => {
+          if (msg.person_id && msg.created_at) {
+            const existing = lastMessageMap.get(msg.person_id);
+            if (!existing || msg.created_at > existing) {
+              lastMessageMap.set(msg.person_id, msg.created_at);
+            }
+          }
+        });
+      }
+
+      console.log('[Home] Last message map size:', lastMessageMap.size);
+      
+      // STEP 2: Fetch people: relationship_type IS NULL OR relationship_type != 'Topic'
       const { data: peopleData, error: peopleError } = await supabase
         .from('persons')
         .select('*')
         .eq('user_id', userId)
-        .or('relationship_type.is.null,relationship_type.neq.Topic')
-        .order('created_at', { ascending: false });
+        .or('relationship_type.is.null,relationship_type.neq.Topic');
 
       if (peopleError) {
         console.error('[Home] Error fetching people:', peopleError);
@@ -130,13 +159,12 @@ export default function HomeScreen() {
         return;
       }
 
-      // Fetch topics: relationship_type == 'Topic'
+      // STEP 3: Fetch topics: relationship_type == 'Topic'
       const { data: topicsData, error: topicsError } = await supabase
         .from('persons')
         .select('*')
         .eq('user_id', userId)
-        .eq('relationship_type', 'Topic')
-        .order('created_at', { ascending: false });
+        .eq('relationship_type', 'Topic');
 
       if (topicsError) {
         console.error('[Home] Error fetching topics:', topicsError);
@@ -150,66 +178,73 @@ export default function HomeScreen() {
       console.log('[Home] People loaded:', peopleData?.length || 0);
       console.log('[Home] Topics loaded:', topicsData?.length || 0);
 
-      const peopleWithMessages = peopleData && peopleData.length > 0
-        ? await Promise.all(
-            peopleData.map(async (person) => {
-              try {
-                const { data: messages } = await supabase
-                  .from('messages')
-                  .select('content, created_at, role')
-                  .eq('user_id', userId)
-                  .eq('person_id', person.id)
-                  .order('created_at', { ascending: false })
-                  .limit(1);
-
-                const lastMessage = messages?.[0];
-                return {
-                  ...person,
-                  lastMessage: lastMessage?.content || 'No messages yet',
-                  lastMessageTime: lastMessage?.created_at,
-                };
-              } catch (err) {
-                console.error('[Home] Error fetching messages for person:', person.id, err);
-                return {
-                  ...person,
-                  lastMessage: 'No messages yet',
-                  lastMessageTime: undefined,
-                };
-              }
-            })
-          )
+      // STEP 4: Merge last_message_at with people data + compute lastActivityAt
+      const peopleWithMessages: PersonWithLastMessage[] = peopleData && peopleData.length > 0
+        ? peopleData.map((person) => {
+            const lastMessageAt = lastMessageMap.get(person.id);
+            
+            // Compute lastActivityAt: last_message_at || created_at
+            // Use the most recent timestamp available
+            const lastActivityAt = lastMessageAt || person.created_at;
+            
+            return {
+              ...person,
+              lastMessage: lastMessageAt ? 'Recent activity' : 'No messages yet',
+              lastMessageTime: lastMessageAt,
+              lastActivityAt, // Add this for sorting
+            };
+          })
         : [];
 
-      const topicsWithMessages = topicsData && topicsData.length > 0
-        ? await Promise.all(
-            topicsData.map(async (topic) => {
-              try {
-                const { data: messages } = await supabase
-                  .from('messages')
-                  .select('content, created_at, role')
-                  .eq('user_id', userId)
-                  .eq('person_id', topic.id)
-                  .order('created_at', { ascending: false })
-                  .limit(1);
-
-                const lastMessage = messages?.[0];
-                return {
-                  ...topic,
-                  lastMessage: lastMessage?.content || 'No messages yet',
-                  lastMessageTime: lastMessage?.created_at,
-                };
-              } catch (err) {
-                console.error('[Home] Error fetching messages for topic:', topic.id, err);
-                return {
-                  ...topic,
-                  lastMessage: 'No messages yet',
-                  lastMessageTime: undefined,
-                };
-              }
-            })
-          )
+      // STEP 5: Merge last_message_at with topics data + compute lastActivityAt
+      const topicsWithMessages: PersonWithLastMessage[] = topicsData && topicsData.length > 0
+        ? topicsData.map((topic) => {
+            const lastMessageAt = lastMessageMap.get(topic.id);
+            
+            // Compute lastActivityAt: last_message_at || created_at
+            const lastActivityAt = lastMessageAt || topic.created_at;
+            
+            return {
+              ...topic,
+              lastMessage: lastMessageAt ? 'Recent activity' : 'No messages yet',
+              lastMessageTime: lastMessageAt,
+              lastActivityAt, // Add this for sorting
+            };
+          })
         : [];
 
+      // STEP 6: Sort people by lastActivityAt (descending, NULLS LAST)
+      peopleWithMessages.sort((a, b) => {
+        const aTime = a.lastActivityAt;
+        const bTime = b.lastActivityAt;
+        
+        // NULLS LAST: if a has no time, it goes after b
+        if (!aTime && !bTime) return 0;
+        if (!aTime) return 1;
+        if (!bTime) return -1;
+        
+        // Descending: most recent first
+        return new Date(bTime).getTime() - new Date(aTime).getTime();
+      });
+
+      // STEP 7: Sort topics by lastActivityAt (descending, NULLS LAST)
+      topicsWithMessages.sort((a, b) => {
+        const aTime = a.lastActivityAt;
+        const bTime = b.lastActivityAt;
+        
+        // NULLS LAST: if a has no time, it goes after b
+        if (!aTime && !bTime) return 0;
+        if (!aTime) return 1;
+        if (!bTime) return -1;
+        
+        // Descending: most recent first
+        return new Date(bTime).getTime() - new Date(aTime).getTime();
+      });
+
+      console.log('[Home] People sorted by activity:', peopleWithMessages.map(p => ({ name: p.name, lastActivityAt: p.lastActivityAt })));
+      console.log('[Home] Topics sorted by activity:', topicsWithMessages.map(t => ({ name: t.name, lastActivityAt: t.lastActivityAt })));
+
+      // STEP 8: Update state ONCE to avoid flicker
       if (isMountedRef.current) {
         setPeople(peopleWithMessages);
         setTopics(topicsWithMessages);
@@ -367,11 +402,12 @@ export default function HomeScreen() {
       return;
     }
     
-    // Create a person with last message placeholder
+    // Create a person with last message placeholder + lastActivityAt
     const newPersonWithMessage: PersonWithLastMessage = {
       ...newPerson,
       lastMessage: 'No messages yet',
       lastMessageTime: undefined,
+      lastActivityAt: newPerson.created_at, // Use created_at as initial activity
     };
     
     // STEP 1: Optimistic update - prepend the new person to the list
