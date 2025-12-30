@@ -21,22 +21,45 @@ export type InvokeEdgeFail = {
 export type InvokeEdgeResult<T = any> = InvokeEdgeOk<T> | InvokeEdgeFail;
 
 // NEW: Safe wrapper result type
-export type InvokeEdgeSafeResult<T = any> = {
-  ok: boolean;
-  data?: T;
-  error?: {
-    code: string;
-    message: string;
-    status?: number;
-    details?: any;
-  };
-};
+export type InvokeEdgeSafeResult<T = any> =
+  | { ok: true; data: T }
+  | { ok: false; status: number | null; code: string; message: string; bodySnippet?: string };
 
 // Configuration for retry logic
 const MAX_RETRIES = 2;
 const RETRY_DELAYS = [250, 800]; // ms - exponential backoff
 const TIMEOUT_MS = 45000; // 45 seconds (increased from 20s for mobile networks + cold starts)
 const TRANSIENT_STATUS_CODES = [429, 502, 503, 504]; // Added 429 for rate limiting
+
+/**
+ * Safely stringify an object, handling circular references and truncating to maxLength
+ */
+function safeStringify(obj: any, maxLength: number = 500): string {
+  try {
+    if (obj === null || obj === undefined) {
+      return String(obj);
+    }
+    if (typeof obj === 'string') {
+      return obj.substring(0, maxLength);
+    }
+    const str = JSON.stringify(obj, (key, value) => {
+      // Handle circular references
+      if (typeof value === 'object' && value !== null) {
+        if (value instanceof Error) {
+          return {
+            name: value.name,
+            message: value.message,
+            stack: value.stack,
+          };
+        }
+      }
+      return value;
+    });
+    return str.substring(0, maxLength);
+  } catch (e) {
+    return '[Stringify Error]';
+  }
+}
 
 function safeJsonParse(text: string) {
   try {
@@ -107,7 +130,7 @@ function isTransientError(error: any): boolean {
  * - Retries timeout errors once before giving up
  * - Extracts detailed error information for debugging
  * - Handles all error types: FunctionsHttpError, network errors, timeouts
- * - DEV-ONLY: Logs compact diagnostic line on failure with project ref and AbortController status
+ * - DEV-ONLY: Logs normalized error object once
  * - Web-compatible: Uses ReturnType<typeof setTimeout> for timeout typing
  * - Conditionally uses AbortController only if available
  * 
@@ -173,38 +196,41 @@ export async function invokeEdgeSafe<T = any>(
 
       // Check for Supabase invocation error
       if (error) {
-        const status = (error as any)?.status;
+        const status = (error as any)?.status ?? null;
         const statusText = (error as any)?.statusText;
         const context = (error as any)?.context;
         const duration = Date.now() - startTime;
 
         // Try to extract response body for debugging
-        let bodySnippet = null;
+        let bodySnippet: string | undefined = undefined;
         if (__DEV__) {
           try {
             if (context) {
-              const contextStr = typeof context === 'string' 
-                ? context 
-                : JSON.stringify(context);
-              bodySnippet = contextStr.substring(0, 500);
+              bodySnippet = safeStringify(context, 500);
             }
           } catch (e) {
             // Ignore stringify errors
           }
         }
 
-        if (__DEV__) {
-          console.log(`[invokeEdgeSafe] ${functionName} error (attempt ${attempt + 1}):`, {
-            name: (error as any)?.name,
-            message: (error as any)?.message,
-            status,
-            statusText,
-            bodySnippet,
-          });
+        // Determine error code based on status
+        let errorCode = (error as any)?.name || 'EDGE_INVOKE_ERROR';
+        if (status === 401 || status === 403) {
+          errorCode = 'EDGE_AUTH';
+        } else if (status && TRANSIENT_STATUS_CODES.includes(status)) {
+          errorCode = 'EDGE_UNAVAILABLE';
+        }
 
-          // DEV-ONLY: Log compact diagnostic line
-          const normalizedCode = (error as any)?.name || 'EDGE_FUNCTION_ERROR';
-          console.log(`[Edge] code=${normalizedCode} status=${status || 'none'} duration_ms=${duration}`);
+        const normalizedError = {
+          ok: false as const,
+          status,
+          code: errorCode,
+          message: (error as any)?.message || 'Edge function invoke failed',
+          bodySnippet,
+        };
+
+        if (__DEV__) {
+          console.log('[invokeEdgeSafe] Normalized Error:', normalizedError);
         }
 
         // Check if this is a transient error that should be retried
@@ -218,29 +244,29 @@ export async function invokeEdgeSafe<T = any>(
           continue; // Retry
         }
 
-        // Determine error code based on status
-        let errorCode = (error as any)?.name || 'EDGE_INVOKE_ERROR';
-        if (status === 401 || status === 403) {
-          errorCode = 'EDGE_AUTH';
-        } else if (status && TRANSIENT_STATUS_CODES.includes(status)) {
-          errorCode = 'EDGE_UNAVAILABLE';
+        // Non-transient error or max retries reached - return normalized error
+        return normalizedError;
+      }
+
+      // Check if data contains an error field (Edge Function returned error)
+      if (data && typeof data === 'object' && data !== null && 'error' in data) {
+        const status = (data as any).error?.status ?? null;
+        const code = (data as any).error?.code ?? 'EDGE_INVOKE_ERROR';
+        const message = (data as any).error?.message ?? 'Edge function returned an error';
+        
+        const normalizedError = {
+          ok: false as const,
+          status,
+          code,
+          message,
+          bodySnippet: __DEV__ ? safeStringify(data, 500) : undefined,
+        };
+
+        if (__DEV__) {
+          console.log('[invokeEdgeSafe] Normalized Error (from data):', normalizedError);
         }
 
-        // Non-transient error or max retries reached - return normalized error
-        return {
-          ok: false,
-          error: {
-            code: errorCode,
-            message: (error as any)?.message || 'Edge function invoke failed',
-            status: status ?? null,
-            details: {
-              statusText,
-              context,
-              bodySnippet,
-              attempt: attempt + 1,
-            },
-          },
-        };
+        return normalizedError;
       }
 
       // Success - parse and return data
@@ -270,17 +296,19 @@ export async function invokeEdgeSafe<T = any>(
           }
           return { ok: true, data: raw as T };
         } catch (readError: any) {
-          if (__DEV__) {
-            console.error(`[invokeEdgeSafe] Failed reading Response body:`, readError?.message);
-          }
-          return {
-            ok: false,
-            error: {
-              code: 'READ_RESPONSE_FAILED',
-              message: readError?.message || 'Failed reading response body',
-              details: { attempt: attempt + 1 },
-            },
+          const normalizedError = {
+            ok: false as const,
+            status: null,
+            code: 'READ_RESPONSE_FAILED',
+            message: readError?.message || 'Failed reading response body',
+            bodySnippet: __DEV__ ? safeStringify(readError, 500) : undefined,
           };
+
+          if (__DEV__) {
+            console.log('[invokeEdgeSafe] Normalized Error (read response):', normalizedError);
+          }
+
+          return normalizedError;
         }
       }
 
@@ -298,8 +326,16 @@ export async function invokeEdgeSafe<T = any>(
 
       // Handle AbortError (timeout) - RETRY ONCE before giving up
       if (e.name === 'AbortError') {
+        const normalizedError = {
+          ok: false as const,
+          status: null,
+          code: 'EDGE_TIMEOUT',
+          message: 'Request timed out',
+          bodySnippet: __DEV__ ? safeStringify({ timeoutMs: TIMEOUT_MS, attempt: attempt + 1 }, 500) : undefined,
+        };
+
         if (__DEV__) {
-          console.log(`[Edge] code=EDGE_ABORTED status=N/A duration_ms=${duration}`);
+          console.log('[invokeEdgeSafe] Normalized Error (timeout):', normalizedError);
         }
 
         // Retry timeout errors once
@@ -314,39 +350,17 @@ export async function invokeEdgeSafe<T = any>(
         }
 
         // Max retries reached - return normalized error
-        return {
-          ok: false,
-          error: {
-            code: 'EDGE_TIMEOUT',
-            message: 'Request timed out',
-            details: { 
-              attempt: attempt + 1,
-              timeoutMs: TIMEOUT_MS,
-            },
-          },
-        };
+        return normalizedError;
       }
 
       // Handle FunctionsHttpError
       if (e instanceof FunctionsHttpError) {
-        const status = e.status;
+        const status = e.status ?? null;
         const statusText = e.statusText;
-
-        if (__DEV__) {
-          console.log(`[invokeEdgeSafe] FunctionsHttpError for ${functionName} (attempt ${attempt + 1}):`, {
-            status,
-            statusText,
-            message: e.message,
-          });
-
-          // DEV-ONLY: Log compact diagnostic line
-          console.log(`[Edge] code=FUNCTIONS_HTTP_ERROR status=${status} duration_ms=${duration}`);
-        }
 
         // Try to extract response body
         let bodyText = null;
         let bodyJson = null;
-        let headers = null;
 
         try {
           if (e.context) {
@@ -358,15 +372,40 @@ export async function invokeEdgeSafe<T = any>(
               bodyText = await contextClone.text();
               bodyJson = safeJsonParse(bodyText);
             }
-            // Try to extract headers
-            if (e.context.headers && typeof e.context.headers.entries === 'function') {
-              headers = Object.fromEntries(e.context.headers.entries());
-            }
           }
         } catch (extractError) {
           if (__DEV__) {
             console.log(`[invokeEdgeSafe] Could not extract error details:`, extractError);
           }
+        }
+
+        // Determine error code based on status
+        let errorCode = 'EDGE_INVOKE_ERROR';
+        if (status === 401 || status === 403) {
+          errorCode = 'EDGE_AUTH';
+        } else if (status && TRANSIENT_STATUS_CODES.includes(status)) {
+          errorCode = 'EDGE_UNAVAILABLE';
+        }
+
+        // Prepare body snippet for DEV-only logging
+        let bodySnippet: string | undefined = undefined;
+        if (__DEV__) {
+          const bodyData = bodyJson || bodyText;
+          if (bodyData) {
+            bodySnippet = safeStringify(bodyData, 500);
+          }
+        }
+
+        const normalizedError = {
+          ok: false as const,
+          status,
+          code: errorCode,
+          message: e.message || `HTTP ${status} error`,
+          bodySnippet,
+        };
+
+        if (__DEV__) {
+          console.log('[invokeEdgeSafe] Normalized Error (FunctionsHttpError):', normalizedError);
         }
 
         // Check if this is a transient error that should be retried
@@ -380,54 +419,21 @@ export async function invokeEdgeSafe<T = any>(
           continue; // Retry
         }
 
-        // Determine error code based on status
-        let errorCode = 'EDGE_INVOKE_ERROR';
-        if (status === 401 || status === 403) {
-          errorCode = 'EDGE_AUTH';
-        } else if (TRANSIENT_STATUS_CODES.includes(status)) {
-          errorCode = 'EDGE_UNAVAILABLE';
-        }
-
-        // Prepare body snippet for DEV-only logging
-        let bodySnippet = null;
-        if (__DEV__) {
-          const bodyData = bodyJson || bodyText;
-          if (bodyData) {
-            const bodyStr = typeof bodyData === 'string' 
-              ? bodyData 
-              : JSON.stringify(bodyData);
-            bodySnippet = bodyStr.substring(0, 500);
-          }
-        }
-
         // Non-transient error or max retries reached
-        return {
-          ok: false,
-          error: {
-            code: errorCode,
-            message: e.message || `HTTP ${status} error`,
-            status: status ?? null,
-            details: {
-              statusText,
-              body: bodyJson || bodyText,
-              bodySnippet,
-              headers,
-              attempt: attempt + 1,
-            },
-          },
-        };
+        return normalizedError;
       }
 
       // Handle other unexpected errors (network errors, etc.)
-      if (__DEV__) {
-        console.log(`[invokeEdgeSafe] Unexpected error for ${functionName} (attempt ${attempt + 1}):`, {
-          name: e?.name,
-          message: e?.message,
-          stack: e?.stack,
-        });
+      const normalizedError = {
+        ok: false as const,
+        status: null,
+        code: 'EDGE_THROWN_ERROR',
+        message: e?.message || 'Unexpected error calling Edge Function',
+        bodySnippet: __DEV__ ? safeStringify({ name: e?.name, stack: e?.stack }, 500) : undefined,
+      };
 
-        // DEV-ONLY: Log compact diagnostic line
-        console.log(`[Edge] code=EDGE_THROWN_ERROR status=none duration_ms=${duration}`);
+      if (__DEV__) {
+        console.log('[invokeEdgeSafe] Normalized Error (thrown):', normalizedError);
       }
 
       // Check if this is a network error that should be retried
@@ -442,38 +448,24 @@ export async function invokeEdgeSafe<T = any>(
       }
 
       // Don't retry other unexpected errors - return normalized error
-      return {
-        ok: false,
-        error: {
-          code: 'EDGE_THROWN_ERROR',
-          message: e?.message || 'Unexpected error calling Edge Function',
-          status: null,
-          details: {
-            name: e?.name,
-            stack: __DEV__ ? e?.stack : undefined,
-            attempt: attempt + 1,
-          },
-        },
-      };
+      return normalizedError;
     }
   }
 
   // Should never reach here, but just in case
-  const duration = Date.now() - startTime;
-  
+  const normalizedError = {
+    ok: false as const,
+    status: null,
+    code: 'MAX_RETRIES_EXCEEDED',
+    message: `Failed after ${MAX_RETRIES + 1} attempts`,
+    bodySnippet: __DEV__ ? safeStringify({ attempts: MAX_RETRIES + 1 }, 500) : undefined,
+  };
+
   if (__DEV__) {
-    // DEV-ONLY: Log compact diagnostic line
-    console.log(`[Edge] code=MAX_RETRIES_EXCEEDED status=none duration_ms=${duration}`);
+    console.log('[invokeEdgeSafe] Normalized Error (max retries):', normalizedError);
   }
 
-  return {
-    ok: false,
-    error: {
-      code: 'MAX_RETRIES_EXCEEDED',
-      message: `Failed after ${MAX_RETRIES + 1} attempts`,
-      details: { attempts: MAX_RETRIES + 1 },
-    },
-  };
+  return normalizedError;
 }
 
 /**
