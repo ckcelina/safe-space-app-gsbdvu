@@ -168,10 +168,9 @@ export default function SettingsScreen() {
   const modalMaxWidth = Math.min(windowWidth * 0.92, 520);
   const actionBarHeight = 140; // Approximate height for action buttons area
 
-  // DEFENSIVE DEBUG LOGGING: Detect modals mounted while marked closed
+  // DEV-ONLY DIAGNOSTIC: Full-screen transparent Pressable to detect overlays
   useEffect(() => {
     if (__DEV__) {
-      // Check if any modal backdrop is present in DOM while state says closed
       const modalStates = {
         showInfoModal,
         showDeleteModal,
@@ -234,6 +233,7 @@ export default function SettingsScreen() {
   ];
 
   const handleThemeSelect = async (themeKey: ThemeKey) => {
+    console.log('[Settings] Theme selected:', themeKey);
     setSelectedTheme(themeKey);
     await setTheme(themeKey);
     showSuccessToast('Theme updated!');
@@ -274,6 +274,7 @@ export default function SettingsScreen() {
   };
 
   const handleBack = () => {
+    console.log('[Settings] Back button pressed');
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -282,6 +283,7 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = () => {
+    console.log('[Settings] Delete account button pressed');
     setShowDeleteModal(true);
   };
 
@@ -326,6 +328,7 @@ export default function SettingsScreen() {
   };
 
   const handleSupportPress = async () => {
+    console.log('[Settings] Support button pressed');
     try {
       await openSupportEmail();
     } catch (error) {
@@ -335,6 +338,7 @@ export default function SettingsScreen() {
   };
 
   const handlePrivacyPress = async () => {
+    console.log('[Settings] Privacy policy button pressed');
     try {
       const url = 'https://www.byceli.com/privacy-policy';
       const canOpen = await Linking.canOpenURL(url);
@@ -351,6 +355,7 @@ export default function SettingsScreen() {
   };
 
   const handleTermsPress = async () => {
+    console.log('[Settings] Terms button pressed');
     try {
       const url = 'https://www.byceli.com/terms-conditions';
       const canOpen = await Linking.canOpenURL(url);
@@ -367,6 +372,7 @@ export default function SettingsScreen() {
   };
 
   const handleInfoPress = () => {
+    console.log('[Settings] Info button pressed');
     setShowInfoModal(true);
   };
 
@@ -376,6 +382,7 @@ export default function SettingsScreen() {
 
   // Change Password Handlers
   const handleOpenChangePasswordModal = () => {
+    console.log('[Settings] Change password button pressed');
     setShowChangePasswordModal(true);
   };
 
@@ -435,6 +442,7 @@ export default function SettingsScreen() {
 
   // Therapist Persona Handlers
   const handleOpenPersonaModal = () => {
+    console.log('[Settings] Therapist selection button pressed');
     setShowPersonaModal(true);
   };
 
@@ -462,6 +470,7 @@ export default function SettingsScreen() {
 
   // Preview Style Handlers
   const handleOpenPreview = (personaId: string) => {
+    console.log('[Settings] Preview style button pressed for persona:', personaId);
     const persona = getPersonaById(personaId);
     if (!persona) {
       console.error('[Settings] Persona not found:', personaId);
@@ -489,6 +498,7 @@ export default function SettingsScreen() {
 
   // Personalization Handlers
   const handleOpenPersonalizationModal = () => {
+    console.log('[Settings] Personalization settings button pressed');
     setShowPersonalizationModal(true);
   };
 
@@ -528,6 +538,7 @@ export default function SettingsScreen() {
   };
 
   const handleOpenClearPersonalizationModal = () => {
+    console.log('[Settings] Clear personalization button pressed');
     // FIX: Don't open nested modal - close parent first
     setShowPersonalizationModal(false);
     setTimeout(() => {
@@ -571,6 +582,7 @@ export default function SettingsScreen() {
   };
 
   const handleOpenPersonalizationInfoModal = () => {
+    console.log('[Settings] Why we ask button pressed');
     setShowPersonalizationInfoModal(true);
   };
 
@@ -619,7 +631,7 @@ export default function SettingsScreen() {
   };
 
   const handleOpenUpdatesModal = async () => {
-    console.log('[Settings] handleOpenUpdatesModal: Opening Updates Over Time modal');
+    console.log('[Settings] Updates Over Time button pressed');
     setShowUpdatesModal(true);
     await fetchUpdates();
   };
@@ -852,7 +864,7 @@ export default function SettingsScreen() {
     const isSelected = selectedPersonaId === persona.id;
 
     return (
-      <View
+      <Pressable
         key={persona.id}
         style={[
           styles.personaCard,
@@ -861,16 +873,16 @@ export default function SettingsScreen() {
             borderColor: isSelected ? theme.primary : theme.textSecondary + '30',
           },
         ]}
+        onPress={() => {
+          console.log('[Settings] Persona card pressed:', persona.id);
+          setSelectedPersonaId(persona.id);
+        }}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         accessible={true}
         accessibilityLabel={`${persona.name}, ${persona.label}. ${persona.short_description}. ${isSelected ? 'Selected' : 'Not selected'}`}
         accessibilityRole="button"
       >
-        <Pressable
-          style={styles.personaCardTouchable}
-          onPress={() => setSelectedPersonaId(persona.id)}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          accessible={false}
-        >
+        <View style={styles.personaCardTouchable}>
           <Image
             source={persona.image}
             style={styles.personaImage}
@@ -919,12 +931,15 @@ export default function SettingsScreen() {
               {persona.short_description}
             </Text>
           </View>
-        </Pressable>
+        </View>
         
         {/* Preview Style Button */}
         <Pressable
           style={[styles.previewButton, { borderColor: theme.primary }]}
-          onPress={() => handleOpenPreview(persona.id)}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleOpenPreview(persona.id);
+          }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessible={true}
           accessibilityLabel={`Preview ${persona.name}'s communication style`}
@@ -940,7 +955,7 @@ export default function SettingsScreen() {
             Preview style
           </Text>
         </Pressable>
-      </View>
+      </Pressable>
     );
   };
 
@@ -961,8 +976,11 @@ export default function SettingsScreen() {
                 borderColor: selectedValue === option ? theme.primary : theme.textSecondary + '30',
               },
             ]}
-            onPress={() => onSelect(option)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={() => {
+              console.log('[Settings] Option card pressed:', option);
+              onSelect(option);
+            }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             accessible={true}
             accessibilityLabel={`${option}. ${selectedValue === option ? 'Selected' : 'Not selected'}`}
             accessibilityRole="button"
@@ -1188,7 +1206,7 @@ export default function SettingsScreen() {
                   </Text>
                   <Pressable
                     onPress={handleOpenPersonalizationInfoModal}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     style={styles.whyWeAskButton}
                     accessible={true}
                     accessibilityLabel="Why we ask for personalization"
@@ -1295,7 +1313,7 @@ export default function SettingsScreen() {
                         },
                       ]}
                       onPress={() => handleThemeSelect(themeOption.key)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       accessible={true}
                       accessibilityLabel={`${themeOption.name} theme. ${selectedTheme === themeOption.key ? 'Selected' : 'Not selected'}`}
                       accessibilityRole="button"
@@ -1466,6 +1484,21 @@ export default function SettingsScreen() {
         </SafeAreaView>
       </LinearGradient>
 
+      {/* DEV-ONLY DIAGNOSTIC: Full-screen transparent Pressable to detect overlays */}
+      {__DEV__ && !isAnyModalOpen && (
+        <Pressable
+          style={styles.devDiagnosticOverlay}
+          onPress={(e) => {
+            console.log('[Settings] DEV DIAGNOSTIC: Tap detected on diagnostic overlay at:', {
+              x: e.nativeEvent.pageX,
+              y: e.nativeEvent.pageY,
+              timestamp: new Date().toISOString(),
+            });
+          }}
+          pointerEvents="box-none"
+        />
+      )}
+
       {/* Info Modal - ONLY render when visible */}
       {showInfoModal ? (
         <Modal
@@ -1503,7 +1536,7 @@ export default function SettingsScreen() {
               <Pressable
                 style={[styles.modalButton, { backgroundColor: theme.primary }]}
                 onPress={handleCloseInfoModal}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Text style={styles.modalButtonText}>Got it</Text>
               </Pressable>
@@ -1551,7 +1584,7 @@ export default function SettingsScreen() {
                   style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                   onPress={handleCancelDelete}
                   disabled={isDeleting}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
                   <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                     Cancel
@@ -1562,7 +1595,7 @@ export default function SettingsScreen() {
                   style={[styles.modalButtonHalf, styles.confirmDeleteButton]}
                   onPress={handleConfirmDelete}
                   disabled={isDeleting}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
                   {isDeleting ? (
                     <ActivityIndicator color="#FFFFFF" />
@@ -1695,7 +1728,7 @@ export default function SettingsScreen() {
                       style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                       onPress={handleCloseChangePasswordModal}
                       disabled={isUpdatingPassword}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
                       <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                         Cancel
@@ -1706,7 +1739,7 @@ export default function SettingsScreen() {
                       style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
                       onPress={handleSavePassword}
                       disabled={isUpdatingPassword}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
                       {isUpdatingPassword ? (
                         <ActivityIndicator color="#FFFFFF" />
@@ -1776,7 +1809,7 @@ export default function SettingsScreen() {
                     style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                     onPress={handleClosePersonaModal}
                     disabled={isUpdatingPersona}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
                     <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                       Cancel
@@ -1787,7 +1820,7 @@ export default function SettingsScreen() {
                     style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
                     onPress={handleSavePersona}
                     disabled={isUpdatingPersona}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
                     {isUpdatingPersona ? (
                       <ActivityIndicator color="#FFFFFF" />
@@ -1841,7 +1874,7 @@ export default function SettingsScreen() {
               <Pressable
                 style={[styles.modalButton, { backgroundColor: theme.primary }]}
                 onPress={handleClosePersonalizationInfoModal}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Text style={styles.modalButtonText}>Got it</Text>
               </Pressable>
@@ -1889,7 +1922,7 @@ export default function SettingsScreen() {
                   style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                   onPress={handleCloseClearPersonalizationModal}
                   disabled={isClearingPersonalization}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
                   <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                     Cancel
@@ -1900,7 +1933,7 @@ export default function SettingsScreen() {
                   style={[styles.modalButtonHalf, { backgroundColor: '#FF9500' }]}
                   onPress={handleConfirmClearPersonalization}
                   disabled={isClearingPersonalization}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
                   {isClearingPersonalization ? (
                     <ActivityIndicator color="#FFFFFF" />
@@ -2123,7 +2156,7 @@ export default function SettingsScreen() {
                       style={[styles.modalButton, { backgroundColor: theme.primary, marginBottom: 10 }]}
                       onPress={handleSavePersonalization}
                       disabled={isUpdatingPersonalization}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
                       {isUpdatingPersonalization ? (
                         <ActivityIndicator color="#FFFFFF" />
@@ -2137,7 +2170,7 @@ export default function SettingsScreen() {
                         style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                         onPress={handleClosePersonalizationModal}
                         disabled={isUpdatingPersonalization}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       >
                         <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                           Cancel
@@ -2148,7 +2181,7 @@ export default function SettingsScreen() {
                         style={[styles.modalButtonHalf, { backgroundColor: '#FF9500' }]}
                         onPress={handleOpenClearPersonalizationModal}
                         disabled={isUpdatingPersonalization}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       >
                         <Text style={styles.modalButtonText}>Clear data</Text>
                       </Pressable>
@@ -2283,7 +2316,7 @@ export default function SettingsScreen() {
                             <Pressable
                               onPress={() => hasLongContent && toggleUpdateExpanded(update.id)}
                               disabled={!hasLongContent}
-                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                             >
                               <View style={styles.updateCardHeader}>
                                 <Text 
@@ -2325,7 +2358,7 @@ export default function SettingsScreen() {
                               <Pressable
                                 style={styles.updateCardActionButton}
                                 onPress={() => handleOpenEditUpdateModal(update)}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                               >
                                 <IconSymbol
                                   ios_icon_name="pencil"
@@ -2341,7 +2374,7 @@ export default function SettingsScreen() {
                               <Pressable
                                 style={styles.updateCardActionButton}
                                 onPress={() => handleDeleteUpdate(update.id)}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                               >
                                 <IconSymbol
                                   ios_icon_name="trash"
@@ -2498,7 +2531,7 @@ export default function SettingsScreen() {
                       style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                       onPress={handleCloseAddUpdateModal}
                       disabled={isSavingUpdate}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
                       <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                         Cancel
@@ -2515,7 +2548,7 @@ export default function SettingsScreen() {
                       ]}
                       onPress={handleSaveUpdate}
                       disabled={!updateTitle.trim() || isSavingUpdate}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
                       {isSavingUpdate ? (
                         <ActivityIndicator color="#FFFFFF" />
@@ -3109,5 +3142,16 @@ const styles = StyleSheet.create({
   updateCardActionText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+
+  // DEV-ONLY DIAGNOSTIC OVERLAY
+  devDiagnosticOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 9999,
   },
 });
