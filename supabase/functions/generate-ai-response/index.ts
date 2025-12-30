@@ -24,6 +24,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
 };
 
+// ═══════════════════════════════════════════════════════════════════
+// DEFAULT FALLBACK MESSAGE
+// ═══════════════════════════════════════════════════════════════════
+const DEFAULT_FALLBACK_MESSAGE = "I'm having a little trouble understanding. Could you please rephrase your question?";
+
 // ========== THERAPIST PERSONA DEFINITIONS ==========
 // Therapist personas for conversational style (non-medical)
 // Each persona includes style metadata to create distinct communication patterns
@@ -2280,6 +2285,71 @@ PRIVACY & CONTROL:
   return basePrompt;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// ROBUST OPENAI RESPONSE EXTRACTION
+// ═══════════════════════════════════════════════════════════════════
+/**
+ * Extract reply text from OpenAI response with robust fallback handling
+ * 
+ * Handles multiple response formats:
+ * - Standard: choices[0].message.content
+ * - Alternative: reply field
+ * - Direct string response
+ * - Tool calls only (no content)
+ * - Refusal responses
+ * 
+ * @param data - The OpenAI API response data
+ * @returns Extracted reply text or null if extraction fails
+ */
+function extractReplyFromOpenAI(data: any): string | null {
+  // CASE 1: Standard OpenAI response structure
+  if (data?.choices?.[0]?.message?.content) {
+    const content = data.choices[0].message.content;
+    if (typeof content === 'string' && content.trim().length > 0) {
+      return content.trim();
+    }
+  }
+  
+  // CASE 2: Alternative response structure (e.g., 'reply' field)
+  if (data?.reply && typeof data.reply === 'string') {
+    const reply = data.reply.trim();
+    if (reply.length > 0) {
+      return reply;
+    }
+  }
+  
+  // CASE 3: Direct string response
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  }
+  
+  // CASE 4: Tool calls only (no text content)
+  if (data?.choices?.[0]?.message?.tool_calls) {
+    console.warn("[Edge] OpenAI returned tool_calls only - no text content available");
+    return null;
+  }
+  
+  // CASE 5: Refusal content
+  if (data?.choices?.[0]?.message?.refusal) {
+    console.warn("[Edge] OpenAI refused to answer:", data.choices[0].message.refusal);
+    return null;
+  }
+  
+  // CASE 6: Unexpected response shape
+  console.warn("[Edge] Unexpected OpenAI response shape:", {
+    hasChoices: !!data?.choices,
+    choicesLength: data?.choices?.length,
+    hasMessage: !!data?.choices?.[0]?.message,
+    messageKeys: data?.choices?.[0]?.message ? Object.keys(data.choices[0].message) : [],
+    dataKeys: data ? Object.keys(data) : []
+  });
+  
+  return null;
+}
+
 // Helper to create error response with CORS headers
 function createErrorResponse(
   code: string,
@@ -2327,6 +2397,7 @@ serve(async (req) => {
   // CORS PREFLIGHT HANDLING (CRITICAL FOR WEB PREVIEW)
   // ═══════════════════════════════════════════════════════════════════
   if (req.method === "OPTIONS") {
+    console.log(`[Edge][Chat][${requestId}] CORS preflight request`);
     return new Response(null, { 
       status: 204, 
       headers: corsHeaders 
@@ -2344,6 +2415,7 @@ serve(async (req) => {
     // Validate HTTP method
     if (req.method !== "POST") {
       clearTimeout(functionTimeoutId);
+      console.log(`[Edge][Chat][${requestId}] Invalid method: ${req.method}`);
       return createErrorResponse(
         "METHOD_NOT_ALLOWED",
         "Only POST requests are allowed",
@@ -2356,6 +2428,7 @@ serve(async (req) => {
     // Validate OpenAI API key
     if (!OPENAI_API_KEY) {
       clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] Missing OpenAI API key`);
       return createErrorResponse(
         "MISSING_API_KEY",
         "OpenAI API key is not configured",
@@ -2368,6 +2441,7 @@ serve(async (req) => {
     // Validate Supabase configuration
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] Missing Supabase configuration`);
       return createErrorResponse(
         "MISSING_SUPABASE_CONFIG",
         "Supabase configuration is incomplete",
@@ -2386,6 +2460,7 @@ serve(async (req) => {
       body = await req.json();
     } catch (parseError: any) {
       clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] JSON parse error:`, parseError?.message);
       return createErrorResponse(
         "INVALID_JSON",
         "Request body must be valid JSON",
@@ -2393,6 +2468,11 @@ serve(async (req) => {
         requestId,
         timestamp
       );
+    }
+
+    // DEV-only: Log request body keys (not full content for privacy)
+    if (isDevEnv()) {
+      console.log(`[Edge][Chat][${requestId}] Request body keys:`, Object.keys(body || {}));
     }
 
     const {
@@ -2412,6 +2492,7 @@ serve(async (req) => {
     // Validate required fields
     if (!Array.isArray(messages)) {
       clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] Invalid messages field:`, typeof messages);
       return createErrorResponse(
         "BAD_REQUEST",
         "messages field must be an array",
@@ -2423,6 +2504,7 @@ serve(async (req) => {
 
     if (!userId) {
       clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] Missing userId`);
       return createErrorResponse(
         "BAD_REQUEST",
         "userId is required",
@@ -2434,6 +2516,7 @@ serve(async (req) => {
 
     if (!personId) {
       clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] Missing personId`);
       return createErrorResponse(
         "BAD_REQUEST",
         "personId is required",
@@ -2446,6 +2529,7 @@ serve(async (req) => {
     // Check if we're approaching timeout
     if (Date.now() - functionStartTime > TOTAL_FUNCTION_TIMEOUT_MS - 2000) {
       clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] Approaching timeout`);
       return createErrorResponse(
         "TIMEOUT",
         "Function timeout approaching",
@@ -2563,6 +2647,7 @@ serve(async (req) => {
     // Call OpenAI API with timeout
     let openaiRes: Response;
     try {
+      console.log(`[Edge][Chat][${requestId}] Calling OpenAI API...`);
       openaiRes = await fetch(OPENAI_API_URL, {
         method: "POST",
         headers: {
@@ -2579,11 +2664,13 @@ serve(async (req) => {
       });
 
       clearTimeout(openaiTimeoutId);
+      console.log(`[Edge][Chat][${requestId}] OpenAI API responded with status: ${openaiRes.status}`);
     } catch (fetchError: any) {
       clearTimeout(openaiTimeoutId);
       clearTimeout(functionTimeoutId);
 
       if (fetchError.name === "AbortError") {
+        console.error(`[Edge][Chat][${requestId}] OpenAI request aborted (timeout)`);
         return createErrorResponse(
           "TIMEOUT",
           "OpenAI API request timed out",
@@ -2596,6 +2683,7 @@ serve(async (req) => {
         );
       }
 
+      console.error(`[Edge][Chat][${requestId}] OpenAI network error:`, fetchError?.message);
       return createErrorResponse(
         "OPENAI_NETWORK_ERROR",
         "Failed to connect to OpenAI API",
@@ -2611,8 +2699,15 @@ serve(async (req) => {
 
     const rawText = await openaiRes.text();
 
+    // DEV-only: Log OpenAI response status and body preview
+    if (isDevEnv()) {
+      console.log(`[Edge][Chat][${requestId}] OpenAI status: ${openaiRes.status}`);
+      console.log(`[Edge][Chat][${requestId}] OpenAI response preview:`, rawText.substring(0, 200) + "...");
+    }
+
     if (!openaiRes.ok) {
       clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] OpenAI API error: ${openaiRes.status} ${openaiRes.statusText}`);
       return createErrorResponse(
         "OPENAI_API_ERROR",
         `OpenAI API returned ${openaiRes.status}: ${openaiRes.statusText}`,
@@ -2631,6 +2726,7 @@ serve(async (req) => {
       data = rawText ? JSON.parse(rawText) : null;
     } catch (parseError: any) {
       clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] Failed to parse OpenAI response as JSON`);
       return createErrorResponse(
         "OPENAI_PARSE_ERROR",
         "Failed to parse OpenAI response as JSON",
@@ -2650,71 +2746,17 @@ serve(async (req) => {
     // Handles all possible OpenAI response shapes and edge cases
     // ═══════════════════════════════════════════════════════════════════
 
-    const DEFAULT_FALLBACK_MESSAGE = "I'm having a little trouble understanding. Could you please rephrase your question?";
-
-    // DEV-only: Log raw OpenAI response shape (truncated for safety)
-    if (isDevEnv()) {
-      const rawResponsePreview = JSON.stringify(data, null, 2).substring(0, 500);
-      console.log(`[Edge][Chat][${requestId}] Raw OpenAI response (truncated):`, rawResponsePreview + "...");
-    }
-
     // Extract reply using robust parsing logic
-    let extractedText: string | null = null;
-
-    // CASE 1: Standard OpenAI response structure
-    if (data?.choices?.[0]?.message?.content) {
-      extractedText = data.choices[0].message.content;
-      console.log(`[Edge][Chat][${requestId}] Extracted from choices[0].message.content`);
-    }
-    // CASE 2: Alternative response structure (e.g., 'reply' field)
-    else if (data?.reply && typeof data.reply === 'string') {
-      extractedText = data.reply;
-      console.log(`[Edge][Chat][${requestId}] Extracted from data.reply`);
-    }
-    // CASE 3: Direct string response
-    else if (typeof data === 'string') {
-      extractedText = data;
-      console.log(`[Edge][Chat][${requestId}] Extracted from direct string`);
-    }
-    // CASE 4: Tool calls only (no text content)
-    else if (data?.choices?.[0]?.message?.tool_calls) {
-      console.warn(`[Edge][Chat][${requestId}] OpenAI returned tool_calls only - using fallback`);
-      extractedText = null;
-    }
-    // CASE 5: Refusal content
-    else if (data?.choices?.[0]?.message?.refusal) {
-      console.warn(`[Edge][Chat][${requestId}] OpenAI refused to answer - using fallback`);
-      extractedText = null;
-    }
-    // CASE 6: Unexpected response shape
-    else {
-      console.warn(`[Edge][Chat][${requestId}] Unexpected OpenAI response shape:`, {
-        hasChoices: !!data?.choices,
-        choicesLength: data?.choices?.length,
-        hasMessage: !!data?.choices?.[0]?.message,
-        messageKeys: data?.choices?.[0]?.message ? Object.keys(data.choices[0].message) : [],
-        dataKeys: data ? Object.keys(data) : []
-      });
-      extractedText = null;
-    }
-
-    // Trim and validate extracted text
-    let reply = extractedText?.trim() || "";
+    let reply = extractReplyFromOpenAI(data);
 
     // DEV-only: Log extracted reply length
     if (isDevEnv()) {
-      console.log(`[Edge][Chat][${requestId}] Extracted reply length: ${reply.length} characters`);
+      console.log(`[Edge][Chat][${requestId}] Extracted reply length: ${reply?.length || 0} characters`);
     }
 
-    // CRITICAL: If reply is empty or whitespace-only, use fallback
-    if (!reply || reply.length === 0) {
+    // CRITICAL: If reply is empty or null, use fallback
+    if (!reply || reply.trim().length === 0) {
       console.warn(`[Edge][Chat][${requestId}] Empty reply detected - using fallback message`);
-      reply = DEFAULT_FALLBACK_MESSAGE;
-    }
-
-    // Additional safety check: ensure reply is not just whitespace
-    if (reply.trim().length === 0) {
-      console.warn(`[Edge][Chat][${requestId}] Reply is whitespace only - using fallback message`);
       reply = DEFAULT_FALLBACK_MESSAGE;
     }
 
