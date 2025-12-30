@@ -15,11 +15,17 @@
  * - HTTP 502 (Bad Gateway)
  * - HTTP 504 (Gateway Timeout)
  * - HTTP 429 (Rate Limit)
+ * - EMPTY_ASSISTANT_RESPONSE (AI returned empty/null response)
  */
 export function isTransientAIError(error: any): boolean {
   const status = error?.status || error?.error?.status;
   const code = error?.code || error?.error?.code;
   const message = (error?.message || error?.error?.message || '').toLowerCase();
+  
+  // Check for empty assistant response - treat as transient
+  if (message.includes('empty_assistant_response')) {
+    return true;
+  }
   
   // Check status codes
   if (status === 429 || status === 502 || status === 503 || status === 504) {
@@ -57,6 +63,7 @@ export function logAIError(
   error: any,
   context?: {
     conversationId?: string;
+    personId?: string;
     userId?: string;
     messageCount?: number;
     attempt?: number;
@@ -69,13 +76,19 @@ export function logAIError(
   const message = error?.message || error?.error?.message || 'Unknown error';
   const details = error?.details || error?.error?.details;
   
-  // Extract response body snippet if available
+  // Extract response body snippet if available (DEV-only)
   let bodySnippet = null;
   if (details?.body) {
     const bodyStr = typeof details.body === 'string' 
       ? details.body 
       : JSON.stringify(details.body);
     bodySnippet = bodyStr.substring(0, 200);
+  } else if (error?.data) {
+    // Also check error.data for response body
+    const dataStr = typeof error.data === 'string'
+      ? error.data
+      : JSON.stringify(error.data);
+    bodySnippet = dataStr.substring(0, 200);
   }
   
   console.error(`[${stage}]`, {
@@ -139,21 +152,52 @@ export function formatAIErrorMessage(error: any, isDev: boolean = false): string
  * - { reply: string } (our Edge Function format)
  * 
  * @param result - The AI response result
+ * @param context - Additional context for error logging (DEV-only)
  * @returns The extracted text string
- * @throws Error if no valid text is found
+ * @throws Error with code "EMPTY_ASSISTANT_RESPONSE" if no valid text is found
  */
-export function extractAssistantText(result: any): string {
+export function extractAssistantText(
+  result: any,
+  context?: {
+    conversationId?: string;
+    personId?: string;
+    userId?: string;
+    messageCount?: number;
+    attempt?: number;
+  }
+): string {
+  // DEV-only: Log the raw response shape for diagnosis
+  if (__DEV__) {
+    console.log('[extractAssistantText] Raw response shape:', {
+      type: typeof result,
+      keys: result && typeof result === 'object' ? Object.keys(result) : null,
+      hasReply: result?.reply !== undefined,
+      hasContent: result?.content !== undefined,
+      hasData: result?.data !== undefined,
+      context,
+    });
+  }
+
   // If result is a string, use it directly
   if (typeof result === 'string') {
     const trimmed = result.trim();
     if (!trimmed) {
-      throw new Error('EMPTY_ASSISTANT_RESPONSE');
+      const error = new Error('EMPTY_ASSISTANT_RESPONSE');
+      (error as any).code = 'EMPTY_ASSISTANT_RESPONSE';
+      (error as any).context = context;
+      
+      if (__DEV__) {
+        logAIError('OPENAI_RESPONSE_PARSE', error, context);
+      }
+      
+      throw error;
     }
     return trimmed;
   }
 
   // Check various possible locations for the text
   const possiblePaths = [
+    result?.reply, // Our Edge Function returns { reply: "..."}
     result?.content,
     result?.text,
     result?.message?.content,
@@ -161,7 +205,6 @@ export function extractAssistantText(result: any): string {
     result?.data?.content,
     result?.data?.text,
     result?.choices?.[0]?.message?.content,
-    result?.reply, // Our Edge Function returns { reply: "..."}
   ];
 
   for (const path of possiblePaths) {
@@ -173,6 +216,15 @@ export function extractAssistantText(result: any): string {
     }
   }
 
-  // No valid text found - throw error
-  throw new Error('EMPTY_ASSISTANT_RESPONSE');
+  // No valid text found - throw structured error
+  const error = new Error('EMPTY_ASSISTANT_RESPONSE');
+  (error as any).code = 'EMPTY_ASSISTANT_RESPONSE';
+  (error as any).context = context;
+  (error as any).responseShape = __DEV__ ? JSON.stringify(result).substring(0, 500) : undefined;
+  
+  if (__DEV__) {
+    logAIError('OPENAI_RESPONSE_PARSE', error, context);
+  }
+  
+  throw error;
 }

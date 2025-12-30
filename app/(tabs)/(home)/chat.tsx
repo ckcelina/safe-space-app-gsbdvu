@@ -1174,20 +1174,100 @@ export default function ChatScreen() {
       
       const aiResponse = result.data;
       
-      // Extract assistant text using hardened helper
+      // DEV-only: Log the edge function response shape for diagnosis
+      if (__DEV__) {
+        console.log('[Chat] Edge function response received:', {
+          type: typeof aiResponse,
+          keys: aiResponse && typeof aiResponse === 'object' ? Object.keys(aiResponse) : null,
+          hasReply: aiResponse?.reply !== undefined,
+          replyType: typeof aiResponse?.reply,
+          replyLength: typeof aiResponse?.reply === 'string' ? aiResponse.reply.length : null,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      // Extract assistant text using hardened helper with context
       let replyText: string;
       try {
-        replyText = extractAssistantText(aiResponse);
+        replyText = extractAssistantText(aiResponse, {
+          conversationId: personId,
+          personId,
+          userId,
+          messageCount: recentMessages.length,
+          attempt: retryAttempt + 1,
+        });
       } catch (extractError: any) {
-        // Failed to extract text - log and use fallback
-        if (__DEV__) {
-          logAIError('OPENAI_RESPONSE_PARSE', extractError, {
-            conversationId: personId,
-            userId,
-          });
-        }
+        // Failed to extract text - treat as transient error and retry if possible
+        console.error('[Chat] Failed to extract assistant text:', extractError);
+        
+        // Check if this is a transient error and we can retry
+        if (isTransientAIError(extractError) && retryAttempt < maxRetries) {
+          const delay = getRetryDelay(600, 1200);
+          console.log(`[Chat] Empty response detected, retrying in ${delay}ms...`);
+          
+          if (__DEV__) {
+            logAIError('AI_RETRY', extractError, {
+              conversationId: personId,
+              personId,
+              userId,
+              attempt: retryAttempt + 2,
+            });
+          }
 
-        replyText = "I'm having trouble responding right now. Please try again.";
+          await new Promise(resolve => setTimeout(resolve, delay));
+          retryAttempt++;
+          
+          // Retry the AI call
+          try {
+            result = await invokeEdgeSafe('generate-ai-response', aiPayload);
+            
+            if (result.ok) {
+              // Try extracting again
+              replyText = extractAssistantText(result.data, {
+                conversationId: personId,
+                personId,
+                userId,
+                messageCount: recentMessages.length,
+                attempt: retryAttempt + 1,
+              });
+            } else {
+              // Retry failed - use fallback
+              throw extractError;
+            }
+          } catch (retryError: any) {
+            // Retry failed - use fallback
+            console.error('[Chat] Retry failed:', retryError);
+            throw extractError;
+          }
+        } else {
+          // Non-transient or max retries reached - use fallback
+          replyText = "I'm having trouble responding right now. Please try again.";
+          
+          // Create error bubble instead of normal message
+          const tempId = generateTempId();
+          const errorBubble: ExtendedMessage = {
+            id: tempId,
+            temp_id: tempId,
+            user_id: userId,
+            person_id: personId,
+            role: 'assistant',
+            content: replyText,
+            subject: currentSubject,
+            created_at: new Date().toISOString(),
+            therapist_name: therapistMeta.name,
+            therapist_avatar_source: therapistMeta.avatarSource,
+            optimistic: true,
+            failed_to_send: true,
+            retry_content: userMessageText,
+          };
+
+          if (isMountedRef.current) {
+            setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
+            setError('Empty response from AI. Tap to retry.');
+          }
+
+          return; // Exit early - error handled
+        }
       }
 
       // Check for loop detection
