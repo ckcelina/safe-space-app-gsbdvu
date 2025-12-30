@@ -1,7 +1,7 @@
 
 // supabase/functions/generate-ai-response/index.ts
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.2";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
@@ -67,7 +67,7 @@ function createErrorResponse(
   );
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const requestId = crypto.randomUUID();
   const timestamp = Date.now();
   const functionStartTime = Date.now();
@@ -142,6 +142,65 @@ serve(async (req) => {
       );
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // IMPROVED AUTH VALIDATION
+    // ═══════════════════════════════════════════════════════════════════
+    const authHeader = req.headers.get("Authorization");
+    
+    if (!authHeader) {
+      clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] Missing Authorization header`);
+      return createErrorResponse(
+        "UNAUTHORIZED",
+        "Missing Authorization header",
+        { hint: "Please ensure you are logged in" },
+        requestId,
+        timestamp
+      );
+    }
+
+    // Extract token from "Bearer <token>" format
+    const token = authHeader.replace("Bearer ", "").trim();
+    
+    if (!token) {
+      clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] Empty auth token`);
+      return createErrorResponse(
+        "UNAUTHORIZED",
+        "Invalid Authorization header format",
+        { hint: "Expected format: Bearer <token>" },
+        requestId,
+        timestamp
+      );
+    }
+
+    // Initialize Supabase client with service role key
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false }
+    });
+    
+    console.log(`[Edge][Chat][${requestId}] Supabase client initialized`);
+
+    // Validate the user's token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] Auth validation failed:`, authError?.message);
+      return createErrorResponse(
+        "UNAUTHORIZED",
+        "Invalid or expired authentication token",
+        { 
+          hint: "Please log in again",
+          authError: authError?.message 
+        },
+        requestId,
+        timestamp
+      );
+    }
+
+    console.log(`[Edge][Chat][${requestId}] User authenticated: ${user.id}`);
+
     // Parse request body
     let body: any;
     try {
@@ -195,6 +254,19 @@ serve(async (req) => {
       );
     }
 
+    // Verify userId matches authenticated user
+    if (userId !== user.id) {
+      clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] userId mismatch: ${userId} !== ${user.id}`);
+      return createErrorResponse(
+        "FORBIDDEN",
+        "User ID does not match authenticated user",
+        { providedUserId: userId, authenticatedUserId: user.id },
+        requestId,
+        timestamp
+      );
+    }
+
     if (!personId) {
       clearTimeout(functionTimeoutId);
       console.error(`[Edge][Chat][${requestId}] Missing personId`);
@@ -208,10 +280,6 @@ serve(async (req) => {
     }
 
     console.log(`[Edge][Chat][${requestId}] Validated inputs - userId: ${userId}, personId: ${personId}, messages: ${messages.length}`);
-
-    // Initialize Supabase client with service role key
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    console.log(`[Edge][Chat][${requestId}] Supabase client initialized`);
 
     const lastUserMessage =
       messages.filter((m: any) => m?.role === "user").pop()?.content || "";

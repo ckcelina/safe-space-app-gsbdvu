@@ -1131,6 +1131,20 @@ export default function ChatScreen() {
           setDebugInfo(debugString);
         }
 
+        // Determine user-friendly error message
+        let userErrorMessage = "I'm having trouble responding right now. Please try again.";
+        
+        // Check for specific error codes
+        if ((error as any)?.message?.includes('UNAUTHORIZED') || (error as any)?.message?.includes('401')) {
+          userErrorMessage = "Your session has expired. Please log in again.";
+          // Redirect to login after a short delay
+          setTimeout(() => {
+            router.replace('/login');
+          }, 2000);
+        } else if ((error as any)?.message?.includes('MISSING_API_KEY')) {
+          userErrorMessage = "AI service is not configured. Please contact support.";
+        }
+
         // Create error bubble
         const tempId = generateTempId();
         const errorBubble: ExtendedMessage = {
@@ -1139,7 +1153,7 @@ export default function ChatScreen() {
           user_id: userId,
           person_id: personId,
           role: 'assistant',
-          content: "I'm having trouble responding right now. Please try again.",
+          content: userErrorMessage,
           subject: currentSubject,
           created_at: new Date().toISOString(),
           therapist_name: therapistMeta.name,
@@ -1151,7 +1165,7 @@ export default function ChatScreen() {
 
         if (isMountedRef.current) {
           setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
-          setError(errorMessage);
+          setError(userErrorMessage);
         }
 
         return; // Exit - error handled
