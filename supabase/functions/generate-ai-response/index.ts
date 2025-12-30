@@ -12,8 +12,8 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const IS_DEV = Deno.env.get("DEV_MODE") === "true";
 
 // Timeout configuration (in milliseconds)
-const OPENAI_TIMEOUT_MS = 18000; // 18 seconds (leave 2s buffer for processing)
-const TOTAL_FUNCTION_TIMEOUT_MS = 20000; // 20 seconds total
+const OPENAI_TIMEOUT_MS = 30000; // 30 seconds hard timeout
+const TOTAL_FUNCTION_TIMEOUT_MS = 35000; // 35 seconds total (5s buffer for DB operations)
 
 // ═══════════════════════════════════════════════════════════════════
 // CORS HEADERS - APPLIED TO ALL RESPONSES
@@ -1217,33 +1217,6 @@ function applyPersonaClosing(
   return `${trimmedResponse}\n\n${closingToUse}`;
 }
 
-/**
- * DEPRECATED: Use applyPersonaClosing instead
- * Apply gentle closing sentence to AI response if appropriate
- * Only adds closing if conversation is naturally winding down
- * Closing is subtle and non-pressuring
- */
-function applyGentleClosing(
-  aiResponse: string,
-  slowdownAnalysis: ConversationSlowdownAnalysis
-): string {
-  if (!slowdownAnalysis.shouldAddClosing || !slowdownAnalysis.closingSentence) {
-    return aiResponse;
-  }
-  
-  // Add closing sentence with appropriate spacing
-  // Ensure it feels natural and not forced
-  const trimmedResponse = aiResponse.trim();
-  
-  // If response already ends with a question, don't add closing
-  if (trimmedResponse.endsWith('?')) {
-    return aiResponse;
-  }
-  
-  // Add closing with gentle spacing
-  return `${trimmedResponse}\n\n${slowdownAnalysis.closingSentence}`;
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // NEW: EMOTIONAL PRESENCE ENHANCEMENT
 // ═══════════════════════════════════════════════════════════════════
@@ -2359,8 +2332,8 @@ function createErrorResponse(
   timestamp?: number
 ): Response {
   const responseBody = {
-    success: false,
-    reply: null,
+    ok: false,
+    data: null,
     error: {
       code,
       message,
@@ -2392,6 +2365,8 @@ serve(async (req) => {
   const requestId = crypto.randomUUID();
   const timestamp = Date.now();
   const functionStartTime = Date.now();
+
+  console.log(`[Edge][Chat][${requestId}] Request started`);
 
   // ═══════════════════════════════════════════════════════════════════
   // CORS PREFLIGHT HANDLING (CRITICAL FOR WEB PREVIEW)
@@ -2489,7 +2464,10 @@ serve(async (req) => {
     // Request-level toggle
     const continuity_enabled_request = !!body?.continuity_enabled;
 
-    // Validate required fields
+    // ═══════════════════════════════════════════════════════════════════
+    // VALIDATE REQUIRED INPUTS
+    // ═══════════════════════════════════════════════════════════════════
+    
     if (!Array.isArray(messages)) {
       clearTimeout(functionTimeoutId);
       console.error(`[Edge][Chat][${requestId}] Invalid messages field:`, typeof messages);
@@ -2526,6 +2504,8 @@ serve(async (req) => {
       );
     }
 
+    console.log(`[Edge][Chat][${requestId}] Validated inputs - userId: ${userId}, personId: ${personId}, messages: ${messages.length}`);
+
     // Check if we're approaching timeout
     if (Date.now() - functionStartTime > TOTAL_FUNCTION_TIMEOUT_MS - 2000) {
       clearTimeout(functionTimeoutId);
@@ -2539,7 +2519,9 @@ serve(async (req) => {
       );
     }
 
+    // Initialize Supabase client with service role key
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    console.log(`[Edge][Chat][${requestId}] Supabase client initialized`);
 
     const lastUserMessage =
       messages.filter((m: any) => m?.role === "user").pop()?.content || "";
@@ -2566,6 +2548,7 @@ serve(async (req) => {
     );
     console.log(`[Edge][Chat][${requestId}] Slowdown analysis:`, slowdownAnalysis);
 
+    // Build system prompt
     const systemPrompt = await buildSystemPrompt(
       supabase,
       userId,
@@ -2637,14 +2620,17 @@ serve(async (req) => {
       console.log(`[Edge][Chat][${requestId}] Persona-based max_tokens: ${maxTokens} for ${preferences.therapist_persona_id}`);
     }
 
-    // Set up OpenAI-specific timeout
+    // ═══════════════════════════════════════════════════════════════════
+    // CALL OPENAI API WITH TIMEOUT
+    // ═══════════════════════════════════════════════════════════════════
+    
+    const openaiStartTime = Date.now();
     const openaiAbortController = new AbortController();
     const openaiTimeoutId = setTimeout(() => {
       console.error(`[Edge][Chat][${requestId}] OpenAI timeout after ${OPENAI_TIMEOUT_MS}ms`);
       openaiAbortController.abort();
     }, OPENAI_TIMEOUT_MS);
 
-    // Call OpenAI API with timeout
     let openaiRes: Response;
     try {
       console.log(`[Edge][Chat][${requestId}] Calling OpenAI API...`);
@@ -2664,7 +2650,8 @@ serve(async (req) => {
       });
 
       clearTimeout(openaiTimeoutId);
-      console.log(`[Edge][Chat][${requestId}] OpenAI API responded with status: ${openaiRes.status}`);
+      const openaiLatency = Date.now() - openaiStartTime;
+      console.log(`[Edge][Chat][${requestId}] OpenAI API responded with status: ${openaiRes.status} (latency: ${openaiLatency}ms)`);
     } catch (fetchError: any) {
       clearTimeout(openaiTimeoutId);
       clearTimeout(functionTimeoutId);
@@ -2747,26 +2734,26 @@ serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════════
 
     // Extract reply using robust parsing logic
-    let reply = extractReplyFromOpenAI(data);
+    let replyText = extractReplyFromOpenAI(data);
 
     // DEV-only: Log extracted reply length
     if (isDevEnv()) {
-      console.log(`[Edge][Chat][${requestId}] Extracted reply length: ${reply?.length || 0} characters`);
+      console.log(`[Edge][Chat][${requestId}] Extracted reply length: ${replyText?.length || 0} characters`);
     }
 
     // CRITICAL: If reply is empty or null, use fallback
-    if (!reply || reply.trim().length === 0) {
+    if (!replyText || replyText.trim().length === 0) {
       console.warn(`[Edge][Chat][${requestId}] Empty reply detected - using fallback message`);
-      reply = DEFAULT_FALLBACK_MESSAGE;
+      replyText = DEFAULT_FALLBACK_MESSAGE;
     }
 
     // Final validation: ensure reply is a non-empty string
-    if (typeof reply !== 'string' || reply.trim().length === 0) {
+    if (typeof replyText !== 'string' || replyText.trim().length === 0) {
       console.error(`[Edge][Chat][${requestId}] Reply validation failed - forcing fallback`);
-      reply = DEFAULT_FALLBACK_MESSAGE;
+      replyText = DEFAULT_FALLBACK_MESSAGE;
     }
 
-    console.log(`[Edge][Chat][${requestId}] Final reply length: ${reply.length} characters`);
+    console.log(`[Edge][Chat][${requestId}] Final reply length: ${replyText.length} characters`);
 
     // ═══════════════════════════════════════════════════════════════════
     // APPLY PERSONA-SPECIFIC CLOSING STYLE IF APPROPRIATE
@@ -2776,11 +2763,51 @@ serve(async (req) => {
       ? getPersonaStyleMetadata(preferences.therapist_persona_id)
       : null;
     
-    reply = applyPersonaClosing(reply, personaStyleForClosing, slowdownAnalysis, ventingAnalysis);
+    replyText = applyPersonaClosing(replyText, personaStyleForClosing, slowdownAnalysis, ventingAnalysis);
 
-    if (IS_DEV && aiToneId && !reply.includes(`(tone: ${aiToneId})`)) {
-      reply += `\n\n(tone: ${aiToneId})`;
+    if (IS_DEV && aiToneId && !replyText.includes(`(tone: ${aiToneId})`)) {
+      replyText += `\n\n(tone: ${aiToneId})`;
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // INSERT ASSISTANT MESSAGE INTO DATABASE (SOURCE OF TRUTH)
+    // ═══════════════════════════════════════════════════════════════════
+    
+    console.log(`[Edge][Chat][${requestId}] Inserting assistant message into database...`);
+    const dbInsertStartTime = Date.now();
+    
+    const { data: assistantMessage, error: insertError } = await supabase
+      .from("messages")
+      .insert({
+        user_id: userId,
+        person_id: personId,
+        role: "assistant",
+        content: replyText,
+        subject: currentSubject || null,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    const dbInsertLatency = Date.now() - dbInsertStartTime;
+
+    if (insertError) {
+      console.error(`[Edge][Chat][${requestId}] DB insert failed (latency: ${dbInsertLatency}ms):`, insertError);
+      clearTimeout(functionTimeoutId);
+      return createErrorResponse(
+        "DB_INSERT_ERROR",
+        "Failed to save assistant message to database",
+        {
+          error: insertError.message,
+          code: insertError.code,
+          details: insertError.details
+        },
+        requestId,
+        timestamp
+      );
+    }
+
+    console.log(`[Edge][Chat][${requestId}] DB insert success (latency: ${dbInsertLatency}ms) - message ID: ${assistantMessage.id}`);
 
     // ✅ Continuity update ONLY if effective continuity is enabled (request toggle AND DB toggle)
     // Run in background, don't block response
@@ -2796,7 +2823,7 @@ serve(async (req) => {
             .map((m: any) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
             .join("\n\n");
 
-          const extracted = await extractContinuityFields(conversationText, reply, 8000);
+          const extracted = await extractContinuityFields(conversationText, replyText, 8000);
           if (extracted) {
             await upsertPersonContinuity(supabase, userId, personId, extracted);
           }
@@ -2808,15 +2835,30 @@ serve(async (req) => {
 
     clearTimeout(functionTimeoutId);
 
+    const totalLatency = Date.now() - functionStartTime;
+    const openaiLatency = Date.now() - openaiStartTime;
+
+    // ═══════════════════════════════════════════════════════════════════
+    // RETURN GUARANTEED RESPONSE SHAPE
+    // ═══════════════════════════════════════════════════════════════════
+    
     const responseBody = {
-      success: true,
-      reply,
+      ok: true,
+      data: {
+        replyText,
+        assistantMessage
+      },
       error: null,
       requestId,
-      timestamp
+      timestamp,
+      latency: {
+        total: totalLatency,
+        openai: openaiLatency,
+        dbInsert: dbInsertLatency
+      }
     };
 
-    console.log(`[Edge][Chat][${requestId}] Success in ${Date.now() - functionStartTime}ms`);
+    console.log(`[Edge][Chat][${requestId}] Success - Total: ${totalLatency}ms, OpenAI: ${openaiLatency}ms, DB: ${dbInsertLatency}ms`);
 
     return new Response(
       JSON.stringify(responseBody),
