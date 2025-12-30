@@ -45,6 +45,7 @@ import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import {
   logAIError,
 } from '@/utils/aiErrorHandling';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -390,6 +391,11 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   // ═══════════════════════════════════════════════════════════════════
+  // REALTIME SAFETY NET: Channel ref for cleanup
+  // ═══════════════════════════════════════════════════════════════════
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
+
+  // ═══════════════════════════════════════════════════════════════════
   // IMPROVED: Scroll-to-bottom tracking with better reliability
   // ═══════════════════════════════════════════════════════════════════
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -611,6 +617,99 @@ export default function ChatScreen() {
       updatePersonActivity(authUser.id, personId, 'opened');
     }
   }, [personId, authUser?.id]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // REALTIME SAFETY NET: Subscribe to assistant message inserts
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    // Only subscribe if we have valid user and person IDs
+    if (!authUser?.id || !personId) {
+      console.log('[Realtime] Skipping subscription - missing user or person ID');
+      return;
+    }
+
+    // Check if already subscribed
+    if (realtimeChannelRef.current?.state === 'subscribed') {
+      console.log('[Realtime] Already subscribed, skipping');
+      return;
+    }
+
+    console.log('[Realtime] Setting up subscription for assistant messages');
+    console.log('[Realtime] Filters:', {
+      user_id: authUser.id,
+      person_id: personId,
+      role: 'assistant',
+    });
+
+    // Create channel with dedicated topic for this chat
+    const channel = supabase.channel(`chat:${personId}:assistant-messages`, {
+      config: {
+        broadcast: { self: false, ack: false },
+        private: false, // Using postgres_changes, not broadcast
+      },
+    });
+
+    realtimeChannelRef.current = channel;
+
+    // Subscribe to INSERT events for assistant messages
+    channel
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `user_id=eq.${authUser.id},person_id=eq.${personId},role=eq.assistant`,
+        },
+        (payload) => {
+          console.log('[Realtime] Received assistant message INSERT:', payload);
+
+          if (!payload.new) {
+            console.warn('[Realtime] No payload.new data');
+            return;
+          }
+
+          const newMessage = payload.new as Message;
+
+          // Attach therapist metadata
+          const therapistMeta = getCurrentTherapistMetadata();
+          const messageWithMetadata: ExtendedMessage = {
+            ...newMessage,
+            therapist_name: therapistMeta.name,
+            therapist_avatar_source: therapistMeta.avatarSource,
+          };
+
+          console.log('[Realtime] Merging assistant message into state:', newMessage.id);
+
+          // Merge into state using existing mergeMessages function
+          if (isMountedRef.current) {
+            setAllMessages((prev) => mergeMessages(prev, [messageWithMetadata]));
+
+            // If we're currently generating, stop the typing indicator
+            if (isGeneratingRef.current || isGenerating) {
+              console.log('[Realtime] Stopping typing indicator');
+              isGeneratingRef.current = false;
+              setIsGenerating(false);
+            }
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('[Realtime] Subscription status:', status);
+        if (err) {
+          console.error('[Realtime] Subscription error:', err);
+        }
+      });
+
+    // Cleanup on unmount
+    return () => {
+      console.log('[Realtime] Cleaning up subscription');
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+      }
+    };
+  }, [authUser?.id, personId, getCurrentTherapistMetadata, isGenerating]);
 
   // Filter messages for display based on current subject
   const displayedMessages = React.useMemo(() => {
@@ -1082,139 +1181,83 @@ export default function ChatScreen() {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // SUCCESS: Extract assistant message from Edge Function response
+      // SUCCESS: Edge Function will insert assistant message
+      // Realtime subscription will handle UI update
       // ═══════════════════════════════════════════════════════════════════
       
+      console.log('[Chat] Edge Function invoked successfully');
+      console.log('[Chat] Waiting for realtime subscription to deliver assistant message...');
+
       // The Edge Function now returns { ok: true, data: { replyText, assistantMessage } }
+      // But we don't need to manually add it to state - the realtime subscription will handle it
       const assistantMessage = data?.data?.assistantMessage;
       
       if (!assistantMessage || !assistantMessage.id) {
-        console.error('[Chat] Edge Function did not return assistantMessage:', {
-          hasData: !!data,
-          hasDataData: !!data?.data,
-          hasAssistantMessage: !!assistantMessage,
-          dataKeys: data ? Object.keys(data) : null,
-        });
-
-        // Log error for debugging
-        if (__DEV__) {
-          logAIError('AI_REQUEST', new Error('MISSING_ASSISTANT_MESSAGE'), {
-            conversationId: personId,
-            userId,
-            messageCount: recentMessages.length,
-            attempt: 1,
-          });
-        }
-
-        // Build debug info for DEV mode
-        if (__DEV__) {
-          const debugString = JSON.stringify({
-            functionName: 'generate-ai-response',
-            timestamp: new Date().toISOString(),
-            lastUserMessageId: insertedMessage.id,
-            error: 'MISSING_ASSISTANT_MESSAGE',
-            data,
-          }, null, 2);
-
-          setDebugInfo(debugString);
-        }
-
-        // Create error bubble
-        const tempId = generateTempId();
-        const errorBubble: ExtendedMessage = {
-          id: tempId,
-          temp_id: tempId,
-          user_id: userId,
-          person_id: personId,
-          role: 'assistant',
-          content: "I'm having trouble responding right now. Please try again.",
-          subject: currentSubject,
-          created_at: new Date().toISOString(),
-          therapist_name: therapistMeta.name,
-          therapist_avatar_source: therapistMeta.avatarSource,
-          optimistic: true,
-          failed_to_send: true,
-          retry_content: userMessageText,
-        };
-
-        if (isMountedRef.current) {
-          setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
-          setError('Empty response from AI. Tap to retry.');
-        }
-
-        return; // Exit - error handled
+        console.warn('[Chat] Edge Function did not return assistantMessage in response');
+        console.log('[Chat] This is OK - realtime subscription will deliver it');
+      } else {
+        console.log('[Chat] Edge Function returned assistant message:', assistantMessage.id);
+        console.log('[Chat] Realtime subscription should also deliver this message');
       }
-
-      console.log('[Chat] Assistant message received from Edge Function:', assistantMessage.id);
-
-      // Attach therapist metadata to the assistant message
-      const assistantMessageWithMetadata: ExtendedMessage = {
-        ...assistantMessage,
-        therapist_name: therapistMeta.name,
-        therapist_avatar_source: therapistMeta.avatarSource,
-      };
-
-      // Append assistant message directly to chat state
-      if (isMountedRef.current) {
-        setAllMessages((prev) => mergeMessages(prev, [assistantMessageWithMetadata]));
-      }
-
-      console.log('[Chat] Assistant message added to UI');
 
       // ═══════════════════════════════════════════════════════════════════
       // ACTIVITY TRACKING: Update last_activity_at after assistant message saved
       // ═══════════════════════════════════════════════════════════════════
-      console.log('[Chat] Updating last_activity_at after assistant message');
-      await updatePersonActivity(userId, personId, 'message', assistantMessage.created_at);
+      if (assistantMessage?.created_at) {
+        console.log('[Chat] Updating last_activity_at after assistant message');
+        await updatePersonActivity(userId, personId, 'message', assistantMessage.created_at);
+      }
 
       console.log('[Chat] sendMessage: Complete');
 
       // MEMORY EXTRACTION + CONTINUITY UPDATE: Extract memories and update continuity in the background
       // NOTE: Memory saving logic continues silently - NO UI feedback
-      (async () => {
-        try {
-          console.log('[Chat] Triggering memory extraction and continuity update...');
-          
-          // Get existing memories for context
-          const existingMemories = await getPersonMemories(userId, personId, 50);
-          
-          // Extract last 5 user messages for context
-          const userMessages = subjectMessages
-            .filter(m => m.role === 'user')
-            .slice(-5)
-            .map(m => m.content);
+      if (assistantMessage?.content) {
+        (async () => {
+          try {
+            console.log('[Chat] Triggering memory extraction and continuity update...');
+            
+            // Get existing memories for context
+            const existingMemories = await getPersonMemories(userId, personId, 50);
+            
+            // Extract last 5 user messages for context
+            const userMessages = subjectMessages
+              .filter(m => m.role === 'user')
+              .slice(-5)
+              .map(m => m.content);
 
-          // Extract memories and continuity
-          const extractionResult = await extractMemories({
-            personName,
-            recentUserMessages: userMessages,
-            lastAssistantMessage: assistantMessage.content,
-            existingMemories: existingMemories.map(m => ({
-              key: m.key,
-              value: m.value,
-              category: m.category,
-            })),
-            userId,
-            personId,
-          });
-          
-          console.log('[Chat] Memory extraction complete');
-          
-          // REMOVED: No UI indicator shown - memories saved silently
-          
-          // Update continuity if we got valid data
-          if (extractionResult.continuity) {
-            console.log('[Chat] Updating conversation continuity...');
-            await upsertPersonContinuity(userId, personId, extractionResult.continuity);
-            console.log('[Chat] Continuity updated successfully');
+            // Extract memories and continuity
+            const extractionResult = await extractMemories({
+              personName,
+              recentUserMessages: userMessages,
+              lastAssistantMessage: assistantMessage.content,
+              existingMemories: existingMemories.map(m => ({
+                key: m.key,
+                value: m.value,
+                category: m.category,
+              })),
+              userId,
+              personId,
+            });
+            
+            console.log('[Chat] Memory extraction complete');
+            
+            // REMOVED: No UI indicator shown - memories saved silently
+            
+            // Update continuity if we got valid data
+            if (extractionResult.continuity) {
+              console.log('[Chat] Updating conversation continuity...');
+              await upsertPersonContinuity(userId, personId, extractionResult.continuity);
+              console.log('[Chat] Continuity updated successfully');
+            }
+          } catch (memoryError) {
+            // Silently fail - memory extraction should never break chat
+            if (__DEV__) {
+              console.log('[Chat] Memory extraction/continuity update failed (silent):', memoryError);
+            }
           }
-        } catch (memoryError) {
-          // Silently fail - memory extraction should never break chat
-          if (__DEV__) {
-            console.log('[Chat] Memory extraction/continuity update failed (silent):', memoryError);
-          }
-        }
-      })();
+        })();
+      }
     } catch (err: any) {
       // Unexpected error in sendMessage
       if (__DEV__) {
