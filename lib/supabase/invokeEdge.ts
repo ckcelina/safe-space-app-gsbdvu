@@ -178,12 +178,28 @@ export async function invokeEdgeSafe<T = any>(
         const context = (error as any)?.context;
         const duration = Date.now() - startTime;
 
+        // Try to extract response body for debugging
+        let bodySnippet = null;
+        if (__DEV__) {
+          try {
+            if (context) {
+              const contextStr = typeof context === 'string' 
+                ? context 
+                : JSON.stringify(context);
+              bodySnippet = contextStr.substring(0, 500);
+            }
+          } catch (e) {
+            // Ignore stringify errors
+          }
+        }
+
         if (__DEV__) {
           console.log(`[invokeEdgeSafe] ${functionName} error (attempt ${attempt + 1}):`, {
             name: (error as any)?.name,
             message: (error as any)?.message,
             status,
             statusText,
+            bodySnippet,
           });
 
           // DEV-ONLY: Log compact diagnostic line
@@ -203,23 +219,24 @@ export async function invokeEdgeSafe<T = any>(
         }
 
         // Determine error code based on status
-        let errorCode = (error as any)?.name || 'EDGE_FUNCTION_ERROR';
+        let errorCode = (error as any)?.name || 'EDGE_INVOKE_ERROR';
         if (status === 401 || status === 403) {
           errorCode = 'EDGE_AUTH';
         } else if (status && TRANSIENT_STATUS_CODES.includes(status)) {
           errorCode = 'EDGE_UNAVAILABLE';
         }
 
-        // Non-transient error or max retries reached - return error
+        // Non-transient error or max retries reached - return normalized error
         return {
           ok: false,
           error: {
             code: errorCode,
-            message: (error as any)?.message || 'Edge Function returned an error',
-            status,
+            message: (error as any)?.message || 'Edge function invoke failed',
+            status: status ?? null,
             details: {
               statusText,
               context,
+              bodySnippet,
               attempt: attempt + 1,
             },
           },
@@ -364,11 +381,23 @@ export async function invokeEdgeSafe<T = any>(
         }
 
         // Determine error code based on status
-        let errorCode = 'FUNCTIONS_HTTP_ERROR';
+        let errorCode = 'EDGE_INVOKE_ERROR';
         if (status === 401 || status === 403) {
           errorCode = 'EDGE_AUTH';
         } else if (TRANSIENT_STATUS_CODES.includes(status)) {
           errorCode = 'EDGE_UNAVAILABLE';
+        }
+
+        // Prepare body snippet for DEV-only logging
+        let bodySnippet = null;
+        if (__DEV__) {
+          const bodyData = bodyJson || bodyText;
+          if (bodyData) {
+            const bodyStr = typeof bodyData === 'string' 
+              ? bodyData 
+              : JSON.stringify(bodyData);
+            bodySnippet = bodyStr.substring(0, 500);
+          }
         }
 
         // Non-transient error or max retries reached
@@ -377,10 +406,11 @@ export async function invokeEdgeSafe<T = any>(
           error: {
             code: errorCode,
             message: e.message || `HTTP ${status} error`,
-            status,
+            status: status ?? null,
             details: {
               statusText,
               body: bodyJson || bodyText,
+              bodySnippet,
               headers,
               attempt: attempt + 1,
             },
@@ -397,7 +427,7 @@ export async function invokeEdgeSafe<T = any>(
         });
 
         // DEV-ONLY: Log compact diagnostic line
-        console.log(`[Edge] code=UNEXPECTED_ERROR status=none duration_ms=${duration}`);
+        console.log(`[Edge] code=EDGE_THROWN_ERROR status=none duration_ms=${duration}`);
       }
 
       // Check if this is a network error that should be retried
@@ -411,15 +441,16 @@ export async function invokeEdgeSafe<T = any>(
         continue;
       }
 
-      // Don't retry other unexpected errors
+      // Don't retry other unexpected errors - return normalized error
       return {
         ok: false,
         error: {
-          code: 'UNEXPECTED_ERROR',
+          code: 'EDGE_THROWN_ERROR',
           message: e?.message || 'Unexpected error calling Edge Function',
+          status: null,
           details: {
             name: e?.name,
-            stack: e?.stack,
+            stack: __DEV__ ? e?.stack : undefined,
             attempt: attempt + 1,
           },
         },

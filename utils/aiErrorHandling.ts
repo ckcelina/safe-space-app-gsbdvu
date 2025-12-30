@@ -55,7 +55,7 @@ export function isTransientAIError(error: any): boolean {
  * Log structured error information (DEV only)
  * 
  * @param stage - The stage where the error occurred
- * @param error - The error object
+ * @param error - The error object (normalized from invokeEdgeSafe or raw)
  * @param context - Additional context information
  */
 export function logAIError(
@@ -71,30 +71,45 @@ export function logAIError(
 ): void {
   if (!__DEV__) return;
   
-  const status = error?.status || error?.error?.status;
-  const code = error?.code || error?.error?.code;
-  const message = error?.message || error?.error?.message || 'Unknown error';
-  const details = error?.details || error?.error?.details;
+  // Extract error fields from normalized error structure
+  const status = error?.status ?? error?.error?.status ?? null;
+  const code = error?.code ?? error?.error?.code ?? error?.name ?? 'UNKNOWN';
+  const message = error?.message ?? error?.error?.message ?? 'Unknown error';
+  const details = error?.details ?? error?.error?.details;
   
   // Extract response body snippet if available (DEV-only)
   let bodySnippet = null;
-  if (details?.body) {
+  
+  // Check details.bodySnippet first (from invokeEdgeSafe)
+  if (details?.bodySnippet) {
+    bodySnippet = details.bodySnippet;
+  }
+  // Check details.body
+  else if (details?.body) {
     const bodyStr = typeof details.body === 'string' 
       ? details.body 
       : JSON.stringify(details.body);
-    bodySnippet = bodyStr.substring(0, 200);
-  } else if (error?.data) {
-    // Also check error.data for response body
+    bodySnippet = bodyStr.substring(0, 500);
+  }
+  // Check details.context
+  else if (details?.context) {
+    const contextStr = typeof details.context === 'string'
+      ? details.context
+      : JSON.stringify(details.context);
+    bodySnippet = contextStr.substring(0, 500);
+  }
+  // Check error.data
+  else if (error?.data) {
     const dataStr = typeof error.data === 'string'
       ? error.data
       : JSON.stringify(error.data);
-    bodySnippet = dataStr.substring(0, 200);
+    bodySnippet = dataStr.substring(0, 500);
   }
   
   console.error(`[${stage}]`, {
     stage,
     code,
-    status,
+    status: status ?? 'none',
     message,
     bodySnippet,
     context,

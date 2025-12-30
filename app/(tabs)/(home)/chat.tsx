@@ -1021,9 +1021,9 @@ export default function ChatScreen() {
           // Failed - check if transient
           lastError = result.error;
           
-          // Log error
+          // Log error with full details
           if (__DEV__) {
-            logAIError('EDGE_FUNCTION_INVOKE', result.error, {
+            logAIError('AI_REQUEST', result.error, {
               conversationId: personId,
               userId,
               messageCount: recentMessages.length,
@@ -1057,7 +1057,7 @@ export default function ChatScreen() {
           lastError = unexpectedError;
           
           if (__DEV__) {
-            logAIError('EDGE_FUNCTION_INVOKE', unexpectedError, {
+            logAIError('AI_REQUEST', unexpectedError, {
               conversationId: personId,
               userId,
               messageCount: recentMessages.length,
