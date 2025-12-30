@@ -79,9 +79,18 @@ export default function SignupScreen() {
       if (authError) {
         console.error('[Signup] Signup error:', authError);
         
-        // Handle specific error cases
+        // Handle specific error cases with user-friendly messages
         if (authError.message.includes('User already registered')) {
-          setErrorMessage('An account with this email already exists. Please log in instead.');
+          Alert.alert(
+            'Account Exists',
+            'An account with this email already exists. Please log in instead.',
+            [
+              {
+                text: 'Go to Login',
+                onPress: () => router.replace('/login'),
+              },
+            ]
+          );
           setLoading(false);
           return;
         }

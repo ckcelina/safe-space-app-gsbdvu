@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -44,9 +44,13 @@ export default function LoginScreen() {
       if (signInError) {
         console.error('[Login] Sign in error:', signInError);
         
-        // Handle specific error cases
+        // Handle specific error cases with user-friendly messages
         if (signInError.message.includes('Email not confirmed')) {
-          setError('Please verify your email before logging in. Check your inbox for the verification link.');
+          Alert.alert(
+            'Email Not Verified',
+            'Please verify your email before logging in. Check your inbox for the verification link.',
+            [{ text: 'OK' }]
+          );
           setIsLoading(false);
           return;
         }

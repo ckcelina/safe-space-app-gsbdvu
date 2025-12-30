@@ -34,6 +34,8 @@ export default function RootLayout() {
                   <Stack.Screen name="ai-preferences-onboarding" options={{ headerShown: false }} />
                   <Stack.Screen name="login" options={{ headerShown: false }} />
                   <Stack.Screen name="signup" options={{ headerShown: false }} />
+                  <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                  <Stack.Screen name="reset-password" options={{ headerShown: false }} />
                   <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
                   <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: false }} />
                   <Stack.Screen name="transparent-modal" options={{ presentation: 'transparentModal', headerShown: false }} />
