@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,7 +22,6 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -132,64 +131,8 @@ export default function LoginScreen() {
   };
 
   const handleForgotPassword = () => {
-    // Pre-fill with the email from the login form if available
-    const emailToReset = email || '';
-    
-    Alert.prompt(
-      'Reset Password',
-      'Enter your email address to receive a password reset link.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Send Reset Link',
-          onPress: async (inputEmail) => {
-            const emailAddress = inputEmail?.trim().toLowerCase() || emailToReset.trim().toLowerCase();
-            if (!emailAddress) {
-              Alert.alert('Error', 'Please enter a valid email address.');
-              return;
-            }
-            await sendPasswordResetEmail(emailAddress);
-          },
-        },
-      ],
-      'plain-text',
-      emailToReset,
-      'email-address'
-    );
-  };
-
-  const sendPasswordResetEmail = async (emailAddress: string) => {
-    setIsResettingPassword(true);
-    console.log('[Login] Sending password reset email to:', emailAddress);
-
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(emailAddress, {
-        redirectTo: 'https://natively.dev/reset-password',
-      });
-
-      if (error) {
-        console.error('[Login] Password reset error:', error);
-        Alert.alert(
-          'Error',
-          'Failed to send password reset email. Please check your email address and try again.'
-        );
-      } else {
-        console.log('[Login] Password reset email sent successfully');
-        Alert.alert(
-          'Check Your Email',
-          'If an account exists with this email, you will receive a password reset link shortly.',
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (err: any) {
-      console.error('[Login] Unexpected password reset error:', err);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
-    } finally {
-      setIsResettingPassword(false);
-    }
+    console.log('[Login] Navigating to forgot password screen');
+    router.push('/forgot-password');
   };
 
   return (
@@ -254,7 +197,7 @@ export default function LoginScreen() {
 
                 <TouchableOpacity 
                   onPress={handleForgotPassword}
-                  disabled={isLoading || isResettingPassword}
+                  disabled={isLoading}
                   style={styles.forgotPasswordContainer}
                 >
                   <Text style={[styles.forgotPasswordText, { color: theme.buttonText }]}>
