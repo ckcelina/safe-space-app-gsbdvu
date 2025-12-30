@@ -17,6 +17,7 @@ import {
   Linking,
   Image,
   useWindowDimensions,
+  Pressable,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1001,8 +1002,50 @@ export default function SettingsScreen() {
 
   const selectedPersona = getPersonaById(preferences.therapist_persona_id || '');
 
+  // Check if any modal is open
+  const isAnyModalOpen = 
+    showInfoModal ||
+    showDeleteModal ||
+    showChangePasswordModal ||
+    showPersonaModal ||
+    showPersonalizationInfoModal ||
+    showClearPersonalizationModal ||
+    showPersonalizationModal ||
+    showUpdatesModal ||
+    showAddUpdateModal;
+
   return (
     <>
+      {/* DEV-ONLY TOUCH BLOCKER DETECTOR */}
+      {__DEV__ && (
+        <Pressable
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 9999,
+            backgroundColor: 'transparent',
+          }}
+          pointerEvents={isAnyModalOpen ? 'none' : 'box-none'}
+          onPress={() => {
+            console.log('[Settings] DEV: Touch captured by overlay detector - Settings screen');
+            console.log('[Settings] DEV: Modal states:', {
+              showInfoModal,
+              showDeleteModal,
+              showChangePasswordModal,
+              showPersonaModal,
+              showPersonalizationInfoModal,
+              showClearPersonalizationModal,
+              showPersonalizationModal,
+              showUpdatesModal,
+              showAddUpdateModal,
+            });
+          }}
+        />
+      )}
+
       <LinearGradient
         colors={theme.primaryGradient}
         style={styles.gradientBackground}
@@ -1011,7 +1054,7 @@ export default function SettingsScreen() {
         pointerEvents="box-none"
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-          <View style={styles.container}>
+          <View style={styles.container} pointerEvents="box-none">
             {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
             <View style={styles.topHeader}>
               <TouchableOpacity 
@@ -1449,7 +1492,7 @@ export default function SettingsScreen() {
         </SafeAreaView>
       </LinearGradient>
 
-      {/* Info Modal - FIX: Only render when visible, backdrop blocks touches when open */}
+      {/* Info Modal - FIX: Only render when visible */}
       {showInfoModal && (
         <Modal
           visible={true}
@@ -2626,7 +2669,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
   },
-  // FIX: Modal overlay now blocks touches when visible (no pointerEvents prop)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
