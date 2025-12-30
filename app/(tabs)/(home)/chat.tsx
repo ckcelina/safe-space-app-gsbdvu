@@ -38,16 +38,12 @@ import { extractMemories } from '@/lib/memory/extractMemories';
 import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
 import { upsertPersonContinuity, getPersonContinuity } from '@/lib/memory/personSummary';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
-import { invokeEdgeSafe, copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
+import { copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
 import { getPersonaById } from '@/constants/TherapistPersonas';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import {
-  isTransientAIError,
   logAIError,
-  getRetryDelay,
-  formatAIErrorMessage,
-  extractAssistantText,
 } from '@/utils/aiErrorHandling';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -947,7 +943,7 @@ export default function ChatScreen() {
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // AI GENERATION WITH RETRY LOGIC
+      // AI GENERATION WITH DIRECT EDGE FUNCTION INVOCATION
       // ═══════════════════════════════════════════════════════════════════
       
       // Filter messages for current subject and prepare for AI
@@ -990,111 +986,44 @@ export default function ChatScreen() {
       });
 
       // ═══════════════════════════════════════════════════════════════════
-      // RETRY LOOP: Try once, retry once on transient failure
+      // DIRECT EDGE FUNCTION INVOCATION (NO WRAPPER)
       // ═══════════════════════════════════════════════════════════════════
-      let result: any = null;
-      let lastError: any = null;
-      let retryAttempt = 0;
-      const maxRetries = 1; // One retry
+      
+      const { data, error } = await supabase.functions.invoke('generate-ai-response', { 
+        body: aiPayload 
+      });
 
-      while (retryAttempt <= maxRetries) {
-        try {
-          // Log AI request stage
-          if (__DEV__) {
-            logAIError('AI_REQUEST', {}, {
-              conversationId: personId,
-              userId,
-              messageCount: recentMessages.length,
-              attempt: retryAttempt + 1,
-            });
-          }
-
-          // Call AI generation
-          result = await invokeEdgeSafe('generate-ai-response', aiPayload);
-
-          // Check if successful
-          if (result.ok) {
-            console.log('[Chat] AI generation succeeded on attempt', retryAttempt + 1);
-            break; // Success - exit retry loop
-          }
-
-          // Failed - check if transient
-          lastError = result.error;
-          
-          // Log error with full details
-          if (__DEV__) {
-            logAIError('AI_REQUEST', result.error, {
-              conversationId: personId,
-              userId,
-              messageCount: recentMessages.length,
-              attempt: retryAttempt + 1,
-            });
-          }
-
-          // Check if we should retry
-          if (isTransientAIError(result.error) && retryAttempt < maxRetries) {
-            const delay = getRetryDelay(600, 1200);
-            console.log(`[Chat] Transient error detected, retrying in ${delay}ms...`);
-            
-            // Log retry
-            if (__DEV__) {
-              logAIError('AI_RETRY', result.error, {
-                conversationId: personId,
-                userId,
-                attempt: retryAttempt + 2,
-              });
-            }
-
-            await new Promise(resolve => setTimeout(resolve, delay));
-            retryAttempt++;
-            continue; // Retry
-          }
-
-          // Non-transient error or max retries reached
-          break;
-        } catch (unexpectedError: any) {
-          // Unexpected error during AI call
-          lastError = unexpectedError;
-          
-          if (__DEV__) {
-            logAIError('AI_REQUEST', unexpectedError, {
-              conversationId: personId,
-              userId,
-              messageCount: recentMessages.length,
-              attempt: retryAttempt + 1,
-            });
-          }
-
-          // Check if we should retry
-          if (isTransientAIError(unexpectedError) && retryAttempt < maxRetries) {
-            const delay = getRetryDelay(600, 1200);
-            console.log(`[Chat] Unexpected transient error, retrying in ${delay}ms...`);
-            
-            await new Promise(resolve => setTimeout(resolve, delay));
-            retryAttempt++;
-            continue; // Retry
-          }
-
-          // Non-transient error or max retries reached
-          break;
-        }
+      // DEV-only: Log raw edge function response for diagnosis
+      if (__DEV__) {
+        console.log('[AI_EDGE_RAW]', {
+          hasData: !!data,
+          hasError: !!error,
+          dataKeys: data ? Object.keys(data) : null,
+          error: error ? {
+            name: (error as any)?.name,
+            message: (error as any)?.message,
+            status: (error as any)?.status,
+          } : null,
+        });
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // HANDLE AI RESULT OR ERROR
+      // ERROR HANDLING
       // ═══════════════════════════════════════════════════════════════════
 
-      if (!result || !result.ok) {
-        // AI generation failed after retries
-        const errorCode = lastError?.code || 'UNKNOWN';
-        const errorMessage = lastError?.message || 'Unknown error';
-        const errorStatus = lastError?.status;
-
-        console.log('[Chat] AI generation failed after retries:', {
-          code: errorCode,
-          message: errorMessage,
-          status: errorStatus,
-        });
+      if (error) {
+        const errorMessage = (error as any)?.message || 'Edge invoke error';
+        console.error('[Chat] Edge function error:', errorMessage);
+        
+        // Log error for debugging
+        if (__DEV__) {
+          logAIError('AI_REQUEST', error, {
+            conversationId: personId,
+            userId,
+            messageCount: recentMessages.length,
+            attempt: 1,
+          });
+        }
 
         // Build debug info for DEV mode
         if (__DEV__) {
@@ -1102,67 +1031,91 @@ export default function ChatScreen() {
             functionName: 'generate-ai-response',
             timestamp: new Date().toISOString(),
             lastUserMessageId: insertedMessage.id,
-            error: lastError,
-            attempts: retryAttempt + 1,
+            error,
           }, null, 2);
 
           setDebugInfo(debugString);
         }
 
-        // Format error message for display
-        const displayMessage = formatAIErrorMessage(lastError, __DEV__);
+        // Create error bubble
+        const tempId = generateTempId();
+        const errorBubble: ExtendedMessage = {
+          id: tempId,
+          temp_id: tempId,
+          user_id: userId,
+          person_id: personId,
+          role: 'assistant',
+          content: "I'm having trouble responding right now. Please try again.",
+          subject: currentSubject,
+          created_at: new Date().toISOString(),
+          therapist_name: therapistMeta.name,
+          therapist_avatar_source: therapistMeta.avatarSource,
+          optimistic: true,
+          failed_to_send: true,
+          retry_content: userMessageText,
+        };
 
         if (isMountedRef.current) {
-          // Create error bubble
-          const tempId = generateTempId();
-          const errorBubble: ExtendedMessage = {
-            id: tempId,
-            temp_id: tempId,
-            user_id: userId,
-            person_id: personId,
-            role: 'assistant',
-            content: displayMessage,
-            subject: currentSubject,
-            created_at: new Date().toISOString(),
-            therapist_name: therapistMeta.name,
-            therapist_avatar_source: therapistMeta.avatarSource,
-            optimistic: true,
-            failed_to_send: true,
-            retry_content: userMessageText,
-          };
-
           setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
           setError(errorMessage);
+        }
 
-          // Try to persist error bubble in background
-          supabase
-            .from('messages')
-            .insert({
-              user_id: userId,
-              person_id: personId,
-              role: 'assistant',
-              content: displayMessage,
-              subject: currentSubject,
-              created_at: new Date().toISOString(),
-            })
-            .select('*')
-            .single()
-            .then(({ data: persistedMsg, error: persistError }) => {
-              if (!persistError && persistedMsg && isMountedRef.current) {
-                setAllMessages((prev) => {
-                  return prev.map(m => {
-                    if (m.temp_id === tempId) {
-                      return {
-                        ...persistedMsg,
-                        therapist_name: therapistMeta.name,
-                        therapist_avatar_source: therapistMeta.avatarSource,
-                      };
-                    }
-                    return m;
-                  });
-                });
-              }
-            });
+        return; // Exit - error handled
+      }
+
+      // Check for missing or empty reply
+      if (!data || typeof data.reply !== 'string' || data.reply.trim() === '') {
+        console.error('[Chat] Empty or invalid AI response:', {
+          hasData: !!data,
+          dataType: typeof data,
+          hasReply: data?.reply !== undefined,
+          replyType: typeof data?.reply,
+        });
+
+        // Log error for debugging
+        if (__DEV__) {
+          logAIError('AI_REQUEST', new Error('EMPTY_ASSISTANT_RESPONSE'), {
+            conversationId: personId,
+            userId,
+            messageCount: recentMessages.length,
+            attempt: 1,
+          });
+        }
+
+        // Build debug info for DEV mode
+        if (__DEV__) {
+          const debugString = JSON.stringify({
+            functionName: 'generate-ai-response',
+            timestamp: new Date().toISOString(),
+            lastUserMessageId: insertedMessage.id,
+            error: 'EMPTY_ASSISTANT_RESPONSE',
+            data,
+          }, null, 2);
+
+          setDebugInfo(debugString);
+        }
+
+        // Create error bubble
+        const tempId = generateTempId();
+        const errorBubble: ExtendedMessage = {
+          id: tempId,
+          temp_id: tempId,
+          user_id: userId,
+          person_id: personId,
+          role: 'assistant',
+          content: "I'm having trouble responding right now. Please try again.",
+          subject: currentSubject,
+          created_at: new Date().toISOString(),
+          therapist_name: therapistMeta.name,
+          therapist_avatar_source: therapistMeta.avatarSource,
+          optimistic: true,
+          failed_to_send: true,
+          retry_content: userMessageText,
+        };
+
+        if (isMountedRef.current) {
+          setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
+          setError('Empty response from AI. Tap to retry.');
         }
 
         return; // Exit - error handled
@@ -1172,103 +1125,7 @@ export default function ChatScreen() {
       // SUCCESS: Extract and display AI response
       // ═══════════════════════════════════════════════════════════════════
       
-      const aiResponse = result.data;
-      
-      // DEV-only: Log the edge function response shape for diagnosis
-      if (__DEV__) {
-        console.log('[Chat] Edge function response received:', {
-          type: typeof aiResponse,
-          keys: aiResponse && typeof aiResponse === 'object' ? Object.keys(aiResponse) : null,
-          hasReply: aiResponse?.reply !== undefined,
-          replyType: typeof aiResponse?.reply,
-          replyLength: typeof aiResponse?.reply === 'string' ? aiResponse.reply.length : null,
-          timestamp: new Date().toISOString(),
-        });
-      }
-      
-      // Extract assistant text using hardened helper with context
-      let replyText: string;
-      try {
-        replyText = extractAssistantText(aiResponse, {
-          conversationId: personId,
-          personId,
-          userId,
-          messageCount: recentMessages.length,
-          attempt: retryAttempt + 1,
-        });
-      } catch (extractError: any) {
-        // Failed to extract text - treat as transient error and retry if possible
-        console.error('[Chat] Failed to extract assistant text:', extractError);
-        
-        // Check if this is a transient error and we can retry
-        if (isTransientAIError(extractError) && retryAttempt < maxRetries) {
-          const delay = getRetryDelay(600, 1200);
-          console.log(`[Chat] Empty response detected, retrying in ${delay}ms...`);
-          
-          if (__DEV__) {
-            logAIError('AI_RETRY', extractError, {
-              conversationId: personId,
-              personId,
-              userId,
-              attempt: retryAttempt + 2,
-            });
-          }
-
-          await new Promise(resolve => setTimeout(resolve, delay));
-          retryAttempt++;
-          
-          // Retry the AI call
-          try {
-            result = await invokeEdgeSafe('generate-ai-response', aiPayload);
-            
-            if (result.ok) {
-              // Try extracting again
-              replyText = extractAssistantText(result.data, {
-                conversationId: personId,
-                personId,
-                userId,
-                messageCount: recentMessages.length,
-                attempt: retryAttempt + 1,
-              });
-            } else {
-              // Retry failed - use fallback
-              throw extractError;
-            }
-          } catch (retryError: any) {
-            // Retry failed - use fallback
-            console.error('[Chat] Retry failed:', retryError);
-            throw extractError;
-          }
-        } else {
-          // Non-transient or max retries reached - use fallback
-          replyText = "I'm having trouble responding right now. Please try again.";
-          
-          // Create error bubble instead of normal message
-          const tempId = generateTempId();
-          const errorBubble: ExtendedMessage = {
-            id: tempId,
-            temp_id: tempId,
-            user_id: userId,
-            person_id: personId,
-            role: 'assistant',
-            content: replyText,
-            subject: currentSubject,
-            created_at: new Date().toISOString(),
-            therapist_name: therapistMeta.name,
-            therapist_avatar_source: therapistMeta.avatarSource,
-            optimistic: true,
-            failed_to_send: true,
-            retry_content: userMessageText,
-          };
-
-          if (isMountedRef.current) {
-            setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
-            setError('Empty response from AI. Tap to retry.');
-          }
-
-          return; // Exit early - error handled
-        }
-      }
+      const replyText = data.reply.trim();
 
       // Check for loop detection
       if (lastAssistantMessage && areSimilar(replyText, lastAssistantMessage.content)) {
