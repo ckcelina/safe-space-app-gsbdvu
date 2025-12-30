@@ -20,15 +20,15 @@ export type InvokeEdgeFail = {
 
 export type InvokeEdgeResult<T = any> = InvokeEdgeOk<T> | InvokeEdgeFail;
 
-// NEW: Safe wrapper result type
+// NEW: Safe wrapper result type - NORMALIZED STRUCTURE
 export type InvokeEdgeSafeResult<T = any> =
   | { ok: true; data: T }
-  | { ok: false; status: number | null; code: string; message: string; bodySnippet?: string };
+  | { ok: false; error: { code: string; message: string; status?: number } };
 
 // Configuration for retry logic
 const MAX_RETRIES = 2;
 const RETRY_DELAYS = [250, 800]; // ms - exponential backoff
-const TIMEOUT_MS = 45000; // 45 seconds (increased from 20s for mobile networks + cold starts)
+const TIMEOUT_MS = 30000; // 30 seconds - HARD TIMEOUT
 const TRANSIENT_STATUS_CODES = [429, 502, 503, 504]; // Added 429 for rate limiting
 
 /**
@@ -126,11 +126,11 @@ function isTransientError(error: any): boolean {
  * Features:
  * - Never throws - always returns { ok, data?, error? }
  * - Retries transient failures (429/502/503/504/network/timeout) up to 2 times with backoff
- * - Implements 45s timeout to prevent hanging (increased from 20s)
+ * - Implements 30s hard timeout using AbortController
  * - Retries timeout errors once before giving up
  * - Extracts detailed error information for debugging
  * - Handles all error types: FunctionsHttpError, network errors, timeouts
- * - DEV-ONLY: Logs normalized error object once
+ * - DEV-ONLY: Logs Edge call start/success/failed
  * - Web-compatible: Uses ReturnType<typeof setTimeout> for timeout typing
  * - Conditionally uses AbortController only if available
  * 
@@ -159,18 +159,16 @@ export async function invokeEdgeSafe<T = any>(
     }
 
     try {
-      // DEV-ONLY: Log invocation with project ref and AbortController status
+      // DEV-ONLY: Log Edge call start
       if (__DEV__) {
-        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-        const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : 'unknown';
-        console.log(`[Edge] invoke ${functionName} attempt ${attempt + 1} project ${projectRef} AbortController=${hasAbortController}`);
+        console.log(`[AI] Edge call start: ${functionName} (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
       }
 
-      // Set up timeout
+      // Set up hard timeout with AbortController
       if (controller) {
         timeoutId = setTimeout(() => {
           if (__DEV__) {
-            console.log(`[invokeEdgeSafe] Timeout reached for ${functionName} (attempt ${attempt + 1})`);
+            console.log(`[AI] Edge call timeout: ${functionName} after ${TIMEOUT_MS}ms`);
           }
           controller?.abort();
         }, TIMEOUT_MS);
@@ -196,22 +194,9 @@ export async function invokeEdgeSafe<T = any>(
 
       // Check for Supabase invocation error
       if (error) {
-        const status = (error as any)?.status ?? null;
+        const status = (error as any)?.status ?? undefined;
         const statusText = (error as any)?.statusText;
         const context = (error as any)?.context;
-        const duration = Date.now() - startTime;
-
-        // Try to extract response body for debugging
-        let bodySnippet: string | undefined = undefined;
-        if (__DEV__) {
-          try {
-            if (context) {
-              bodySnippet = safeStringify(context, 500);
-            }
-          } catch (e) {
-            // Ignore stringify errors
-          }
-        }
 
         // Determine error code based on status
         let errorCode = (error as any)?.name || 'EDGE_INVOKE_ERROR';
@@ -221,23 +206,29 @@ export async function invokeEdgeSafe<T = any>(
           errorCode = 'EDGE_UNAVAILABLE';
         }
 
-        const normalizedError = {
-          ok: false as const,
-          status,
-          code: errorCode,
-          message: (error as any)?.message || 'Edge function invoke failed',
-          bodySnippet,
+        const normalizedError: InvokeEdgeSafeResult<T> = {
+          ok: false,
+          error: {
+            code: errorCode,
+            message: (error as any)?.message || 'Edge function invoke failed',
+            status,
+          },
         };
 
+        // DEV-ONLY: Log Edge call failed
         if (__DEV__) {
-          console.log('[invokeEdgeSafe] Normalized Error:', normalizedError);
+          console.log(`[AI] Edge call failed: ${functionName}`, {
+            code: errorCode,
+            status,
+            message: normalizedError.error.message,
+          });
         }
 
         // Check if this is a transient error that should be retried
         if (isTransientError({ status, message: (error as any)?.message }) && attempt < MAX_RETRIES) {
           const delay = RETRY_DELAYS[attempt];
           if (__DEV__) {
-            console.log(`[invokeEdgeSafe] Transient error ${status || 'network'}, retrying in ${delay}ms...`);
+            console.log(`[AI] Retrying ${functionName} in ${delay}ms (transient error: ${status || 'network'})`);
           }
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
@@ -250,20 +241,27 @@ export async function invokeEdgeSafe<T = any>(
 
       // Check if data contains an error field (Edge Function returned error)
       if (data && typeof data === 'object' && data !== null && 'error' in data) {
-        const status = (data as any).error?.status ?? null;
-        const code = (data as any).error?.code ?? 'EDGE_INVOKE_ERROR';
-        const message = (data as any).error?.message ?? 'Edge function returned an error';
+        const errorData = (data as any).error;
+        const status = errorData?.status ?? undefined;
+        const code = errorData?.code ?? 'EDGE_FUNCTION_ERROR';
+        const message = errorData?.message ?? 'Edge function returned an error';
         
-        const normalizedError = {
-          ok: false as const,
-          status,
-          code,
-          message,
-          bodySnippet: __DEV__ ? safeStringify(data, 500) : undefined,
+        const normalizedError: InvokeEdgeSafeResult<T> = {
+          ok: false,
+          error: {
+            code,
+            message,
+            status,
+          },
         };
 
+        // DEV-ONLY: Log Edge call failed
         if (__DEV__) {
-          console.log('[invokeEdgeSafe] Normalized Error (from data):', normalizedError);
+          console.log(`[AI] Edge call failed: ${functionName} (function returned error)`, {
+            code,
+            status,
+            message,
+          });
         }
 
         return normalizedError;
@@ -271,7 +269,8 @@ export async function invokeEdgeSafe<T = any>(
 
       // Success - parse and return data
       if (__DEV__) {
-        console.log(`[invokeEdgeSafe] ${functionName} succeeded (attempt ${attempt + 1})`);
+        const duration = Date.now() - startTime;
+        console.log(`[AI] Edge call success: ${functionName} (${duration}ms)`);
       }
 
       // Handle string responses
@@ -281,7 +280,7 @@ export async function invokeEdgeSafe<T = any>(
           return { ok: true, data: parsed as T };
         }
         if (__DEV__) {
-          console.warn(`[invokeEdgeSafe] Non-JSON string response from ${functionName}`);
+          console.warn(`[AI] Non-JSON string response from ${functionName}`);
         }
         return { ok: true, data: data as T };
       }
@@ -296,16 +295,16 @@ export async function invokeEdgeSafe<T = any>(
           }
           return { ok: true, data: raw as T };
         } catch (readError: any) {
-          const normalizedError = {
-            ok: false as const,
-            status: null,
-            code: 'READ_RESPONSE_FAILED',
-            message: readError?.message || 'Failed reading response body',
-            bodySnippet: __DEV__ ? safeStringify(readError, 500) : undefined,
+          const normalizedError: InvokeEdgeSafeResult<T> = {
+            ok: false,
+            error: {
+              code: 'READ_RESPONSE_FAILED',
+              message: readError?.message || 'Failed reading response body',
+            },
           };
 
           if (__DEV__) {
-            console.log('[invokeEdgeSafe] Normalized Error (read response):', normalizedError);
+            console.log(`[AI] Edge call failed: ${functionName} (read response error)`, normalizedError.error);
           }
 
           return normalizedError;
@@ -322,27 +321,26 @@ export async function invokeEdgeSafe<T = any>(
         timeoutId = null;
       }
 
-      const duration = Date.now() - startTime;
-
       // Handle AbortError (timeout) - RETRY ONCE before giving up
       if (e.name === 'AbortError') {
-        const normalizedError = {
-          ok: false as const,
-          status: null,
-          code: 'EDGE_TIMEOUT',
-          message: 'Request timed out',
-          bodySnippet: __DEV__ ? safeStringify({ timeoutMs: TIMEOUT_MS, attempt: attempt + 1 }, 500) : undefined,
+        const normalizedError: InvokeEdgeSafeResult<T> = {
+          ok: false,
+          error: {
+            code: 'EDGE_TIMEOUT',
+            message: `Request timed out after ${TIMEOUT_MS}ms`,
+          },
         };
 
+        // DEV-ONLY: Log Edge call failed
         if (__DEV__) {
-          console.log('[invokeEdgeSafe] Normalized Error (timeout):', normalizedError);
+          console.log(`[AI] Edge call failed: ${functionName} (timeout)`, normalizedError.error);
         }
 
         // Retry timeout errors once
         if (attempt < MAX_RETRIES) {
           const delay = RETRY_DELAYS[attempt];
           if (__DEV__) {
-            console.log(`[invokeEdgeSafe] Request cancelled/timed out, retrying in ${delay}ms...`);
+            console.log(`[AI] Retrying ${functionName} in ${delay}ms (timeout)`);
           }
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
@@ -355,64 +353,35 @@ export async function invokeEdgeSafe<T = any>(
 
       // Handle FunctionsHttpError
       if (e instanceof FunctionsHttpError) {
-        const status = e.status ?? null;
-        const statusText = e.statusText;
-
-        // Try to extract response body
-        let bodyText = null;
-        let bodyJson = null;
-
-        try {
-          if (e.context) {
-            // Try to clone the response first to avoid consuming it
-            const contextClone = e.context.clone ? e.context.clone() : e.context;
-            
-            // Try to read body as text
-            if (typeof contextClone.text === 'function') {
-              bodyText = await contextClone.text();
-              bodyJson = safeJsonParse(bodyText);
-            }
-          }
-        } catch (extractError) {
-          if (__DEV__) {
-            console.log(`[invokeEdgeSafe] Could not extract error details:`, extractError);
-          }
-        }
+        const status = e.status ?? undefined;
 
         // Determine error code based on status
-        let errorCode = 'EDGE_INVOKE_ERROR';
+        let errorCode = 'EDGE_HTTP_ERROR';
         if (status === 401 || status === 403) {
           errorCode = 'EDGE_AUTH';
         } else if (status && TRANSIENT_STATUS_CODES.includes(status)) {
           errorCode = 'EDGE_UNAVAILABLE';
         }
 
-        // Prepare body snippet for DEV-only logging
-        let bodySnippet: string | undefined = undefined;
-        if (__DEV__) {
-          const bodyData = bodyJson || bodyText;
-          if (bodyData) {
-            bodySnippet = safeStringify(bodyData, 500);
-          }
-        }
-
-        const normalizedError = {
-          ok: false as const,
-          status,
-          code: errorCode,
-          message: e.message || `HTTP ${status} error`,
-          bodySnippet,
+        const normalizedError: InvokeEdgeSafeResult<T> = {
+          ok: false,
+          error: {
+            code: errorCode,
+            message: e.message || `HTTP ${status} error`,
+            status,
+          },
         };
 
+        // DEV-ONLY: Log Edge call failed
         if (__DEV__) {
-          console.log('[invokeEdgeSafe] Normalized Error (FunctionsHttpError):', normalizedError);
+          console.log(`[AI] Edge call failed: ${functionName} (HTTP error)`, normalizedError.error);
         }
 
         // Check if this is a transient error that should be retried
         if (isTransientError({ status, message: e.message }) && attempt < MAX_RETRIES) {
           const delay = RETRY_DELAYS[attempt];
           if (__DEV__) {
-            console.log(`[invokeEdgeSafe] Transient HTTP error ${status}, retrying in ${delay}ms...`);
+            console.log(`[AI] Retrying ${functionName} in ${delay}ms (transient HTTP error: ${status})`);
           }
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
@@ -424,23 +393,28 @@ export async function invokeEdgeSafe<T = any>(
       }
 
       // Handle other unexpected errors (network errors, etc.)
-      const normalizedError = {
-        ok: false as const,
-        status: null,
-        code: 'EDGE_THROWN_ERROR',
-        message: e?.message || 'Unexpected error calling Edge Function',
-        bodySnippet: __DEV__ ? safeStringify({ name: e?.name, stack: e?.stack }, 500) : undefined,
+      const normalizedError: InvokeEdgeSafeResult<T> = {
+        ok: false,
+        error: {
+          code: 'EDGE_NETWORK_ERROR',
+          message: e?.message || 'Network error calling Edge Function',
+        },
       };
 
+      // DEV-ONLY: Log Edge call failed
       if (__DEV__) {
-        console.log('[invokeEdgeSafe] Normalized Error (thrown):', normalizedError);
+        console.log(`[AI] Edge call failed: ${functionName} (network error)`, {
+          code: normalizedError.error.code,
+          message: normalizedError.error.message,
+          errorName: e?.name,
+        });
       }
 
       // Check if this is a network error that should be retried
       if (isTransientError({ message: e?.message }) && attempt < MAX_RETRIES) {
         const delay = RETRY_DELAYS[attempt];
         if (__DEV__) {
-          console.log(`[invokeEdgeSafe] Network error, retrying in ${delay}ms...`);
+          console.log(`[AI] Retrying ${functionName} in ${delay}ms (network error)`);
         }
         await new Promise(resolve => setTimeout(resolve, delay));
         attempt++;
@@ -453,16 +427,16 @@ export async function invokeEdgeSafe<T = any>(
   }
 
   // Should never reach here, but just in case
-  const normalizedError = {
-    ok: false as const,
-    status: null,
-    code: 'MAX_RETRIES_EXCEEDED',
-    message: `Failed after ${MAX_RETRIES + 1} attempts`,
-    bodySnippet: __DEV__ ? safeStringify({ attempts: MAX_RETRIES + 1 }, 500) : undefined,
+  const normalizedError: InvokeEdgeSafeResult<T> = {
+    ok: false,
+    error: {
+      code: 'MAX_RETRIES_EXCEEDED',
+      message: `Failed after ${MAX_RETRIES + 1} attempts`,
+    },
   };
 
   if (__DEV__) {
-    console.log('[invokeEdgeSafe] Normalized Error (max retries):', normalizedError);
+    console.log(`[AI] Edge call failed: ${functionName} (max retries exceeded)`, normalizedError.error);
   }
 
   return normalizedError;
