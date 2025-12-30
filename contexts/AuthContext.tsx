@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { memoryCache } from '@/lib/cache/memoryCache';
 
 interface UserProfile {
   id: string;
@@ -274,6 +275,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       
       console.log('[AuthContext] Local state cleared');
+      
+      // Clear in-memory cache
+      memoryCache.clearAll();
+      console.log('[AuthContext] Memory cache cleared');
       
       // Then call Supabase sign out (this may take time)
       const { error } = await supabase.auth.signOut();

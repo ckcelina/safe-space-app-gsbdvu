@@ -46,6 +46,7 @@ import {
   logAIError,
 } from '@/utils/aiErrorHandling';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { memoryCache } from '@/lib/cache/memoryCache';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -975,6 +976,9 @@ export default function ChatScreen() {
       // ═══════════════════════════════════════════════════════════════════
       console.log('[Chat] Updating last_activity_at after user message');
       await updatePersonActivity(userId, personId, 'message', insertedMessage.created_at);
+      
+      // Update cache with new activity timestamp
+      memoryCache.setLastActivity(personId, insertedMessage.created_at);
 
       // ═══════════════════════════════════════════════════════════════════
       // MEMORY CAPTURE: Fire-and-forget capture of factual statements
@@ -1206,6 +1210,9 @@ export default function ChatScreen() {
       if (assistantMessage?.created_at) {
         console.log('[Chat] Updating last_activity_at after assistant message');
         await updatePersonActivity(userId, personId, 'message', assistantMessage.created_at);
+        
+        // Update cache with new activity timestamp
+        memoryCache.setLastActivity(personId, assistantMessage.created_at);
       }
 
       console.log('[Chat] sendMessage: Complete');

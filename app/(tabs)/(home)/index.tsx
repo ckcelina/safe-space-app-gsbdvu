@@ -20,6 +20,7 @@ import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import AddPersonSheet from '@/components/ui/AddPersonSheet';
 import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
+import { memoryCache } from '@/lib/cache/memoryCache';
 
 LogBox.ignoreLogs([
   'Each child in a list should have a unique "key" prop',
@@ -99,10 +100,12 @@ export default function HomeScreen() {
   }, []);
 
   /**
-   * FIXED: Fetch data with correct filtering logic + AUTOMATIC REORDERING
-   * - People: relationship_type != 'Topic' (includes null)
-   * - Topics: relationship_type == 'Topic'
-   * - REORDERING: Sort by most recent activity (last_message_at || created_at)
+   * CACHE-FIRST DATA LOADING
+   * 
+   * STRATEGY:
+   * 1. Load from cache immediately (instant UI)
+   * 2. Revalidate in background
+   * 3. Merge updates into state
    */
   const fetchData = useCallback(async () => {
     if (!userId) {
@@ -111,12 +114,36 @@ export default function HomeScreen() {
     }
 
     try {
-      setLoading(true);
-      setError(null);
-      console.log('[Home] Fetching people and topics for user:', userId);
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 1: Load from cache immediately (INSTANT UI)
+      // ═══════════════════════════════════════════════════════════════════
+      const cachedPeople = memoryCache.getPeopleList();
+      const cachedTopics = memoryCache.getTopicsList();
       
-      // STEP 1: Fetch last message timestamps for ALL persons (people + topics)
-      // This query computes MAX(created_at) grouped by person_id
+      if (cachedPeople.length > 0 || cachedTopics.length > 0) {
+        console.log('[Home] Loading from cache:', {
+          people: cachedPeople.length,
+          topics: cachedTopics.length,
+        });
+        
+        if (isMountedRef.current) {
+          setPeople(cachedPeople);
+          setTopics(cachedTopics);
+          setLoading(false); // Hide loading spinner immediately
+        }
+      } else {
+        console.log('[Home] Cache empty, showing loading state');
+        setLoading(true);
+      }
+      
+      setError(null);
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 2: Revalidate in background
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('[Home] Revalidating data in background for user:', userId);
+      
+      // STEP 2a: Fetch last message timestamps for ALL persons (people + topics)
       const { data: lastMessageData, error: lastMessageError } = await supabase
         .from('messages')
         .select('person_id, created_at')
@@ -130,7 +157,6 @@ export default function HomeScreen() {
       // Build a map: person_id -> last_message_at
       const lastMessageMap = new Map<string, string>();
       if (lastMessageData && lastMessageData.length > 0) {
-        // Group by person_id and find the most recent created_at
         lastMessageData.forEach((msg) => {
           if (msg.person_id && msg.created_at) {
             const existing = lastMessageMap.get(msg.person_id);
@@ -143,7 +169,7 @@ export default function HomeScreen() {
 
       console.log('[Home] Last message map size:', lastMessageMap.size);
       
-      // STEP 2: Fetch people: relationship_type IS NULL OR relationship_type != 'Topic'
+      // STEP 2b: Fetch people: relationship_type IS NULL OR relationship_type != 'Topic'
       const { data: peopleData, error: peopleError } = await supabase
         .from('persons')
         .select('*')
@@ -159,7 +185,7 @@ export default function HomeScreen() {
         return;
       }
 
-      // STEP 3: Fetch topics: relationship_type == 'Topic'
+      // STEP 2c: Fetch topics: relationship_type == 'Topic'
       const { data: topicsData, error: topicsError } = await supabase
         .from('persons')
         .select('*')
@@ -178,73 +204,87 @@ export default function HomeScreen() {
       console.log('[Home] People loaded:', peopleData?.length || 0);
       console.log('[Home] Topics loaded:', topicsData?.length || 0);
 
-      // STEP 4: Merge last_message_at with people data + compute lastActivityAt
+      // STEP 2d: Merge last_message_at with people data + compute lastActivityAt
       const peopleWithMessages: PersonWithLastMessage[] = peopleData && peopleData.length > 0
         ? peopleData.map((person) => {
             const lastMessageAt = lastMessageMap.get(person.id);
             
             // Compute lastActivityAt: last_message_at || created_at
-            // Use the most recent timestamp available
             const lastActivityAt = lastMessageAt || person.created_at;
             
             return {
               ...person,
               lastMessage: lastMessageAt ? 'Recent activity' : 'No messages yet',
               lastMessageTime: lastMessageAt,
-              lastActivityAt, // Add this for sorting
+              lastActivityAt,
             };
           })
         : [];
 
-      // STEP 5: Merge last_message_at with topics data + compute lastActivityAt
+      // STEP 2e: Merge last_message_at with topics data + compute lastActivityAt
       const topicsWithMessages: PersonWithLastMessage[] = topicsData && topicsData.length > 0
         ? topicsData.map((topic) => {
             const lastMessageAt = lastMessageMap.get(topic.id);
             
-            // Compute lastActivityAt: last_message_at || created_at
             const lastActivityAt = lastMessageAt || topic.created_at;
             
             return {
               ...topic,
               lastMessage: lastMessageAt ? 'Recent activity' : 'No messages yet',
               lastMessageTime: lastMessageAt,
-              lastActivityAt, // Add this for sorting
+              lastActivityAt,
             };
           })
         : [];
 
-      // STEP 6: Sort people by lastActivityAt (descending, NULLS LAST)
+      // STEP 2f: Sort people by lastActivityAt (descending, NULLS LAST)
       peopleWithMessages.sort((a, b) => {
         const aTime = a.lastActivityAt;
         const bTime = b.lastActivityAt;
         
-        // NULLS LAST: if a has no time, it goes after b
         if (!aTime && !bTime) return 0;
         if (!aTime) return 1;
         if (!bTime) return -1;
         
-        // Descending: most recent first
         return new Date(bTime).getTime() - new Date(aTime).getTime();
       });
 
-      // STEP 7: Sort topics by lastActivityAt (descending, NULLS LAST)
+      // STEP 2g: Sort topics by lastActivityAt (descending, NULLS LAST)
       topicsWithMessages.sort((a, b) => {
         const aTime = a.lastActivityAt;
         const bTime = b.lastActivityAt;
         
-        // NULLS LAST: if a has no time, it goes after b
         if (!aTime && !bTime) return 0;
         if (!aTime) return 1;
         if (!bTime) return -1;
         
-        // Descending: most recent first
         return new Date(bTime).getTime() - new Date(aTime).getTime();
       });
 
       console.log('[Home] People sorted by activity:', peopleWithMessages.map(p => ({ name: p.name, lastActivityAt: p.lastActivityAt })));
       console.log('[Home] Topics sorted by activity:', topicsWithMessages.map(t => ({ name: t.name, lastActivityAt: t.lastActivityAt })));
 
-      // STEP 8: Update state ONCE to avoid flicker
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 3: Update cache with fresh data
+      // ═══════════════════════════════════════════════════════════════════
+      memoryCache.setPeopleList(peopleWithMessages);
+      memoryCache.setTopicsList(topicsWithMessages);
+      
+      // Update last activity timestamps in cache
+      const activities = [...peopleWithMessages, ...topicsWithMessages]
+        .filter(item => item.lastActivityAt)
+        .map(item => ({
+          personId: item.id,
+          timestamp: item.lastActivityAt!,
+        }));
+      
+      if (activities.length > 0) {
+        memoryCache.setLastActivityBulk(activities);
+      }
+
+      // ═══════════════════════════════════════════════════════════════════
+      // STEP 4: Update state with fresh data
+      // ═══════════════════════════════════════════════════════════════════
       if (isMountedRef.current) {
         setPeople(peopleWithMessages);
         setTopics(topicsWithMessages);
@@ -271,7 +311,7 @@ export default function HomeScreen() {
   }, [userId, fetchData]);
 
   /**
-   * FIXED: Focus-based refresh
+   * Focus-based refresh
    * - Refresh data whenever the screen gains focus
    */
   useFocusEffect(
@@ -333,12 +373,21 @@ export default function HomeScreen() {
         }
       }
 
+      // Update cache after deletion
+      if (isTopic) {
+        const updatedTopics = topics.filter(t => t.id !== personId);
+        memoryCache.setTopicsList(updatedTopics);
+      } else {
+        const updatedPeople = people.filter(p => p.id !== personId);
+        memoryCache.setPeopleList(updatedPeople);
+      }
+
       console.log('[Home] Deleted successfully');
     } catch (error: any) {
       console.error('[Home] Unexpected error deleting:', error);
       showErrorToast('An unexpected error occurred');
     }
-  }, [userId]);
+  }, [userId, people, topics]);
 
   const filteredPeople = useMemo(() => {
     const filtered = people.filter((person) => {
@@ -389,9 +438,7 @@ export default function HomeScreen() {
   }, [isAddTopicOpen]);
 
   /**
-   * FIXED: Handle successful person creation with optimistic update + data re-sync
-   * - Immediately update local state by prepending the new person
-   * - Call fetchData() once to guarantee server truth
+   * Handle successful person creation with optimistic update + cache update
    */
   const handlePersonCreated = useCallback((newPerson: Person) => {
     console.log('[Home] handlePersonCreated called with:', newPerson);
@@ -407,12 +454,17 @@ export default function HomeScreen() {
       ...newPerson,
       lastMessage: 'No messages yet',
       lastMessageTime: undefined,
-      lastActivityAt: newPerson.created_at, // Use created_at as initial activity
+      lastActivityAt: newPerson.created_at,
     };
     
     // STEP 1: Optimistic update - prepend the new person to the list
     console.log('[Home] Performing optimistic update - adding person to top of list');
-    setPeople(prev => [newPersonWithMessage, ...prev]);
+    setPeople(prev => {
+      const updated = [newPersonWithMessage, ...prev];
+      // Update cache immediately
+      memoryCache.setPeopleList(updated);
+      return updated;
+    });
     
     // STEP 2: Data re-sync - call fetchData() to sync with Supabase
     console.log('[Home] Triggering data re-sync with Supabase');
@@ -492,7 +544,7 @@ export default function HomeScreen() {
     setSavingTopic(true);
 
     try {
-      // Insert topic for current authenticated user (NO duplicate checking - duplicates are now allowed!)
+      // Insert topic for current authenticated user
       const topicData = {
         user_id: userId,
         name: topicName,
@@ -511,7 +563,6 @@ export default function HomeScreen() {
         console.error('[Home] Error creating topic:', error);
         
         if (isMountedRef.current) {
-          // Show the Supabase error message
           const errorMessage = error.message || 'Failed to add topic. Please try again.';
           showErrorToast(errorMessage);
           setSavingTopic(false);
@@ -545,7 +596,7 @@ export default function HomeScreen() {
           });
         }
         
-        // Refresh Topics list
+        // Refresh Topics list and update cache
         console.log('[Home] Refreshing data');
         await fetchData();
       }
@@ -684,8 +735,6 @@ export default function HomeScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {/* Plan Pill - HIDDEN */}
-
               {hasAnyData && (
                 <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                   <IconSymbol
@@ -848,7 +897,7 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Sheet - WITH OPTIMISTIC UPDATE + DATA RE-SYNC */}
+            {/* Add Person Sheet - WITH OPTIMISTIC UPDATE + CACHE UPDATE */}
             <AddPersonSheet
               visible={isAddPersonOpen}
               onClose={() => setIsAddPersonOpen(false)}
