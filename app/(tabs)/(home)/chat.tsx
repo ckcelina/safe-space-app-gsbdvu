@@ -997,26 +997,64 @@ export default function ChatScreen() {
       }
 
       console.log('[Chat] Edge Function invoked successfully');
-      console.log('[Chat] Response data:', data);
+      console.log('[Chat] Response data:', JSON.stringify(data, null, 2));
 
-      // Check if the response has the expected structure
-      if (data && data.ok && data.data) {
+      // CRITICAL FIX: Add fallback to display AI message immediately if realtime doesn't fire
+      if (data && data.ok && data.data && data.data.assistantMessage) {
         const assistantMessage = data.data.assistantMessage;
         
-        if (assistantMessage && assistantMessage.id) {
-          console.log('[Chat] Edge Function returned assistant message:', assistantMessage.id);
+        console.log('[Chat] ✅ Edge Function returned assistant message:', assistantMessage.id);
+        console.log('[Chat] Assistant message content:', assistantMessage.content);
+        
+        // Update activity tracking
+        if (assistantMessage.created_at) {
+          console.log('[Chat] Updating last_activity_at after assistant message');
+          await updatePersonActivity(userId, personId, 'message', assistantMessage.created_at);
+          memoryCache.setLastActivity(personId, assistantMessage.created_at);
+        }
+
+        // CRITICAL: Add the assistant message to state immediately as a fallback
+        // This ensures the message appears even if realtime subscription doesn't fire
+        const messageWithMetadata: ExtendedMessage = {
+          ...assistantMessage,
+          therapist_name: therapistMeta.name,
+          therapist_avatar_source: therapistMeta.avatarSource,
+        };
+
+        console.log('[Chat] 🔄 Adding assistant message to state as fallback (in case realtime doesn\'t fire)');
+        
+        if (isMountedRef.current) {
+          setAllMessages((prev) => mergeMessages(prev, [messageWithMetadata]));
           
-          // Update activity tracking
-          if (assistantMessage.created_at) {
-            console.log('[Chat] Updating last_activity_at after assistant message');
-            await updatePersonActivity(userId, personId, 'message', assistantMessage.created_at);
-            memoryCache.setLastActivity(personId, assistantMessage.created_at);
-          }
-        } else {
-          console.warn('[Chat] Edge Function response missing assistantMessage');
+          // Stop typing indicator
+          isGeneratingRef.current = false;
+          setIsGenerating(false);
         }
       } else {
-        console.warn('[Chat] Edge Function response has unexpected structure:', data);
+        console.warn('[Chat] ⚠️ Edge Function response missing assistantMessage:', data);
+        
+        // If we don't get the expected response, show an error
+        const tempId = generateTempId();
+        const errorBubble: ExtendedMessage = {
+          id: tempId,
+          temp_id: tempId,
+          user_id: userId,
+          person_id: personId,
+          role: 'assistant',
+          content: "I'm having trouble responding right now. Please try again.",
+          subject: currentSubject,
+          created_at: new Date().toISOString(),
+          therapist_name: therapistMeta.name,
+          therapist_avatar_source: therapistMeta.avatarSource,
+          optimistic: true,
+          failed_to_send: true,
+          retry_content: userMessageText,
+        };
+
+        if (isMountedRef.current) {
+          setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
+          setError("I'm having trouble responding right now. Please try again.");
+        }
       }
 
       console.log('[Chat] sendMessage: Complete');
