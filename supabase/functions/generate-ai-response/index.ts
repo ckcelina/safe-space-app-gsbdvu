@@ -143,13 +143,14 @@ Deno.serve(async (req) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // IMPROVED AUTH VALIDATION
+    // IMPROVED AUTH VALIDATION - HANDLE MULTIPLE HEADER FORMATS
     // ═══════════════════════════════════════════════════════════════════
-    const authHeader = req.headers.get("Authorization");
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
     
     if (!authHeader) {
       clearTimeout(functionTimeoutId);
       console.error(`[Edge][Chat][${requestId}] Missing Authorization header`);
+      console.log(`[Edge][Chat][${requestId}] Available headers:`, Array.from(req.headers.keys()));
       return createErrorResponse(
         "UNAUTHORIZED",
         "Missing Authorization header",
@@ -160,11 +161,16 @@ Deno.serve(async (req) => {
     }
 
     // Extract token from "Bearer <token>" format
-    const token = authHeader.replace("Bearer ", "").trim();
+    let token = authHeader.trim();
     
-    if (!token) {
+    // Remove "Bearer " prefix if present (case-insensitive)
+    if (token.toLowerCase().startsWith("bearer ")) {
+      token = token.substring(7).trim();
+    }
+    
+    if (!token || token.length < 20) {
       clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] Empty auth token`);
+      console.error(`[Edge][Chat][${requestId}] Invalid auth token format`);
       return createErrorResponse(
         "UNAUTHORIZED",
         "Invalid Authorization header format",
@@ -174,9 +180,16 @@ Deno.serve(async (req) => {
       );
     }
 
+    console.log(`[Edge][Chat][${requestId}] Auth token extracted (length: ${token.length})`);
+
     // Initialize Supabase client with service role key
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { persistSession: false }
+      auth: { persistSession: false },
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
     });
     
     console.log(`[Edge][Chat][${requestId}] Supabase client initialized`);
