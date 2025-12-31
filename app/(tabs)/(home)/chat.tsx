@@ -945,6 +945,7 @@ export default function ChatScreen() {
         });
       }
 
+      // CRITICAL FIX: Check for error in the response first
       if (error) {
         const errorMessage = (error as any)?.message || 'Edge invoke error';
         console.error('[Chat] Edge function error:', errorMessage);
@@ -999,8 +1000,81 @@ export default function ChatScreen() {
       console.log('[Chat] Edge Function invoked successfully');
       console.log('[Chat] Response data:', JSON.stringify(data, null, 2));
 
-      // CRITICAL FIX: Add fallback to display AI message immediately if realtime doesn't fire
-      if (data && data.ok && data.data && data.data.assistantMessage) {
+      // CRITICAL FIX: Check the response structure from the Edge Function
+      // The Edge Function returns: { ok: true/false, data: { replyText, assistantMessage }, error: {...} }
+      
+      if (!data) {
+        console.error('[Chat] ⚠️ No data returned from Edge Function');
+        
+        const tempId = generateTempId();
+        const errorBubble: ExtendedMessage = {
+          id: tempId,
+          temp_id: tempId,
+          user_id: userId,
+          person_id: personId,
+          role: 'assistant',
+          content: "I'm having trouble responding right now. Please try again.",
+          subject: currentSubject,
+          created_at: new Date().toISOString(),
+          therapist_name: therapistMeta.name,
+          therapist_avatar_source: therapistMeta.avatarSource,
+          optimistic: true,
+          failed_to_send: true,
+          retry_content: userMessageText,
+        };
+
+        if (isMountedRef.current) {
+          setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
+          setError("I'm having trouble responding right now. Please try again.");
+        }
+
+        return;
+      }
+
+      // Check if the Edge Function returned an error in the response body
+      if (data.ok === false || data.error) {
+        console.error('[Chat] ⚠️ Edge Function returned error:', data.error);
+        
+        let userErrorMessage = "I'm having trouble responding right now. Please try again.";
+        
+        if (data.error?.code === 'UNAUTHORIZED') {
+          userErrorMessage = "Your session has expired. Please log in again.";
+          setTimeout(() => {
+            router.replace('/login');
+          }, 2000);
+        } else if (data.error?.code === 'MISSING_API_KEY') {
+          userErrorMessage = "AI service is not configured. Please contact support.";
+        } else if (data.error?.message) {
+          userErrorMessage = data.error.message;
+        }
+
+        const tempId = generateTempId();
+        const errorBubble: ExtendedMessage = {
+          id: tempId,
+          temp_id: tempId,
+          user_id: userId,
+          person_id: personId,
+          role: 'assistant',
+          content: userErrorMessage,
+          subject: currentSubject,
+          created_at: new Date().toISOString(),
+          therapist_name: therapistMeta.name,
+          therapist_avatar_source: therapistMeta.avatarSource,
+          optimistic: true,
+          failed_to_send: true,
+          retry_content: userMessageText,
+        };
+
+        if (isMountedRef.current) {
+          setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
+          setError(userErrorMessage);
+        }
+
+        return;
+      }
+
+      // Success case: Extract the assistant message
+      if (data.ok && data.data && data.data.assistantMessage) {
         const assistantMessage = data.data.assistantMessage;
         
         console.log('[Chat] ✅ Edge Function returned assistant message:', assistantMessage.id);
