@@ -1037,13 +1037,32 @@ export default function ChatScreen() {
         
         let userErrorMessage = "I'm having trouble responding right now. Please try again.";
         
+        // Handle specific error codes
         if (data.error?.code === 'UNAUTHORIZED') {
           userErrorMessage = "Your session has expired. Please log in again.";
           setTimeout(() => {
             router.replace('/login');
           }, 2000);
-        } else if (data.error?.code === 'MISSING_API_KEY') {
-          userErrorMessage = "AI service is not configured. Please contact support.";
+        } else if (data.error?.code === 'MISSING_API_KEY' || data.error?.code === 'INVALID_API_KEY_FORMAT') {
+          userErrorMessage = "⚠️ AI service configuration error. The administrator needs to set up the OpenAI API key in Supabase.";
+          
+          // Show more detailed error in dev mode
+          if (__DEV__) {
+            console.error('[Chat] 🔑 OpenAI API Key Error:', data.error);
+            console.error('[Chat] 📝 To fix:');
+            console.error('[Chat]    1. Go to https://platform.openai.com/api-keys');
+            console.error('[Chat]    2. Create or copy your API key');
+            console.error('[Chat]    3. Go to Supabase Dashboard > Edge Functions > Secrets');
+            console.error('[Chat]    4. Add/Update OPENAI_API_KEY');
+          }
+        } else if (data.error?.code === 'OPENAI_AUTH_ERROR') {
+          userErrorMessage = "⚠️ The OpenAI API key is invalid or expired. Please contact support to update it.";
+          
+          if (__DEV__) {
+            console.error('[Chat] 🔑 OpenAI Authentication Failed');
+            console.error('[Chat] The API key in Supabase is incorrect or expired');
+            console.error('[Chat] Error details:', data.error);
+          }
         } else if (data.error?.message) {
           userErrorMessage = data.error.message;
         }

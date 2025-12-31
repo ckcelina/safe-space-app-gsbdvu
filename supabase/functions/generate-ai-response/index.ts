@@ -154,20 +154,47 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════════
     if (!OPENAI_API_KEY || OPENAI_API_KEY.trim() === '') {
       clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] CRITICAL: OPENAI_API_KEY is not configured!`);
+      console.error(`[Edge][Chat][${requestId}] ❌ CRITICAL: OPENAI_API_KEY is not configured!`);
+      console.error(`[Edge][Chat][${requestId}] 📝 To fix this:`);
+      console.error(`[Edge][Chat][${requestId}]    1. Go to Supabase Dashboard`);
+      console.error(`[Edge][Chat][${requestId}]    2. Navigate to Edge Functions → Secrets`);
+      console.error(`[Edge][Chat][${requestId}]    3. Add/Update OPENAI_API_KEY with a valid OpenAI API key`);
+      console.error(`[Edge][Chat][${requestId}]    4. Get your key from: https://platform.openai.com/api-keys`);
+      
       return createErrorResponse(
         "MISSING_API_KEY",
-        "OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable in Supabase.",
+        "OpenAI API key is not configured. Please contact support to set up the OPENAI_API_KEY environment variable.",
         { 
           env: "OPENAI_API_KEY not set",
-          hint: "Go to Supabase Dashboard > Edge Functions > Secrets and add OPENAI_API_KEY"
+          hint: "Administrator: Go to Supabase Dashboard > Edge Functions > Secrets and add OPENAI_API_KEY",
+          docsUrl: "https://platform.openai.com/api-keys"
         },
         requestId,
         timestamp
       );
     }
 
-    console.log(`[Edge][Chat][${requestId}] OpenAI API key validated`);
+    // Validate that the API key looks correct (starts with sk-)
+    if (!OPENAI_API_KEY.startsWith('sk-')) {
+      clearTimeout(functionTimeoutId);
+      console.error(`[Edge][Chat][${requestId}] ❌ CRITICAL: OPENAI_API_KEY format is invalid!`);
+      console.error(`[Edge][Chat][${requestId}] Expected format: sk-...`);
+      console.error(`[Edge][Chat][${requestId}] Current format: ${OPENAI_API_KEY.substring(0, 8)}...`);
+      
+      return createErrorResponse(
+        "INVALID_API_KEY_FORMAT",
+        "OpenAI API key format is invalid. Please contact support to update the OPENAI_API_KEY.",
+        { 
+          hint: "OpenAI API keys should start with 'sk-'",
+          currentPrefix: OPENAI_API_KEY.substring(0, 8),
+          docsUrl: "https://platform.openai.com/api-keys"
+        },
+        requestId,
+        timestamp
+      );
+    }
+
+    console.log(`[Edge][Chat][${requestId}] ✅ OpenAI API key validated (format: sk-...)`);
 
     // Validate Supabase configuration
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -456,7 +483,34 @@ Please tailor your response to this specific subject.`;
 
     if (!openaiRes.ok) {
       clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] OpenAI API error: ${openaiRes.status} ${openaiRes.statusText}`);
+      console.error(`[Edge][Chat][${requestId}] ❌ OpenAI API error: ${openaiRes.status} ${openaiRes.statusText}`);
+      console.error(`[Edge][Chat][${requestId}] Response body:`, rawText.substring(0, 500));
+      
+      // Check if it's an authentication error
+      if (openaiRes.status === 401) {
+        console.error(`[Edge][Chat][${requestId}] 🔑 AUTHENTICATION ERROR - Invalid OpenAI API Key!`);
+        console.error(`[Edge][Chat][${requestId}] 📝 To fix this:`);
+        console.error(`[Edge][Chat][${requestId}]    1. Go to https://platform.openai.com/api-keys`);
+        console.error(`[Edge][Chat][${requestId}]    2. Create a new API key or verify your existing key`);
+        console.error(`[Edge][Chat][${requestId}]    3. Go to Supabase Dashboard > Edge Functions > Secrets`);
+        console.error(`[Edge][Chat][${requestId}]    4. Update OPENAI_API_KEY with the correct key`);
+        console.error(`[Edge][Chat][${requestId}]    5. The key should start with 'sk-' and be about 50+ characters`);
+        
+        return createErrorResponse(
+          "OPENAI_AUTH_ERROR",
+          "The OpenAI API key is invalid or expired. Please contact support to update the API key.",
+          {
+            status: 401,
+            statusText: "Unauthorized",
+            hint: "Administrator: Update OPENAI_API_KEY in Supabase Edge Functions Secrets",
+            docsUrl: "https://platform.openai.com/api-keys",
+            bodyPreview: rawText.substring(0, 200)
+          },
+          requestId,
+          timestamp
+        );
+      }
+      
       return createErrorResponse(
         "OPENAI_API_ERROR",
         `OpenAI API returned ${openaiRes.status}: ${openaiRes.statusText}`,
@@ -564,7 +618,7 @@ Please tailor your response to this specific subject.`;
       }
     };
 
-    console.log(`[Edge][Chat][${requestId}] Success - Total: ${totalLatency}ms, OpenAI: ${openaiLatency}ms, DB: ${dbInsertLatency}ms, Persona: ${persona.name}`);
+    console.log(`[Edge][Chat][${requestId}] ✅ Success - Total: ${totalLatency}ms, OpenAI: ${openaiLatency}ms, DB: ${dbInsertLatency}ms, Persona: ${persona.name}`);
 
     return new Response(
       JSON.stringify(responseBody),
