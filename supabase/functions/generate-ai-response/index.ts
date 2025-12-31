@@ -29,6 +29,46 @@ const corsHeaders = {
 // ═══════════════════════════════════════════════════════════════════
 const DEFAULT_FALLBACK_MESSAGE = "I'm having a little trouble understanding. Could you please rephrase your question?";
 
+// ═══════════════════════════════════════════════════════════════════
+// THERAPIST PERSONA DEFINITIONS
+// ═══════════════════════════════════════════════════════════════════
+const THERAPIST_PERSONAS: Record<string, { name: string; systemPrompt: string }> = {
+  dr_elias: {
+    name: "Dr. Elias",
+    systemPrompt: `You are Dr. Elias. Speak slowly, calmly, and with emotional steadiness. Use grounding language, reassurance, and gentle perspective. Avoid urgency. Prioritize emotional safety and regulation. Do not diagnose or label the user.`,
+  },
+  noah: {
+    name: "Noah",
+    systemPrompt: `You are Noah. Communicate clearly and practically. Ask clarifying questions when needed. Focus on structure, patterns, and actionable reflection. Be supportive but concise. Do not diagnose or label the user.`,
+  },
+  maya: {
+    name: "Maya",
+    systemPrompt: `You are Maya. Lead with empathy and validation. Reflect emotions clearly and warmly. Avoid rushing solutions. Use gentle language and supportive framing. Do not diagnose or label the user.`,
+  },
+  claire: {
+    name: "Claire",
+    systemPrompt: `You are Claire. Ask thoughtful, reflective questions. Highlight patterns gently. Encourage self-awareness without judgment or pressure. Do not diagnose or label the user.`,
+  },
+  ruth: {
+    name: "Ruth",
+    systemPrompt: `You are Ruth. Speak with warmth, care, and emotional steadiness. Offer reassurance and gentle perspective. Avoid being patronizing. Do not diagnose or label the user.`,
+  },
+  jordan: {
+    name: "Jordan",
+    systemPrompt: `You are Jordan. Be encouraging, affirming, and strength-focused. Highlight resilience and growth while staying emotionally respectful. Do not diagnose or label the user.`,
+  },
+  aisha: {
+    name: "Aisha",
+    systemPrompt: `You are Aisha. Lead with curiosity. Ask open-ended questions. Explore perspectives without steering or fixing. Encourage discovery. Do not diagnose or label the user.`,
+  },
+  ken: {
+    name: "Ken",
+    systemPrompt: `You are Ken. Balance emotional awareness with logical clarity. Integrate feelings and reasoning calmly. Maintain a composed, respectful tone. Do not diagnose or label the user.`,
+  },
+};
+
+const DEFAULT_PERSONA_ID = "dr_elias";
+
 // Helper to create error response with CORS headers
 function createErrorResponse(
   code: string,
@@ -236,7 +276,8 @@ Deno.serve(async (req) => {
       personName,
       personRelationshipType,
       currentSubject,
-      userId
+      userId,
+      therapistPersonaId, // NEW: Accept therapist persona ID
     } = body ?? {};
 
     // ═══════════════════════════════════════════════════════════════════
@@ -294,13 +335,20 @@ Deno.serve(async (req) => {
 
     console.log(`[Edge][Chat][${requestId}] Validated inputs - userId: ${userId}, personId: ${personId}, messages: ${messages.length}`);
 
-    const lastUserMessage =
-      messages.filter((m: any) => m?.role === "user").pop()?.content || "";
+    // ═══════════════════════════════════════════════════════════════════
+    // GET THERAPIST PERSONA
+    // ═══════════════════════════════════════════════════════════════════
+    const personaId = therapistPersonaId || DEFAULT_PERSONA_ID;
+    const persona = THERAPIST_PERSONAS[personaId] || THERAPIST_PERSONAS[DEFAULT_PERSONA_ID];
+    
+    console.log(`[Edge][Chat][${requestId}] Using therapist persona: ${persona.name} (${personaId})`);
 
-    // Build simple system prompt
-    const systemPrompt = `You are "Safe Space," a warm, trauma-aware relationship and emotional support companion.
+    // Build comprehensive system prompt
+    let systemPrompt = `You are "${persona.name}," a warm, trauma-aware relationship and emotional support companion.
 
 You're talking about ${personName || 'this person'} (${personRelationshipType || 'relationship'}).
+
+${persona.systemPrompt}
 
 Core rules:
 - Keep replies short (1–3 sentences usually).
@@ -310,6 +358,14 @@ Core rules:
 - Don't invent facts.
 - Use tentative phrasing: "You might notice...", "It could be helpful to explore...", "What feels right to you?"
 - Support reflection, don't define the user.`;
+
+    // Add subject context if provided
+    if (currentSubject && currentSubject.trim() && currentSubject !== 'General') {
+      systemPrompt += `
+
+Current conversation focus: ${currentSubject}
+Please tailor your response to this specific subject.`;
+    }
 
     const systemMessage = { role: "system" as const, content: systemPrompt };
 
@@ -331,7 +387,7 @@ Core rules:
 
     let openaiRes: Response;
     try {
-      console.log(`[Edge][Chat][${requestId}] Calling OpenAI API...`);
+      console.log(`[Edge][Chat][${requestId}] Calling OpenAI API with persona: ${persona.name}...`);
       openaiRes = await fetch(OPENAI_API_URL, {
         method: "POST",
         headers: {

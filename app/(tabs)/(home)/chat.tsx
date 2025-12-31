@@ -40,7 +40,7 @@ import { upsertPersonContinuity, getPersonContinuity } from '@/lib/memory/person
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
 import { copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
-import { getPersonaById } from '@/constants/TherapistPersonas';
+import { getPersonaById, DEFAULT_PERSONA_ID } from '@/constants/TherapistPersonas';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import {
   logAIError,
@@ -454,25 +454,21 @@ export default function ChatScreen() {
 
   // Helper function to get current therapist metadata
   const getCurrentTherapistMetadata = useCallback(() => {
-    const personaId = preferences.therapist_persona_id;
-    if (!personaId) {
-      return {
-        name: 'Safe Space',
-        avatarSource: undefined,
-      };
-    }
-
+    const personaId = preferences.therapist_persona_id || DEFAULT_PERSONA_ID;
     const persona = getPersonaById(personaId);
+    
     if (!persona) {
       return {
         name: 'Safe Space',
         avatarSource: undefined,
+        personaId: DEFAULT_PERSONA_ID,
       };
     }
 
     return {
       name: persona.name,
       avatarSource: persona.image,
+      personaId: persona.id,
     };
   }, [preferences.therapist_persona_id]);
 
@@ -877,7 +873,7 @@ export default function ChatScreen() {
     
     // Get current therapist metadata for this message
     const therapistMeta = getCurrentTherapistMetadata();
-    console.log('[Chat] Current therapist:', therapistMeta.name);
+    console.log('[Chat] Current therapist:', therapistMeta.name, '(', therapistMeta.personaId, ')');
     
     // Set in-flight flags IMMEDIATELY
     isGeneratingRef.current = true;
@@ -1049,7 +1045,7 @@ export default function ChatScreen() {
         .filter((m) => m.role === 'assistant')
         .slice(-1)[0];
 
-      // Prepare AI request payload
+      // Prepare AI request payload - INCLUDE THERAPIST PERSONA ID
       const aiPayload = {
         userId,
         personId,
@@ -1059,6 +1055,7 @@ export default function ChatScreen() {
         currentSubject: currentSubject,
         aiToneId: preferences.ai_tone_id,
         aiScienceMode: preferences.ai_science_mode,
+        therapistPersonaId: therapistMeta.personaId, // CRITICAL: Pass therapist persona ID
       };
 
       // DEV-ONLY PAYLOAD LOGGING (CRITICAL FOR DEBUGGING)
@@ -1074,6 +1071,7 @@ export default function ChatScreen() {
           hasCurrentSubject: !!aiPayload.currentSubject,
           hasAiToneId: !!aiPayload.aiToneId,
           aiScienceMode: aiPayload.aiScienceMode,
+          therapistPersonaId: aiPayload.therapistPersonaId,
         });
       }
 
@@ -1084,6 +1082,7 @@ export default function ChatScreen() {
         subject: currentSubject,
         aiToneId: preferences.ai_tone_id,
         aiScienceMode: preferences.ai_science_mode,
+        therapistPersonaId: therapistMeta.personaId,
       });
 
       // ═══════════════════════════════════════════════════════════════════
