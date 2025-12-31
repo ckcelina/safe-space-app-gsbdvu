@@ -32,25 +32,18 @@ import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
 import { AnimatedTypingIndicator } from '@/components/ui/AnimatedTypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
-import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { showErrorToast } from '@/utils/toast';
-import { extractMemories } from '@/lib/memory/extractMemories';
-import { getPersonMemories, upsertPersonMemories } from '@/lib/memory/personMemory';
-import { upsertPersonContinuity, getPersonContinuity } from '@/lib/memory/personSummary';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
-import { copyDebugToClipboard } from '@/lib/supabase/invokeEdge';
+import { upsertPersonMemories } from '@/lib/memory/personMemory';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
 import { getPersonaById, DEFAULT_PERSONA_ID } from '@/constants/TherapistPersonas';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
-import {
-  logAIError,
-} from '@/utils/aiErrorHandling';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { memoryCache } from '@/lib/cache/memoryCache';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Default subjects list - IMPROVED LABELS
+// Default subjects list
 const DEFAULT_SUBJECTS = [
   'General',
   'Relationships',
@@ -67,16 +60,13 @@ const DEFAULT_SUBJECTS = [
 interface ExtendedMessage extends Message {
   therapist_name?: string;
   therapist_avatar_source?: ImageSourcePropType;
-  // Client-side only - not stored in DB
   failed_to_send?: boolean;
   retry_content?: string;
-  // NEW: Optimistic flag for messages not yet persisted
   optimistic?: boolean;
-  // NEW: Temporary ID for optimistic messages
   temp_id?: string;
 }
 
-// NEW: Message or Date Separator item type
+// Message or Date Separator item type
 type MessageListItem = 
   | { type: 'message'; data: ExtendedMessage; shouldAnimate: boolean }
   | { type: 'date-separator'; date: Date; label: string };
@@ -147,7 +137,7 @@ function SubjectPill({ subject, isSelected, onPress, isAddButton = false }: Subj
   );
 }
 
-// NEW: Date Separator Component
+// Date Separator Component
 function DateSeparator({ label }: { label: string }) {
   const { theme } = useThemeContext();
   
@@ -162,7 +152,7 @@ function DateSeparator({ label }: { label: string }) {
   );
 }
 
-// NEW: Helper function to format date separator label
+// Helper function to format date separator label
 function getDateSeparatorLabel(date: Date): string {
   if (isToday(date)) {
     return 'Today';
@@ -170,11 +160,10 @@ function getDateSeparatorLabel(date: Date): string {
   if (isYesterday(date)) {
     return 'Yesterday';
   }
-  // Format as "Dec 15, 2025"
   return format(date, 'MMM d, yyyy');
 }
 
-// NEW: Transform messages into list items with date separators
+// Transform messages into list items with date separators
 function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageListItem[] {
   const items: MessageListItem[] = [];
   let lastDate: Date | null = null;
@@ -182,7 +171,6 @@ function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageLi
   messages.forEach((message, index) => {
     const messageDate = new Date(message.created_at);
     
-    // Check if we need to insert a date separator
     if (!lastDate || !isSameDay(lastDate, messageDate)) {
       items.push({
         type: 'date-separator',
@@ -192,8 +180,6 @@ function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageLi
       lastDate = messageDate;
     }
     
-    // Add the message
-    // Animate only the most recent AI message (last in list)
     const shouldAnimate = message.role === 'assistant' && index === messages.length - 1;
     items.push({
       type: 'message',
@@ -205,7 +191,7 @@ function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageLi
   return items;
 }
 
-// NEW: Generate temporary ID for optimistic messages
+// Generate temporary ID for optimistic messages
 function generateTempId(): string {
   return `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
@@ -215,21 +201,18 @@ function mergeMessages(existing: ExtendedMessage[], incoming: ExtendedMessage[])
   const merged = [...existing];
   
   for (const newMsg of incoming) {
-    // Check if message already exists by ID
     const existsById = merged.some(m => m.id === newMsg.id);
     if (existsById) {
-      continue; // Skip duplicate
+      continue;
     }
 
-    // Check by temp_id for optimistic messages
     if (newMsg.temp_id) {
       const existsByTempId = merged.some(m => m.temp_id === newMsg.temp_id);
       if (existsByTempId) {
-        continue; // Skip duplicate
+        continue;
       }
     }
 
-    // Check by content hash (same role + content + subject + within 5 seconds)
     const newTime = new Date(newMsg.created_at).getTime();
     const isDuplicate = merged.some(m => {
       if (m.role !== newMsg.role) return false;
@@ -238,7 +221,7 @@ function mergeMessages(existing: ExtendedMessage[], incoming: ExtendedMessage[])
       
       const existingTime = new Date(m.created_at).getTime();
       const timeDiff = Math.abs(newTime - existingTime);
-      return timeDiff < 5000; // Within 5 seconds
+      return timeDiff < 5000;
     });
 
     if (!isDuplicate) {
@@ -246,7 +229,6 @@ function mergeMessages(existing: ExtendedMessage[], incoming: ExtendedMessage[])
     }
   }
 
-  // Sort by created_at
   return merged.sort((a, b) => {
     const timeA = new Date(a.created_at).getTime();
     const timeB = new Date(b.created_at).getTime();
@@ -254,7 +236,7 @@ function mergeMessages(existing: ExtendedMessage[], incoming: ExtendedMessage[])
   });
 }
 
-// ACTIVITY TRACKING: Update person metadata
+// Update person metadata
 async function updatePersonActivity(
   userId: string,
   personId: string,
@@ -272,7 +254,6 @@ async function updatePersonActivity(
     const now = timestamp || new Date().toISOString();
     
     if (activityType === 'opened') {
-      // Update both last_opened_at and last_activity_at when chat is opened
       const { error } = await supabase
         .from('persons')
         .update({
@@ -290,7 +271,6 @@ async function updatePersonActivity(
         console.log('[Chat] Updated last_opened_at and last_activity_at for person:', personId);
       }
     } else if (activityType === 'message') {
-      // Update only last_activity_at when a message is sent/received
       const { error } = await supabase
         .from('persons')
         .update({
@@ -329,10 +309,7 @@ export default function ChatScreen() {
     : params.relationshipType || '';
   const initialSubject = Array.isArray(params.initialSubject) ? params.initialSubject[0] : params.initialSubject;
 
-  // Check if this is a topic chat
   const isTopicChat = relationshipType === 'Topic';
-
-  // Get safe area insets
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -359,69 +336,33 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
-
-  // Track current subject in state
   const [currentSubject, setCurrentSubject] = useState<string>('General');
-
-  // Subject pill state
   const [availableSubjects, setAvailableSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
-
-  // Add race condition prevention refs and state
-  const isGeneratingRef = useRef(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Add messagesRef to track current messages (avoid stale closures)
+  const isGeneratingRef = useRef(false);
   const messagesRef = useRef<ExtendedMessage[]>([]);
   
   useEffect(() => {
     messagesRef.current = allMessages;
   }, [allMessages]);
 
-  // CRITICAL: Track last processed user message ID to prevent loops
   const lastProcessedUserMessageIdRef = useRef<string | null>(null);
-
-  // FlatList ref for scrolling
   const flatListRef = useRef<FlatList>(null);
-
-  // REALTIME SAFETY NET: Channel ref for cleanup
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
 
-  // IMPROVED: Scroll-to-bottom tracking with better reliability
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [showScrollArrow, setShowScrollArrow] = useState(false);
   const scrollArrowOpacity = useRef(new Animated.Value(0)).current;
   
-  // Track if we've done initial scroll and if content is ready
   const hasInitialScrolledRef = useRef(false);
   const contentSizeRef = useRef({ width: 0, height: 0 });
   const layoutSizeRef = useRef({ width: 0, height: 0 });
 
-  // Dev-only debug state - ONLY stored in __DEV__ mode
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
-
-  // Track app state for detecting backgrounding
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
-  // Set initial subject from params if provided (from Library)
-  useEffect(() => {
-    if (initialSubject && initialSubject.trim()) {
-      console.log('[Chat] Setting initial subject from params:', initialSubject);
-      
-      // Add to available subjects if not already present
-      setAvailableSubjects((prev) => {
-        if (!prev.includes(initialSubject)) {
-          return [...prev, initialSubject];
-        }
-        return prev;
-      });
-      
-      // Set as current subject
-      setCurrentSubject(initialSubject);
-    }
-  }, [initialSubject]);
-
-  // NEW: Simple modal state for adding subjects
   const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState('');
 
@@ -434,7 +375,6 @@ export default function ChatScreen() {
     };
   }, []);
 
-  // Track app state changes
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       appStateRef.current = nextAppState;
@@ -452,7 +392,6 @@ export default function ChatScreen() {
 
   const isFreeUser = role === 'free';
 
-  // Helper function to get current therapist metadata
   const getCurrentTherapistMetadata = useCallback(() => {
     const personaId = preferences.therapist_persona_id || DEFAULT_PERSONA_ID;
     const persona = getPersonaById(personaId);
@@ -472,7 +411,6 @@ export default function ChatScreen() {
     };
   }, [preferences.therapist_persona_id]);
 
-  // Safe backfill function - updates NULL/empty subjects to 'General'
   const backfillSubjects = useCallback(async () => {
     if (!personId || !authUser?.id) {
       return;
@@ -547,8 +485,6 @@ export default function ChatScreen() {
 
       console.log('[Chat] Messages loaded:', data?.length || 0);
       
-      // Attach current therapist metadata to existing AI messages
-      // This is a fallback for old messages that don't have metadata stored
       const therapistMeta = getCurrentTherapistMetadata();
       const messagesWithMetadata: ExtendedMessage[] = (data ?? []).map((msg) => {
         if (msg.role === 'assistant') {
@@ -593,7 +529,6 @@ export default function ChatScreen() {
     }
   }, [personId, authUser?.id, loadMessages]);
 
-  // ACTIVITY TRACKING: Update last_opened_at when chat screen mounts
   useEffect(() => {
     if (personId && authUser?.id) {
       console.log('[Chat] Chat screen mounted - updating last_opened_at');
@@ -601,15 +536,12 @@ export default function ChatScreen() {
     }
   }, [personId, authUser?.id]);
 
-  // REALTIME SAFETY NET: Subscribe to assistant message inserts
   useEffect(() => {
-    // Only subscribe if we have valid user and person IDs
     if (!authUser?.id || !personId) {
       console.log('[Realtime] Skipping subscription - missing user or person ID');
       return;
     }
 
-    // Check if already subscribed
     if (realtimeChannelRef.current?.state === 'subscribed') {
       console.log('[Realtime] Already subscribed, skipping');
       return;
@@ -622,17 +554,15 @@ export default function ChatScreen() {
       role: 'assistant',
     });
 
-    // Create channel with dedicated topic for this chat
     const channel = supabase.channel(`chat:${personId}:assistant-messages`, {
       config: {
         broadcast: { self: false, ack: false },
-        private: false, // Using postgres_changes, not broadcast
+        private: false,
       },
     });
 
     realtimeChannelRef.current = channel;
 
-    // Subscribe to INSERT events for assistant messages
     channel
       .on(
         'postgres_changes',
@@ -652,7 +582,6 @@ export default function ChatScreen() {
 
           const newMessage = payload.new as Message;
 
-          // Attach therapist metadata
           const therapistMeta = getCurrentTherapistMetadata();
           const messageWithMetadata: ExtendedMessage = {
             ...newMessage,
@@ -662,11 +591,9 @@ export default function ChatScreen() {
 
           console.log('[Realtime] Merging assistant message into state:', newMessage.id);
 
-          // Merge into state using existing mergeMessages function
           if (isMountedRef.current) {
             setAllMessages((prev) => mergeMessages(prev, [messageWithMetadata]));
 
-            // If we're currently generating, stop the typing indicator
             if (isGeneratingRef.current || isGenerating) {
               console.log('[Realtime] Stopping typing indicator');
               isGeneratingRef.current = false;
@@ -682,7 +609,6 @@ export default function ChatScreen() {
         }
       });
 
-    // Cleanup on unmount
     return () => {
       console.log('[Realtime] Cleaning up subscription');
       if (realtimeChannelRef.current) {
@@ -692,7 +618,21 @@ export default function ChatScreen() {
     };
   }, [authUser?.id, personId, getCurrentTherapistMetadata, isGenerating]);
 
-  // Filter messages for display based on current subject
+  useEffect(() => {
+    if (initialSubject && initialSubject.trim()) {
+      console.log('[Chat] Setting initial subject from params:', initialSubject);
+      
+      setAvailableSubjects((prev) => {
+        if (!prev.includes(initialSubject)) {
+          return [...prev, initialSubject];
+        }
+        return prev;
+      });
+      
+      setCurrentSubject(initialSubject);
+    }
+  }, [initialSubject]);
+
   const displayedMessages = React.useMemo(() => {
     return allMessages.filter((msg) => {
       const msgSubject = msg.subject || 'General';
@@ -700,73 +640,53 @@ export default function ChatScreen() {
     });
   }, [allMessages, currentSubject]);
 
-  // NEW: Transform messages with date separators
   const messageListItems = React.useMemo(() => {
     return transformMessagesWithSeparators(displayedMessages);
   }, [displayedMessages]);
 
-  // IMPROVED: Reliable scroll-to-bottom implementation
-  
-  // Scroll to bottom helper - used by multiple triggers
   const scrollToBottom = useCallback((animated: boolean = true) => {
     if (flatListRef.current && messageListItems.length > 0) {
       flatListRef.current.scrollToEnd({ animated });
     }
   }, [messageListItems.length]);
 
-  // Handle initial scroll when messages first load
   useEffect(() => {
     if (!loading && messageListItems.length > 0 && !hasInitialScrolledRef.current) {
-      // Wait for layout to complete before scrolling
       setTimeout(() => {
-        scrollToBottom(false); // No animation for initial scroll
+        scrollToBottom(false);
         hasInitialScrolledRef.current = true;
       }, 150);
     }
   }, [loading, messageListItems.length, scrollToBottom]);
 
-  // Handle onContentSizeChange - most reliable trigger for new messages
   const handleContentSizeChange = useCallback((width: number, height: number) => {
     contentSizeRef.current = { width, height };
     
-    // Only auto-scroll if:
-    // 1. User is already near bottom (within 50px)
-    // 2. OR this is the initial load (hasn't scrolled yet)
     if (isNearBottom || !hasInitialScrolledRef.current) {
-      // Small delay to ensure layout is complete
       setTimeout(() => {
         scrollToBottom(true);
       }, 100);
     }
   }, [isNearBottom, scrollToBottom]);
 
-  // Handle onLayout - track layout size
   const handleLayout = useCallback((event: any) => {
     const { width, height } = event.nativeEvent.layout;
     layoutSizeRef.current = { width, height };
   }, []);
 
-  // Handle scroll events to track position
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
     
-    // Calculate if we're near the bottom (within 50px tolerance)
     const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
     const nearBottom = distanceFromBottom < 50;
     
     setIsNearBottom(nearBottom);
     
-    // Show/hide arrow based on position
-    // Only show if:
-    // 1. Not at bottom
-    // 2. Content is scrollable (contentSize > layoutMeasurement)
-    // 3. Has scrolled at least once (not initial load)
     const shouldShowArrow = !nearBottom && contentSize.height > layoutMeasurement.height && hasInitialScrolledRef.current;
     
     if (shouldShowArrow !== showScrollArrow) {
       setShowScrollArrow(shouldShowArrow);
       
-      // Animate arrow appearance/disappearance
       Animated.timing(scrollArrowOpacity, {
         toValue: shouldShowArrow ? 1 : 0,
         duration: 200,
@@ -779,28 +699,6 @@ export default function ChatScreen() {
     loadMessages();
   }, [loadMessages]);
 
-  const areSimilar = useCallback((str1: string, str2: string): boolean => {
-    const normalize = (s: string) => s.toLowerCase().trim().replace(/[.,!?;:]/g, '');
-    const norm1 = normalize(str1);
-    const norm2 = normalize(str2);
-
-    const prefix1 = norm1.substring(0, 20);
-    const prefix2 = norm2.substring(0, 20);
-    
-    if (prefix1 === prefix2 && prefix1.length > 10) {
-      return true;
-    }
-
-    if (norm1.length < 50 && norm2.length < 50) {
-      if (norm1.includes(norm2) || norm2.includes(norm1)) {
-        return true;
-      }
-    }
-
-    return false;
-  }, []);
-
-  // NEW: Retry handler for failed messages
   const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
     if (!authUser?.id || !personId) {
       return;
@@ -808,23 +706,18 @@ export default function ChatScreen() {
 
     console.log('[Chat] Retrying failed message:', messageId);
 
-    // Remove the failed message from UI
     setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
 
-    // Set the input text to the retry content and trigger send
     setInputText(retryContent);
     
-    // Small delay to ensure state updates
     setTimeout(() => {
       sendMessage();
     }, 100);
   }, [authUser?.id, personId]);
 
-  // MAIN SEND MESSAGE FUNCTION - WITH SESSION VALIDATION
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
-    // Race condition guard - check BOTH ref and state
     if (isGeneratingRef.current || isGenerating) {
       console.log('[Chat] sendMessage: Already generating, ignoring duplicate call');
       return;
@@ -845,9 +738,6 @@ export default function ChatScreen() {
       return;
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    // CRITICAL FIX: VALIDATE SESSION AND GET ACCESS TOKEN
-    // ═══════════════════════════════════════════════════════════════════
     console.log('[Chat] Validating session before Edge Function call...');
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
@@ -871,29 +761,24 @@ export default function ChatScreen() {
     console.log('[Chat] Current subject:', currentSubject);
     console.log('[Chat] chatId (personId):', personId);
     
-    // Get current therapist metadata for this message
     const therapistMeta = getCurrentTherapistMetadata();
     console.log('[Chat] Current therapist:', therapistMeta.name, '(', therapistMeta.personaId, ')');
     
-    // Set in-flight flags IMMEDIATELY
     isGeneratingRef.current = true;
     setIsGenerating(true);
     setIsSending(true);
     setError(null);
     
-    // PRODUCTION SAFETY: Clear debug info in production builds
     if (__DEV__) {
       setDebugInfo(null);
     }
     
-    // Clear input immediately to prevent re-sends
     const userMessageText = text;
     setInputText('');
 
     try {
-      // Build user message with canonical fields
       const userMsg: ExtendedMessage = {
-        id: generateTempId(), // Temporary ID for optimistic UI
+        id: generateTempId(),
         temp_id: generateTempId(),
         user_id: userId,
         person_id: personId,
@@ -904,18 +789,15 @@ export default function ChatScreen() {
         optimistic: true,
       };
 
-      // Optimistically append user message to state IMMEDIATELY
       if (isMountedRef.current) {
         setAllMessages((prev) => mergeMessages(prev, [userMsg]));
       }
 
-      // Build payload using LOCAL array that includes userMsg
       const nextMessages = [...messagesRef.current, userMsg];
 
       console.log('[Chat] User message added optimistically');
       console.log('[Chat] Total messages in nextMessages:', nextMessages.length);
 
-      // Now persist the user message to Supabase
       console.log('[Chat] Inserting user message to Supabase...');
       const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
@@ -935,17 +817,16 @@ export default function ChatScreen() {
           console.log('[Chat] Insert user message error:', insertError);
         }
         if (isMountedRef.current) {
-          setInputText(userMessageText); // Restore input on error
+          setInputText(userMessageText);
           setError(insertError?.message || 'Failed to send message. Please try again.');
         }
-        return; // Early return, finally block will reset flags
+        return;
       }
 
       console.log('[Chat] User message inserted:', insertedMessage.id);
       
       lastProcessedUserMessageIdRef.current = insertedMessage.id;
 
-      // Replace optimistic user message with persisted one
       if (isMountedRef.current) {
         setAllMessages((prev) => {
           return prev.map(m => {
@@ -957,58 +838,25 @@ export default function ChatScreen() {
         });
       }
 
-      // ACTIVITY TRACKING: Update last_activity_at after user message sent
       console.log('[Chat] Updating last_activity_at after user message');
       await updatePersonActivity(userId, personId, 'message', insertedMessage.created_at);
       
-      // Update cache with new activity timestamp
       memoryCache.setLastActivity(personId, insertedMessage.created_at);
 
-      // MEMORY CAPTURE: Fire-and-forget capture of factual statements
       console.log('[Chat] 🧠 Triggering memory capture...');
       
-      // Check continuity setting first
-      getPersonContinuity(userId, personId).then((continuityData) => {
-        const continuityEnabled = continuityData.continuity_enabled;
-        
-        console.log('[Chat] Memory capture - continuity enabled:', continuityEnabled);
-        
-        if (continuityEnabled) {
-          console.log('[Chat] Memory capture - calling captureMemoriesFromMessage');
-          // Call the memory capture function (fire-and-forget)
-          captureMemoriesFromMessage(
-            userId,
-            personId,
-            userMessageText,
-            personName,
-            currentSubject
-          ).catch((err) => {
-            // Silent failure - never crash the chat
-            if (__DEV__) {
-              console.log('[Chat] Memory capture failed (silent):', err?.message || 'unknown');
-            }
-          });
-        } else {
-          console.log('[Chat] Memory capture - skipped (continuity disabled)');
-        }
-      }).catch((err) => {
-        // If we can't check continuity, default to enabled
+      captureMemoriesFromMessage(
+        userId,
+        personId,
+        userMessageText,
+        personName,
+        currentSubject
+      ).catch((err) => {
         if (__DEV__) {
-          console.log('[Chat] Failed to check continuity, defaulting to enabled:', err);
+          console.log('[Chat] Memory capture failed (silent):', err?.message || 'unknown');
         }
-        captureMemoriesFromMessage(
-          userId,
-          personId,
-          userMessageText,
-          personName,
-          currentSubject
-        ).catch(() => {
-          // Silent failure
-        });
       });
 
-      // LOCAL MEMORY EXTRACTION: Extract memories from user text immediately
-      // NOTE: Memory saving logic continues silently - NO UI feedback
       try {
         console.log('[Chat] Running local memory extraction...');
         const extractedMemories = extractMemoriesFromUserText(userMessageText, personName);
@@ -1021,13 +869,9 @@ export default function ChatScreen() {
           console.log('[Chat] No memories extracted from user text');
         }
       } catch (memoryError: any) {
-        // Silent failure - never crash the chat
         console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
       }
 
-      // AI GENERATION WITH DIRECT EDGE FUNCTION INVOCATION
-      
-      // Filter messages for current subject and prepare for AI
       const subjectMessages = nextMessages.filter((msg) => {
         const msgSubject = msg.subject || 'General';
         return msgSubject === currentSubject;
@@ -1041,11 +885,6 @@ export default function ChatScreen() {
           createdAt: msg.created_at,
         }));
 
-      const lastAssistantMessage = subjectMessages
-        .filter((m) => m.role === 'assistant')
-        .slice(-1)[0];
-
-      // Prepare AI request payload - INCLUDE THERAPIST PERSONA ID
       const aiPayload = {
         userId,
         personId,
@@ -1055,10 +894,9 @@ export default function ChatScreen() {
         currentSubject: currentSubject,
         aiToneId: preferences.ai_tone_id,
         aiScienceMode: preferences.ai_science_mode,
-        therapistPersonaId: therapistMeta.personaId, // CRITICAL: Pass therapist persona ID
+        therapistPersonaId: therapistMeta.personaId,
       };
 
-      // DEV-ONLY PAYLOAD LOGGING (CRITICAL FOR DEBUGGING)
       if (__DEV__) {
         const lastMessage = aiPayload.messages[aiPayload.messages.length - 1];
         console.log('[AI_PAYLOAD]', {
@@ -1085,9 +923,6 @@ export default function ChatScreen() {
         therapistPersonaId: therapistMeta.personaId,
       });
 
-      // ═══════════════════════════════════════════════════════════════════
-      // CRITICAL FIX: EXPLICITLY PASS AUTHORIZATION HEADER
-      // ═══════════════════════════════════════════════════════════════════
       console.log('[Chat] Calling Edge Function with explicit Authorization header...');
       
       const { data, error } = await supabase.functions.invoke('generate-ai-response', { 
@@ -1097,7 +932,6 @@ export default function ChatScreen() {
         },
       });
 
-      // DEV-only: Log raw edge function response for diagnosis
       if (__DEV__) {
         console.log('[AI_EDGE_RAW]', {
           hasData: !!data,
@@ -1111,22 +945,10 @@ export default function ChatScreen() {
         });
       }
 
-      // ERROR HANDLING
       if (error) {
         const errorMessage = (error as any)?.message || 'Edge invoke error';
         console.error('[Chat] Edge function error:', errorMessage);
-        
-        // Log error for debugging
-        if (__DEV__) {
-          logAIError('AI_REQUEST', error, {
-            conversationId: personId,
-            userId,
-            messageCount: recentMessages.length,
-            attempt: 1,
-          });
-        }
 
-        // Build debug info for DEV mode
         if (__DEV__) {
           const debugString = JSON.stringify({
             functionName: 'generate-ai-response',
@@ -1138,13 +960,10 @@ export default function ChatScreen() {
           setDebugInfo(debugString);
         }
 
-        // Determine user-friendly error message
         let userErrorMessage = "I'm having trouble responding right now. Please try again.";
         
-        // Check for specific error codes
         if ((error as any)?.message?.includes('UNAUTHORIZED') || (error as any)?.message?.includes('401')) {
           userErrorMessage = "Your session has expired. Please log in again.";
-          // Redirect to login after a short delay
           setTimeout(() => {
             router.replace('/login');
           }, 2000);
@@ -1152,7 +971,6 @@ export default function ChatScreen() {
           userErrorMessage = "AI service is not configured. Please contact support.";
         }
 
-        // Create error bubble
         const tempId = generateTempId();
         const errorBubble: ExtendedMessage = {
           id: tempId,
@@ -1175,99 +993,43 @@ export default function ChatScreen() {
           setError(userErrorMessage);
         }
 
-        return; // Exit - error handled
+        return;
       }
 
-      // SUCCESS: Edge Function will insert assistant message
-      // Realtime subscription will handle UI update
       console.log('[Chat] Edge Function invoked successfully');
-      console.log('[Chat] Waiting for realtime subscription to deliver assistant message...');
+      console.log('[Chat] Response data:', data);
 
-      // The Edge Function now returns { ok: true, data: { replyText, assistantMessage } }
-      // But we don't need to manually add it to state - the realtime subscription will handle it
-      const assistantMessage = data?.data?.assistantMessage;
-      
-      if (!assistantMessage || !assistantMessage.id) {
-        console.warn('[Chat] Edge Function did not return assistantMessage in response');
-        console.log('[Chat] This is OK - realtime subscription will deliver it');
-      } else {
-        console.log('[Chat] Edge Function returned assistant message:', assistantMessage.id);
-        console.log('[Chat] Realtime subscription should also deliver this message');
-      }
-
-      // ACTIVITY TRACKING: Update last_activity_at after assistant message saved
-      if (assistantMessage?.created_at) {
-        console.log('[Chat] Updating last_activity_at after assistant message');
-        await updatePersonActivity(userId, personId, 'message', assistantMessage.created_at);
+      // Check if the response has the expected structure
+      if (data && data.ok && data.data) {
+        const assistantMessage = data.data.assistantMessage;
         
-        // Update cache with new activity timestamp
-        memoryCache.setLastActivity(personId, assistantMessage.created_at);
+        if (assistantMessage && assistantMessage.id) {
+          console.log('[Chat] Edge Function returned assistant message:', assistantMessage.id);
+          
+          // Update activity tracking
+          if (assistantMessage.created_at) {
+            console.log('[Chat] Updating last_activity_at after assistant message');
+            await updatePersonActivity(userId, personId, 'message', assistantMessage.created_at);
+            memoryCache.setLastActivity(personId, assistantMessage.created_at);
+          }
+        } else {
+          console.warn('[Chat] Edge Function response missing assistantMessage');
+        }
+      } else {
+        console.warn('[Chat] Edge Function response has unexpected structure:', data);
       }
 
       console.log('[Chat] sendMessage: Complete');
-
-      // MEMORY EXTRACTION + CONTINUITY UPDATE: Extract memories and update continuity in the background
-      // NOTE: Memory saving logic continues silently - NO UI feedback
-      if (assistantMessage?.content) {
-        (async () => {
-          try {
-            console.log('[Chat] Triggering memory extraction and continuity update...');
-            
-            // Get existing memories for context
-            const existingMemories = await getPersonMemories(userId, personId, 50);
-            
-            // Extract last 5 user messages for context
-            const userMessages = subjectMessages
-              .filter(m => m.role === 'user')
-              .slice(-5)
-              .map(m => m.content);
-
-            // Extract memories and continuity
-            const extractionResult = await extractMemories({
-              personName,
-              recentUserMessages: userMessages,
-              lastAssistantMessage: assistantMessage.content,
-              existingMemories: existingMemories.map(m => ({
-                key: m.key,
-                value: m.value,
-                category: m.category,
-              })),
-              userId,
-              personId,
-            });
-            
-            console.log('[Chat] Memory extraction complete');
-            
-            // Update continuity if we got valid data
-            if (extractionResult.continuity) {
-              console.log('[Chat] Updating conversation continuity...');
-              await upsertPersonContinuity(userId, personId, extractionResult.continuity);
-              console.log('[Chat] Continuity updated successfully');
-            }
-          } catch (memoryError) {
-            // Silently fail - memory extraction should never break chat
-            if (__DEV__) {
-              console.log('[Chat] Memory extraction/continuity update failed (silent):', memoryError);
-            }
-          }
-        })();
-      }
     } catch (err: any) {
-      // Unexpected error in sendMessage
       if (__DEV__) {
         console.log('[Chat] sendMessage unexpected error:', err);
-        logAIError('AI_REQUEST', err, {
-          conversationId: personId,
-          userId,
-        });
       }
       
       if (isMountedRef.current) {
-        setInputText(userMessageText); // Restore input on error
+        setInputText(userMessageText);
         setError(err?.message || 'An unexpected error occurred');
       }
     } finally {
-      // CRITICAL: Always reset flags in finally block
       if (isMountedRef.current) {
         isGeneratingRef.current = false;
         setIsGenerating(false);
@@ -1284,13 +1046,11 @@ export default function ChatScreen() {
     personName,
     relationshipType,
     currentSubject,
-    areSimilar,
     preferences.ai_science_mode,
     preferences.ai_tone_id,
     getCurrentTherapistMetadata,
   ]);
 
-  // Disable send button while generating
   const isSendDisabled = !inputText.trim() || isSending || loading || isGenerating;
 
   const handleBackPress = useCallback(() => {
@@ -1313,21 +1073,18 @@ export default function ChatScreen() {
     setCurrentSubject(subject);
   }, []);
 
-  // NEW: Open simple add subject modal
   const openAddSubjectModal = useCallback(() => {
     console.log('[Chat] Opening Add Subject modal');
     setShowAddSubjectModal(true);
     setNewSubjectName('');
   }, []);
 
-  // NEW: Close simple add subject modal
   const closeAddSubjectModal = useCallback(() => {
     console.log('[Chat] Closing Add Subject modal');
     setShowAddSubjectModal(false);
     setNewSubjectName('');
   }, []);
 
-  // NEW: Add subject handler
   const addSubject = useCallback(() => {
     const trimmedSubject = newSubjectName.trim();
     
@@ -1336,7 +1093,6 @@ export default function ChatScreen() {
       return;
     }
 
-    // Check for duplicates (case-insensitive)
     const lowercasedSubject = trimmedSubject.toLowerCase();
     const isDuplicate = availableSubjects.some(
       (s) => s.toLowerCase() === lowercasedSubject
@@ -1350,33 +1106,17 @@ export default function ChatScreen() {
 
     console.log('[Chat] Adding new subject:', trimmedSubject);
 
-    // Add to available subjects
     setAvailableSubjects((prev) => [...prev, trimmedSubject]);
-
-    // Auto-select the new subject
     setCurrentSubject(trimmedSubject);
-
-    // Close modal
     closeAddSubjectModal();
   }, [newSubjectName, availableSubjects, closeAddSubjectModal]);
 
-  // Handle debug banner tap (copy to clipboard) - ONLY in __DEV__
-  const handleDebugBannerTap = useCallback(async () => {
-    if (__DEV__ && debugInfo) {
-      await copyDebugToClipboard(debugInfo);
-      showErrorToast('Debug info copied to clipboard');
-    }
-  }, [debugInfo]);
-
-  // Handle error banner tap for retry
   const handleErrorBannerTap = useCallback(() => {
-    // For abort/timeout errors, just dismiss
     if (error && error.includes('Connection interrupted')) {
       setError(null);
       return;
     }
     
-    // Find the most recent failed message
     const failedMessage = allMessages
       .filter((msg) => msg.failed_to_send && msg.retry_content)
       .slice(-1)[0];
@@ -1385,18 +1125,15 @@ export default function ChatScreen() {
       retryFailedMessage(failedMessage.id, failedMessage.retry_content);
       setError(null);
     } else {
-      // No failed message to retry, just dismiss error
       setError(null);
     }
   }, [allMessages, retryFailedMessage, error]);
 
-  // Render individual list item (message or date separator)
   const renderListItem = useCallback(({ item }: ListRenderItemInfo<MessageListItem>) => {
     if (item.type === 'date-separator') {
       return <DateSeparator label={item.label} />;
     }
     
-    // Message item
     const message = item.data;
     const isFailed = message.failed_to_send === true;
     
@@ -1431,16 +1168,13 @@ export default function ChatScreen() {
     );
   }, [preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
 
-  // Key extractor using message.id (string)
   const keyExtractor = useCallback((item: MessageListItem, index: number) => {
     if (item.type === 'date-separator') {
       return `date-${item.date.toISOString()}-${index}`;
     }
-    // Use temp_id for optimistic messages, otherwise use id
     return item.data.temp_id || item.data.id;
   }, []);
 
-  // Empty list component
   const renderEmptyList = useCallback(() => {
     if (loading) return null;
     
@@ -1476,7 +1210,6 @@ export default function ChatScreen() {
     );
   }, [loading, theme, personName, currentSubject, allMessages.length, error, handleRetry]);
 
-  // Footer component (typing indicator at bottom of non-inverted list)
   const renderListFooter = useCallback(() => {
     if (!isGenerating) return null;
     
@@ -1499,7 +1232,6 @@ export default function ChatScreen() {
         keyboardVerticalOffset={0}
       >
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-          {/* Status Bar Gradient - matches theme gradient */}
           <LinearGradient
             colors={theme.primaryGradient}
             start={{ x: 0, y: 0 }}
@@ -1508,7 +1240,6 @@ export default function ChatScreen() {
             pointerEvents="none"
           />
 
-          {/* Header with Gradient Background */}
           <LinearGradient
             colors={theme.primaryGradient}
             start={{ x: 0, y: 0 }}
@@ -1563,7 +1294,6 @@ export default function ChatScreen() {
             </View>
           </LinearGradient>
 
-          {/* Subject Pills Row */}
           <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
             <FlatList
               horizontal
@@ -1584,11 +1314,15 @@ export default function ChatScreen() {
             />
           </View>
 
-          {/* DEVELOPER DEBUG BANNER */}
           {__DEV__ && debugInfo && (
             <TouchableOpacity 
               style={[styles.debugBanner, { backgroundColor: '#FF9500' }]}
-              onPress={handleDebugBannerTap}
+              onPress={() => {
+                if (__DEV__ && debugInfo) {
+                  showErrorToast('Debug info logged to console');
+                  console.log('[DEBUG INFO]', debugInfo);
+                }
+              }}
               activeOpacity={0.7}
             >
               <IconSymbol
@@ -1599,7 +1333,7 @@ export default function ChatScreen() {
                 style={styles.bannerIcon}
               />
               <Text style={[styles.debugBannerText, { color: '#FFFFFF' }]}>
-                AI error (tap to copy debug)
+                AI error (tap to view in console)
               </Text>
             </TouchableOpacity>
           )}
@@ -1650,7 +1384,6 @@ export default function ChatScreen() {
             extraData={messageListItems}
           />
 
-          {/* Floating Scroll-to-Bottom Arrow */}
           {showScrollArrow && (
             <Animated.View
               style={[
@@ -1683,7 +1416,6 @@ export default function ChatScreen() {
             </Animated.View>
           )}
 
-          {/* Input Container */}
           <View style={[
             styles.inputContainer, 
             { 
@@ -1746,7 +1478,6 @@ export default function ChatScreen() {
 
       <LoadingOverlay visible={loading && !error} />
 
-      {/* NEW: Simple Add Subject Modal */}
       <Modal
         visible={showAddSubjectModal}
         animationType="fade"
