@@ -67,6 +67,9 @@ const THERAPIST_PERSONAS: Record<string, { name: string; systemPrompt: string }>
   },
 };
 
+// ═══════════════════════════════════════════════════════════════════
+// CRITICAL: DR. ELIAS IS THE DEFAULT PERSONA
+// ═══════════════════════════════════════════════════════════════════
 const DEFAULT_PERSONA_ID = "dr_elias";
 
 // Helper to create error response with CORS headers
@@ -343,12 +346,17 @@ Deno.serve(async (req) => {
     console.log(`[Edge][Chat][${requestId}] Validated inputs - userId: ${userId}, personId: ${personId}, messages: ${messages.length}`);
 
     // ═══════════════════════════════════════════════════════════════════
-    // GET THERAPIST PERSONA
+    // GET THERAPIST PERSONA - DR. ELIAS IS DEFAULT
     // ═══════════════════════════════════════════════════════════════════
     const personaId = therapistPersonaId || DEFAULT_PERSONA_ID;
     const persona = THERAPIST_PERSONAS[personaId] || THERAPIST_PERSONAS[DEFAULT_PERSONA_ID];
     
-    console.log(`[Edge][Chat][${requestId}] Using therapist persona: ${persona.name} (${personaId})`);
+    console.log(`[Edge][Chat][${requestId}] Therapist persona selected:`, {
+      requestedPersonaId: therapistPersonaId,
+      resolvedPersonaId: personaId,
+      personaName: persona.name,
+      isDefault: personaId === DEFAULT_PERSONA_ID,
+    });
 
     // Build comprehensive system prompt
     let systemPrompt = `You are "${persona.name}," a warm, trauma-aware relationship and emotional support companion.
@@ -556,7 +564,7 @@ Please tailor your response to this specific subject.`;
       }
     };
 
-    console.log(`[Edge][Chat][${requestId}] Success - Total: ${totalLatency}ms, OpenAI: ${openaiLatency}ms, DB: ${dbInsertLatency}ms`);
+    console.log(`[Edge][Chat][${requestId}] Success - Total: ${totalLatency}ms, OpenAI: ${openaiLatency}ms, DB: ${dbInsertLatency}ms, Persona: ${persona.name}`);
 
     return new Response(
       JSON.stringify(responseBody),
