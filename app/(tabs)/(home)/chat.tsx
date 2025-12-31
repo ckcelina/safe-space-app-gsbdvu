@@ -850,7 +850,7 @@ export default function ChatScreen() {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // NEW: VALIDATE SESSION BEFORE EDGE FUNCTION CALL
+    // CRITICAL FIX: VALIDATE SESSION AND GET ACCESS TOKEN
     // ═══════════════════════════════════════════════════════════════════
     console.log('[Chat] Validating session before Edge Function call...');
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -861,14 +861,15 @@ export default function ChatScreen() {
       return;
     }
 
-    if (!session) {
-      console.error('[Chat] No valid session - user needs to re-authenticate');
+    if (!session || !session.access_token) {
+      console.error('[Chat] No valid session or access token - user needs to re-authenticate');
       showErrorToast('Your session has expired. Please log in again.');
       router.replace('/login');
       return;
     }
 
-    console.log('[Chat] Session validated successfully');
+    const accessToken = session.access_token;
+    console.log('[Chat] Session validated successfully - access token length:', accessToken.length);
 
     console.log('[Chat] sendMessage: Starting send process');
     console.log('[Chat] Current subject:', currentSubject);
@@ -1085,9 +1086,16 @@ export default function ChatScreen() {
         aiScienceMode: preferences.ai_science_mode,
       });
 
-      // DIRECT EDGE FUNCTION INVOCATION (NO WRAPPER)
+      // ═══════════════════════════════════════════════════════════════════
+      // CRITICAL FIX: EXPLICITLY PASS AUTHORIZATION HEADER
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('[Chat] Calling Edge Function with explicit Authorization header...');
+      
       const { data, error } = await supabase.functions.invoke('generate-ai-response', { 
-        body: aiPayload 
+        body: aiPayload,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
 
       // DEV-only: Log raw edge function response for diagnosis
