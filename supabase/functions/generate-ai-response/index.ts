@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // IMPROVED AUTH VALIDATION - HANDLE MULTIPLE HEADER FORMATS
+    // FIXED: PROPER AUTH VALIDATION WITH SERVICE ROLE CLIENT
     // ═══════════════════════════════════════════════════════════════════
     const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
     
@@ -222,20 +222,22 @@ Deno.serve(async (req) => {
 
     console.log(`[Edge][Chat][${requestId}] Auth token extracted (length: ${token.length})`);
 
-    // Initialize Supabase client with service role key
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    // ═══════════════════════════════════════════════════════════════════
+    // CRITICAL FIX: Create Supabase client with BOTH service role AND user token
+    // This allows us to:
+    // 1. Validate the user's JWT token
+    // 2. Use service role permissions for database operations
+    // ═══════════════════════════════════════════════════════════════════
+    
+    // First, create a client to validate the user token
+    const authClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false },
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
     });
     
-    console.log(`[Edge][Chat][${requestId}] Supabase client initialized`);
-
-    // Validate the user's token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    console.log(`[Edge][Chat][${requestId}] Validating user token...`);
+    
+    // Validate the user's token using service role client
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
       clearTimeout(functionTimeoutId);
@@ -253,6 +255,11 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[Edge][Chat][${requestId}] User authenticated: ${user.id}`);
+
+    // Now create a service role client for database operations
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
 
     // Parse request body
     let body: any;
@@ -277,7 +284,7 @@ Deno.serve(async (req) => {
       personRelationshipType,
       currentSubject,
       userId,
-      therapistPersonaId, // NEW: Accept therapist persona ID
+      therapistPersonaId,
     } = body ?? {};
 
     // ═══════════════════════════════════════════════════════════════════
