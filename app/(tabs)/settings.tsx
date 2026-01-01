@@ -168,42 +168,12 @@ export default function SettingsScreen() {
   const modalMaxWidth = Math.min(windowWidth * 0.92, 520);
   const actionBarHeight = 140; // Approximate height for action buttons area
 
-  // DEV-ONLY DIAGNOSTIC: Full-screen transparent Pressable to detect overlays
   useEffect(() => {
-    if (__DEV__) {
-      const modalStates = {
-        showInfoModal,
-        showDeleteModal,
-        showChangePasswordModal,
-        showPersonaModal,
-        showPersonalizationInfoModal,
-        showClearPersonalizationModal,
-        showPersonalizationModal,
-        showUpdatesModal,
-        showAddUpdateModal,
-      };
-
-      const openModals = Object.entries(modalStates).filter(([_, isOpen]) => isOpen);
-      
-      if (openModals.length > 1) {
-        console.warn(
-          '[Settings] Multiple modals open simultaneously:',
-          openModals.map(([name]) => name).join(', '),
-          '- This may cause backdrop stacking issues'
-        );
-      }
-    }
-  }, [
-    showInfoModal,
-    showDeleteModal,
-    showChangePasswordModal,
-    showPersonaModal,
-    showPersonalizationInfoModal,
-    showClearPersonalizationModal,
-    showPersonalizationModal,
-    showUpdatesModal,
-    showAddUpdateModal,
-  ]);
+    console.log('[Settings] Screen mounted');
+    return () => {
+      console.log('[Settings] Screen unmounted');
+    };
+  }, []);
 
   useEffect(() => {
     setSelectedTheme(themeKey);
@@ -288,6 +258,7 @@ export default function SettingsScreen() {
   };
 
   const handleCancelDelete = () => {
+    console.log('[Settings] Cancel delete pressed');
     setShowDeleteModal(false);
   };
 
@@ -377,6 +348,7 @@ export default function SettingsScreen() {
   };
 
   const handleCloseInfoModal = () => {
+    console.log('[Settings] Closing info modal');
     setShowInfoModal(false);
   };
 
@@ -387,6 +359,7 @@ export default function SettingsScreen() {
   };
 
   const handleCloseChangePasswordModal = () => {
+    console.log('[Settings] Closing change password modal');
     setShowChangePasswordModal(false);
     setCurrentPassword('');
     setNewPassword('');
@@ -447,6 +420,7 @@ export default function SettingsScreen() {
   };
 
   const handleClosePersonaModal = () => {
+    console.log('[Settings] Closing persona modal');
     setShowPersonaModal(false);
     setSelectedPersonaId(preferences.therapist_persona_id || '');
   };
@@ -477,7 +451,7 @@ export default function SettingsScreen() {
       return;
     }
 
-    // FIX: Close the modal first to prevent lingering backdrop
+    // Close the modal first to prevent lingering backdrop
     setShowPersonaModal(false);
 
     // Small delay to allow modal close animation to complete before navigation
@@ -503,6 +477,7 @@ export default function SettingsScreen() {
   };
 
   const handleClosePersonalizationModal = () => {
+    console.log('[Settings] Closing personalization modal');
     setShowPersonalizationModal(false);
     // Reset to current saved values
     setConversationStyle(preferences.conversation_style || '');
@@ -539,7 +514,7 @@ export default function SettingsScreen() {
 
   const handleOpenClearPersonalizationModal = () => {
     console.log('[Settings] Clear personalization button pressed');
-    // FIX: Don't open nested modal - close parent first
+    // Close parent modal first to prevent nested modals
     setShowPersonalizationModal(false);
     setTimeout(() => {
       setShowClearPersonalizationModal(true);
@@ -547,6 +522,7 @@ export default function SettingsScreen() {
   };
 
   const handleCloseClearPersonalizationModal = () => {
+    console.log('[Settings] Closing clear personalization modal');
     setShowClearPersonalizationModal(false);
   };
 
@@ -587,6 +563,7 @@ export default function SettingsScreen() {
   };
 
   const handleClosePersonalizationInfoModal = () => {
+    console.log('[Settings] Closing personalization info modal');
     setShowPersonalizationInfoModal(false);
   };
 
@@ -637,13 +614,13 @@ export default function SettingsScreen() {
   };
 
   const handleCloseUpdatesModal = () => {
-    console.log('[Settings] handleCloseUpdatesModal: Closing Updates Over Time modal');
+    console.log('[Settings] Closing Updates Over Time modal');
     setShowUpdatesModal(false);
     setExpandedUpdateIds(new Set());
   };
 
   const handleOpenAddUpdateModal = () => {
-    console.log('[Settings] handleOpenAddUpdateModal: Opening Add Update modal');
+    console.log('[Settings] Opening Add Update modal');
     setEditingUpdate(null);
     setUpdateTitle('');
     setUpdateDetails('');
@@ -654,7 +631,7 @@ export default function SettingsScreen() {
   };
 
   const handleOpenEditUpdateModal = (update: PersonalizationUpdate) => {
-    console.log('[Settings] handleOpenEditUpdateModal: Opening Edit Update modal for update:', update.id);
+    console.log('[Settings] Opening Edit Update modal for update:', update.id);
     setEditingUpdate(update);
     setUpdateTitle(update.title);
     setUpdateDetails(update.details || '');
@@ -665,7 +642,7 @@ export default function SettingsScreen() {
   };
 
   const handleCloseAddUpdateModal = () => {
-    console.log('[Settings] handleCloseAddUpdateModal: Closing Add/Edit Update modal');
+    console.log('[Settings] Closing Add/Edit Update modal');
     setShowAddUpdateModal(false);
     setEditingUpdate(null);
     setUpdateTitle('');
@@ -693,20 +670,20 @@ export default function SettingsScreen() {
   };
 
   const handleSaveUpdate = async () => {
-    console.log('[Settings] handleSaveUpdate: Starting save process');
+    console.log('[Settings] Starting save update process');
     
     if (!userId) {
-      console.error('[Settings] handleSaveUpdate: No userId available');
+      console.error('[Settings] No userId available');
       showErrorToast('User ID not found');
       return;
     }
 
     if (!validateUpdateInput()) {
-      console.log('[Settings] handleSaveUpdate: Validation failed');
+      console.log('[Settings] Validation failed');
       return;
     }
 
-    console.log('[Settings] handleSaveUpdate: Validation passed, proceeding with save');
+    console.log('[Settings] Validation passed, proceeding with save');
     setIsSavingUpdate(true);
 
     try {
@@ -719,11 +696,11 @@ export default function SettingsScreen() {
         updated_at: new Date().toISOString(),
       };
 
-      console.log('[Settings] handleSaveUpdate: Update data prepared:', updateData);
+      console.log('[Settings] Update data prepared:', updateData);
 
       if (editingUpdate) {
         // Update existing
-        console.log('[Settings] handleSaveUpdate: Updating existing update:', editingUpdate.id);
+        console.log('[Settings] Updating existing update:', editingUpdate.id);
         const { error } = await supabase
           .from('user_personalization_updates')
           .update(updateData)
@@ -731,32 +708,21 @@ export default function SettingsScreen() {
           .eq('user_id', userId);
 
         if (error) {
-          console.error('[Settings] handleSaveUpdate: Error updating update:', error);
+          console.error('[Settings] Error updating update:', error);
           if (__DEV__) {
             showErrorToast(`Failed to save update: ${error.message}`);
           } else {
             showErrorToast('Failed to save update');
           }
         } else {
-          console.log('[Settings] handleSaveUpdate: Update saved successfully');
+          console.log('[Settings] Update saved successfully');
           showSuccessToast('Update saved');
           handleCloseAddUpdateModal();
           await fetchUpdates();
         }
       } else {
-        // Insert new - optimistic update
-        console.log('[Settings] handleSaveUpdate: Creating new update');
-        const tempId = 'temp-' + Date.now();
-        const newUpdate: PersonalizationUpdate = {
-          id: tempId,
-          ...updateData,
-          created_at: new Date().toISOString(),
-        };
-        
-        // Optimistically add to list
-        console.log('[Settings] handleSaveUpdate: Adding optimistic update to list');
-        setUpdates(prev => [newUpdate, ...prev]);
-        
+        // Insert new
+        console.log('[Settings] Creating new update');
         const { data, error } = await supabase
           .from('user_personalization_updates')
           .insert([updateData])
@@ -764,39 +730,34 @@ export default function SettingsScreen() {
           .single();
 
         if (error) {
-          console.error('[Settings] handleSaveUpdate: Error creating update:', error);
+          console.error('[Settings] Error creating update:', error);
           if (__DEV__) {
             showErrorToast(`Failed to save update: ${error.message}`);
           } else {
             showErrorToast('Failed to save update');
           }
-          // Revert optimistic update
-          console.log('[Settings] handleSaveUpdate: Reverting optimistic update');
-          await fetchUpdates();
         } else {
-          console.log('[Settings] handleSaveUpdate: Update created successfully:', data);
+          console.log('[Settings] Update created successfully:', data);
           showSuccessToast('Update added');
           handleCloseAddUpdateModal();
-          // Replace temp with real data
           await fetchUpdates();
         }
       }
     } catch (error) {
-      console.error('[Settings] handleSaveUpdate: Exception saving update:', error);
+      console.error('[Settings] Exception saving update:', error);
       if (__DEV__) {
         showErrorToast(`Exception: ${error}`);
       } else {
         showErrorToast('Failed to save update');
       }
-      await fetchUpdates();
     } finally {
       setIsSavingUpdate(false);
-      console.log('[Settings] handleSaveUpdate: Save process complete');
+      console.log('[Settings] Save process complete');
     }
   };
 
   const handleDeleteUpdate = async (updateId: string) => {
-    console.log('[Settings] handleDeleteUpdate: Deleting update:', updateId);
+    console.log('[Settings] Deleting update:', updateId);
     Alert.alert(
       'Delete Update',
       'Are you sure you want to delete this update?',
@@ -814,19 +775,19 @@ export default function SettingsScreen() {
                 .eq('user_id', userId);
 
               if (error) {
-                console.error('[Settings] handleDeleteUpdate: Error deleting update:', error);
+                console.error('[Settings] Error deleting update:', error);
                 if (__DEV__) {
                   showErrorToast(`Failed to delete update: ${error.message}`);
                 } else {
                   showErrorToast('Failed to delete update');
                 }
               } else {
-                console.log('[Settings] handleDeleteUpdate: Update deleted successfully');
+                console.log('[Settings] Update deleted successfully');
                 showSuccessToast('Update deleted');
                 await fetchUpdates();
               }
             } catch (error) {
-              console.error('[Settings] handleDeleteUpdate: Exception deleting update:', error);
+              console.error('[Settings] Exception deleting update:', error);
               if (__DEV__) {
                 showErrorToast(`Exception: ${error}`);
               } else {
@@ -1023,18 +984,6 @@ export default function SettingsScreen() {
 
   const selectedPersona = getPersonaById(preferences.therapist_persona_id || '');
 
-  // Check if any modal is open
-  const isAnyModalOpen = 
-    showInfoModal ||
-    showDeleteModal ||
-    showChangePasswordModal ||
-    showPersonaModal ||
-    showPersonalizationInfoModal ||
-    showClearPersonalizationModal ||
-    showPersonalizationModal ||
-    showUpdatesModal ||
-    showAddUpdateModal;
-
   return (
     <>
       <LinearGradient
@@ -1044,9 +993,7 @@ export default function SettingsScreen() {
         end={{ x: 0, y: 1 }}
         pointerEvents="none"
       >
-        {/* FIXED: Removed pointerEvents from SafeAreaView - now it can receive touches normally */}
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-          {/* FIXED: Removed pointerEvents from container - now it can receive touches normally */}
           <View style={styles.container}>
             {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
             <View style={styles.topHeader}>
@@ -1514,23 +1461,8 @@ export default function SettingsScreen() {
         </SafeAreaView>
       </LinearGradient>
 
-      {/* DEV-ONLY DIAGNOSTIC: Full-screen transparent Pressable to detect overlays */}
-      {__DEV__ && !isAnyModalOpen && (
-        <Pressable
-          style={styles.devDiagnosticOverlay}
-          onPress={(e) => {
-            console.log('[Settings] DEV DIAGNOSTIC: Tap detected on diagnostic overlay at:', {
-              x: e.nativeEvent.pageX,
-              y: e.nativeEvent.pageY,
-              timestamp: new Date().toISOString(),
-            });
-          }}
-          pointerEvents="box-none"
-        />
-      )}
-
-      {/* Info Modal - ONLY render when visible */}
-      {showInfoModal ? (
+      {/* Info Modal */}
+      {showInfoModal && (
         <Modal
           visible={true}
           transparent={true}
@@ -1540,7 +1472,6 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCloseInfoModal}
-            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1573,10 +1504,10 @@ export default function SettingsScreen() {
             </Pressable>
           </Pressable>
         </Modal>
-      ) : null}
+      )}
 
-      {/* Delete Confirmation Modal - ONLY render when visible */}
-      {showDeleteModal ? (
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
         <Modal
           visible={true}
           transparent={true}
@@ -1586,7 +1517,6 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCancelDelete}
-            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1637,10 +1567,10 @@ export default function SettingsScreen() {
             </Pressable>
           </Pressable>
         </Modal>
-      ) : null}
+      )}
 
-      {/* Change Password Modal - ONLY render when visible */}
-      {showChangePasswordModal ? (
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
         <Modal
           visible={true}
           transparent={true}
@@ -1650,12 +1580,10 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
-            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleCloseChangePasswordModal}
-              pointerEvents="auto"
             >
               <ScrollView
                 contentContainerStyle={styles.modalScrollContent}
@@ -1783,10 +1711,10 @@ export default function SettingsScreen() {
             </Pressable>
           </KeyboardAvoidingView>
         </Modal>
-      ) : null}
+      )}
 
-      {/* Therapist Persona Modal - ONLY render when visible */}
-      {showPersonaModal ? (
+      {/* Therapist Persona Modal */}
+      {showPersonaModal && (
         <Modal
           visible={true}
           transparent={true}
@@ -1796,12 +1724,10 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
-            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleClosePersonaModal}
-              pointerEvents="auto"
             >
               <Pressable 
                 style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}
@@ -1863,12 +1789,10 @@ export default function SettingsScreen() {
             </Pressable>
           </KeyboardAvoidingView>
         </Modal>
-      ) : null}
+      )}
 
-
-
-      {/* Personalization Info Modal - ONLY render when visible */}
-      {showPersonalizationInfoModal ? (
+      {/* Personalization Info Modal */}
+      {showPersonalizationInfoModal && (
         <Modal
           visible={true}
           transparent={true}
@@ -1878,7 +1802,6 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleClosePersonalizationInfoModal}
-            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1911,10 +1834,10 @@ export default function SettingsScreen() {
             </Pressable>
           </Pressable>
         </Modal>
-      ) : null}
+      )}
 
-      {/* Clear Personalization Confirmation Modal - ONLY render when visible */}
-      {showClearPersonalizationModal ? (
+      {/* Clear Personalization Confirmation Modal */}
+      {showClearPersonalizationModal && (
         <Modal
           visible={true}
           transparent={true}
@@ -1924,7 +1847,6 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCloseClearPersonalizationModal}
-            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1975,26 +1897,24 @@ export default function SettingsScreen() {
             </Pressable>
           </Pressable>
         </Modal>
-      ) : null}
+      )}
 
-      {/* Personalization Modal - ONLY render when visible */}
-      {showPersonalizationModal ? (
+      {/* Personalization Modal */}
+      {showPersonalizationModal && (
         <Modal
           visible={true}
           transparent={true}
           animationType="slide"
           onRequestClose={handleClosePersonalizationModal}
         >
-          <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']} pointerEvents="box-none">
+          <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={styles.personalizationModalContainer}
-              pointerEvents="box-none"
             >
               <Pressable 
                 style={{ flex: 1 }}
                 onPress={handleClosePersonalizationModal}
-                pointerEvents="auto"
               >
                 <Pressable 
                   style={[
@@ -2222,26 +2142,24 @@ export default function SettingsScreen() {
             </KeyboardAvoidingView>
           </SafeAreaView>
         </Modal>
-      ) : null}
+      )}
 
-      {/* Updates Over Time Modal - ONLY render when visible */}
-      {showUpdatesModal ? (
+      {/* Updates Over Time Modal */}
+      {showUpdatesModal && (
         <Modal
           visible={true}
           transparent={true}
           animationType="slide"
           onRequestClose={handleCloseUpdatesModal}
         >
-          <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']} pointerEvents="box-none">
+          <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={styles.updatesModalContainer}
-              pointerEvents="box-none"
             >
               <Pressable 
                 style={{ flex: 1 }}
                 onPress={handleCloseUpdatesModal}
-                pointerEvents="auto"
               >
                 <Pressable 
                   style={[
@@ -2427,10 +2345,10 @@ export default function SettingsScreen() {
             </KeyboardAvoidingView>
           </SafeAreaView>
         </Modal>
-      ) : null}
+      )}
 
-      {/* Add/Edit Update Modal - ONLY render when visible */}
-      {showAddUpdateModal ? (
+      {/* Add/Edit Update Modal */}
+      {showAddUpdateModal && (
         <Modal
           visible={true}
           transparent={true}
@@ -2440,12 +2358,10 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
-            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleCloseAddUpdateModal}
-              pointerEvents="auto"
             >
               <ScrollView
                 contentContainerStyle={styles.modalScrollContent}
@@ -2592,7 +2508,7 @@ export default function SettingsScreen() {
             </Pressable>
           </KeyboardAvoidingView>
         </Modal>
-      ) : null}
+      )}
     </>
   );
 }
@@ -3172,16 +3088,5 @@ const styles = StyleSheet.create({
   updateCardActionText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-
-  // DEV-ONLY DIAGNOSTIC OVERLAY
-  devDiagnosticOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent',
-    zIndex: 9999,
   },
 });
