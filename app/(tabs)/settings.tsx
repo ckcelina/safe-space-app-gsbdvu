@@ -1044,10 +1044,10 @@ export default function SettingsScreen() {
         end={{ x: 0, y: 1 }}
         pointerEvents="none"
       >
-        {/* FIXED: Changed pointerEvents from "none" to "box-none" to allow touches through */}
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']} pointerEvents="box-none">
-          {/* FIXED: Changed pointerEvents from "none" to "box-none" */}
-          <View style={styles.container} pointerEvents="box-none">
+        {/* FIXED: Removed pointerEvents from SafeAreaView - now it can receive touches normally */}
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          {/* FIXED: Removed pointerEvents from container - now it can receive touches normally */}
+          <View style={styles.container}>
             {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
             <View style={styles.topHeader}>
               <Pressable 
