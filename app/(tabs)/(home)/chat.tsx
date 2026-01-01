@@ -1363,6 +1363,7 @@ export default function ChatScreen() {
         keyboardVerticalOffset={0}
       >
         <View style={[styles.container, { backgroundColor: theme.background }]}>
+          {/* FIXED: Added pointerEvents="none" to prevent touch blocking */}
           <LinearGradient
             colors={theme.primaryGradient}
             start={{ x: 0, y: 0 }}
@@ -1371,11 +1372,13 @@ export default function ChatScreen() {
             pointerEvents="none"
           />
 
+          {/* FIXED: Added pointerEvents="box-none" to allow touches through to children */}
           <LinearGradient
             colors={theme.primaryGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
             style={[styles.headerGradient, { paddingTop: insets.top }]}
+            pointerEvents="box-none"
           >
             <View style={styles.header}>
               <TouchableOpacity 
