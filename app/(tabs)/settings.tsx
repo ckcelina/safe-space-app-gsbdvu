@@ -184,12 +184,8 @@ export default function SettingsScreen() {
         <SafeAreaView 
           style={styles.safeArea} 
           edges={['top', 'bottom']}
-          pointerEvents="box-none"
         >
-          <View 
-            style={styles.container}
-            pointerEvents="box-none"
-          >
+          <View style={styles.container}>
             {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
             <View style={styles.topHeader}>
               <Pressable 
@@ -208,7 +204,7 @@ export default function SettingsScreen() {
                 />
               </Pressable>
               
-              <View style={styles.headerSpacer} pointerEvents="none" />
+              <View style={styles.headerSpacer} />
               
               <Pressable 
                 onPress={() => {
@@ -238,7 +234,6 @@ export default function SettingsScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
-              pointerEvents="auto"
             >
               {/* Header */}
               <View style={styles.header}>
