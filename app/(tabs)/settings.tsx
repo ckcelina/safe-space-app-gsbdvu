@@ -1346,7 +1346,7 @@ export default function SettingsScreen() {
                 </Text>
 
                 <Pressable
-                  style={[styles.row, { borderBottomWidth: 0 }]}
+                  style={styles.row}
                   onPress={handleSupportPress}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessible={true}
@@ -1371,6 +1371,35 @@ export default function SettingsScreen() {
                     color={theme.textSecondary}
                   />
                 </Pressable>
+
+                {__DEV__ && (
+                  <Pressable
+                    style={[styles.row, { borderBottomWidth: 0 }]}
+                    onPress={() => router.push('/test-ai-response')}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessible={true}
+                    accessibilityLabel="Test AI Response (Dev Only)"
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.rowLeft}>
+                      <IconSymbol
+                        ios_icon_name="wrench.and.screwdriver.fill"
+                        android_material_icon_name="build"
+                        size={20}
+                        color="#FF9500"
+                      />
+                      <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                        Test AI Response (Dev)
+                      </Text>
+                    </View>
+                    <IconSymbol
+                      ios_icon_name="chevron.right"
+                      android_material_icon_name="arrow_forward"
+                      size={20}
+                      color={theme.textSecondary}
+                    />
+                  </Pressable>
+                )}
               </View>
 
               {/* Card 5: Legal */}
