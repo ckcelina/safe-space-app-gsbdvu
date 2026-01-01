@@ -19,7 +19,7 @@ import {
   AppState,
   AppStateStatus,
 } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -375,13 +375,60 @@ export default function ChatScreen() {
     };
   }, []);
 
+  // SAFEGUARD: Clean up UI overlays when leaving Chat screen
+  useFocusEffect(
+    useCallback(() => {
+      // This runs when the screen comes into focus
+      if (__DEV__) {
+        console.log('[Chat] Screen focused');
+      }
+
+      // Return cleanup function that runs when screen loses focus (blur)
+      return () => {
+        if (__DEV__) {
+          console.log('[Chat] Screen blurred - cleaning up UI overlays');
+        }
+        
+        // Close any open modals
+        setShowAddSubjectModal(false);
+        
+        // Clear error banners
+        setError(null);
+        
+        // Clear debug info in dev mode
+        if (__DEV__) {
+          setDebugInfo(null);
+        }
+      };
+    }, [])
+  );
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
+      const previousAppState = appStateRef.current;
       appStateRef.current = nextAppState;
       setAppState(nextAppState);
       
       if (__DEV__) {
-        console.log('[Chat] App state changed:', nextAppState);
+        console.log('[Chat] App state changed:', previousAppState, '->', nextAppState);
+      }
+
+      // SAFEGUARD: Clean up UI overlays when app goes to background or becomes inactive
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        if (__DEV__) {
+          console.log('[Chat] App backgrounded/inactive - cleaning up UI overlays');
+        }
+        
+        // Close any open modals
+        setShowAddSubjectModal(false);
+        
+        // Clear error banners
+        setError(null);
+        
+        // Clear debug info in dev mode
+        if (__DEV__) {
+          setDebugInfo(null);
+        }
       }
     });
 
