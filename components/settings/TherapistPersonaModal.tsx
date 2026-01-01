@@ -167,6 +167,8 @@ export function TherapistPersonaModal({ visible, onClose }: TherapistPersonaModa
     );
   };
 
+  if (!visible) return null;
+
   return (
     <Modal
       visible={visible}
@@ -177,11 +179,17 @@ export function TherapistPersonaModal({ visible, onClose }: TherapistPersonaModa
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.modalOverlay}
+        pointerEvents="box-none"
       >
-        <Pressable style={{ flex: 1 }} onPress={handleClose}>
+        <Pressable 
+          style={{ flex: 1 }} 
+          onPress={handleClose}
+          pointerEvents="auto"
+        >
           <Pressable 
             style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}
             onPress={(e) => e.stopPropagation()}
+            pointerEvents="auto"
           >
             <View style={styles.modalIconContainer}>
               <IconSymbol

@@ -181,8 +181,15 @@ export default function SettingsScreen() {
         end={{ x: 0, y: 1 }}
         pointerEvents="none"
       >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-          <View style={styles.container}>
+        <SafeAreaView 
+          style={styles.safeArea} 
+          edges={['top', 'bottom']}
+          pointerEvents="box-none"
+        >
+          <View 
+            style={styles.container}
+            pointerEvents="box-none"
+          >
             {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
             <View style={styles.topHeader}>
               <Pressable 
@@ -201,10 +208,13 @@ export default function SettingsScreen() {
                 />
               </Pressable>
               
-              <View style={styles.headerSpacer} />
+              <View style={styles.headerSpacer} pointerEvents="none" />
               
               <Pressable 
-                onPress={() => setShowInfoModal(true)} 
+                onPress={() => {
+                  console.log('[Settings] Info button pressed');
+                  setShowInfoModal(true);
+                }} 
                 style={styles.infoButton}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
@@ -228,6 +238,7 @@ export default function SettingsScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
+              pointerEvents="auto"
             >
               {/* Header */}
               <View style={styles.header}>
@@ -264,7 +275,10 @@ export default function SettingsScreen() {
 
                 <Pressable
                   style={[styles.row, { borderBottomWidth: 0 }]}
-                  onPress={() => setShowChangePasswordModal(true)}
+                  onPress={() => {
+                    console.log('[Settings] Change password button pressed');
+                    setShowChangePasswordModal(true);
+                  }}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessible={true}
                   accessibilityLabel="Change password"
@@ -303,7 +317,10 @@ export default function SettingsScreen() {
                 {/* Therapist Persona Selection */}
                 <Pressable
                   style={[styles.row, { borderBottomWidth: 0, marginTop: 8 }]}
-                  onPress={() => setShowPersonaModal(true)}
+                  onPress={() => {
+                    console.log('[Settings] Therapist selection button pressed');
+                    setShowPersonaModal(true);
+                  }}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessible={true}
                   accessibilityLabel={`Therapist selection. Currently ${selectedPersona ? `${selectedPersona.name}, ${selectedPersona.label}` : 'not selected'}`}
@@ -341,7 +358,10 @@ export default function SettingsScreen() {
                     Personalization (Optional)
                   </Text>
                   <Pressable
-                    onPress={() => setShowPersonalizationInfoModal(true)}
+                    onPress={() => {
+                      console.log('[Settings] Why we ask button pressed');
+                      setShowPersonalizationInfoModal(true);
+                    }}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     style={styles.whyWeAskButton}
                     accessible={true}
@@ -360,7 +380,10 @@ export default function SettingsScreen() {
 
                 <Pressable
                   style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)', marginTop: 8 }]}
-                  onPress={() => setShowPersonalizationModal(true)}
+                  onPress={() => {
+                    console.log('[Settings] Personalization settings button pressed');
+                    setShowPersonalizationModal(true);
+                  }}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessible={true}
                   accessibilityLabel={`Personalization settings. ${hasPersonalizationData ? 'Configured' : 'Not set'}`}
@@ -393,7 +416,10 @@ export default function SettingsScreen() {
                 {/* Updates Over Time Section */}
                 <Pressable
                   style={[styles.row, { borderBottomWidth: 0, marginTop: 0 }]}
-                  onPress={() => setShowUpdatesModal(true)}
+                  onPress={() => {
+                    console.log('[Settings] Updates over time button pressed');
+                    setShowUpdatesModal(true);
+                  }}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessible={true}
                   accessibilityLabel="Updates over time"
@@ -511,7 +537,10 @@ export default function SettingsScreen() {
                 {__DEV__ && (
                   <Pressable
                     style={[styles.row, { borderBottomWidth: 0 }]}
-                    onPress={() => router.push('/test-ai-response')}
+                    onPress={() => {
+                      console.log('[Settings] Test AI Response button pressed');
+                      router.push('/test-ai-response');
+                    }}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     accessible={true}
                     accessibilityLabel="Test AI Response (Dev Only)"
@@ -625,7 +654,10 @@ export default function SettingsScreen() {
                 <View style={[styles.dangerCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                   <Pressable
                     style={styles.deleteButton}
-                    onPress={() => setShowDeleteModal(true)}
+                    onPress={() => {
+                      console.log('[Settings] Delete account button pressed');
+                      setShowDeleteModal(true);
+                    }}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     accessible={true}
                     accessibilityLabel="Delete my account"
@@ -649,53 +681,94 @@ export default function SettingsScreen() {
         </SafeAreaView>
       </LinearGradient>
 
-      {/* Modals */}
-      <InfoModal 
-        visible={showInfoModal}
-        onClose={() => setShowInfoModal(false)}
-      />
+      {/* Modals - Only render when visible */}
+      {showInfoModal && (
+        <InfoModal 
+          visible={showInfoModal}
+          onClose={() => {
+            console.log('[Settings] Closing info modal');
+            setShowInfoModal(false);
+          }}
+        />
+      )}
 
-      <DeleteAccountModal
-        visible={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        userId={userId}
-        onSuccess={handleLogout}
-      />
+      {showDeleteModal && (
+        <DeleteAccountModal
+          visible={showDeleteModal}
+          onClose={() => {
+            console.log('[Settings] Closing delete modal');
+            setShowDeleteModal(false);
+          }}
+          userId={userId}
+          onSuccess={handleLogout}
+        />
+      )}
 
-      <ChangePasswordModal
-        visible={showChangePasswordModal}
-        onClose={() => setShowChangePasswordModal(false)}
-      />
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          visible={showChangePasswordModal}
+          onClose={() => {
+            console.log('[Settings] Closing change password modal');
+            setShowChangePasswordModal(false);
+          }}
+        />
+      )}
 
-      <TherapistPersonaModal
-        visible={showPersonaModal}
-        onClose={() => setShowPersonaModal(false)}
-      />
+      {showPersonaModal && (
+        <TherapistPersonaModal
+          visible={showPersonaModal}
+          onClose={() => {
+            console.log('[Settings] Closing persona modal');
+            setShowPersonaModal(false);
+          }}
+        />
+      )}
 
-      <PersonalizationInfoModal
-        visible={showPersonalizationInfoModal}
-        onClose={() => setShowPersonalizationInfoModal(false)}
-      />
+      {showPersonalizationInfoModal && (
+        <PersonalizationInfoModal
+          visible={showPersonalizationInfoModal}
+          onClose={() => {
+            console.log('[Settings] Closing personalization info modal');
+            setShowPersonalizationInfoModal(false);
+          }}
+        />
+      )}
 
-      <PersonalizationModal
-        visible={showPersonalizationModal}
-        onClose={() => setShowPersonalizationModal(false)}
-        onOpenClearModal={() => {
-          setShowPersonalizationModal(false);
-          setTimeout(() => setShowClearPersonalizationModal(true), 300);
-        }}
-      />
+      {showPersonalizationModal && (
+        <PersonalizationModal
+          visible={showPersonalizationModal}
+          onClose={() => {
+            console.log('[Settings] Closing personalization modal');
+            setShowPersonalizationModal(false);
+          }}
+          onOpenClearModal={() => {
+            console.log('[Settings] Opening clear personalization modal');
+            setShowPersonalizationModal(false);
+            setTimeout(() => setShowClearPersonalizationModal(true), 300);
+          }}
+        />
+      )}
 
-      <ClearPersonalizationModal
-        visible={showClearPersonalizationModal}
-        onClose={() => setShowClearPersonalizationModal(false)}
-      />
+      {showClearPersonalizationModal && (
+        <ClearPersonalizationModal
+          visible={showClearPersonalizationModal}
+          onClose={() => {
+            console.log('[Settings] Closing clear personalization modal');
+            setShowClearPersonalizationModal(false);
+          }}
+        />
+      )}
 
-      <UpdatesOverTimeModal
-        visible={showUpdatesModal}
-        onClose={() => setShowUpdatesModal(false)}
-        userId={userId}
-      />
+      {showUpdatesModal && (
+        <UpdatesOverTimeModal
+          visible={showUpdatesModal}
+          onClose={() => {
+            console.log('[Settings] Closing updates modal');
+            setShowUpdatesModal(false);
+          }}
+          userId={userId}
+        />
+      )}
     </>
   );
 }

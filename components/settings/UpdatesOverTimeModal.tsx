@@ -13,6 +13,8 @@ interface UpdatesOverTimeModalProps {
 export function UpdatesOverTimeModal({ visible, onClose, userId }: UpdatesOverTimeModalProps) {
   const { theme } = useThemeContext();
 
+  if (!visible) return null;
+
   return (
     <Modal
       visible={visible}
@@ -20,10 +22,15 @@ export function UpdatesOverTimeModal({ visible, onClose, userId }: UpdatesOverTi
       animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
+      <Pressable 
+        style={styles.modalOverlay} 
+        onPress={onClose}
+        pointerEvents="auto"
+      >
         <Pressable 
           style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
           onPress={(e) => e.stopPropagation()}
+          pointerEvents="auto"
         >
           <View style={styles.modalIconContainer}>
             <IconSymbol

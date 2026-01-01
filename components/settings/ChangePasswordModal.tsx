@@ -79,6 +79,8 @@ export function ChangePasswordModal({ visible, onClose }: ChangePasswordModalPro
     }
   };
 
+  if (!visible) return null;
+
   return (
     <Modal
       visible={visible}
@@ -89,8 +91,13 @@ export function ChangePasswordModal({ visible, onClose }: ChangePasswordModalPro
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.modalOverlay}
+        pointerEvents="box-none"
       >
-        <Pressable style={{ flex: 1 }} onPress={handleClose}>
+        <Pressable 
+          style={{ flex: 1 }} 
+          onPress={handleClose}
+          pointerEvents="auto"
+        >
           <ScrollView
             contentContainerStyle={styles.modalScrollContent}
             keyboardShouldPersistTaps="handled"
@@ -100,6 +107,7 @@ export function ChangePasswordModal({ visible, onClose }: ChangePasswordModalPro
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
               onPress={(e) => e.stopPropagation()}
+              pointerEvents="auto"
             >
               <View style={styles.modalIconContainer}>
                 <IconSymbol

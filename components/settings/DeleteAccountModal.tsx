@@ -50,6 +50,8 @@ export function DeleteAccountModal({ visible, onClose, userId, onSuccess }: Dele
     }
   };
 
+  if (!visible) return null;
+
   return (
     <Modal
       visible={visible}
@@ -57,10 +59,15 @@ export function DeleteAccountModal({ visible, onClose, userId, onSuccess }: Dele
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
+      <Pressable 
+        style={styles.modalOverlay} 
+        onPress={onClose}
+        pointerEvents="auto"
+      >
         <Pressable 
           style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
           onPress={(e) => e.stopPropagation()}
+          pointerEvents="auto"
         >
           <View style={styles.modalIconContainer}>
             <IconSymbol

@@ -12,6 +12,8 @@ interface ClearPersonalizationModalProps {
 export function ClearPersonalizationModal({ visible, onClose }: ClearPersonalizationModalProps) {
   const { theme } = useThemeContext();
 
+  if (!visible) return null;
+
   return (
     <Modal
       visible={visible}
@@ -19,10 +21,15 @@ export function ClearPersonalizationModal({ visible, onClose }: ClearPersonaliza
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
+      <Pressable 
+        style={styles.modalOverlay} 
+        onPress={onClose}
+        pointerEvents="auto"
+      >
         <Pressable 
           style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
           onPress={(e) => e.stopPropagation()}
+          pointerEvents="auto"
         >
           <View style={styles.modalIconContainer}>
             <IconSymbol

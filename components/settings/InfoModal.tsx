@@ -12,6 +12,8 @@ interface InfoModalProps {
 export function InfoModal({ visible, onClose }: InfoModalProps) {
   const { theme } = useThemeContext();
 
+  if (!visible) return null;
+
   return (
     <Modal
       visible={visible}
@@ -19,10 +21,15 @@ export function InfoModal({ visible, onClose }: InfoModalProps) {
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
+      <Pressable 
+        style={styles.modalOverlay} 
+        onPress={onClose}
+        pointerEvents="auto"
+      >
         <Pressable 
           style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
           onPress={(e) => e.stopPropagation()}
+          pointerEvents="auto"
         >
           <View style={styles.modalIconContainer}>
             <IconSymbol

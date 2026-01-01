@@ -12,6 +12,8 @@ interface PersonalizationInfoModalProps {
 export function PersonalizationInfoModal({ visible, onClose }: PersonalizationInfoModalProps) {
   const { theme } = useThemeContext();
 
+  if (!visible) return null;
+
   return (
     <Modal
       visible={visible}
@@ -19,10 +21,15 @@ export function PersonalizationInfoModal({ visible, onClose }: PersonalizationIn
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
+      <Pressable 
+        style={styles.modalOverlay} 
+        onPress={onClose}
+        pointerEvents="auto"
+      >
         <Pressable 
           style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
           onPress={(e) => e.stopPropagation()}
+          pointerEvents="auto"
         >
           <View style={styles.modalIconContainer}>
             <IconSymbol

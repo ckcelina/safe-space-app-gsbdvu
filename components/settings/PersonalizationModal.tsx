@@ -13,6 +13,8 @@ interface PersonalizationModalProps {
 export function PersonalizationModal({ visible, onClose, onOpenClearModal }: PersonalizationModalProps) {
   const { theme } = useThemeContext();
 
+  if (!visible) return null;
+
   return (
     <Modal
       visible={visible}
@@ -20,10 +22,15 @@ export function PersonalizationModal({ visible, onClose, onOpenClearModal }: Per
       animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
+      <Pressable 
+        style={styles.modalOverlay} 
+        onPress={onClose}
+        pointerEvents="auto"
+      >
         <Pressable 
           style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
           onPress={(e) => e.stopPropagation()}
+          pointerEvents="auto"
         >
           <View style={styles.modalIconContainer}>
             <IconSymbol
