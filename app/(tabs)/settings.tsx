@@ -1044,8 +1044,10 @@ export default function SettingsScreen() {
         end={{ x: 0, y: 1 }}
         pointerEvents="none"
       >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']} pointerEvents="none">
-          <View style={styles.container} pointerEvents="none">
+        {/* FIXED: Changed pointerEvents from "none" to "box-none" to allow touches through */}
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']} pointerEvents="box-none">
+          {/* FIXED: Changed pointerEvents from "none" to "box-none" */}
+          <View style={styles.container} pointerEvents="box-none">
             {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
             <View style={styles.topHeader}>
               <Pressable 
@@ -1091,7 +1093,6 @@ export default function SettingsScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
-              pointerEvents="auto"
             >
               {/* Header */}
               <View style={styles.header}>
