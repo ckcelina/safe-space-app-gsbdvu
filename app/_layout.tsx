@@ -12,6 +12,7 @@ import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext';
 import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext';
 import { WidgetProvider } from '@/contexts/WidgetContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ServerHealthIndicator } from '@/components/ui/ServerHealthIndicator';
 import { serverHealthMonitor } from '@/utils/expoServerHealth';
 import { metroConnectionGuard, setupMetroErrorHandler } from '@/utils/metroConnectionGuard';
 import { startupValidator } from '@/utils/expoStartupValidator';
@@ -55,6 +56,14 @@ if (__DEV__) {
 
   // Log diagnostics
   startupValidator.logDiagnostics();
+
+  // Expose diagnostics globally for console access
+  if (typeof global !== 'undefined') {
+    const { runDiagnostics, exportDiagnostics } = require('@/utils/diagnostics');
+    (global as any).runDiagnostics = runDiagnostics;
+    (global as any).exportDiagnostics = exportDiagnostics;
+    console.log('[Startup] 💡 Tip: Run "global.runDiagnostics()" in console for health report');
+  }
 
   // Global error handler for unhandled promise rejections
   if (typeof ErrorUtils !== 'undefined') {
@@ -241,6 +250,8 @@ export default function RootLayout() {
                   />
                 </Stack>
                 <StatusBar style="auto" />
+                {/* Visual health indicator - only visible in development */}
+                <ServerHealthIndicator />
               </ThemeProvider>
             </WidgetProvider>
           </UserPreferencesProvider>

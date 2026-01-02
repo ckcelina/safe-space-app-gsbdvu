@@ -1,0 +1,160 @@
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                    EXPO SERVER STABILITY SYSTEM                            ║
+║                         Never Break Again™                                 ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          USER INTERFACE LAYER                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  Visual Health Indicator (Top-Right Corner)                       │  │
+│  │  ┌────────────────────────────────────────────────────────────┐  │  │
+│  │  │  🟢 Connected    🟠 Reconnecting    🔴 Disconnected        │  │  │
+│  │  │                                                              │  │  │
+│  │  │  Tap to expand:                                             │  │  │
+│  │  │  • Network Type: WiFi / Cellular                            │  │  │
+│  │  │  • Internet: Yes / No                                       │  │  │
+│  │  │  • Retries: 0/5                                             │  │  │
+│  │  │  • Last Check: 12:34:56                                     │  │  │
+│  │  └────────────────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                           │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        MONITORING & RECOVERY LAYER                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  ┌──────────────────────┐  ┌──────────────────────┐  ┌───────────────┐ │
+│  │ Server Health Monitor│  │ Metro Connection Guard│  │ Startup       │ │
+│  │                      │  │                       │  │ Validator     │ │
+│  │ • Network monitoring │  │ • Error detection     │  │               │ │
+│  │ • Connectivity check │  │ • Pattern recognition │  │ • Pre-flight  │ │
+│  │ • Auto-reconnect     │  │ • Auto-retry          │  │   checks      │ │
+│  │ • Exponential backoff│  │ • Recovery strategies │  │ • Diagnostics │ │
+│  │                      │  │                       │  │               │ │
+│  │ Every 30 seconds     │  │ On error              │  │ On startup    │ │
+│  └──────────────────────┘  └──────────────────────┘  └───────────────┘ │
+│                                                                           │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       INFRASTRUCTURE LAYER                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  Health Check Script (Pre-Start)                                  │  │
+│  │  ┌────────────────────────────────────────────────────────────┐  │  │
+│  │  │  ✅ Node modules      ✅ Node version (18+)                 │  │  │
+│  │  │  🧹 Metro cache       🧹 .expo cache                        │  │  │
+│  │  │  👁️ Watchman cache    🔌 Port availability                  │  │  │
+│  │  │  💾 Disk space                                              │  │  │
+│  │  └────────────────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                           │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  Safe Start Script (Process Management)                           │  │
+│  │  ┌────────────────────────────────────────────────────────────┐  │  │
+│  │  │  🚀 Start server                                            │  │  │
+│  │  │  👁️ Health monitoring (every 30s)                           │  │  │
+│  │  │  🔄 Auto-restart on crash (max 5 attempts)                  │  │  │
+│  │  │  📈 Exponential backoff (2^n seconds)                       │  │  │
+│  │  │  🛑 Graceful shutdown                                        │  │  │
+│  │  │  📝 Logging to expo-server.log                              │  │  │
+│  │  └────────────────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                           │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  Metro Configuration (Bundler Optimization)                       │  │
+│  │  ┌────────────────────────────────────────────────────────────┐  │  │
+│  │  │  💾 Persistent file-based caching                           │  │  │
+│  │  │  🛡️ Error handling middleware                               │  │  │
+│  │  │  ⚡ Optimized transformer                                    │  │  │
+│  │  │  📦 Package exports support                                 │  │  │
+│  │  └────────────────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                           │
+└─────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                           RECOVERY FLOW                                    ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+    Error Detected
+         ↓
+    Pattern Recognition
+    (ECONNREFUSED, ETIMEDOUT, etc.)
+         ↓
+    Apply Recovery Strategy
+         ↓
+    ┌─────────────────────┐
+    │ Attempt 1: 1s delay │
+    └─────────────────────┘
+         ↓ Failed
+    ┌─────────────────────┐
+    │ Attempt 2: 2s delay │
+    └─────────────────────┘
+         ↓ Failed
+    ┌─────────────────────┐
+    │ Attempt 3: 4s delay │
+    └─────────────────────┘
+         ↓ Failed
+    ┌─────────────────────┐
+    │ Attempt 4: 8s delay │
+    └─────────────────────┘
+         ↓ Failed
+    ┌─────────────────────┐
+    │ Attempt 5: 16s delay│
+    └─────────────────────┘
+         ↓ Failed
+    ❌ Max Retries Reached
+    (Log error and notify)
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                         COMMAND REFERENCE                                  ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  npm run dev          → Standard start with health checks
+  npm run dev:safe     → Safe start with auto-recovery
+  npm run dev:local    → Local start (no tunnel)
+  npm run clean        → Clean all caches
+  npm run reset        → Clean + reinstall
+  npm run health       → Manual health check
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                      TROUBLESHOOTING GUIDE                                 ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  Issue: Server won't start
+  Fix:   npm run reset
+
+  Issue: Port conflicts
+  Fix:   npx kill-port 8081 19000 19001 19002
+
+  Issue: Cache corruption
+  Fix:   npm run clean && npm run dev -- --clear
+
+  Issue: Watchman issues
+  Fix:   watchman watch-del-all
+
+  Issue: Frequent disconnections
+  Fix:   Check network, increase maxRetries in config
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                         SUCCESS METRICS                                    ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  ✅ Automatic recovery from crashes
+  ✅ Network monitoring and auto-reconnect
+  ✅ Pre-flight validation
+  ✅ Intelligent retry with exponential backoff
+  ✅ Error pattern detection
+  ✅ Process management
+  ✅ Cache management
+  ✅ Visual health feedback
+  ✅ Comprehensive logging
+  ✅ Zero-configuration setup
+
+  Result: A development server that NEVER BREAKS! 🎉
