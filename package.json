@@ -7,12 +7,16 @@
     "dev": "EXPO_NO_TELEMETRY=1 expo start --clear --tunnel",
     "dev:lan": "EXPO_NO_TELEMETRY=1 expo start --clear --lan",
     "dev:localhost": "EXPO_NO_TELEMETRY=1 expo start --clear",
+    "dev:stable": "EXPO_NO_TELEMETRY=1 expo start --clear --tunnel --max-workers 4",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
     "ios": "EXPO_NO_TELEMETRY=1 expo start --ios",
     "web": "EXPO_NO_TELEMETRY=1 expo start --web",
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "clean": "rm -rf node_modules/.cache && rm -rf .expo",
+    "reset": "rm -rf node_modules/.cache && rm -rf .expo && npm run dev",
+    "doctor": "npx expo-doctor"
   },
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
