@@ -146,7 +146,13 @@ export function TherapistPersonaModal({ visible, onClose }: TherapistPersonaModa
         </View>
         
         <Pressable
-          style={[styles.previewButton, { borderColor: theme.primary }]}
+          style={[
+            styles.previewButton,
+            {
+              backgroundColor: theme.primary,
+              borderColor: theme.primary,
+            }
+          ]}
           onPress={(e) => {
             e.stopPropagation();
             handleOpenPreview(persona.id);
@@ -157,9 +163,9 @@ export function TherapistPersonaModal({ visible, onClose }: TherapistPersonaModa
             ios_icon_name="eye.fill"
             android_material_icon_name="visibility"
             size={16}
-            color={theme.primary}
+            color="#FFFFFF"
           />
-          <Text style={[styles.previewButtonText, { color: theme.primary }]}>
+          <Text style={styles.previewButtonText}>
             Preview style
           </Text>
         </Pressable>
@@ -327,16 +333,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1.5,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 0,
     marginTop: 12,
-    gap: 6,
+    gap: 8,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
+    elevation: 3,
   },
   previewButtonText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   modalButtons: {
     flexDirection: 'row',
