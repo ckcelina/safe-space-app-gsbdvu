@@ -97,6 +97,33 @@ if (__DEV__) {
   console.log('[Startup] ✅ Expo server stability systems initialized');
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// SENTRY ERROR TRACKING - Initialize before anything else
+// ═══════════════════════════════════════════════════════════════════
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    enableInExpoDevelopment: false, // Don't send dev errors to Sentry
+    debug: __DEV__, // Enable debug logs in development
+    tracesSampleRate: 0.2, // 20% of transactions for performance monitoring
+    beforeSend(event) {
+      // Don't send events in development
+      if (__DEV__) {
+        console.log('[Sentry] Would send error:', event);
+        return null;
+      }
+      return event;
+    },
+  });
+  console.log('[Sentry] Error tracking initialized');
+} else {
+  if (__DEV__) {
+    console.log('[Sentry] DSN not configured - error tracking disabled');
+  }
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [loaded, error] = useFonts({
