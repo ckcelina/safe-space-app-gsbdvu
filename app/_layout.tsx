@@ -1,8 +1,8 @@
 
 import "react-native-reanimated";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -16,7 +16,7 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
-import { checkRequiredEnvVars } from "@/lib/envCheck";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -31,27 +31,6 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-
-  // Preflight check for optional env vars (only logs in dev, never blocks)
-  useEffect(() => {
-    if (__DEV__) {
-      const result = checkRequiredEnvVars();
-      
-      if (!result.isValid) {
-        console.warn('⚠️ Optional configuration missing:', result.missingVars);
-        console.warn('The app will continue with limited features.');
-      } else {
-        console.log('✅ Configuration check passed');
-      }
-      
-      // Log backend URL status
-      if (result.backendUrl) {
-        console.log('📡 Backend URL configured:', result.backendUrl);
-      } else {
-        console.log('📡 No backend URL configured (using Supabase Edge Functions)');
-      }
-    }
-  }, []);
 
   useEffect(() => {
     if (loaded) {
@@ -102,6 +81,7 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="auto" animated />
+      <AuthProvider>
         <ThemeProvider
           value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
         >
@@ -141,6 +121,7 @@ export default function RootLayout() {
             </GestureHandlerRootView>
           </WidgetProvider>
         </ThemeProvider>
+      </AuthProvider>
     </>
   );
 }
