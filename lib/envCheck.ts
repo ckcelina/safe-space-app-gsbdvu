@@ -5,34 +5,27 @@
  * Never blocks the app in production
  */
 
-import Constants from 'expo-constants';
-
 export interface EnvCheckResult {
   isValid: boolean;
   missingVars: string[];
-  backendUrl?: string;
 }
 
 /**
  * Check if optional environment variables are present
  * Returns validation result with missing variables
  * 
- * Note: backendUrl is optional for apps using Supabase Edge Functions
+ * Note: This function no longer checks backendUrl as the app
+ * uses Supabase Edge Functions exclusively
  */
 export function checkRequiredEnvVars(): EnvCheckResult {
   const missingVars: string[] = [];
   
-  // Get backend URL from env var or app.json
-  const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || Constants.expoConfig?.extra?.backendUrl || '';
-  
-  // Only warn if backendUrl is needed but not configured
-  // For Supabase-based apps, this is optional since they use Edge Functions
-  // Empty string is acceptable - it means no separate backend is configured
+  // No longer checking backendUrl - removed per requirements
+  // App uses Supabase Edge Functions exclusively
   
   return {
-    isValid: true, // Always valid - we don't block the app for missing backendUrl
+    isValid: true, // Always valid - we don't block the app
     missingVars,
-    backendUrl,
   };
 }
 

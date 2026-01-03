@@ -1,71 +1,90 @@
 
 /**
- * Supabase Client - Singleton Instance
+ * Supabase Client Configuration
  * 
- * Initializes Supabase client with:
- * - Secure session storage (expo-secure-store)
- * - Auto token refresh
- * - Session persistence across app reloads
+ * Reads credentials ONLY from:
+ * - process.env.EXPO_PUBLIC_SUPABASE_URL
+ * - process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+ * 
+ * Safe initialization:
+ * - Logs warnings in development if credentials missing
+ * - Never crashes the app
+ * - Uses fallback values to prevent undefined errors
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
 import 'react-native-url-polyfill/auto';
+import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+// Read ONLY from EXPO_PUBLIC_* environment variables
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Secure storage adapter for React Native
-const ExpoSecureStoreAdapter = {
-  getItem: async (key: string) => {
-    try {
-      return await SecureStore.getItemAsync(key);
-    } catch (error) {
-      console.warn('SecureStore getItem error:', error);
-      return null;
-    }
-  },
-  setItem: async (key: string, value: string) => {
-    try {
-      await SecureStore.setItemAsync(key, value);
-    } catch (error) {
-      console.warn('SecureStore setItem error:', error);
-    }
-  },
-  removeItem: async (key: string) => {
-    try {
-      await SecureStore.deleteItemAsync(key);
-    } catch (error) {
-      console.warn('SecureStore removeItem error:', error);
-    }
-  },
-};
-
-// Singleton Supabase client instance
-let supabaseInstance: SupabaseClient | null = null;
-
-/**
- * Get or create Supabase client instance
- * Ensures only one client exists throughout the app lifecycle
- */
-function getSupabaseClient(): SupabaseClient {
-  if (!supabaseInstance) {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      console.error('Missing Supabase credentials. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY');
-    }
-
-    supabaseInstance = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        storage: ExpoSecureStoreAdapter,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false,
-      },
-    });
+// Development-only validation warnings (non-blocking)
+if (__DEV__) {
+  if (!supabaseUrl) {
+    console.warn('[Supabase] Missing EXPO_PUBLIC_SUPABASE_URL environment variable');
+    console.warn('[Supabase] App will continue with placeholder configuration');
   }
-
-  return supabaseInstance;
+  if (!supabaseAnonKey) {
+    console.warn('[Supabase] Missing EXPO_PUBLIC_SUPABASE_ANON_KEY environment variable');
+    console.warn('[Supabase] App will continue with placeholder configuration');
+  }
+  if (supabaseUrl && supabaseAnonKey) {
+    console.log('[Supabase] ✅ Configuration loaded successfully');
+  }
 }
 
-// Export singleton instance
-export const supabase = getSupabaseClient();
+// Create Supabase client with safe fallbacks
+// Using placeholder values prevents "undefined" errors while allowing app to continue
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-anon-key',
+  {
+    auth: {
+      storage: AsyncStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  }
+);
+
+/**
+ * Check if Supabase is properly configured
+ * Use this before making Supabase calls in your app
+ */
+export const isSupabaseConfigured = (): boolean => {
+  return !!(supabaseUrl && supabaseAnonKey && 
+    supabaseUrl !== 'https://placeholder.supabase.co' &&
+    supabaseAnonKey !== 'placeholder-anon-key');
+};
+
+/**
+ * Get current Supabase configuration details
+ */
+export const getSupabaseConfig = () => {
+  const isValid = isSupabaseConfigured();
+  const problems: string[] = [];
+  
+  if (!supabaseUrl || supabaseUrl === 'https://placeholder.supabase.co') {
+    problems.push('EXPO_PUBLIC_SUPABASE_URL is not set');
+  }
+  if (!supabaseAnonKey || supabaseAnonKey === 'placeholder-anon-key') {
+    problems.push('EXPO_PUBLIC_SUPABASE_ANON_KEY is not set');
+  }
+  
+  return {
+    url: supabaseUrl || null,
+    anonKey: supabaseAnonKey ? '***' : null, // Never expose the actual key
+    isValid,
+    source: 'process.env.EXPO_PUBLIC_*',
+    problems,
+  };
+};
+
+/**
+ * Export configuration status flags
+ */
+export const supabaseReady = isSupabaseConfigured();
+export const supabaseConfigError = supabaseReady ? null : 'Supabase credentials not configured';
