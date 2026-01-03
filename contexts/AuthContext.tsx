@@ -1,345 +1,240 @@
 
 /**
- * Authentication Context with Supabase Auth
+ * Authentication Context Template
  *
  * Provides authentication state and methods throughout the app.
- * Features:
- * - Session persistence via ExpoSecureStore (native) / localStorage (web)
- * - Auto-refresh tokens to keep user logged in
- * - Single session restoration on app launch
- * - Guards against silent logouts
- * - Fetches user profile from public.users table
+ * Supports:
+ * - Email/password authentication
+ * - Social auth (Google, Apple, GitHub) with popup flow for web
+ * - Session management
+ * - User state
+ *
+ * Usage:
+ * 1. Update imports to match your auth-client.ts path
+ * 2. Wrap your app with <AuthProvider>
+ * 3. Use useAuth() hook in components to access auth methods
+ * 4. Customize user type and auth methods as needed
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
-import { AppState, AppStateStatus } from "react-native";
-import { supabase } from "@/lib/supabase";
-import { Session, User as SupabaseUser } from "@supabase/supabase-js";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { Platform } from "react-native";
+import { authClient, storeWebBearerToken } from "@/lib/auth";
 
-// Extended user type with profile data
-interface UserProfile {
+// User type - customize based on your backend
+interface User {
   id: string;
   email: string;
-  role: 'free' | 'premium' | 'admin';
-  created_at?: string;
+  name?: string;
+  image?: string;
 }
 
 interface AuthContextType {
-  user: SupabaseUser | null;
-  session: Session | null;
-  userProfile: UserProfile | null;
+  user: User | null;
   loading: boolean;
-  initialized: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name?: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
+  signInWithGitHub: () => Promise<void>;
   signOut: () => Promise<void>;
-  refreshSession: () => Promise<void>;
-  fetchUserProfile: () => Promise<void>;
-  // Convenience getters
-  userId: string | null;
-  currentUser: SupabaseUser | null;
-  role: 'free' | 'premium' | 'admin';
-  isPremium: boolean;
+  fetchUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
-  
-  // Prevent multiple session restorations
-  const hasRestoredSession = useRef(false);
-  const isMounted = useRef(true);
-  const authListenerRef = useRef<{ data: { subscription: any } } | null>(null);
+/**
+ * Opens OAuth popup for web-based social authentication
+ * Returns a promise that resolves with the token
+ */
+function openOAuthPopup(provider: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error("Window not available"));
+      return;
+    }
 
-  // Restore session ONCE on app launch
-  useEffect(() => {
-    if (hasRestoredSession.current) return;
-    
-    hasRestoredSession.current = true;
-    restoreSession();
+    const popupUrl = `${window.location.origin}/auth-popup?provider=${provider}`;
+    const width = 500;
+    const height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
 
-    return () => {
-      isMounted.current = false;
-      // Clean up auth listener
-      if (authListenerRef.current) {
-        authListenerRef.current.data.subscription.unsubscribe();
+    const popup = window.open(
+      popupUrl,
+      "oauth-popup",
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+    );
+
+    if (!popup) {
+      reject(new Error("Failed to open popup. Please allow popups."));
+      return;
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "oauth-success" && event.data?.token) {
+        window.removeEventListener("message", handleMessage);
+        clearInterval(checkClosed);
+        resolve(event.data.token);
+      } else if (event.data?.type === "oauth-error") {
+        window.removeEventListener("message", handleMessage);
+        clearInterval(checkClosed);
+        reject(new Error(event.data.error || "OAuth failed"));
       }
     };
-  }, []);
 
-  // Handle app state changes (foreground/background)
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription?.remove();
-  }, [user]);
+    window.addEventListener("message", handleMessage);
 
-  const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-    // When app comes to foreground, refresh session if user exists
-    if (nextAppState === 'active' && user && session) {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (!error && data.session && isMounted.current) {
-          setSession(data.session);
-          setUser(data.session.user);
-        }
-      } catch (error) {
-        console.error("[AuthContext] Failed to refresh session on app resume:", error);
+    // Check if popup was closed manually
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosed);
+        window.removeEventListener("message", handleMessage);
+        reject(new Error("Authentication cancelled"));
       }
-    }
-  };
+    }, 500);
+  });
+}
 
-  const restoreSession = async () => {
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
+
+  const fetchUser = useCallback(async () => {
     try {
       setLoading(true);
-      console.log("[AuthContext] Restoring session...");
-      
-      // Get current session from Supabase
-      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error("[AuthContext] Error getting session:", error);
-        if (isMounted.current) {
-          setUser(null);
-          setSession(null);
-          setUserProfile(null);
-        }
-        return;
-      }
-
-      if (currentSession && currentSession.user && isMounted.current) {
-        console.log("[AuthContext] Session restored:", currentSession.user.email);
-        setSession(currentSession);
-        setUser(currentSession.user);
-        
-        // Fetch user profile
-        await fetchUserProfileInternal(currentSession.user.id);
+      const session = await authClient.getSession();
+      if (session?.user) {
+        setUser(session.user as User);
       } else {
-        console.log("[AuthContext] No active session found");
-        if (isMounted.current) {
-          setUser(null);
-          setSession(null);
-          setUserProfile(null);
-        }
-      }
-
-      // Set up auth state listener
-      if (!authListenerRef.current) {
-        authListenerRef.current = supabase.auth.onAuthStateChange(async (event, newSession) => {
-          console.log("[AuthContext] Auth state changed:", event);
-          
-          if (!isMounted.current) return;
-
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            if (newSession && newSession.user) {
-              setSession(newSession);
-              setUser(newSession.user);
-              await fetchUserProfileInternal(newSession.user.id);
-            }
-          } else if (event === 'SIGNED_OUT') {
-            setSession(null);
-            setUser(null);
-            setUserProfile(null);
-          }
-        });
+        setUser(null);
       }
     } catch (error) {
-      console.error("[AuthContext] Failed to restore session:", error);
-      if (isMounted.current) {
-        setUser(null);
-        setSession(null);
-        setUserProfile(null);
-      }
+      console.error("Failed to fetch user:", error);
+      setUser(null);
     } finally {
-      if (isMounted.current) {
-        setLoading(false);
-        setInitialized(true);
-      }
+      setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchUserProfileInternal = async (userId: string) => {
+  // Fetch current user on mount (only once)
+  useEffect(() => {
+    if (!initialized) {
+      setInitialized(true);
+      fetchUser();
+    }
+  }, [initialized, fetchUser]);
+
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
     try {
-      console.log("[AuthContext] Fetching user profile for:", userId);
-      
-      const { data: profile, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error("[AuthContext] Error fetching user profile:", error);
-        return;
-      }
-
-      if (!profile && isMounted.current) {
-        // Profile doesn't exist, create it
-        console.log("[AuthContext] User profile not found, creating one...");
-        
-        const { data: authUser } = await supabase.auth.getUser();
-        
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert([{
-            id: userId,
-            email: authUser.user?.email || '',
-            role: 'free',
-          }]);
-
-        if (insertError) {
-          if (insertError.code === '23505') {
-            console.log("[AuthContext] User profile already exists (race condition)");
-            // Try fetching again
-            const { data: retryProfile } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', userId)
-              .maybeSingle();
-            
-            if (retryProfile && isMounted.current) {
-              setUserProfile(retryProfile);
-            }
-          } else {
-            console.error("[AuthContext] Failed to create user profile:", insertError);
-          }
-        } else {
-          console.log("[AuthContext] User profile created successfully");
-          // Fetch the newly created profile
-          const { data: newProfile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', userId)
-            .maybeSingle();
-          
-          if (newProfile && isMounted.current) {
-            setUserProfile(newProfile);
-          }
-        }
-      } else if (profile && isMounted.current) {
-        console.log("[AuthContext] User profile loaded");
-        setUserProfile(profile);
-      }
+      await authClient.signIn.email({ email, password });
+      await fetchUser();
     } catch (error) {
-      console.error("[AuthContext] Exception fetching user profile:", error);
+      console.error("Email sign in failed:", error);
+      throw error;
     }
-  };
+  }, [fetchUser]);
 
-  const fetchUserProfile = async () => {
-    if (user) {
-      await fetchUserProfileInternal(user.id);
-    }
-  };
-
-  const signInWithEmail = async (email: string, password: string) => {
+  const signUpWithEmail = useCallback(async (email: string, password: string, name?: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+      await authClient.signUp.email({
+        email,
         password,
+        name,
+        callbackURL: "/profile",
       });
-
-      if (error) throw error;
-
-      if (data.user && isMounted.current) {
-        setSession(data.session);
-        setUser(data.user);
-        await fetchUserProfileInternal(data.user.id);
-      }
+      await fetchUser();
     } catch (error) {
-      console.error("[AuthContext] Email sign in failed:", error);
+      console.error("Email sign up failed:", error);
       throw error;
     }
-  };
+  }, [fetchUser]);
 
-  const signUpWithEmail = async (email: string, password: string) => {
+  const signInWithGoogle = useCallback(async () => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
-      });
-
-      if (error) throw error;
-
-      if (data.user && isMounted.current) {
-        setSession(data.session);
-        setUser(data.user);
-        
-        // Create user profile
-        await fetchUserProfileInternal(data.user.id);
+      if (Platform.OS === "web") {
+        // Web: Use popup flow to avoid cross-origin issues
+        const token = await openOAuthPopup("google");
+        storeWebBearerToken(token);
+        await fetchUser();
+      } else {
+        // Native: Use deep linking (handled by Better Auth)
+        await authClient.signIn.social({
+          provider: "google",
+          callbackURL: "/profile",
+        });
+        await fetchUser();
       }
     } catch (error) {
-      console.error("[AuthContext] Email sign up failed:", error);
+      console.error("Google sign in failed:", error);
       throw error;
     }
-  };
+  }, [fetchUser]);
 
-  const signOut = async () => {
+  const signInWithApple = useCallback(async () => {
     try {
-      // Guard: Only sign out if user exists
-      if (!user) {
-        console.warn("[AuthContext] signOut called but no user is logged in");
-        return;
-      }
-
-      console.log("[AuthContext] Signing out...");
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) throw error;
-
-      if (isMounted.current) {
-        setUser(null);
-        setSession(null);
-        setUserProfile(null);
+      if (Platform.OS === "web") {
+        // Web: Use popup flow
+        const token = await openOAuthPopup("apple");
+        storeWebBearerToken(token);
+        await fetchUser();
+      } else {
+        // Native: Use deep linking
+        await authClient.signIn.social({
+          provider: "apple",
+          callbackURL: "/profile",
+        });
+        await fetchUser();
       }
     } catch (error) {
-      console.error("[AuthContext] Sign out failed:", error);
+      console.error("Apple sign in failed:", error);
       throw error;
     }
-  };
+  }, [fetchUser]);
 
-  const refreshSession = async () => {
+  const signInWithGitHub = useCallback(async () => {
     try {
-      const { data, error } = await supabase.auth.refreshSession();
-      
-      if (error) throw error;
-
-      if (data.session && data.session.user && isMounted.current) {
-        setSession(data.session);
-        setUser(data.session.user);
+      if (Platform.OS === "web") {
+        // Web: Use popup flow
+        const token = await openOAuthPopup("github");
+        storeWebBearerToken(token);
+        await fetchUser();
+      } else {
+        // Native: Use deep linking
+        await authClient.signIn.social({
+          provider: "github",
+          callbackURL: "/profile",
+        });
+        await fetchUser();
       }
     } catch (error) {
-      console.error("[AuthContext] Failed to refresh session:", error);
+      console.error("GitHub sign in failed:", error);
       throw error;
     }
-  };
+  }, [fetchUser]);
 
-  // Convenience getters
-  const userId = user?.id || null;
-  const currentUser = user;
-  const role = userProfile?.role || 'free';
-  const isPremium = role === 'premium' || role === 'admin';
+  const signOut = useCallback(async () => {
+    try {
+      await authClient.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error("Sign out failed:", error);
+      throw error;
+    }
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        session,
-        userProfile,
         loading,
-        initialized,
         signInWithEmail,
         signUpWithEmail,
+        signInWithGoogle,
+        signInWithApple,
+        signInWithGitHub,
         signOut,
-        refreshSession,
-        fetchUserProfile,
-        userId,
-        currentUser,
-        role,
-        isPremium,
+        fetchUser,
       }}
     >
       {children}

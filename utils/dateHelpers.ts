@@ -1,6 +1,10 @@
 
 import { parseISO, format, isValid } from 'date-fns';
 
+/**
+ * Safely parse a date from various input types
+ * Returns null if the date is invalid or missing
+ */
 export const safeParseDate = (timestamp: string | number | Date | null | undefined): Date | null => {
   if (!timestamp) return null;
   
@@ -26,9 +30,13 @@ export const safeParseDate = (timestamp: string | number | Date | null | undefin
   }
 };
 
+/**
+ * Safely format a date with a fallback for invalid dates
+ * Returns empty string if date is invalid
+ */
 export const safeFormatDate = (
-  date: Date | null, 
-  formatStr = 'MMM dd, yyyy hh:mm a'
+  date: Date | null | undefined, 
+  formatStr: string = 'MMM dd, yyyy hh:mm a'
 ): string => {
   if (!date || !isValid(date)) return '';
   

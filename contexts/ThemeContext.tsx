@@ -12,7 +12,7 @@ export interface Theme {
   textPrimary: string;
   textSecondary: string;
   buttonText: string;
-  statusBarGradient: [string, string]; // NEW: Light gradient for status bar
+  statusBarGradient: [string, string];
 }
 
 interface ThemeContextType {
@@ -34,7 +34,7 @@ const oceanBlueTheme: Theme = {
   textPrimary: '#001529',
   textSecondary: '#595959',
   buttonText: '#FFFFFF',
-  statusBarGradient: ['#F0F9FF', '#E6F7FF'], // Very light blue gradient
+  statusBarGradient: ['#F0F9FF', '#E6F7FF'],
 };
 
 // Soft Rose Theme - Gentle and nurturing
@@ -46,7 +46,7 @@ const softRoseTheme: Theme = {
   textPrimary: '#4A1F2F',
   textSecondary: '#8B5A6B',
   buttonText: '#FFFFFF',
-  statusBarGradient: ['#FFF5F9', '#FFF0F5'], // Very light rose gradient
+  statusBarGradient: ['#FFF5F9', '#FFF0F5'],
 };
 
 // Forest Green Theme - Grounded and peaceful
@@ -58,7 +58,7 @@ const forestGreenTheme: Theme = {
   textPrimary: '#1B4D1B',
   textSecondary: '#4A7C4A',
   buttonText: '#FFFFFF',
-  statusBarGradient: ['#F5FBF5', '#F0F8F0'], // Very light green gradient
+  statusBarGradient: ['#F5FBF5', '#F0F8F0'],
 };
 
 // Sunny Yellow Theme - Bright and uplifting
@@ -70,7 +70,7 @@ const sunnyYellowTheme: Theme = {
   textPrimary: '#5C4A1A',
   textSecondary: '#8B7355',
   buttonText: '#FFFFFF',
-  statusBarGradient: ['#FFFEF5', '#FFFBEA'], // Very light yellow gradient
+  statusBarGradient: ['#FFFEF5', '#FFFBEA'],
 };
 
 const themes: Record<ThemeKey, Theme> = {
@@ -83,6 +83,7 @@ const themes: Record<ThemeKey, Theme> = {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeKey, setThemeKey] = useState<ThemeKey>('OceanBlue');
   const [theme, setThemeState] = useState<Theme>(oceanBlueTheme);
+  const [initialized, setInitialized] = useState(false);
 
   const loadTheme = useCallback(async () => {
     try {
@@ -94,14 +95,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Error loading theme:', error);
+    } finally {
+      setInitialized(true);
     }
   }, []);
 
   useEffect(() => {
-    loadTheme();
-  }, [loadTheme]);
+    if (!initialized) {
+      loadTheme();
+    }
+  }, [initialized, loadTheme]);
 
-  const setTheme = async (newThemeKey: ThemeKey) => {
+  const setTheme = useCallback(async (newThemeKey: ThemeKey) => {
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeKey);
       setThemeKey(newThemeKey);
@@ -109,7 +114,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error saving theme:', error);
     }
-  };
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ themeKey, theme, setTheme }}>

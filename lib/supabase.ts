@@ -11,7 +11,7 @@ let isInitializing = false;
 // Secure storage adapter for auth tokens
 // Platform-specific: SecureStore for native, localStorage for web
 const ExpoSecureStoreAdapter = {
-  getItem: async (key: string) => {
+  getItem: async (key: string): Promise<string | null> => {
     try {
       if (Platform.OS === 'web') {
         return localStorage.getItem(key);
@@ -22,7 +22,7 @@ const ExpoSecureStoreAdapter = {
       return null;
     }
   },
-  setItem: async (key: string, value: string) => {
+  setItem: async (key: string, value: string): Promise<void> => {
     try {
       if (Platform.OS === 'web') {
         localStorage.setItem(key, value);
@@ -33,7 +33,7 @@ const ExpoSecureStoreAdapter = {
       console.error(`[SecureStore] setItem error for key ${key}:`, error);
     }
   },
-  removeItem: async (key: string) => {
+  removeItem: async (key: string): Promise<void> => {
     try {
       if (Platform.OS === 'web') {
         localStorage.removeItem(key);
@@ -184,7 +184,7 @@ export async function waitForSupabase(timeoutMs: number = 5000): Promise<Supabas
  * Reset Supabase instance (for testing only)
  * DO NOT use in production code
  */
-export function __resetSupabaseInstance() {
+export function __resetSupabaseInstance(): void {
   if (__DEV__) {
     console.log('🔄 Resetting Supabase instance (dev only)');
     supabaseInstance = null;

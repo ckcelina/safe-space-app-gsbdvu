@@ -1,12 +1,17 @@
 
 /**
- * BetterAuth Client Configuration with Persistent Storage
+ * BetterAuth Client Configuration Template
  *
- * Features:
+ * This template provides a ready-to-use BetterAuth client with:
  * - Platform-specific storage (localStorage for web, SecureStore for native)
- * - Bearer token handling for web
+ * - Bearer token handling for web to avoid cross-origin issues
  * - Expo client plugin for deep linking
- * - Session persistence across app reloads
+ *
+ * Usage:
+ * 1. Replace YOUR_BACKEND_URL with actual backend URL
+ * 2. Replace your-app-scheme with actual app scheme
+ * 3. Replace your-app with actual app name/prefix
+ * 4. Import and use authClient in your components
  */
 
 import { createAuthClient } from "better-auth/react";
@@ -15,53 +20,30 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 
-// Backend URL from app.json
+// Backend URL with safe fallback
 const API_URL = Constants.expoConfig?.extra?.backendUrl || "";
-const BEARER_TOKEN_KEY = "natively_bearer_token";
+const BEARER_TOKEN_KEY = "your-app_bearer_token";
 
-// Platform-specific storage adapter with proper async handling
+// Platform-specific storage adapter
 const storage = Platform.OS === "web"
   ? {
       getItem: (key: string) => localStorage.getItem(key),
       setItem: (key: string, value: string) => localStorage.setItem(key, value),
       deleteItem: (key: string) => localStorage.removeItem(key),
     }
-  : {
-      getItem: async (key: string) => {
-        try {
-          return await SecureStore.getItemAsync(key);
-        } catch (error) {
-          console.error(`SecureStore getItem error for key ${key}:`, error);
-          return null;
-        }
-      },
-      setItem: async (key: string, value: string) => {
-        try {
-          await SecureStore.setItemAsync(key, value);
-        } catch (error) {
-          console.error(`SecureStore setItem error for key ${key}:`, error);
-        }
-      },
-      deleteItem: async (key: string) => {
-        try {
-          await SecureStore.deleteItemAsync(key);
-        } catch (error) {
-          console.error(`SecureStore deleteItem error for key ${key}:`, error);
-        }
-      },
-    };
+  : SecureStore;
 
-// Create auth client with persistent storage
+// Create auth client with platform-specific configuration
 export const authClient = createAuthClient({
   baseURL: API_URL,
   plugins: [
     expoClient({
-      scheme: "natively",
-      storagePrefix: "natively",
+      scheme: "your-app-scheme",
+      storagePrefix: "your-app",
       storage,
     }),
   ],
-  // Web-specific configuration for bearer tokens
+  // Web-specific configuration to handle bearer tokens
   ...(Platform.OS === "web" && {
     fetchOptions: {
       auth: {
@@ -74,7 +56,7 @@ export const authClient = createAuthClient({
 
 /**
  * Store bearer token for web authentication
- * Required for popup-based OAuth flow on web
+ * This is required for the popup-based OAuth flow on web
  */
 export function storeWebBearerToken(token: string) {
   if (Platform.OS === "web") {
@@ -84,7 +66,6 @@ export function storeWebBearerToken(token: string) {
 
 /**
  * Clear stored authentication tokens
- * Only call this during explicit sign out
  */
 export function clearAuthTokens() {
   if (Platform.OS === "web") {
