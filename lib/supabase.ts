@@ -1,90 +1,168 @@
 
-/**
- * Supabase Client Configuration
- * 
- * Reads credentials ONLY from:
- * - process.env.EXPO_PUBLIC_SUPABASE_URL
- * - process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
- * 
- * Safe initialization:
- * - Logs warnings in development if credentials missing
- * - Never crashes the app
- * - Uses fallback values to prevent undefined errors
- */
-
 import 'react-native-url-polyfill/auto';
-import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import * as SecureStore from 'expo-secure-store';
 
-// Read ONLY from EXPO_PUBLIC_* environment variables
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+// Global singleton instance - survives hot reloads
+let supabaseInstance: SupabaseClient | null = null;
+let isInitializing = false;
 
-// Development-only validation warnings (non-blocking)
-if (__DEV__) {
-  if (!supabaseUrl) {
-    console.warn('[Supabase] Missing EXPO_PUBLIC_SUPABASE_URL environment variable');
-    console.warn('[Supabase] App will continue with placeholder configuration');
+// Secure storage adapter for auth tokens
+const ExpoSecureStoreAdapter = {
+  getItem: (key: string) => {
+    return SecureStore.getItemAsync(key);
+  },
+  setItem: (key: string, value: string) => {
+    SecureStore.setItemAsync(key, value);
+  },
+  removeItem: (key: string) => {
+    SecureStore.deleteItemAsync(key);
+  },
+};
+
+/**
+ * Get Supabase client instance (singleton)
+ * Safe to call multiple times - always returns same instance
+ * Survives hot reloads, re-renders, and provider re-mounts
+ */
+function getSupabaseClient(): SupabaseClient {
+  // Return existing instance if already created
+  if (supabaseInstance) {
+    if (__DEV__) {
+      console.log('♻️ Reusing existing Supabase client instance');
+    }
+    return supabaseInstance;
   }
-  if (!supabaseAnonKey) {
-    console.warn('[Supabase] Missing EXPO_PUBLIC_SUPABASE_ANON_KEY environment variable');
-    console.warn('[Supabase] App will continue with placeholder configuration');
+
+  // Prevent concurrent initialization
+  if (isInitializing) {
+    if (__DEV__) {
+      console.warn('⏳ Supabase client is initializing. Waiting...');
+    }
+    // Wait for initialization to complete instead of throwing
+    // This prevents crashes during hot reload
+    const maxWaitTime = 5000; // 5 seconds
+    const startTime = Date.now();
+    while (isInitializing && Date.now() - startTime < maxWaitTime) {
+      // Busy wait (not ideal but safe for initialization)
+    }
+    if (supabaseInstance) {
+      return supabaseInstance;
+    }
+    // If still not ready, fall through to create new instance
   }
-  if (supabaseUrl && supabaseAnonKey) {
-    console.log('[Supabase] ✅ Configuration loaded successfully');
+
+  isInitializing = true;
+
+  try {
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+
+    // Validate environment variables
+    if (!supabaseUrl || !supabaseAnonKey) {
+      if (__DEV__) {
+        console.warn(
+          '⚠️ Supabase credentials missing. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY'
+        );
+      }
+      // Return a placeholder to prevent crashes - auth will fail gracefully
+      supabaseInstance = createClient('https://placeholder.supabase.co', 'placeholder-key', {
+        auth: { persistSession: false },
+      });
+      return supabaseInstance;
+    }
+
+    // Create singleton instance ONCE
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        storage: ExpoSecureStoreAdapter,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+      },
+    });
+
+    if (__DEV__) {
+      console.log('✅ Supabase client initialized (singleton created)');
+    }
+
+    return supabaseInstance;
+  } catch (error) {
+    if (__DEV__) {
+      console.error('❌ Failed to initialize Supabase client:', error);
+    }
+    // Create a fallback instance to prevent crashes
+    supabaseInstance = createClient('https://placeholder.supabase.co', 'placeholder-key', {
+      auth: { persistSession: false },
+    });
+    return supabaseInstance;
+  } finally {
+    isInitializing = false;
   }
 }
 
-// Create Supabase client with safe fallbacks
-// Using placeholder values prevents "undefined" errors while allowing app to continue
-export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-anon-key',
-  {
-    auth: {
-      storage: AsyncStorage,
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-    },
-  }
-);
+/**
+ * Get the Supabase client instance
+ * This is the main export - use this everywhere
+ * Lazy initialization ensures singleton is created only once
+ */
+export function getSupabase(): SupabaseClient {
+  return getSupabaseClient();
+}
 
 /**
- * Check if Supabase is properly configured
- * Use this before making Supabase calls in your app
+ * Export singleton instance for backward compatibility
+ * This now uses lazy initialization via getter
  */
-export const isSupabaseConfigured = (): boolean => {
-  return !!(supabaseUrl && supabaseAnonKey && 
-    supabaseUrl !== 'https://placeholder.supabase.co' &&
-    supabaseAnonKey !== 'placeholder-anon-key');
-};
+let _cachedSupabase: SupabaseClient | null = null;
+
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(target, prop) {
+    // Lazy initialize on first access
+    if (!_cachedSupabase) {
+      _cachedSupabase = getSupabaseClient();
+    }
+    return (_cachedSupabase as any)[prop];
+  },
+});
 
 /**
- * Get current Supabase configuration details
+ * Check if Supabase client is ready
+ * Use this before making auth-dependent calls
  */
-export const getSupabaseConfig = () => {
-  const isValid = isSupabaseConfigured();
-  const problems: string[] = [];
+export function isSupabaseReady(): boolean {
+  return supabaseInstance !== null && !isInitializing;
+}
+
+/**
+ * Wait for Supabase client to be ready
+ * Returns a promise that resolves when client is initialized
+ */
+export async function waitForSupabase(timeoutMs: number = 5000): Promise<SupabaseClient> {
+  const startTime = Date.now();
   
-  if (!supabaseUrl || supabaseUrl === 'https://placeholder.supabase.co') {
-    problems.push('EXPO_PUBLIC_SUPABASE_URL is not set');
-  }
-  if (!supabaseAnonKey || supabaseAnonKey === 'placeholder-anon-key') {
-    problems.push('EXPO_PUBLIC_SUPABASE_ANON_KEY is not set');
+  while (!isSupabaseReady() && Date.now() - startTime < timeoutMs) {
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
   
-  return {
-    url: supabaseUrl || null,
-    anonKey: supabaseAnonKey ? '***' : null, // Never expose the actual key
-    isValid,
-    source: 'process.env.EXPO_PUBLIC_*',
-    problems,
-  };
-};
+  if (!isSupabaseReady()) {
+    if (__DEV__) {
+      console.warn('⚠️ Supabase client not ready after timeout, returning instance anyway');
+    }
+  }
+  
+  return getSupabaseClient();
+}
 
 /**
- * Export configuration status flags
+ * Reset Supabase instance (for testing only)
+ * DO NOT use in production code
  */
-export const supabaseReady = isSupabaseConfigured();
-export const supabaseConfigError = supabaseReady ? null : 'Supabase credentials not configured';
+export function __resetSupabaseInstance() {
+  if (__DEV__) {
+    console.log('🔄 Resetting Supabase instance (dev only)');
+    supabaseInstance = null;
+    _cachedSupabase = null;
+    isInitializing = false;
+  }
+}
