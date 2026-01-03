@@ -48,6 +48,7 @@ module.exports = {
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
     "import/no-unresolved": "off",
+    "import/namespace": "off",
     "prefer-const": "off",
     "react/prop-types": "off",
     "no-case-declarations": "off",
