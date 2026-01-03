@@ -34,7 +34,7 @@ export function ServerHealthIndicator() {
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
   // Only show in development mode
   if (!__DEV__) {
