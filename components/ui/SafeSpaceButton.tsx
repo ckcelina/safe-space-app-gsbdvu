@@ -37,12 +37,13 @@ export function SafeSpaceButton({
   const [isPressed, setIsPressed] = useState(false);
 
   const getGradientColors = () => {
+    const gradient = theme?.primaryGradient || ['#0050B3', '#40A9FF'];
     if (isPressed) {
       // Darker gradient when pressed
-      const [color1, color2] = theme.primaryGradient;
+      const [color1, color2] = gradient;
       return [color1, color1]; // Use first color for both to darken
     }
-    return theme.primaryGradient;
+    return gradient;
   };
 
   const getShadowStyle = () => {
@@ -129,7 +130,7 @@ export function SafeSpaceButton({
       style={[
         styles.buttonContainer,
         styles.secondaryButton,
-        { backgroundColor: isPressed ? theme.primaryGradient[0] : theme.primary },
+        { backgroundColor: isPressed ? (theme?.primaryGradient?.[0] || '#0050B3') : (theme?.primary || '#1890FF') },
         fullWidth && styles.fullWidth,
         getShadowStyle(),
         (disabled || loading) && styles.disabled,

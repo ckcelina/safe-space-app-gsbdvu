@@ -25,7 +25,7 @@ export function StatusBarGradient() {
       <StatusBar style="light" translucent />
       <View style={[styles.container, { height: insets.top }]} pointerEvents="none">
         <LinearGradient
-          colors={theme.primaryGradient}
+          colors={theme?.primaryGradient || ['#0050B3', '#40A9FF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}

@@ -66,14 +66,14 @@ export function SafeSpaceScreen({
   if (useGradient) {
     return (
       <LinearGradient
-        colors={[theme.background, theme.card]}
+        colors={[theme?.background || '#E6F7FF', theme?.card || '#FFFFFF']}
         style={styles.fullScreenContainer}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       >
         {showStatusBarGradient && <StatusBarGradient />}
-        <SafeAreaView 
-          style={[styles.safeArea, { backgroundColor: 'transparent' }]} 
+        <SafeAreaView
+          style={[styles.safeArea, { backgroundColor: 'transparent' }]}
           edges={edges}
         >
           {wrappedContent}
