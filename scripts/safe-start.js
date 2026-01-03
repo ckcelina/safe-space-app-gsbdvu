@@ -1,204 +1,78 @@
 
-/**
- * Safe Start Script
- * 
- * Starts the Expo server with automatic recovery and health monitoring.
- * 
- * Features:
- * - Automatic restart on crash
- * - Health monitoring
- * - Exponential backoff
- * - Graceful shutdown
- * - Process cleanup
- */
-
 const { spawn } = require('child_process');
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
 
-let serverProcess = null;
+let expoProcess = null;
 let restartCount = 0;
-const MAX_RESTARTS = 5;
-const HEALTH_CHECK_INTERVAL = 30000; // 30 seconds
-const RESTART_DELAY_BASE = 2000; // 2 seconds
-let healthCheckInterval = null;
-let isShuttingDown = false;
+const MAX_RESTARTS = 3;
 
-// ============================================================================
-// Logging
-// ============================================================================
-const logFile = path.join(__dirname, '..', 'expo-server.log');
-
-function log(message) {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] ${message}\n`;
-  console.log(message);
-  fs.appendFileSync(logFile, logMessage);
-}
-
-// ============================================================================
-// Health Check
-// ============================================================================
-function checkMetroHealth() {
+const checkHealth = () => {
   return new Promise((resolve) => {
-    const req = http.get('http://localhost:8081/status', (res) => {
+    const req = http.get('http://localhost:8081/status', { timeout: 2000 }, (res) => {
       resolve(res.statusCode === 200);
     });
     req.on('error', () => resolve(false));
-    req.setTimeout(5000, () => {
+    req.on('timeout', () => {
       req.destroy();
       resolve(false);
     });
   });
-}
+};
 
-// ============================================================================
-// Start Server
-// ============================================================================
-function startServer() {
-  if (isShuttingDown) {
-    log('Shutdown in progress, not starting server');
-    return;
-  }
-
-  log('🚀 Starting Expo server with auto-recovery...');
-  log(`Restart count: ${restartCount}/${MAX_RESTARTS}`);
+const startExpo = () => {
+  console.log('🚀 Starting Expo server...');
+  console.log('📱 Use Expo Go app to scan the QR code');
+  console.log('🌐 Or press w to open in web browser');
+  console.log('');
   
-  // Calculate delay with exponential backoff
-  const delay = RESTART_DELAY_BASE * Math.pow(2, restartCount);
-  
-  serverProcess = spawn('npx', ['expo', 'start', '--tunnel', '--clear'], {
+  expoProcess = spawn('npx', ['expo', 'start', '--tunnel'], {
     stdio: 'inherit',
-    env: {
-      ...process.env,
-      EXPO_NO_TELEMETRY: '1',
-      EXPO_NO_METRO_LAZY: '1',
-      FORCE_COLOR: '1',
-    },
+    shell: true,
+    env: { ...process.env, EXPO_NO_TELEMETRY: '1' }
   });
 
-  serverProcess.on('exit', (code, signal) => {
-    log(`Server exited with code ${code} and signal ${signal}`);
-    
-    if (isShuttingDown) {
-      log('Shutdown complete');
-      return;
-    }
-
+  expoProcess.on('exit', (code) => {
     if (code !== 0 && restartCount < MAX_RESTARTS) {
       restartCount++;
-      log(`⚠️  Server crashed. Restarting in ${delay}ms (${restartCount}/${MAX_RESTARTS})...`);
-      setTimeout(startServer, delay);
+      console.log('');
+      console.log(`⚠️  Expo server stopped unexpectedly. Restarting (${restartCount}/${MAX_RESTARTS})...`);
+      console.log('');
+      setTimeout(startExpo, 2000);
     } else if (restartCount >= MAX_RESTARTS) {
-      log('❌ Max restart attempts reached. Please check logs.');
-      log(`Log file: ${logFile}`);
-      cleanup();
+      console.error('');
+      console.error('❌ Max restarts reached. Please check for errors above.');
+      console.error('💡 Try running: npm start');
+      console.error('');
       process.exit(1);
     }
   });
+};
 
-  serverProcess.on('error', (error) => {
-    log(`Server error: ${error.message}`);
-  });
-
-  // Reset restart count on successful start
-  setTimeout(() => {
-    if (serverProcess && !serverProcess.killed) {
-      log('✅ Server started successfully');
-      restartCount = 0;
+const monitorHealth = async () => {
+  setInterval(async () => {
+    const healthy = await checkHealth();
+    if (!healthy && expoProcess) {
+      console.log('');
+      console.log('⚠️  Server health check failed, restarting...');
+      console.log('');
+      expoProcess.kill();
     }
-  }, 10000); // Consider successful if running for 10 seconds
-}
+  }, 30000);
+};
 
-// ============================================================================
-// Health Monitoring
-// ============================================================================
-function startHealthMonitoring() {
-  log('Starting health monitoring...');
-  
-  healthCheckInterval = setInterval(async () => {
-    if (isShuttingDown) {
-      return;
-    }
-
-    const isHealthy = await checkMetroHealth();
-    
-    if (!isHealthy && serverProcess && !serverProcess.killed) {
-      log('⚠️  Metro server unresponsive. Restarting...');
-      serverProcess.kill('SIGTERM');
-      
-      // Force kill after 5 seconds if not terminated
-      setTimeout(() => {
-        if (serverProcess && !serverProcess.killed) {
-          log('Force killing unresponsive server...');
-          serverProcess.kill('SIGKILL');
-        }
-      }, 5000);
-    } else if (isHealthy) {
-      log('✅ Health check passed');
-    }
-  }, HEALTH_CHECK_INTERVAL);
-}
-
-// ============================================================================
-// Cleanup
-// ============================================================================
-function cleanup() {
-  log('Cleaning up...');
-  
-  if (healthCheckInterval) {
-    clearInterval(healthCheckInterval);
-    healthCheckInterval = null;
-  }
-  
-  if (serverProcess && !serverProcess.killed) {
-    serverProcess.kill('SIGTERM');
-  }
-}
-
-// ============================================================================
-// Graceful Shutdown
-// ============================================================================
-function gracefulShutdown(signal) {
-  if (isShuttingDown) {
-    return;
-  }
-  
-  isShuttingDown = true;
-  log(`\n👋 Received ${signal}. Shutting down gracefully...`);
-  
-  cleanup();
-  
-  setTimeout(() => {
-    log('Shutdown complete');
-    process.exit(0);
-  }, 2000);
-}
-
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  log(`Uncaught exception: ${error.message}`);
-  log(error.stack);
+process.on('SIGINT', () => {
+  console.log('');
+  console.log('👋 Shutting down Expo server...');
+  if (expoProcess) expoProcess.kill();
+  process.exit(0);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  log(`Unhandled rejection at: ${promise}, reason: ${reason}`);
+process.on('SIGTERM', () => {
+  console.log('');
+  console.log('👋 Shutting down Expo server...');
+  if (expoProcess) expoProcess.kill();
+  process.exit(0);
 });
 
-// ============================================================================
-// Start
-// ============================================================================
-log('═══════════════════════════════════════════════════');
-log('Expo Safe Start');
-log('═══════════════════════════════════════════════════');
-log(`Log file: ${logFile}`);
-log(`Max restarts: ${MAX_RESTARTS}`);
-log(`Health check interval: ${HEALTH_CHECK_INTERVAL}ms`);
-log('═══════════════════════════════════════════════════\n');
-
-startServer();
-startHealthMonitoring();
+startExpo();
+setTimeout(monitorHealth, 10000);
