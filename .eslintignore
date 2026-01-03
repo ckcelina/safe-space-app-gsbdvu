@@ -13,6 +13,11 @@ node_modules/
 *.bundle.js
 *.bundle.js.map
 
+# Ignore cache
+.cache/
+node_modules/.cache/
+.eslintcache
+
 # Ignore config files
 *.config.js
 metro.config.js
@@ -22,6 +27,7 @@ babel.config.js
 # Ignore test setup
 jest.setup.js
 jest.config.js
+__tests__/
 
 # Ignore scripts
 scripts/
@@ -37,3 +43,6 @@ backend/
 
 # Ignore babel plugins
 babel-plugins/
+
+# Ignore documentation
+*.md
