@@ -1,44 +1,17 @@
 
-# Dependencies
 node_modules/
-
-# Build outputs
 dist/
-build/
 .expo/
 .expo-shared/
 web-build/
-
-# Cache directories
-.cache/
-.eslintcache
-node_modules/.cache/
-
-# Test files
 **/*.test.ts
 **/*.test.tsx
-**/*.spec.ts
-**/*.spec.tsx
-__tests__/
-coverage/
-
-# Config files
-*.config.js
-babel.config.js
-metro.config.js
-jest.config.js
+**/__tests__/**
 jest.setup.js
-
-# Generated files
-*.bundle.js
-*.bundle.js.map
-
-# Platform specific
-ios/
-android/
-
-# Misc
-.DS_Store
-*.log
-.env
-.env.local
+jest.config.js
+*.config.js
+babel-plugins/
+backend/
+.eslintcache
+node_modules/.cache/
+app/(tabs)/(home)/chat.tsx
