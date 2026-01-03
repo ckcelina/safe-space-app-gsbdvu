@@ -236,7 +236,7 @@ class MemoryCache {
   /**
    * Update last activity for multiple persons
    */
-  public setLastActivityBulk(activities: { personId: string; timestamp: string }[]): void {
+  public setLastActivityBulk(activities: Array<{ personId: string; timestamp: string }>): void {
     activities.forEach(({ personId, timestamp }) => {
       this.cache.lastActivityMap.set(personId, timestamp);
     });

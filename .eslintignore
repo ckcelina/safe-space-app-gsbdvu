@@ -3,7 +3,6 @@
 _expo/
 dist/
 web-build/
-.expo/
 
 # Ignore node modules
 node_modules/
@@ -12,37 +11,8 @@ node_modules/
 *.bundle.js
 *.bundle.js.map
 
-# Ignore cache directories (CRITICAL - prevents stale cache issues)
-.cache/
-node_modules/.cache/
-.eslintcache
-**/.cache/
+# Ignore example/template files
+supabase-edge-function-example.ts
 
-# Ignore test files
-**/__tests__/**
-**/*.test.ts
-**/*.test.tsx
-**/*.spec.ts
-**/*.spec.tsx
-
-# Ignore config files
-babel.config.js
-metro.config.js
-jest.config.js
-jest.setup.js
-
-# Ignore markdown files
-*.md
-
-# Ignore example files
-*.example.ts
-*.example.tsx
-
-# Ignore scripts
-scripts/
-
-# Ignore backend
-backend/
-
-# Ignore babel plugins
-babel-plugins/
+# Ignore Supabase Edge Functions (Deno runtime, different module resolution)
+supabase/functions/

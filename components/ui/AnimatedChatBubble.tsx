@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 interface AnimatedChatBubbleProps {
   message: string;
   isUser: boolean;
-  timestamp?: string;
+  timestamp: string;
   animate?: boolean;
   therapistName?: string;
   therapistAvatarSource?: ImageSourcePropType;
@@ -50,18 +50,7 @@ export function AnimatedChatBubble({
     }
   }, [animate, hasAnimated, fadeAnim, slideAnim]);
 
-  // Safely format timestamp with fallback
-  let formattedTime = '';
-  if (timestamp) {
-    try {
-      const date = new Date(timestamp);
-      if (!isNaN(date.getTime())) {
-        formattedTime = format(date, 'h:mm a');
-      }
-    } catch (error) {
-      console.warn('[AnimatedChatBubble] Invalid timestamp:', timestamp, error);
-    }
-  }
+  const formattedTime = format(new Date(timestamp), 'h:mm a');
 
   return (
     <View style={styles.container}>
@@ -109,16 +98,14 @@ export function AnimatedChatBubble({
           >
             {message}
           </Text>
-          {formattedTime && (
-            <Text
-              style={[
-                styles.timestamp,
-                { color: isUser ? 'rgba(255, 255, 255, 0.7)' : theme.textSecondary },
-              ]}
-            >
-              {formattedTime}
-            </Text>
-          )}
+          <Text
+            style={[
+              styles.timestamp,
+              { color: isUser ? 'rgba(255, 255, 255, 0.7)' : theme.textSecondary },
+            ]}
+          >
+            {formattedTime}
+          </Text>
         </View>
       </Animated.View>
     </View>
