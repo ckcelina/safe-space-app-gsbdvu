@@ -2,81 +2,91 @@
 /**
  * BetterAuth Client Configuration
  *
- * Uses centralized configuration from lib/supabase.ts
- * Gracefully handles missing backend URL
+ * Configured with:
+ * - Persistent session storage (SecureStore for native, localStorage for web)
+ * - Automatic token refresh
+ * - Platform-specific bearer token handling
  */
 
 import { createAuthClient } from "better-auth/react";
 import { expoClient } from "@better-auth/expo/client";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
-import { getBackendUrl, isBackendConfigured } from "./supabase";
+import Constants from "expo-constants";
 
-const API_URL = getBackendUrl();
-const BEARER_TOKEN_KEY = "natively_bearer_token";
+const API_URL = Constants.expoConfig?.extra?.backendUrl || "";
+const BEARER_TOKEN_KEY = "safe-space_bearer_token";
+const SESSION_KEY = "safe-space_session";
 
-// Platform-specific storage adapter
+// Platform-specific storage with persistence
 const storage = Platform.OS === "web"
   ? {
       getItem: (key: string) => localStorage.getItem(key),
       setItem: (key: string, value: string) => localStorage.setItem(key, value),
       deleteItem: (key: string) => localStorage.removeItem(key),
     }
-  : SecureStore;
+  : {
+      getItem: async (key: string) => {
+        try {
+          return await SecureStore.getItemAsync(key);
+        } catch (error) {
+          console.warn(`SecureStore getItem failed for ${key}:`, error);
+          return null;
+        }
+      },
+      setItem: async (key: string, value: string) => {
+        try {
+          await SecureStore.setItemAsync(key, value);
+        } catch (error) {
+          console.error(`SecureStore setItem failed for ${key}:`, error);
+        }
+      },
+      deleteItem: async (key: string) => {
+        try {
+          await SecureStore.deleteItemAsync(key);
+        } catch (error) {
+          console.warn(`SecureStore deleteItem failed for ${key}:`, error);
+        }
+      },
+    };
 
-// Only create auth client if backend is configured
-let authClientInstance: ReturnType<typeof createAuthClient> | null = null;
-
-function getAuthClient() {
-  if (!authClientInstance && isBackendConfigured()) {
-    authClientInstance = createAuthClient({
-      baseURL: API_URL,
-      plugins: [
-        expoClient({
-          scheme: "natively",
-          storagePrefix: "natively",
-          storage,
-        }),
-      ],
-      ...(Platform.OS === "web" && {
-        fetchOptions: {
-          auth: {
-            type: "Bearer" as const,
-            token: () => localStorage.getItem(BEARER_TOKEN_KEY) || "",
-          },
-        },
-      }),
-    });
-  }
-  return authClientInstance;
-}
-
-// Export auth client with safe access
-export const authClient = new Proxy({} as ReturnType<typeof createAuthClient>, {
-  get(target, prop) {
-    const client = getAuthClient();
-    if (!client) {
-      if (__DEV__) {
-        console.warn('Auth client not available: Backend URL not configured');
-      }
-      return undefined;
-    }
-    const value = client[prop as keyof typeof client];
-    if (typeof value === 'function') {
-      return value.bind(client);
-    }
-    return value;
-  },
+// Create auth client with persistent session configuration
+export const authClient = createAuthClient({
+  baseURL: API_URL,
+  plugins: [
+    expoClient({
+      scheme: "safespace",
+      storagePrefix: "safe-space",
+      storage,
+    }),
+  ],
+  // Web-specific bearer token configuration
+  ...(Platform.OS === "web" && {
+    fetchOptions: {
+      auth: {
+        type: "Bearer" as const,
+        token: () => localStorage.getItem(BEARER_TOKEN_KEY) || "",
+      },
+    },
+  }),
 });
 
+/**
+ * Store bearer token for web authentication
+ */
 export function storeWebBearerToken(token: string) {
   if (Platform.OS === "web") {
     localStorage.setItem(BEARER_TOKEN_KEY, token);
   }
 }
 
+/**
+ * Clear stored authentication tokens
+ * Only call this on explicit sign out
+ */
 export function clearAuthTokens() {
   if (Platform.OS === "web") {
     localStorage.removeItem(BEARER_TOKEN_KEY);
+    localStorage.removeItem(SESSION_KEY);
   }
 }
