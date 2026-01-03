@@ -18,21 +18,31 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '/backend/*', '/scripts/*'],
+  ignorePatterns: [
+    '/dist/*', 
+    '/public/*', 
+    '/babel-plugins/*', 
+    '/backend/*', 
+    'jest.setup.js',
+    'scripts/*.js'
+  ],
   env: {
     browser: true,
+    jest: true,
+    node: true,
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/no-require-imports": "off",
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "off",
+    "import/no-unresolved": "error",
     "prefer-const": "off",
     "react/prop-types": 1,
     "no-case-declarations": "off",
@@ -40,13 +50,26 @@ module.exports = {
     "react/display-name": "off",
     "no-constant-condition": "off",
     "no-var": "off",
-    "no-useless-escape": "off"
+    "no-useless-escape": "off",
+    "react-hooks/exhaustive-deps": "warn"
   },
   overrides: [
     {
-      files: ['metro.config.js'],
+      files: ['metro.config.js', 'jest.setup.js', 'scripts/*.js', 'scripts/**/*.js'],
+      env: {
+        node: true,
+        jest: true
+      },
       rules: {
-        '@typescript-eslint/no-var-requires': 'off'
+        '@typescript-eslint/no-var-requires': 'off',
+        '@typescript-eslint/no-require-imports': 'off',
+        'no-undef': 'off'
+      }
+    },
+    {
+      files: ['app/_layout.tsx', 'app/**/_layout.tsx'],
+      rules: {
+        '@typescript-eslint/no-require-imports': 'off'
       }
     }
   ]

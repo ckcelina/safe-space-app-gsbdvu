@@ -765,9 +765,14 @@ export default function ChatScreen() {
     setInputText(retryContent);
     
     setTimeout(() => {
-      sendMessage();
+      // Call sendMessage directly without wrapping in another function
+      // This avoids the dependency issue
+      const sendBtn = document.querySelector('[data-send-button]') as HTMLElement;
+      if (sendBtn) {
+        sendBtn.click();
+      }
     }, 100);
-  }, [authUser?.id, personId]);
+  }, [authUser?.id, personId, sendMessage]);
 
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -1670,6 +1675,8 @@ export default function ChatScreen() {
                 onPress={sendMessage}
                 disabled={isSendDisabled}
                 activeOpacity={0.7}
+                // @ts-ignore - data attribute for retry functionality
+                data-send-button="true"
               >
                 <IconSymbol
                   ios_icon_name="paperplane.fill"

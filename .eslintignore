@@ -19,3 +19,8 @@ supabase/functions/
 
 # Ignore scripts with shebangs
 scripts/
+scripts/*.js
+scripts/**/*.js
+
+# Ignore Jest setup file
+jest.setup.js
