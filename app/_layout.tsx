@@ -1,21 +1,26 @@
 
+import "react-native-reanimated";
+import React, { useEffect } from "react";
+import { useColorScheme } from "react-native";
 import {
   DarkTheme,
   DefaultTheme,
-  Theme,
   ThemeProvider,
 } from "@react-navigation/native";
 import { SystemBars } from "react-native-edge-to-edge";
-import { Stack, router } from "expo-router";
-import { WidgetProvider } from "@/contexts/WidgetContext";
+import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
-import React, { useEffect } from "react";
-import { useColorScheme, Alert } from "react-native";
 import { useNetworkState } from "expo-network";
 import * as SplashScreen from "expo-splash-screen";
-import "react-native-reanimated";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import * as Sentry from '@sentry/react-native';
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider as CustomThemeProvider } from "@/contexts/ThemeContext";
+import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
+import { WidgetProvider } from "@/contexts/WidgetContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ServerHealthIndicator } from "@/components/ui/ServerHealthIndicator";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -127,7 +132,6 @@ if (SENTRY_DSN) {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [loaded, error] = useFonts({
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
@@ -293,10 +297,3 @@ export default function RootLayout() {
     </ErrorBoundary>
   );
 }
-
-// Import components after they're used
-import { AuthProvider } from "@/contexts/AuthContext";
-import { ThemeProvider as CustomThemeProvider } from "@/contexts/ThemeContext";
-import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ServerHealthIndicator } from "@/components/ui/ServerHealthIndicator";

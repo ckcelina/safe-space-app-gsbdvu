@@ -1253,7 +1253,6 @@ export default function ChatScreen() {
     preferences.ai_science_mode,
     preferences.ai_tone_id,
     getCurrentTherapistMetadata,
-    retryFailedMessage,
   ]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading || isGenerating;
@@ -1332,7 +1331,7 @@ export default function ChatScreen() {
     } else {
       setError(null);
     }
-  }, [allMessages, retryFailedMessage, error]);
+  }, [allMessages, error, retryFailedMessage]);
 
   const renderListItem = useCallback(({ item }: ListRenderItemInfo<MessageListItem>) => {
     if (item.type === 'date-separator') {
