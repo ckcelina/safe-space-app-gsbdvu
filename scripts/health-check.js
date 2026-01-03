@@ -1,6 +1,4 @@
 
-#!/usr/bin/env node
-
 /**
  * Expo Server Health Check Script
  * 
