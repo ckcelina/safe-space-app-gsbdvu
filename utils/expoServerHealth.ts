@@ -12,6 +12,7 @@
  * - Error recovery mechanisms
  */
 
+import React from 'react';
 import * as Network from 'expo-network';
 import { Platform } from 'react-native';
 
@@ -247,8 +248,6 @@ export const serverHealthMonitor = new ExpoServerHealthMonitor();
 /**
  * Hook to use server health status in components
  */
-import React from 'react';
-
 export function useServerHealth() {
   const [healthStatus, setHealthStatus] = React.useState<ServerHealthStatus>(
     serverHealthMonitor.getHealthStatus()

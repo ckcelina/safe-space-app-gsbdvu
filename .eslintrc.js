@@ -1,3 +1,4 @@
+
 // https://docs.expo.dev/guides/using-eslint/
 module.exports = {
   extends: [
@@ -17,15 +18,26 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*'],
+  ignorePatterns: [
+    '/dist/*', 
+    '/public/*', 
+    '/babel-plugins/*', 
+    '/backend/*',
+    '/scripts/**',
+    '**/__tests__/**',
+    '**/supabase/**'
+  ],
   env: {
     browser: true,
+    node: true,
+    jest: true,
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/no-require-imports": "off",
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
