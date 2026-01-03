@@ -38,3 +38,6 @@ This document defines how AI agents collaborate using GitHub as the shared works
 - Opens PRs only after approval
 - Links PRs to issues
 - Provides rollback instructions
+
+## PR Guard
+A pull request may be opened ONLY if the linked issue has the label `approved-for-build`.
