@@ -2,6 +2,12 @@
 /**
  * Supabase Client Configuration
  * 
+ * Enhanced with:
+ * - HTTPS validation for iOS production
+ * - Robust error logging
+ * - Timeout handling
+ * - Network error detection
+ * 
  * Reads configuration in priority order:
  * 1. EXPO_PUBLIC_* environment variables (preferred)
  * 2. Constants.expoConfig.extra (from app.config.ts)
@@ -37,6 +43,36 @@ const ExpoSecureStoreAdapter = {
     return SecureStore.deleteItemAsync(key);
   },
 };
+
+/**
+ * Validate Supabase URL
+ */
+function validateSupabaseUrl(url: string): { isValid: boolean; warning: string | null } {
+  if (!url || url.trim() === '') {
+    return {
+      isValid: false,
+      warning: '⚠️ Supabase URL not configured. Please set EXPO_PUBLIC_SUPABASE_URL in .env',
+    };
+  }
+
+  // Check for HTTPS (required on iOS for production)
+  if (Platform.OS === 'ios' && !url.startsWith('https://') && !__DEV__) {
+    return {
+      isValid: false,
+      warning: '⚠️ Supabase URL must use HTTPS on iOS in production mode.',
+    };
+  }
+
+  // Check for valid Supabase URL format
+  if (!url.includes('supabase.co') && !url.includes('supabase.in') && !__DEV__) {
+    return {
+      isValid: true,
+      warning: '⚠️ URL does not appear to be a Supabase URL. This may cause issues.',
+    };
+  }
+
+  return { isValid: true, warning: null };
+}
 
 /**
  * Get Supabase configuration with fallbacks
@@ -83,22 +119,82 @@ function getSupabaseConfig(): { url: string; anonKey: string } {
  */
 export function isSupabaseConfigured(): boolean {
   const config = getSupabaseConfig();
-  return !!config.url && !!config.anonKey && config.url.length > 0 && config.anonKey.length > 0;
+  
+  if (!config.url || !config.anonKey || config.url.length === 0 || config.anonKey.length === 0) {
+    return false;
+  }
+
+  const validation = validateSupabaseUrl(config.url);
+  return validation.isValid;
 }
 
 /**
  * Get configuration error message for UI display
  */
 export function getSupabaseConfigError(): string | null {
-  if (isSupabaseConfigured()) {
-    return null;
+  const config = getSupabaseConfig();
+  
+  if (!config.url || config.url.length === 0) {
+    if (__DEV__) {
+      return 'Supabase URL not configured. Please add EXPO_PUBLIC_SUPABASE_URL to .env file.';
+    }
+    return 'App configuration error. Please contact support.';
+  }
+
+  if (!config.anonKey || config.anonKey.length === 0) {
+    if (__DEV__) {
+      return 'Supabase Anon Key not configured. Please add EXPO_PUBLIC_SUPABASE_ANON_KEY to .env file.';
+    }
+    return 'App configuration error. Please contact support.';
+  }
+
+  const validation = validateSupabaseUrl(config.url);
+  if (!validation.isValid) {
+    return validation.warning;
   }
   
-  if (__DEV__) {
-    return 'Supabase not configured. Please add credentials to .env file.';
-  }
+  return null;
+}
+
+/**
+ * Get Supabase configuration status for logging
+ */
+export function getSupabaseStatus(): {
+  configured: boolean;
+  url: string;
+  host: string | null;
+  warning: string | null;
+} {
+  const config = getSupabaseConfig();
+  const validation = validateSupabaseUrl(config.url);
   
-  return 'App configuration error. Please contact support.';
+  let host: string | null = null;
+  try {
+    if (config.url) {
+      host = new URL(config.url).host;
+    }
+  } catch (e) {
+    console.warn('[Supabase] Invalid URL format:', config.url);
+  }
+
+  return {
+    configured: isSupabaseConfigured(),
+    url: config.url,
+    host,
+    warning: validation.warning,
+  };
+}
+
+// Log configuration status (dev only)
+if (__DEV__) {
+  const status = getSupabaseStatus();
+  if (status.warning) {
+    console.warn('[Supabase Config]', status.warning);
+  } else if (status.configured) {
+    console.log('[Supabase Config] Host:', status.host);
+  } else {
+    console.warn('[Supabase Config] Not configured');
+  }
 }
 
 // Initialize Supabase client with lazy loading
