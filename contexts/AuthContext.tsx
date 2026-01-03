@@ -1,184 +1,177 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
-import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+/**
+ * Authentication Context
+ *
+ * Provides authentication state and methods throughout the app.
+ * Supports:
+ * - Supabase authentication
+ * - Session management
+ * - User state
+ * - Null-safe initialization
+ *
+ * Usage:
+ * 1. Wrap your app with <AuthProvider> in root layout
+ * 2. Use useAuth() hook in components to access auth methods
+ */
 
-interface PublicUser {
-  id: string;
-  user_id: string;
-  role: 'free' | 'premium' | 'admin';
-  created_at: string;
-}
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import type { User, Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
-  authUser: SupabaseUser | null;
-  publicUser: PublicUser | null;
+  user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authUser, setAuthUser] = useState<SupabaseUser | null>(null);
-  const [publicUser, setPublicUser] = useState<PublicUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const listenerSetup = useRef(false);
 
-  const fetchPublicUser = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+  // Fetch current session on mount
+  useEffect(() => {
+    // Null-safe check for Supabase configuration
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase is not configured. Auth features will be disabled.');
+      setUser(null);
+      setSession(null);
+      setLoading(false);
+      return;
+    }
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching public user:', error);
-        return null;
-      }
-
-      if (!data) {
-        const { data: newUser, error: insertError } = await supabase
-          .from('users')
-          .insert({ user_id: userId, role: 'free' })
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('Error creating public user:', insertError);
-          return null;
+    // Get initial session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          setUser(null);
+          setSession(null);
+        } else {
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
         }
-
-        return newUser;
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+        setUser(null);
+        setSession(null);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      return data;
-    } catch (err) {
-      console.error('Unexpected error fetching public user:', err);
-      return null;
+    initializeAuth();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase is not configured');
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      setSession(data.session);
+      setUser(data.user);
+    } catch (error) {
+      console.error('Email sign in failed:', error);
+      throw error;
     }
   }, []);
 
-  const refreshUser = useCallback(async () => {
-    try {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      
-      if (currentSession?.user) {
-        setAuthUser(currentSession.user);
-        setSession(currentSession);
-        const pubUser = await fetchPublicUser(currentSession.user.id);
-        setPublicUser(pubUser);
-      } else {
-        setAuthUser(null);
-        setSession(null);
-        setPublicUser(null);
-      }
-    } catch (error) {
-      console.error('Error refreshing user:', error);
+  const signUpWithEmail = useCallback(async (email: string, password: string) => {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase is not configured');
     }
-  }, [fetchPublicUser]);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const initAuth = async () => {
-      try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        
-        if (mounted) {
-          if (initialSession?.user) {
-            setAuthUser(initialSession.user);
-            setSession(initialSession);
-            const pubUser = await fetchPublicUser(initialSession.user.id);
-            setPublicUser(pubUser);
-          }
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    initAuth();
-
-    if (!listenerSetup.current) {
-      listenerSetup.current = true;
-      
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-        if (!mounted) return;
-
-        if (newSession?.user) {
-          setAuthUser(newSession.user);
-          setSession(newSession);
-          const pubUser = await fetchPublicUser(newSession.user.id);
-          setPublicUser(pubUser);
-        } else {
-          setAuthUser(null);
-          setSession(null);
-          setPublicUser(null);
-        }
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
       });
 
-      return () => {
-        mounted = false;
-        subscription.unsubscribe();
-      };
+      if (error) throw error;
+
+      setSession(data.session);
+      setUser(data.user);
+    } catch (error) {
+      console.error('Email sign up failed:', error);
+      throw error;
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase is not configured');
+      setUser(null);
+      setSession(null);
+      return;
     }
 
-    return () => {
-      mounted = false;
-    };
-  }, [fetchPublicUser]);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
 
-  const signUp = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    
-    if (error) throw error;
-    
-    if (data.user) {
-      await fetchPublicUser(data.user.id);
+      setUser(null);
+      setSession(null);
+    } catch (error) {
+      console.error('Sign out failed:', error);
+      throw error;
     }
-  };
+  }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    
-    if (error) throw error;
-    
-    if (data.user) {
-      await fetchPublicUser(data.user.id);
+  const refreshSession = useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase is not configured');
+      return;
     }
-  };
 
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    
-    setAuthUser(null);
-    setSession(null);
-    setPublicUser(null);
-  };
+    try {
+      const { data: { session: refreshedSession }, error } = await supabase.auth.refreshSession();
+      
+      if (error) throw error;
+
+      setSession(refreshedSession);
+      setUser(refreshedSession?.user ?? null);
+    } catch (error) {
+      console.error('Session refresh failed:', error);
+      throw error;
+    }
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
-        authUser,
-        publicUser,
+        user,
         session,
         loading,
-        signUp,
-        signIn,
+        signInWithEmail,
+        signUpWithEmail,
         signOut,
-        refreshUser,
+        refreshSession,
       }}
     >
       {children}
@@ -186,10 +179,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Hook to access auth context
+ * Must be used within AuthProvider
+ */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within AuthProvider');
+    throw new Error("useAuth must be used within AuthProvider");
   }
   return context;
 }
