@@ -1,21 +1,21 @@
 
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
-import { useColorScheme, Platform } from 'react-native';
-import { AuthProvider } from '@/contexts/AuthContext';
-import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext';
-import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext';
-import { WidgetProvider } from '@/contexts/WidgetContext';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { ServerHealthIndicator } from '@/components/ui/ServerHealthIndicator';
-import { serverHealthMonitor } from '@/utils/expoServerHealth';
-import { metroConnectionGuard, setupMetroErrorHandler } from '@/utils/metroConnectionGuard';
-import { startupValidator } from '@/utils/expoStartupValidator';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Theme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import { SystemBars } from "react-native-edge-to-edge";
+import { Stack, router } from "expo-router";
+import { WidgetProvider } from "@/contexts/WidgetContext";
+import { useFonts } from "expo-font";
+import React, { useEffect } from "react";
+import { useColorScheme, Alert } from "react-native";
+import { useNetworkState } from "expo-network";
+import * as SplashScreen from "expo-splash-screen";
+import "react-native-reanimated";
+import { StatusBar } from "expo-status-bar";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -31,16 +31,18 @@ if (__DEV__) {
   // Log startup confirmation
   console.log('✅ Safe Space JS loaded');
   console.log('[Startup] Environment:', __DEV__ ? 'development' : 'production');
-  console.log('[Startup] Platform:', Platform.OS);
+  console.log('[Startup] Platform:', require('react-native').Platform.OS);
   console.log('[Startup] Timestamp:', new Date().toISOString());
 
   // Initialize server health monitoring
-  serverHealthMonitor.initialize().catch((error) => {
+  const { serverHealthMonitor } = require('@/utils/expoServerHealth');
+  serverHealthMonitor.initialize().catch((error: any) => {
     console.log('[Startup] Failed to initialize server health monitor:', error);
   });
 
   // Initialize Metro connection guard
-  metroConnectionGuard.initialize().catch((error) => {
+  const { metroConnectionGuard, setupMetroErrorHandler } = require('@/utils/metroConnectionGuard');
+  metroConnectionGuard.initialize().catch((error: any) => {
     console.log('[Startup] Failed to initialize Metro connection guard:', error);
   });
 
@@ -48,7 +50,8 @@ if (__DEV__) {
   setupMetroErrorHandler();
 
   // Run startup validation
-  startupValidator.validate().then((validation) => {
+  const { startupValidator } = require('@/utils/expoStartupValidator');
+  startupValidator.validate().then((validation: any) => {
     if (!validation.isValid) {
       console.log('[Startup] ⚠️ Some startup checks failed, but continuing...');
     }
@@ -97,6 +100,7 @@ if (__DEV__) {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [loaded, error] = useFonts({
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
@@ -112,6 +116,7 @@ export default function RootLayout() {
       
       // Mark Metro connection as successful after app loads
       if (__DEV__) {
+        const { metroConnectionGuard } = require('@/utils/metroConnectionGuard');
         metroConnectionGuard.markConnectionSuccess();
         console.log('[Startup] ✅ App loaded successfully');
       }
@@ -122,6 +127,7 @@ export default function RootLayout() {
   useEffect(() => {
     return () => {
       if (__DEV__) {
+        const { serverHealthMonitor } = require('@/utils/expoServerHealth');
         serverHealthMonitor.cleanup();
         console.log('[Startup] Cleaned up server health monitor');
       }
@@ -260,3 +266,10 @@ export default function RootLayout() {
     </ErrorBoundary>
   );
 }
+
+// Import components after they're used
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider as CustomThemeProvider } from "@/contexts/ThemeContext";
+import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ServerHealthIndicator } from "@/components/ui/ServerHealthIndicator";

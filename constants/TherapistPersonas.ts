@@ -296,13 +296,13 @@ export function getAllAvatarSources(): ImageSourcePropType[] {
  * - localPreviewReplyRules: Function to generate local preview replies
  */
 
-export interface PreviewChatMessage {
+interface PreviewChatMessage {
   role: "user" | "assistant";
   text: string;
   time?: string;
 }
 
-export interface TherapistPreviewContent {
+interface TherapistPreviewContentType {
   title: string;
   subtitle: string;
   description: string;
@@ -336,7 +336,7 @@ function detectEmotionalKeywords(text: string): {
   };
 }
 
-export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = {
+export const TherapistPreviewContent: Record<string, TherapistPreviewContentType> = {
   dr_elias: {
     title: "Dr. Elias",
     subtitle: "Calm & Grounding",
@@ -757,6 +757,6 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
 /**
  * Get preview content for a persona ID
  */
-export function getPreviewContentById(personaId: string): TherapistPreviewContent | undefined {
+export function getPreviewContentById(personaId: string): TherapistPreviewContentType | undefined {
   return TherapistPreviewContent[personaId];
 }

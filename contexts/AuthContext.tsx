@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (authUserId: string, retryCount = 0) => {
+  const fetchUserProfile = useCallback(async (authUserId: string, retryCount = 0) => {
     const MAX_RETRIES = 2;
     
     // Wrap in timeout to prevent blocking startup
@@ -162,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         created_at: new Date().toISOString() 
       });
     }
-  };
+  }, []);
 
   const refreshUser = async () => {
     if (currentUser) {
@@ -225,7 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchUserProfile]);
 
   const signUp = async (email: string, password: string) => {
     try {
