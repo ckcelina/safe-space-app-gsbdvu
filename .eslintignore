@@ -1,40 +1,44 @@
 
-# Ignore generated files
-_expo/
-dist/
-web-build/
-.expo/
-
-# Ignore node modules
+# Dependencies
 node_modules/
 
-# Ignore build artifacts
+# Build outputs
+dist/
+build/
+.expo/
+.expo-shared/
+web-build/
+
+# Cache directories
+.cache/
+.eslintcache
+node_modules/.cache/
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+__tests__/
+coverage/
+
+# Config files
+*.config.js
+babel.config.js
+metro.config.js
+jest.config.js
+jest.setup.js
+
+# Generated files
 *.bundle.js
 *.bundle.js.map
 
-# Ignore test files
-__tests__/
-*.test.ts
-*.test.tsx
-jest.setup.js
-jest.config.js
+# Platform specific
+ios/
+android/
 
-# Ignore config files
-metro.config.js
-babel.config.js
-workbox-config.js
-
-# Ignore documentation
-*.md
-
-# Ignore scripts
-scripts/
-
-# Ignore backend
-backend/
-
-# Ignore babel plugins
-babel-plugins/
-
-# Ignore ESLint cache
-.eslintcache
+# Misc
+.DS_Store
+*.log
+.env
+.env.local
