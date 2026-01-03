@@ -183,7 +183,7 @@ export default function SettingsScreen() {
         pointerEvents="none"
       />
       
-      {/* Interactive content */}
+      {/* Interactive content - explicitly allow pointer events */}
       <SafeAreaView 
         style={styles.safeArea} 
         edges={['top', 'bottom']}
@@ -237,6 +237,7 @@ export default function SettingsScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
+            scrollEnabled={true}
           >
             {/* Header */}
             <View style={styles.header}>
