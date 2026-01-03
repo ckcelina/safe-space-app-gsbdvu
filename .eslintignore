@@ -3,6 +3,7 @@
 _expo/
 dist/
 web-build/
+.expo/
 
 # Ignore node modules
 node_modules/
@@ -11,10 +12,11 @@ node_modules/
 *.bundle.js
 *.bundle.js.map
 
-# Ignore cache directories
+# Ignore cache directories (CRITICAL - prevents stale cache issues)
 .cache/
 node_modules/.cache/
 .eslintcache
+**/.cache/
 
 # Ignore test files
 **/__tests__/**
@@ -35,3 +37,12 @@ jest.setup.js
 # Ignore example files
 *.example.ts
 *.example.tsx
+
+# Ignore scripts
+scripts/
+
+# Ignore backend
+backend/
+
+# Ignore babel plugins
+babel-plugins/
