@@ -1,240 +1,184 @@
 
-/**
- * Authentication Context Template
- *
- * Provides authentication state and methods throughout the app.
- * Supports:
- * - Email/password authentication
- * - Social auth (Google, Apple, GitHub) with popup flow for web
- * - Session management
- * - User state
- *
- * Usage:
- * 1. Update imports to match your auth-client.ts path
- * 2. Wrap your app with <AuthProvider>
- * 3. Use useAuth() hook in components to access auth methods
- * 4. Customize user type and auth methods as needed
- */
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { Platform } from "react-native";
-import { authClient, storeWebBearerToken } from "@/lib/auth";
-
-// User type - customize based on your backend
-interface User {
+interface PublicUser {
   id: string;
-  email: string;
-  name?: string;
-  image?: string;
+  user_id: string;
+  role: 'free' | 'premium' | 'admin';
+  created_at: string;
 }
 
 interface AuthContextType {
-  user: User | null;
+  authUser: SupabaseUser | null;
+  publicUser: PublicUser | null;
+  session: Session | null;
   loading: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, name?: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
-  signInWithGitHub: () => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  fetchUser: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-/**
- * Opens OAuth popup for web-based social authentication
- * Returns a promise that resolves with the token
- */
-function openOAuthPopup(provider: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined') {
-      reject(new Error("Window not available"));
-      return;
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [authUser, setAuthUser] = useState<SupabaseUser | null>(null);
+  const [publicUser, setPublicUser] = useState<PublicUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const listenerSetup = useRef(false);
+
+  const fetchPublicUser = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching public user:', error);
+        return null;
+      }
+
+      if (!data) {
+        const { data: newUser, error: insertError } = await supabase
+          .from('users')
+          .insert({ user_id: userId, role: 'free' })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error creating public user:', insertError);
+          return null;
+        }
+
+        return newUser;
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Unexpected error fetching public user:', err);
+      return null;
     }
+  }, []);
 
-    const popupUrl = `${window.location.origin}/auth-popup?provider=${provider}`;
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-
-    const popup = window.open(
-      popupUrl,
-      "oauth-popup",
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
-    );
-
-    if (!popup) {
-      reject(new Error("Failed to open popup. Please allow popups."));
-      return;
+  const refreshUser = useCallback(async () => {
+    try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      
+      if (currentSession?.user) {
+        setAuthUser(currentSession.user);
+        setSession(currentSession);
+        const pubUser = await fetchPublicUser(currentSession.user.id);
+        setPublicUser(pubUser);
+      } else {
+        setAuthUser(null);
+        setSession(null);
+        setPublicUser(null);
+      }
+    } catch (error) {
+      console.error('Error refreshing user:', error);
     }
+  }, [fetchPublicUser]);
 
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === "oauth-success" && event.data?.token) {
-        window.removeEventListener("message", handleMessage);
-        clearInterval(checkClosed);
-        resolve(event.data.token);
-      } else if (event.data?.type === "oauth-error") {
-        window.removeEventListener("message", handleMessage);
-        clearInterval(checkClosed);
-        reject(new Error(event.data.error || "OAuth failed"));
+  useEffect(() => {
+    let mounted = true;
+
+    const initAuth = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        
+        if (mounted) {
+          if (initialSession?.user) {
+            setAuthUser(initialSession.user);
+            setSession(initialSession);
+            const pubUser = await fetchPublicUser(initialSession.user.id);
+            setPublicUser(pubUser);
+          }
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-    window.addEventListener("message", handleMessage);
+    initAuth();
 
-    // Check if popup was closed manually
-    const checkClosed = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkClosed);
-        window.removeEventListener("message", handleMessage);
-        reject(new Error("Authentication cancelled"));
-      }
-    }, 500);
-  });
-}
+    if (!listenerSetup.current) {
+      listenerSetup.current = true;
+      
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+        if (!mounted) return;
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
-
-  const fetchUser = useCallback(async () => {
-    try {
-      setLoading(true);
-      const session = await authClient.getSession();
-      if (session?.user) {
-        setUser(session.user as User);
-      } else {
-        setUser(null);
-      }
-    } catch (error) {
-      console.error("Failed to fetch user:", error);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch current user on mount (only once)
-  useEffect(() => {
-    if (!initialized) {
-      setInitialized(true);
-      fetchUser();
-    }
-  }, [initialized, fetchUser]);
-
-  const signInWithEmail = useCallback(async (email: string, password: string) => {
-    try {
-      await authClient.signIn.email({ email, password });
-      await fetchUser();
-    } catch (error) {
-      console.error("Email sign in failed:", error);
-      throw error;
-    }
-  }, [fetchUser]);
-
-  const signUpWithEmail = useCallback(async (email: string, password: string, name?: string) => {
-    try {
-      await authClient.signUp.email({
-        email,
-        password,
-        name,
-        callbackURL: "/profile",
+        if (newSession?.user) {
+          setAuthUser(newSession.user);
+          setSession(newSession);
+          const pubUser = await fetchPublicUser(newSession.user.id);
+          setPublicUser(pubUser);
+        } else {
+          setAuthUser(null);
+          setSession(null);
+          setPublicUser(null);
+        }
       });
-      await fetchUser();
-    } catch (error) {
-      console.error("Email sign up failed:", error);
-      throw error;
-    }
-  }, [fetchUser]);
 
-  const signInWithGoogle = useCallback(async () => {
-    try {
-      if (Platform.OS === "web") {
-        // Web: Use popup flow to avoid cross-origin issues
-        const token = await openOAuthPopup("google");
-        storeWebBearerToken(token);
-        await fetchUser();
-      } else {
-        // Native: Use deep linking (handled by Better Auth)
-        await authClient.signIn.social({
-          provider: "google",
-          callbackURL: "/profile",
-        });
-        await fetchUser();
-      }
-    } catch (error) {
-      console.error("Google sign in failed:", error);
-      throw error;
+      return () => {
+        mounted = false;
+        subscription.unsubscribe();
+      };
     }
-  }, [fetchUser]);
 
-  const signInWithApple = useCallback(async () => {
-    try {
-      if (Platform.OS === "web") {
-        // Web: Use popup flow
-        const token = await openOAuthPopup("apple");
-        storeWebBearerToken(token);
-        await fetchUser();
-      } else {
-        // Native: Use deep linking
-        await authClient.signIn.social({
-          provider: "apple",
-          callbackURL: "/profile",
-        });
-        await fetchUser();
-      }
-    } catch (error) {
-      console.error("Apple sign in failed:", error);
-      throw error;
-    }
-  }, [fetchUser]);
+    return () => {
+      mounted = false;
+    };
+  }, [fetchPublicUser]);
 
-  const signInWithGitHub = useCallback(async () => {
-    try {
-      if (Platform.OS === "web") {
-        // Web: Use popup flow
-        const token = await openOAuthPopup("github");
-        storeWebBearerToken(token);
-        await fetchUser();
-      } else {
-        // Native: Use deep linking
-        await authClient.signIn.social({
-          provider: "github",
-          callbackURL: "/profile",
-        });
-        await fetchUser();
-      }
-    } catch (error) {
-      console.error("GitHub sign in failed:", error);
-      throw error;
+  const signUp = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    
+    if (error) throw error;
+    
+    if (data.user) {
+      await fetchPublicUser(data.user.id);
     }
-  }, [fetchUser]);
+  };
 
-  const signOut = useCallback(async () => {
-    try {
-      await authClient.signOut();
-      setUser(null);
-    } catch (error) {
-      console.error("Sign out failed:", error);
-      throw error;
+  const signIn = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    if (error) throw error;
+    
+    if (data.user) {
+      await fetchPublicUser(data.user.id);
     }
-  }, []);
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    
+    setAuthUser(null);
+    setSession(null);
+    setPublicUser(null);
+  };
 
   return (
     <AuthContext.Provider
       value={{
-        user,
+        authUser,
+        publicUser,
+        session,
         loading,
-        signInWithEmail,
-        signUpWithEmail,
-        signInWithGoogle,
-        signInWithApple,
-        signInWithGitHub,
+        signUp,
+        signIn,
         signOut,
-        fetchUser,
+        refreshUser,
       }}
     >
       {children}
@@ -242,14 +186,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Hook to access auth context
- * Must be used within AuthProvider
- */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within AuthProvider");
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 }
