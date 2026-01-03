@@ -2,21 +2,47 @@
 import 'react-native-url-polyfill/auto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 // Global singleton instance - survives hot reloads
 let supabaseInstance: SupabaseClient | null = null;
 let isInitializing = false;
 
 // Secure storage adapter for auth tokens
+// Platform-specific: SecureStore for native, localStorage for web
 const ExpoSecureStoreAdapter = {
-  getItem: (key: string) => {
-    return SecureStore.getItemAsync(key);
+  getItem: async (key: string) => {
+    try {
+      if (Platform.OS === 'web') {
+        return localStorage.getItem(key);
+      }
+      return await SecureStore.getItemAsync(key);
+    } catch (error) {
+      console.error(`[SecureStore] getItem error for key ${key}:`, error);
+      return null;
+    }
   },
-  setItem: (key: string, value: string) => {
-    SecureStore.setItemAsync(key, value);
+  setItem: async (key: string, value: string) => {
+    try {
+      if (Platform.OS === 'web') {
+        localStorage.setItem(key, value);
+        return;
+      }
+      await SecureStore.setItemAsync(key, value);
+    } catch (error) {
+      console.error(`[SecureStore] setItem error for key ${key}:`, error);
+    }
   },
-  removeItem: (key: string) => {
-    SecureStore.deleteItemAsync(key);
+  removeItem: async (key: string) => {
+    try {
+      if (Platform.OS === 'web') {
+        localStorage.removeItem(key);
+        return;
+      }
+      await SecureStore.deleteItemAsync(key);
+    } catch (error) {
+      console.error(`[SecureStore] removeItem error for key ${key}:`, error);
+    }
   },
 };
 
@@ -72,18 +98,18 @@ function getSupabaseClient(): SupabaseClient {
       return supabaseInstance;
     }
 
-    // Create singleton instance ONCE
+    // Create singleton instance ONCE with proper auth configuration
     supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         storage: ExpoSecureStoreAdapter,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false,
+        autoRefreshToken: true, // ✅ Auto-refresh tokens
+        persistSession: true,   // ✅ Persist session across app restarts
+        detectSessionInUrl: false, // Not needed for mobile
       },
     });
 
     if (__DEV__) {
-      console.log('✅ Supabase client initialized (singleton created)');
+      console.log('✅ Supabase client initialized with persistent auth storage');
     }
 
     return supabaseInstance;

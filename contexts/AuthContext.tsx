@@ -1,312 +1,345 @@
 
 /**
- * Authentication Context for Safe Space
+ * Authentication Context with Supabase Auth
  *
- * Provides Supabase authentication state and methods throughout the app.
- * Supports:
- * - Email/password authentication
- * - Session management with Supabase
- * - User profile from public.users table
- * - Automatic session restoration
- *
- * Usage:
- * 1. Wrap your app with <AuthProvider> (already done in app/_layout.tsx)
- * 2. Use useAuth() hook in components to access auth methods
+ * Provides authentication state and methods throughout the app.
+ * Features:
+ * - Session persistence via ExpoSecureStore (native) / localStorage (web)
+ * - Auto-refresh tokens to keep user logged in
+ * - Single session restoration on app launch
+ * - Guards against silent logouts
+ * - Fetches user profile from public.users table
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
-import { ActivityIndicator, View } from "react-native";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
+import { AppState, AppStateStatus } from "react-native";
 import { supabase } from "@/lib/supabase";
-import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
-import type { User as AppUser } from "@/types/database.types";
+import { Session, User as SupabaseUser } from "@supabase/supabase-js";
+
+// Extended user type with profile data
+interface UserProfile {
+  id: string;
+  email: string;
+  role: 'free' | 'premium' | 'admin';
+  created_at?: string;
+}
 
 interface AuthContextType {
-  // Supabase auth user
-  currentUser: SupabaseUser | null;
+  user: SupabaseUser | null;
   session: Session | null;
-  
-  // App user profile from public.users
-  userProfile: AppUser | null;
-  userId: string | null;
-  role: 'free' | 'premium' | 'admin' | null;
-  isPremium: boolean;
-  
-  // Loading states
+  userProfile: UserProfile | null;
   loading: boolean;
-  
-  // Auth methods
+  initialized: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
-  refreshUserProfile: () => Promise<void>;
+  fetchUserProfile: () => Promise<void>;
+  // Convenience getters
+  userId: string | null;
+  currentUser: SupabaseUser | null;
+  role: 'free' | 'premium' | 'admin';
+  isPremium: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [userProfile, setUserProfile] = useState<AppUser | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const listenerSetup = useRef(false);
+  const [initialized, setInitialized] = useState(false);
+  
+  // Prevent multiple session restorations
+  const hasRestoredSession = useRef(false);
+  const isMounted = useRef(true);
+  const authListenerRef = useRef<{ data: { subscription: any } } | null>(null);
 
-  /**
-   * Fetch user profile from public.users table
-   */
-  const fetchUserProfile = useCallback(async (userId: string) => {
+  // Restore session ONCE on app launch
+  useEffect(() => {
+    if (hasRestoredSession.current) return;
+    
+    hasRestoredSession.current = true;
+    restoreSession();
+
+    return () => {
+      isMounted.current = false;
+      // Clean up auth listener
+      if (authListenerRef.current) {
+        authListenerRef.current.data.subscription.unsubscribe();
+      }
+    };
+  }, []);
+
+  // Handle app state changes (foreground/background)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [user]);
+
+  const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+    // When app comes to foreground, refresh session if user exists
+    if (nextAppState === 'active' && user && session) {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (!error && data.session && isMounted.current) {
+          setSession(data.session);
+          setUser(data.session.user);
+        }
+      } catch (error) {
+        console.error("[AuthContext] Failed to refresh session on app resume:", error);
+      }
+    }
+  };
+
+  const restoreSession = async () => {
     try {
-      console.log('[AuthContext] Fetching user profile for:', userId);
+      setLoading(true);
+      console.log("[AuthContext] Restoring session...");
       
-      const { data, error } = await supabase
+      // Get current session from Supabase
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error("[AuthContext] Error getting session:", error);
+        if (isMounted.current) {
+          setUser(null);
+          setSession(null);
+          setUserProfile(null);
+        }
+        return;
+      }
+
+      if (currentSession && currentSession.user && isMounted.current) {
+        console.log("[AuthContext] Session restored:", currentSession.user.email);
+        setSession(currentSession);
+        setUser(currentSession.user);
+        
+        // Fetch user profile
+        await fetchUserProfileInternal(currentSession.user.id);
+      } else {
+        console.log("[AuthContext] No active session found");
+        if (isMounted.current) {
+          setUser(null);
+          setSession(null);
+          setUserProfile(null);
+        }
+      }
+
+      // Set up auth state listener
+      if (!authListenerRef.current) {
+        authListenerRef.current = supabase.auth.onAuthStateChange(async (event, newSession) => {
+          console.log("[AuthContext] Auth state changed:", event);
+          
+          if (!isMounted.current) return;
+
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (newSession && newSession.user) {
+              setSession(newSession);
+              setUser(newSession.user);
+              await fetchUserProfileInternal(newSession.user.id);
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setSession(null);
+            setUser(null);
+            setUserProfile(null);
+          }
+        });
+      }
+    } catch (error) {
+      console.error("[AuthContext] Failed to restore session:", error);
+      if (isMounted.current) {
+        setUser(null);
+        setSession(null);
+        setUserProfile(null);
+      }
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+        setInitialized(true);
+      }
+    }
+  };
+
+  const fetchUserProfileInternal = async (userId: string) => {
+    try {
+      console.log("[AuthContext] Fetching user profile for:", userId);
+      
+      const { data: profile, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        // If user profile doesn't exist, create it with default values
-        if (error.code === 'PGRST116') {
-          console.log('[AuthContext] User profile not found, creating default profile');
-          
-          const { data: newProfile, error: insertError } = await supabase
-            .from('users')
-            .insert([{
-              id: userId,
-              role: 'free',
-            }])
-            .select()
-            .single();
+      if (error && error.code !== 'PGRST116') {
+        console.error("[AuthContext] Error fetching user profile:", error);
+        return;
+      }
 
-          if (insertError) {
-            console.error('[AuthContext] Failed to create user profile:', insertError);
-            // Don't throw - allow user to continue with null profile
-            setUserProfile(null);
-            return;
+      if (!profile && isMounted.current) {
+        // Profile doesn't exist, create it
+        console.log("[AuthContext] User profile not found, creating one...");
+        
+        const { data: authUser } = await supabase.auth.getUser();
+        
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([{
+            id: userId,
+            email: authUser.user?.email || '',
+            role: 'free',
+          }]);
+
+        if (insertError) {
+          if (insertError.code === '23505') {
+            console.log("[AuthContext] User profile already exists (race condition)");
+            // Try fetching again
+            const { data: retryProfile } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', userId)
+              .maybeSingle();
+            
+            if (retryProfile && isMounted.current) {
+              setUserProfile(retryProfile);
+            }
+          } else {
+            console.error("[AuthContext] Failed to create user profile:", insertError);
           }
-
-          console.log('[AuthContext] User profile created:', newProfile);
-          setUserProfile(newProfile);
         } else {
-          console.error('[AuthContext] Error fetching user profile:', error);
-          setUserProfile(null);
+          console.log("[AuthContext] User profile created successfully");
+          // Fetch the newly created profile
+          const { data: newProfile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', userId)
+            .maybeSingle();
+          
+          if (newProfile && isMounted.current) {
+            setUserProfile(newProfile);
+          }
         }
-      } else {
-        console.log('[AuthContext] User profile loaded:', data);
-        setUserProfile(data);
+      } else if (profile && isMounted.current) {
+        console.log("[AuthContext] User profile loaded");
+        setUserProfile(profile);
       }
     } catch (error) {
-      console.error('[AuthContext] Unexpected error fetching user profile:', error);
-      setUserProfile(null);
+      console.error("[AuthContext] Exception fetching user profile:", error);
     }
-  }, []);
+  };
 
-  /**
-   * Refresh user profile (called after profile updates)
-   */
-  const refreshUserProfile = useCallback(async () => {
-    if (currentUser?.id) {
-      await fetchUserProfile(currentUser.id);
+  const fetchUserProfile = async () => {
+    if (user) {
+      await fetchUserProfileInternal(user.id);
     }
-  }, [currentUser?.id, fetchUserProfile]);
-
-  // Initialize auth state and set up listener
-  useEffect(() => {
-    // Prevent duplicate listeners on Fast Refresh
-    if (listenerSetup.current) {
-      return;
-    }
-    listenerSetup.current = true;
-
-    // Get initial session
-    const initializeAuth = async () => {
-      try {
-        setLoading(true);
-        console.log('[AuthContext] Initializing auth...');
-        
-        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('[AuthContext] Failed to get session:', error);
-          setSession(null);
-          setCurrentUser(null);
-          setUserProfile(null);
-        } else if (currentSession) {
-          console.log('[AuthContext] Session found:', currentSession.user.id);
-          setSession(currentSession);
-          setCurrentUser(currentSession.user);
-          
-          // Fetch user profile
-          await fetchUserProfile(currentSession.user.id);
-        } else {
-          console.log('[AuthContext] No session found');
-          setSession(null);
-          setCurrentUser(null);
-          setUserProfile(null);
-        }
-      } catch (error) {
-        console.error('[AuthContext] Auth initialization error:', error);
-        setSession(null);
-        setCurrentUser(null);
-        setUserProfile(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        console.log('[AuthContext] Auth state changed:', event);
-        
-        setSession(currentSession);
-        setCurrentUser(currentSession?.user ?? null);
-        
-        if (currentSession?.user) {
-          // Fetch user profile when user signs in
-          await fetchUserProfile(currentSession.user.id);
-        } else {
-          // Clear user profile when user signs out
-          setUserProfile(null);
-        }
-        
-        setLoading(false);
-      }
-    );
-
-    // Cleanup listener on unmount
-    return () => {
-      subscription.unsubscribe();
-      listenerSetup.current = false;
-    };
-  }, [fetchUserProfile]);
+  };
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      console.log('[AuthContext] Signing in with email:', email);
-      
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
-      if (error) {
-        console.error('[AuthContext] Email sign in failed:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('[AuthContext] Sign in successful');
-      // Session will be updated via onAuthStateChange listener
+      if (data.user && isMounted.current) {
+        setSession(data.session);
+        setUser(data.user);
+        await fetchUserProfileInternal(data.user.id);
+      }
     } catch (error) {
-      console.error('[AuthContext] Sign in error:', error);
+      console.error("[AuthContext] Email sign in failed:", error);
       throw error;
     }
   };
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-      console.log('[AuthContext] Signing up with email:', email);
-      
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
-      if (error) {
-        console.error('[AuthContext] Email sign up failed:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('[AuthContext] Sign up successful');
-      
-      // If user is immediately signed in (no email confirmation required)
-      if (data.user) {
+      if (data.user && isMounted.current) {
+        setSession(data.session);
+        setUser(data.user);
+        
         // Create user profile
-        await fetchUserProfile(data.user.id);
+        await fetchUserProfileInternal(data.user.id);
       }
-      
-      // Session will be updated via onAuthStateChange listener
     } catch (error) {
-      console.error('[AuthContext] Sign up error:', error);
+      console.error("[AuthContext] Email sign up failed:", error);
       throw error;
     }
   };
 
   const signOut = async () => {
     try {
-      console.log('[AuthContext] Signing out...');
-      
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('[AuthContext] Sign out failed:', error);
-        throw error;
+      // Guard: Only sign out if user exists
+      if (!user) {
+        console.warn("[AuthContext] signOut called but no user is logged in");
+        return;
       }
 
-      console.log('[AuthContext] Sign out successful');
-      // Session will be cleared via onAuthStateChange listener
+      console.log("[AuthContext] Signing out...");
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) throw error;
+
+      if (isMounted.current) {
+        setUser(null);
+        setSession(null);
+        setUserProfile(null);
+      }
     } catch (error) {
-      console.error('[AuthContext] Sign out error:', error);
+      console.error("[AuthContext] Sign out failed:", error);
       throw error;
     }
   };
 
   const refreshSession = async () => {
     try {
-      console.log('[AuthContext] Refreshing session...');
+      const { data, error } = await supabase.auth.refreshSession();
       
-      const { data: { session: refreshedSession }, error } = await supabase.auth.refreshSession();
-      
-      if (error) {
-        console.error('[AuthContext] Session refresh failed:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      setSession(refreshedSession);
-      setCurrentUser(refreshedSession?.user ?? null);
-      
-      if (refreshedSession?.user) {
-        await fetchUserProfile(refreshedSession.user.id);
+      if (data.session && data.session.user && isMounted.current) {
+        setSession(data.session);
+        setUser(data.session.user);
       }
-      
-      console.log('[AuthContext] Session refreshed');
     } catch (error) {
-      console.error('[AuthContext] Refresh session error:', error);
+      console.error("[AuthContext] Failed to refresh session:", error);
       throw error;
     }
   };
 
-  // Compute derived values
-  const userId = currentUser?.id ?? null;
-  const role = userProfile?.role ?? null;
+  // Convenience getters
+  const userId = user?.id || null;
+  const currentUser = user;
+  const role = userProfile?.role || 'free';
   const isPremium = role === 'premium' || role === 'admin';
-
-  // Show loading screen while auth initializes
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
-        <ActivityIndicator size="large" color="#fff" />
-      </View>
-    );
-  }
 
   return (
     <AuthContext.Provider
       value={{
-        currentUser,
+        user,
         session,
         userProfile,
-        userId,
-        role,
-        isPremium,
         loading,
+        initialized,
         signInWithEmail,
         signUpWithEmail,
         signOut,
         refreshSession,
-        refreshUserProfile,
+        fetchUserProfile,
+        userId,
+        currentUser,
+        role,
+        isPremium,
       }}
     >
       {children}
@@ -317,39 +350,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 /**
  * Hook to access auth context
  * Must be used within AuthProvider
- * Returns safe fallback if provider not ready
  */
 export function useAuth() {
   const context = useContext(AuthContext);
-  
   if (context === undefined) {
-    // Safe fallback instead of throwing
-    console.warn("⚠️ useAuth called outside AuthProvider - returning safe fallback");
-    return {
-      currentUser: null,
-      session: null,
-      userProfile: null,
-      userId: null,
-      role: null,
-      isPremium: false,
-      loading: true,
-      signInWithEmail: async () => {
-        console.warn("⚠️ signInWithEmail called outside AuthProvider");
-      },
-      signUpWithEmail: async () => {
-        console.warn("⚠️ signUpWithEmail called outside AuthProvider");
-      },
-      signOut: async () => {
-        console.warn("⚠️ signOut called outside AuthProvider");
-      },
-      refreshSession: async () => {
-        console.warn("⚠️ refreshSession called outside AuthProvider");
-      },
-      refreshUserProfile: async () => {
-        console.warn("⚠️ refreshUserProfile called outside AuthProvider");
-      },
-    };
+    throw new Error("useAuth must be used within AuthProvider");
   }
-  
   return context;
 }
