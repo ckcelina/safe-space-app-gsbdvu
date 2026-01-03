@@ -8,6 +8,7 @@
     "icon": "./assets/images/natively-dark.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "platforms": ["ios", "android", "web"],
     "splash": {
       "image": "./assets/images/natively-dark.png",
       "resizeMode": "contain",
@@ -28,10 +29,14 @@
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively"
     },
-    "platforms": ["ios", "android"],
+    "web": {
+      "favicon": "./assets/images/final_quest_240x240.png",
+      "bundler": "metro"
+    },
     "plugins": [
       "expo-font",
-      "expo-router"
+      "expo-router",
+      "expo-web-browser"
     ],
     "scheme": "natively",
     "experiments": {
