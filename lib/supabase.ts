@@ -1,194 +1,189 @@
 
-import 'react-native-url-polyfill/auto';
+/**
+ * Supabase Client Configuration
+ * 
+ * Reads configuration in priority order:
+ * 1. EXPO_PUBLIC_* environment variables (preferred)
+ * 2. Constants.expoConfig.extra (from app.config.ts)
+ * 3. Constants.manifest.extra (legacy Expo)
+ * 
+ * Gracefully handles missing configuration without crashing.
+ */
+
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Global singleton instance - survives hot reloads
-let supabaseInstance: SupabaseClient | null = null;
-let isInitializing = false;
-
-// Secure storage adapter for auth tokens
-// Platform-specific: SecureStore for native, localStorage for web
+// Storage adapter for Supabase auth
 const ExpoSecureStoreAdapter = {
-  getItem: async (key: string): Promise<string | null> => {
-    try {
-      if (Platform.OS === 'web') {
-        return localStorage.getItem(key);
-      }
-      return await SecureStore.getItemAsync(key);
-    } catch (error) {
-      console.error(`[SecureStore] getItem error for key ${key}:`, error);
-      return null;
+  getItem: (key: string) => {
+    if (Platform.OS === 'web') {
+      return AsyncStorage.getItem(key);
     }
+    return SecureStore.getItemAsync(key);
   },
-  setItem: async (key: string, value: string): Promise<void> => {
-    try {
-      if (Platform.OS === 'web') {
-        localStorage.setItem(key, value);
-        return;
-      }
-      await SecureStore.setItemAsync(key, value);
-    } catch (error) {
-      console.error(`[SecureStore] setItem error for key ${key}:`, error);
+  setItem: (key: string, value: string) => {
+    if (Platform.OS === 'web') {
+      return AsyncStorage.setItem(key, value);
     }
+    return SecureStore.setItemAsync(key, value);
   },
-  removeItem: async (key: string): Promise<void> => {
-    try {
-      if (Platform.OS === 'web') {
-        localStorage.removeItem(key);
-        return;
-      }
-      await SecureStore.deleteItemAsync(key);
-    } catch (error) {
-      console.error(`[SecureStore] removeItem error for key ${key}:`, error);
+  removeItem: (key: string) => {
+    if (Platform.OS === 'web') {
+      return AsyncStorage.removeItem(key);
     }
+    return SecureStore.deleteItemAsync(key);
   },
 };
 
 /**
+ * Get Supabase configuration with fallbacks
+ */
+function getSupabaseConfig(): { url: string; anonKey: string } {
+  // Priority 1: EXPO_PUBLIC environment variables
+  const envUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const envKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (envUrl && envKey) {
+    return { url: envUrl, anonKey: envKey };
+  }
+
+  // Priority 2: expo.extra from app.config.ts
+  const extraUrl = Constants.expoConfig?.extra?.supabaseUrl;
+  const extraKey = Constants.expoConfig?.extra?.supabaseAnonKey;
+  
+  if (extraUrl && extraKey) {
+    return { url: extraUrl, anonKey: extraKey };
+  }
+
+  // Priority 3: Legacy manifest.extra
+  const manifestUrl = Constants.manifest?.extra?.supabaseUrl;
+  const manifestKey = Constants.manifest?.extra?.supabaseAnonKey;
+  
+  if (manifestUrl && manifestKey) {
+    return { url: manifestUrl, anonKey: manifestKey };
+  }
+
+  // No configuration found
+  if (__DEV__) {
+    console.warn(
+      '⚠️ Supabase configuration missing!\n' +
+      'Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY\n' +
+      'in your .env file or app.config.ts'
+    );
+  }
+
+  return { url: '', anonKey: '' };
+}
+
+/**
+ * Check if Supabase is properly configured
+ */
+export function isSupabaseConfigured(): boolean {
+  const config = getSupabaseConfig();
+  return !!config.url && !!config.anonKey && config.url.length > 0 && config.anonKey.length > 0;
+}
+
+/**
+ * Get configuration error message for UI display
+ */
+export function getSupabaseConfigError(): string | null {
+  if (isSupabaseConfigured()) {
+    return null;
+  }
+  
+  if (__DEV__) {
+    return 'Supabase not configured. Please add credentials to .env file.';
+  }
+  
+  return 'App configuration error. Please contact support.';
+}
+
+// Initialize Supabase client with lazy loading
+let supabaseInstance: SupabaseClient | null = null;
+
+function createSupabaseClient(): SupabaseClient {
+  const config = getSupabaseConfig();
+  
+  // Use placeholder values if not configured to prevent crashes
+  const url = config.url || 'https://placeholder.supabase.co';
+  const anonKey = config.anonKey || 'placeholder-key';
+  
+  return createClient(url, anonKey, {
+    auth: {
+      storage: ExpoSecureStoreAdapter,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  });
+}
+
+/**
  * Get Supabase client instance (singleton)
- * Safe to call multiple times - always returns same instance
- * Survives hot reloads, re-renders, and provider re-mounts
+ * Creates client on first access
  */
 function getSupabaseClient(): SupabaseClient {
-  // Return existing instance if already created
-  if (supabaseInstance) {
-    if (__DEV__) {
-      console.log('♻️ Reusing existing Supabase client instance');
-    }
-    return supabaseInstance;
+  if (!supabaseInstance) {
+    supabaseInstance = createSupabaseClient();
   }
-
-  // Prevent concurrent initialization
-  if (isInitializing) {
-    if (__DEV__) {
-      console.warn('⏳ Supabase client is initializing. Waiting...');
-    }
-    // Wait for initialization to complete instead of throwing
-    // This prevents crashes during hot reload
-    const maxWaitTime = 5000; // 5 seconds
-    const startTime = Date.now();
-    while (isInitializing && Date.now() - startTime < maxWaitTime) {
-      // Busy wait (not ideal but safe for initialization)
-    }
-    if (supabaseInstance) {
-      return supabaseInstance;
-    }
-    // If still not ready, fall through to create new instance
-  }
-
-  isInitializing = true;
-
-  try {
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-
-    // Validate environment variables
-    if (!supabaseUrl || !supabaseAnonKey) {
-      if (__DEV__) {
-        console.warn(
-          '⚠️ Supabase credentials missing. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY'
-        );
-      }
-      // Return a placeholder to prevent crashes - auth will fail gracefully
-      supabaseInstance = createClient('https://placeholder.supabase.co', 'placeholder-key', {
-        auth: { persistSession: false },
-      });
-      return supabaseInstance;
-    }
-
-    // Create singleton instance ONCE with proper auth configuration
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        storage: ExpoSecureStoreAdapter,
-        autoRefreshToken: true, // ✅ Auto-refresh tokens
-        persistSession: true,   // ✅ Persist session across app restarts
-        detectSessionInUrl: false, // Not needed for mobile
-      },
-    });
-
-    if (__DEV__) {
-      console.log('✅ Supabase client initialized with persistent auth storage');
-    }
-
-    return supabaseInstance;
-  } catch (error) {
-    if (__DEV__) {
-      console.error('❌ Failed to initialize Supabase client:', error);
-    }
-    // Create a fallback instance to prevent crashes
-    supabaseInstance = createClient('https://placeholder.supabase.co', 'placeholder-key', {
-      auth: { persistSession: false },
-    });
-    return supabaseInstance;
-  } finally {
-    isInitializing = false;
-  }
+  return supabaseInstance;
 }
 
-/**
- * Get the Supabase client instance
- * This is the main export - use this everywhere
- * Lazy initialization ensures singleton is created only once
- */
-export function getSupabase(): SupabaseClient {
-  return getSupabaseClient();
-}
-
-/**
- * Export singleton instance for backward compatibility
- * This now uses lazy initialization via getter
- */
-let _cachedSupabase: SupabaseClient | null = null;
-
+// Export a Proxy that lazily initializes the client
 export const supabase = new Proxy({} as SupabaseClient, {
   get(target, prop) {
-    // Lazy initialize on first access
-    if (!_cachedSupabase) {
-      _cachedSupabase = getSupabaseClient();
+    const client = getSupabaseClient();
+    const value = client[prop as keyof SupabaseClient];
+    
+    // Bind methods to the client instance
+    if (typeof value === 'function') {
+      return value.bind(client);
     }
-    return (_cachedSupabase as any)[prop];
+    
+    return value;
   },
 });
 
 /**
- * Check if Supabase client is ready
- * Use this before making auth-dependent calls
+ * Get backend URL with fallbacks
  */
-export function isSupabaseReady(): boolean {
-  return supabaseInstance !== null && !isInitializing;
-}
-
-/**
- * Wait for Supabase client to be ready
- * Returns a promise that resolves when client is initialized
- */
-export async function waitForSupabase(timeoutMs: number = 5000): Promise<SupabaseClient> {
-  const startTime = Date.now();
-  
-  while (!isSupabaseReady() && Date.now() - startTime < timeoutMs) {
-    await new Promise(resolve => setTimeout(resolve, 100));
+export function getBackendUrl(): string {
+  // Priority 1: EXPO_PUBLIC environment variable
+  const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  if (envUrl) {
+    return envUrl;
   }
-  
-  if (!isSupabaseReady()) {
-    if (__DEV__) {
-      console.warn('⚠️ Supabase client not ready after timeout, returning instance anyway');
-    }
-  }
-  
-  return getSupabaseClient();
-}
 
-/**
- * Reset Supabase instance (for testing only)
- * DO NOT use in production code
- */
-export function __resetSupabaseInstance(): void {
+  // Priority 2: expo.extra from app.config.ts
+  const extraUrl = Constants.expoConfig?.extra?.backendUrl;
+  if (extraUrl) {
+    return extraUrl;
+  }
+
+  // Priority 3: Legacy manifest.extra
+  const manifestUrl = Constants.manifest?.extra?.backendUrl;
+  if (manifestUrl) {
+    return manifestUrl;
+  }
+
+  // No configuration found
   if (__DEV__) {
-    console.log('🔄 Resetting Supabase instance (dev only)');
-    supabaseInstance = null;
-    _cachedSupabase = null;
-    isInitializing = false;
+    console.warn(
+      '⚠️ Backend URL not configured!\n' +
+      'Set EXPO_PUBLIC_BACKEND_URL in .env or app.config.ts'
+    );
   }
+
+  return '';
+}
+
+/**
+ * Check if backend is configured
+ */
+export function isBackendConfigured(): boolean {
+  const url = getBackendUrl();
+  return !!url && url.length > 0;
 }

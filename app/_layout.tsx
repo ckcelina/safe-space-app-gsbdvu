@@ -19,9 +19,15 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider as CustomThemeProvider } from "@/contexts/ThemeContext";
 import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
 import { WidgetProvider } from "@/contexts/WidgetContext";
+import { logConfigStatus } from "@/utils/configVerification";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+// Log configuration status on startup (dev only)
+if (__DEV__) {
+  logConfigStatus();
+}
 
 export const unstable_settings = {
   initialRouteName: "(tabs)",

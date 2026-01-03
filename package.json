@@ -29,6 +29,7 @@
     "@types/difflib": "^0.2.7",
     "date-fns": "^4.1.0",
     "difflib": "^0.2.4",
+    "dotenv": "^17.2.3",
     "eas": "^0.1.0",
     "expo": "~54.0.1",
     "expo-apple-authentication": "^8.0.8",
