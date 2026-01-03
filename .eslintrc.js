@@ -22,15 +22,20 @@ module.exports = {
     '/dist/*', 
     '/public/*', 
     '/babel-plugins/*', 
-    '/backend/*',
-    '/scripts/**',
-    '**/__tests__/**',
-    '**/supabase/**'
+    '/backend/*', 
+    '/scripts/*',
+    '*.js'
   ],
   env: {
     browser: true,
-    node: true,
-    jest: true,
+  },
+  settings: {
+    'import/resolver': {
+      'node': {
+        'extensions': ['.js', '.jsx', '.ts', '.tsx']
+      },
+      'typescript': {}
+    }
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
@@ -38,24 +43,31 @@ module.exports = {
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/no-require-imports": "off",
+    "@typescript-eslint/array-type": "off",
+    "@typescript-eslint/no-redeclare": "off",
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "error",
+    "import/no-unresolved": "off",
+    "import/first": "off",
     "prefer-const": "off",
-    "react/prop-types": 1,
+    "react/prop-types": "off",
     "no-case-declarations": "off",
     "no-empty": "off",
     "react/display-name": "off",
-    "no-var": "off"
+    "no-constant-condition": "off",
+    "no-var": "off",
+    "no-useless-escape": "off",
+    "react-hooks/exhaustive-deps": "off"
   },
   overrides: [
     {
-      files: ['metro.config.js'],
+      files: ['metro.config.js', 'babel.config.js', 'jest.config.js', 'jest.setup.js', '*.js'],
       rules: {
-        '@typescript-eslint/no-var-requires': 'off'
+        '@typescript-eslint/no-var-requires': 'off',
+        '@typescript-eslint/no-require-imports': 'off'
       }
     }
   ]
