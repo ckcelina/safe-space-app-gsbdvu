@@ -30,10 +30,6 @@
       "package": "com.anonymous.Natively",
       "softwareKeyboardLayoutMode": "resize"
     },
-    "web": {
-      "favicon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
-      "bundler": "metro"
-    },
     "plugins": [
       "expo-font",
       "expo-router",
