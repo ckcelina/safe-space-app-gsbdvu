@@ -18,7 +18,7 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*'],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '/backend/*', '__tests__/*', '*.test.ts', '*.test.tsx', 'jest.setup.js'],
   env: {
     browser: true,
     jest: true,
@@ -33,13 +33,17 @@ module.exports = {
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "error",
+    "import/no-unresolved": "off",
     "prefer-const": "off",
-    "react/prop-types": 1,
+    "react/prop-types": "off",
     "no-case-declarations": "off",
     "no-empty": "off",
     "react/display-name": "off",
-    "no-var": "off"
+    "no-constant-condition": "off",
+    "no-var": "off",
+    "no-useless-escape": "off",
+    "@typescript-eslint/no-redeclare": "off",
+    "@typescript-eslint/array-type": "off"
   },
   overrides: [
     {

@@ -16,7 +16,3 @@ __tests__/
 *.test.ts
 *.test.tsx
 jest.setup.js
-
-# Ignore Supabase edge functions (Deno environment)
-supabase/
-supabase-edge-function-example.ts
