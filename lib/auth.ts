@@ -1,81 +1,15 @@
 
 /**
- * BetterAuth Client Configuration Template
- *
- * This template provides a ready-to-use BetterAuth client with:
- * - Platform-specific storage (localStorage for web, SecureStore for native)
- * - Bearer token handling for web to avoid cross-origin issues
- * - Expo client plugin for deep linking
- *
- * Usage:
- * 1. Replace YOUR_BACKEND_URL with actual backend URL
- * 2. Replace your-app-scheme with actual app scheme
- * 3. Replace your-app with actual app name/prefix
- * 4. Import and use authClient in your components
+ * Auth placeholder - not currently used
+ * This app uses Supabase authentication instead
  */
 
-import { createAuthClient } from "better-auth/react";
-import { expoClient } from "@better-auth/expo/client";
-import * as SecureStore from "expo-secure-store";
-import { Platform } from "react-native";
-import Constants from "expo-constants";
+export const authClient = null;
 
-// Backend URL is automatically configured in app.json under expo.extra.backendUrl
-// Supports environment variable override via EXPO_PUBLIC_BACKEND_URL
-// For Supabase-based apps, this may be empty since they use Supabase Auth directly
-const API_URL = 
-  process.env.EXPO_PUBLIC_BACKEND_URL || 
-  Constants.expoConfig?.extra?.backendUrl || 
-  "";
-
-const BEARER_TOKEN_KEY = "your-app_bearer_token"; // TODO: Replace "your-app" with actual app name
-
-// Platform-specific storage adapter
-const storage = Platform.OS === "web"
-  ? {
-      getItem: (key: string) => localStorage.getItem(key),
-      setItem: (key: string, value: string) => localStorage.setItem(key, value),
-      deleteItem: (key: string) => localStorage.removeItem(key),
-    }
-  : SecureStore;
-
-// Only create auth client if API_URL is configured
-// For Supabase-based apps, this may not be needed
-export const authClient = API_URL ? createAuthClient({
-  baseURL: API_URL,
-  plugins: [
-    expoClient({
-      scheme: "your-app-scheme", // TODO: Replace with actual scheme
-      storagePrefix: "your-app", // TODO: Replace with actual app prefix
-      storage,
-    }),
-  ],
-  // Web-specific configuration to handle bearer tokens
-  ...(Platform.OS === "web" && {
-    fetchOptions: {
-      auth: {
-        type: "Bearer" as const,
-        token: () => localStorage.getItem(BEARER_TOKEN_KEY) || "",
-      },
-    },
-  }),
-}) : null;
-
-/**
- * Store bearer token for web authentication
- * This is required for the popup-based OAuth flow on web
- */
 export function storeWebBearerToken(token: string) {
-  if (Platform.OS === "web") {
-    localStorage.setItem(BEARER_TOKEN_KEY, token);
-  }
+  // Placeholder - not used in this app
 }
 
-/**
- * Clear stored authentication tokens
- */
 export function clearAuthTokens() {
-  if (Platform.OS === "web") {
-    localStorage.removeItem(BEARER_TOKEN_KEY);
-  }
+  // Placeholder - not used in this app
 }
