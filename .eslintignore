@@ -16,11 +16,3 @@ supabase-edge-function-example.ts
 
 # Ignore Supabase Edge Functions (Deno runtime, different module resolution)
 supabase/functions/
-
-# Ignore scripts with shebangs
-scripts/
-scripts/*.js
-scripts/**/*.js
-
-# Ignore Jest setup file
-jest.setup.js

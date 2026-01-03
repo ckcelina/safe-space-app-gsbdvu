@@ -1,4 +1,3 @@
-
 // https://docs.expo.dev/guides/using-eslint/
 module.exports = {
   extends: [
@@ -18,25 +17,15 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: [
-    '/dist/*', 
-    '/public/*', 
-    '/babel-plugins/*', 
-    '/backend/*', 
-    'jest.setup.js',
-    'scripts/*.js'
-  ],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*'],
   env: {
     browser: true,
-    jest: true,
-    node: true,
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
-    "@typescript-eslint/no-require-imports": "off",
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
@@ -48,28 +37,13 @@ module.exports = {
     "no-case-declarations": "off",
     "no-empty": "off",
     "react/display-name": "off",
-    "no-constant-condition": "off",
-    "no-var": "off",
-    "no-useless-escape": "off",
-    "react-hooks/exhaustive-deps": "warn"
+    "no-var": "off"
   },
   overrides: [
     {
-      files: ['metro.config.js', 'jest.setup.js', 'scripts/*.js', 'scripts/**/*.js'],
-      env: {
-        node: true,
-        jest: true
-      },
+      files: ['metro.config.js'],
       rules: {
-        '@typescript-eslint/no-var-requires': 'off',
-        '@typescript-eslint/no-require-imports': 'off',
-        'no-undef': 'off'
-      }
-    },
-    {
-      files: ['app/_layout.tsx', 'app/**/_layout.tsx'],
-      rules: {
-        '@typescript-eslint/no-require-imports': 'off'
+        '@typescript-eslint/no-var-requires': 'off'
       }
     }
   ]
