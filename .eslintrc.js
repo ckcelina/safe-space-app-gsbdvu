@@ -17,7 +17,7 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '__tests__/*', '*.test.ts', '*.test.tsx', 'jest.config.js', 'jest.setup.js'],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '__tests__/**', '**/*.test.ts', '**/*.test.tsx', '**/jest.config.js', '**/jest.setup.js'],
   env: {
     browser: true,
     jest: true,
@@ -36,6 +36,7 @@ module.exports = {
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/no-require-imports": "off",
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
