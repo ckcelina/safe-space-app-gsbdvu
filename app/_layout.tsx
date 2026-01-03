@@ -18,7 +18,6 @@ const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
 if (SENTRY_DSN) {
   Sentry.init({
     dsn: SENTRY_DSN,
-    enableInExpoDevelopment: false, // Don't send dev errors to Sentry
     debug: __DEV__, // Enable debug logs in development
     tracesSampleRate: 0.2, // 20% of transactions for performance monitoring
     beforeSend(event) {
