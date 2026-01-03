@@ -11,8 +11,12 @@ node_modules/
 *.bundle.js
 *.bundle.js.map
 
-# Ignore example/template files
-supabase-edge-function-example.ts
+# Ignore test files
+__tests__/
+*.test.ts
+*.test.tsx
+jest.setup.js
 
-# Ignore Supabase Edge Functions (Deno runtime, different module resolution)
-supabase/functions/
+# Ignore Supabase edge functions (Deno environment)
+supabase/
+supabase-edge-function-example.ts
