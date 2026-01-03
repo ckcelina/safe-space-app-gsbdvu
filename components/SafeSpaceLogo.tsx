@@ -54,12 +54,12 @@ export function SafeSpaceLogo({ size, color, useGradient = false, themeKey: expl
   
   // Use explicit theme key if provided, otherwise use context theme key
   const activeThemeKey = explicitThemeKey || contextThemeKey;
-  
+
   // Responsive sizing: default to 10% of screen width, clamped between 48 and 120
   const responsiveSize = size || Math.min(Math.max(SCREEN_WIDTH * 0.1, 48), 120);
-  
+
   const finalColor = color || theme.primary;
-  const gradient = themeGradients[activeThemeKey];
+  const gradient = themeGradients[activeThemeKey] || themeGradients['OceanBlue'];
   const iconSize = responsiveSize * 0.6; // Icon is 60% of container size
 
   if (useGradient) {
