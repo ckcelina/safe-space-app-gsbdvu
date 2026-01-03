@@ -22,6 +22,7 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Sentry from '@sentry/react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { useUserPreferences } from '@/contexts/UserPreferencesContext';
@@ -466,12 +467,15 @@ export default function ChatScreen() {
       setError(null);
       console.log('[Chat] Loading messages for person:', personId, 'user:', authUser.id);
 
+      // OPTIMIZATION: Load only the last 100 messages for better performance
+      // Messages are fetched in descending order then reversed for display
       const { data, error } = await supabase
         .from('messages')
         .select('*')
         .eq('person_id', personId)
         .eq('user_id', authUser.id)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (error) {
         if (__DEV__) {
@@ -484,9 +488,12 @@ export default function ChatScreen() {
       }
 
       console.log('[Chat] Messages loaded:', data?.length || 0);
-      
+
+      // Reverse messages to show oldest first (since we fetched in DESC order)
+      const reversedData = data ? [...data].reverse() : [];
+
       const therapistMeta = getCurrentTherapistMetadata();
-      const messagesWithMetadata: ExtendedMessage[] = (data ?? []).map((msg) => {
+      const messagesWithMetadata: ExtendedMessage[] = reversedData.map((msg) => {
         if (msg.role === 'assistant') {
           return {
             ...msg,
@@ -1034,18 +1041,32 @@ export default function ChatScreen() {
       // Check if the Edge Function returned an error in the response body
       if (data.ok === false || data.error) {
         console.error('[Chat] ⚠️ Edge Function returned error:', data.error);
-        
+
+        // Track AI errors in Sentry for monitoring
+        Sentry.captureException(new Error('AI Edge Function Error'), {
+          level: 'error',
+          tags: {
+            errorType: 'ai_response',
+            errorCode: data.error?.code || 'UNKNOWN',
+          },
+          extra: {
+            personId,
+            userId: authUser?.id,
+            errorDetails: data.error,
+          },
+        });
+
         let userErrorMessage = "I'm having trouble responding right now. Please try again.";
-        
-        // Handle specific error codes
+
+        // Handle specific error codes with user-friendly messages
         if (data.error?.code === 'UNAUTHORIZED') {
-          userErrorMessage = "Your session has expired. Please log in again.";
+          userErrorMessage = "Your session has expired. Redirecting to login...";
           setTimeout(() => {
             router.replace('/login');
           }, 2000);
         } else if (data.error?.code === 'MISSING_API_KEY' || data.error?.code === 'INVALID_API_KEY_FORMAT') {
-          userErrorMessage = "⚠️ AI service configuration error. The administrator needs to set up the OpenAI API key in Supabase.";
-          
+          userErrorMessage = "Our AI assistant is temporarily unavailable. We've been notified and are working on it!";
+
           // Show more detailed error in dev mode
           if (__DEV__) {
             console.error('[Chat] 🔑 OpenAI API Key Error:', data.error);
@@ -1056,14 +1077,19 @@ export default function ChatScreen() {
             console.error('[Chat]    4. Add/Update OPENAI_API_KEY');
           }
         } else if (data.error?.code === 'OPENAI_AUTH_ERROR') {
-          userErrorMessage = "⚠️ The OpenAI API key is invalid or expired. Please contact support to update it.";
-          
+          userErrorMessage = "We're having trouble connecting to our AI service. Our team has been notified!";
+
           if (__DEV__) {
             console.error('[Chat] 🔑 OpenAI Authentication Failed');
             console.error('[Chat] The API key in Supabase is incorrect or expired');
             console.error('[Chat] Error details:', data.error);
           }
+        } else if (data.error?.code === 'RATE_LIMIT_EXCEEDED') {
+          userErrorMessage = "You're sending messages a bit too fast. Take a breath and try again in a moment. 😊";
+        } else if (data.error?.code === 'TIMEOUT') {
+          userErrorMessage = "That took longer than expected. Mind trying again?";
         } else if (data.error?.message) {
+          // Use the error message from the server, but make it friendlier if possible
           userErrorMessage = data.error.message;
         }
 
