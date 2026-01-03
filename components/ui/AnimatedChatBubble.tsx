@@ -34,8 +34,9 @@ export const AnimatedChatBubble: React.FC<AnimatedChatBubbleProps> = ({
     ]).start();
   }, []);
 
-  const parsedDate = safeParseDate(timestamp);
-  const formattedTime = safeFormatDate(parsedDate, 'h:mm a');
+  // Safely parse and format the timestamp
+  // If timestamp is invalid, formattedTime will be an empty string
+  const formattedTime = safeFormatDate(timestamp, 'h:mm a', '');
 
   const isUser = sender === 'user';
 
