@@ -3,7 +3,7 @@
   "expo": {
     "name": "Natively",
     "slug": "Natively",
-    "version": "1.0.1",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
     "userInterfaceStyle": "automatic",
@@ -32,11 +32,9 @@
       "favicon": "./assets/images/final_quest_240x240.png",
       "bundler": "metro"
     },
-    "platforms": ["ios", "android", "web"],
     "plugins": [
       "expo-font",
-      "expo-router",
-      "expo-web-browser"
+      "expo-router"
     ],
     "scheme": "natively",
     "experiments": {
