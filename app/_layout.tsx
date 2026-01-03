@@ -91,6 +91,30 @@ export default function RootLayout() {
               <WidgetProvider>
                 <Stack>
                   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen 
+                    name="onboarding" 
+                    options={{ headerShown: false }} 
+                  />
+                  <Stack.Screen 
+                    name="login" 
+                    options={{ headerShown: false }} 
+                  />
+                  <Stack.Screen 
+                    name="signup" 
+                    options={{ headerShown: false }} 
+                  />
+                  <Stack.Screen 
+                    name="theme-selection" 
+                    options={{ headerShown: false }} 
+                  />
+                  <Stack.Screen 
+                    name="forgot-password" 
+                    options={{ headerShown: false }} 
+                  />
+                  <Stack.Screen 
+                    name="reset-password" 
+                    options={{ headerShown: false }} 
+                  />
                   <Stack.Screen
                     name="modal"
                     options={{

@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Dimensions, ScrollView, TouchableOpacity, Alert
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { SafeSpaceTitle } from '@/components/ui/SafeSpaceText';
 import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
@@ -249,6 +250,7 @@ export default function LoginScreen() {
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
     >
+      <StatusBar style="light" translucent backgroundColor="transparent" />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <KeyboardAvoider>
           <ScrollView
@@ -297,7 +299,7 @@ export default function LoginScreen() {
                     <Ionicons
                       name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={24}
-                      color={theme.textSecondary}
+                      color={theme.buttonText}
                     />
                   </TouchableOpacity>
                 </View>
