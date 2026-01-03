@@ -18,10 +18,11 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '/backend/*', '__tests__/*', '*.test.ts', '*.test.tsx', 'jest.setup.js'],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '/backend/*'],
   env: {
     browser: true,
-    jest: true,
+    node: true,
+    es2021: true,
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
@@ -33,17 +34,15 @@ module.exports = {
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "off",
+    "import/no-unresolved": "off", // Turned off - Metro handles resolution
     "prefer-const": "off",
-    "react/prop-types": "off",
+    "react/prop-types": 1,
     "no-case-declarations": "off",
     "no-empty": "off",
     "react/display-name": "off",
     "no-constant-condition": "off",
     "no-var": "off",
-    "no-useless-escape": "off",
-    "@typescript-eslint/no-redeclare": "off",
-    "@typescript-eslint/array-type": "off"
+    "no-useless-escape": "off"
   },
   overrides: [
     {
