@@ -373,40 +373,6 @@ Deno.serve(async (req) => {
     console.log(`[Edge][Chat][${requestId}] Validated inputs - userId: ${userId}, personId: ${personId}, messages: ${messages.length}`);
 
     // ═══════════════════════════════════════════════════════════════════
-    // RATE LIMITING - Prevent API abuse and control costs
-    // ═══════════════════════════════════════════════════════════════════
-    console.log(`[Edge][Chat][${requestId}] Checking rate limits...`);
-
-    const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
-    const { data: recentMessages, error: rateLimitError } = await supabase
-      .from('messages')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('role', 'user')
-      .gte('created_at', oneMinuteAgo);
-
-    if (rateLimitError) {
-      console.warn(`[Edge][Chat][${requestId}] Rate limit check failed:`, rateLimitError.message);
-      // Continue anyway - don't block on rate limit check failure
-    } else if (recentMessages && recentMessages.length > 15) {
-      clearTimeout(functionTimeoutId);
-      console.warn(`[Edge][Chat][${requestId}] Rate limit exceeded: ${recentMessages.length} messages in last minute`);
-      return createErrorResponse(
-        "RATE_LIMIT_EXCEEDED",
-        "You're sending messages too quickly. Please wait a moment and try again.",
-        {
-          limit: 15,
-          window: '1 minute',
-          current: recentMessages.length
-        },
-        requestId,
-        timestamp
-      );
-    }
-
-    console.log(`[Edge][Chat][${requestId}] Rate limit check passed (${recentMessages?.length || 0}/15 messages in last minute)`);
-
-    // ═══════════════════════════════════════════════════════════════════
     // GET THERAPIST PERSONA - DR. ELIAS IS DEFAULT
     // ═══════════════════════════════════════════════════════════════════
     const personaId = therapistPersonaId || DEFAULT_PERSONA_ID;

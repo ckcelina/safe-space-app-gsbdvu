@@ -2,40 +2,12 @@
 import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import * as Sentry from '@sentry/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext';
 import { WidgetProvider } from '@/contexts/WidgetContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { prefetchAllAvatars } from '@/lib/avatarPrefetch';
-
-// ═══════════════════════════════════════════════════════════════════
-// SENTRY ERROR TRACKING - Initialize before anything else
-// ═══════════════════════════════════════════════════════════════════
-const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
-
-if (SENTRY_DSN) {
-  Sentry.init({
-    dsn: SENTRY_DSN,
-    enableInExpoDevelopment: false, // Don't send dev errors to Sentry
-    debug: __DEV__, // Enable debug logs in development
-    tracesSampleRate: 0.2, // 20% of transactions for performance monitoring
-    beforeSend(event) {
-      // Don't send events in development
-      if (__DEV__) {
-        console.log('[Sentry] Would send error:', event);
-        return null;
-      }
-      return event;
-    },
-  });
-  console.log('[Sentry] Error tracking initialized');
-} else {
-  if (__DEV__) {
-    console.log('[Sentry] DSN not configured - error tracking disabled');
-  }
-}
 
 export default function RootLayout() {
   // Prefetch all therapist avatars on app start
