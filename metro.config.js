@@ -5,45 +5,76 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-config.resolver.unstable_enablePackageExports = true;
+// ============================================================================
+// EXPO SERVER STABILITY CONFIGURATION
+// ============================================================================
+// This configuration ensures maximum stability and reliability for the
+// Metro bundler and Expo development server.
+// ============================================================================
 
-// Enhanced caching with persistent file store
+// Use file-based cache for better stability
 config.cacheStores = [
   new FileStore({ 
-    root: path.join(__dirname, 'node_modules', '.cache', 'metro'),
+    root: path.join(__dirname, 'node_modules', '.cache', 'metro') 
   }),
 ];
 
-// Optimize performance
+// Increase cache version to force fresh builds when needed
+config.cacheVersion = '1.0';
+
+// Configure resolver for better stability
+config.resolver = {
+  ...config.resolver,
+  // Disable package exports if causing issues (can be enabled if needed)
+  unstable_enablePackageExports: true,
+  // Add source extensions for better resolution
+  sourceExts: [
+    ...(config.resolver?.sourceExts || []),
+  ],
+};
+
+// Configure transformer for better error handling
 config.transformer = {
   ...config.transformer,
+  // Enable inline requires for better performance
+  inlineRequires: true,
+  // Minify code in production
   minifierConfig: {
-    keep_classnames: true,
-    keep_fnames: true,
-    mangle: {
-      keep_classnames: true,
-      keep_fnames: true,
-    },
+    ...config.transformer?.minifierConfig,
   },
 };
 
-// Increase stability with better error handling
+// Configure server for better stability
 config.server = {
   ...config.server,
+  // Increase timeout for slow connections
   enhanceMiddleware: (middleware) => {
     return (req, res, next) => {
-      try {
-        return middleware(req, res, next);
-      } catch (error) {
-        console.error('Metro middleware error:', error);
-        next();
+      // Set longer timeout for requests
+      req.setTimeout(60000); // 60 seconds
+      res.setTimeout(60000); // 60 seconds
+      
+      // Log requests in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Metro] ${req.method} ${req.url}`);
       }
+      
+      return middleware(req, res, next);
     };
   },
 };
 
-// Watch options for better file monitoring
-config.watchFolders = [__dirname];
-config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs', 'cjs'];
+// Configure watcher for better file watching
+config.watchFolders = [
+  ...(config.watchFolders || []),
+  // Add any additional folders to watch
+];
+
+// Log configuration in development
+if (process.env.NODE_ENV === 'development') {
+  console.log('[Metro] Configuration loaded successfully');
+  console.log('[Metro] Cache directory:', path.join(__dirname, 'node_modules', '.cache', 'metro'));
+  console.log('[Metro] Package exports enabled:', config.resolver.unstable_enablePackageExports);
+}
 
 module.exports = config;

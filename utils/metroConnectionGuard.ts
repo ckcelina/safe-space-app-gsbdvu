@@ -4,28 +4,20 @@
  * 
  * Provides automatic recovery and connection stability for Metro bundler.
  * Implements best practices from Expo documentation to prevent connection issues.
- * 
- * Features:
- * - Automatic retry with exponential backoff
- * - Connection health monitoring
- * - Error pattern detection
- * - Recovery strategies
  */
 
 import { Platform } from 'react-native';
 
 interface MetroConnectionConfig {
   maxRetries: number;
-  initialRetryDelay: number;
-  maxRetryDelay: number;
+  retryDelay: number;
   healthCheckInterval: number;
   enableAutoRecovery: boolean;
 }
 
 const DEFAULT_CONFIG: MetroConnectionConfig = {
-  maxRetries: 5,
-  initialRetryDelay: 1000,
-  maxRetryDelay: 30000,
+  maxRetries: 3,
+  retryDelay: 2000,
   healthCheckInterval: 30000,
   enableAutoRecovery: true,
 };
@@ -35,41 +27,17 @@ class MetroConnectionGuard {
   private connectionAttempts: number = 0;
   private lastSuccessfulConnection: Date | null = null;
   private isRecovering: boolean = false;
-  private errorPatterns: Map<string, number> = new Map();
-  private recoveryStrategies: Map<string, () => void> = new Map();
 
   constructor(config: Partial<MetroConnectionConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     console.log('[MetroGuard] Initialized with config:', this.config);
-    this.setupRecoveryStrategies();
-  }
-
-  /**
-   * Set up recovery strategies for different error types
-   */
-  private setupRecoveryStrategies(): void {
-    this.recoveryStrategies.set('ECONNREFUSED', () => {
-      console.log('[MetroGuard] 🔧 Recovery: Connection refused - Metro may need restart');
-    });
-
-    this.recoveryStrategies.set('ETIMEDOUT', () => {
-      console.log('[MetroGuard] 🔧 Recovery: Connection timeout - checking network');
-    });
-
-    this.recoveryStrategies.set('ENOTFOUND', () => {
-      console.log('[MetroGuard] 🔧 Recovery: Host not found - checking DNS');
-    });
-
-    this.recoveryStrategies.set('NETWORK_ERROR', () => {
-      console.log('[MetroGuard] 🔧 Recovery: Network error - waiting for connection');
-    });
   }
 
   /**
    * Initialize connection guard
    */
   async initialize(): Promise<void> {
-    console.log('[MetroGuard] 🚀 Starting Metro connection guard...');
+    console.log('[MetroGuard] Starting Metro connection guard...');
     console.log('[MetroGuard] Platform:', Platform.OS);
     console.log('[MetroGuard] Environment:', __DEV__ ? 'development' : 'production');
 
@@ -94,25 +62,7 @@ class MetroConnectionGuard {
       platform: Platform.OS,
       isDev: __DEV__,
       timestamp: new Date().toISOString(),
-      attempts: this.connectionAttempts,
-      lastSuccess: this.lastSuccessfulConnection?.toISOString() || 'never',
     });
-  }
-
-  /**
-   * Detect error pattern
-   */
-  private detectErrorPattern(error: Error): string | null {
-    const message = error.message.toLowerCase();
-
-    if (message.includes('econnrefused')) return 'ECONNREFUSED';
-    if (message.includes('etimedout')) return 'ETIMEDOUT';
-    if (message.includes('enotfound')) return 'ENOTFOUND';
-    if (message.includes('network')) return 'NETWORK_ERROR';
-    if (message.includes('metro')) return 'METRO_ERROR';
-    if (message.includes('bundler')) return 'BUNDLER_ERROR';
-
-    return null;
   }
 
   /**
@@ -120,20 +70,6 @@ class MetroConnectionGuard {
    */
   async handleConnectionError(error: Error): Promise<void> {
     console.log('[MetroGuard] ⚠️ Connection error detected:', error.message);
-
-    // Detect error pattern
-    const pattern = this.detectErrorPattern(error);
-    if (pattern) {
-      const count = (this.errorPatterns.get(pattern) || 0) + 1;
-      this.errorPatterns.set(pattern, count);
-      console.log(`[MetroGuard] Error pattern detected: ${pattern} (count: ${count})`);
-
-      // Execute recovery strategy
-      const strategy = this.recoveryStrategies.get(pattern);
-      if (strategy) {
-        strategy();
-      }
-    }
 
     if (!this.config.enableAutoRecovery) {
       console.log('[MetroGuard] Auto-recovery disabled');
@@ -149,24 +85,17 @@ class MetroConnectionGuard {
     this.connectionAttempts++;
 
     if (this.connectionAttempts > this.config.maxRetries) {
-      console.log('[MetroGuard] ❌ Max retries exceeded');
-      console.log('[MetroGuard] Error patterns:', Array.from(this.errorPatterns.entries()));
+      console.log('[MetroGuard] ❌ Max retries exceeded, giving up');
       this.isRecovering = false;
       return;
     }
 
-    // Calculate delay with exponential backoff
-    const delay = Math.min(
-      this.config.initialRetryDelay * Math.pow(2, this.connectionAttempts - 1),
-      this.config.maxRetryDelay
-    );
-
     console.log(
-      `[MetroGuard] Attempting recovery (${this.connectionAttempts}/${this.config.maxRetries}) in ${delay}ms...`
+      `[MetroGuard] Attempting recovery (${this.connectionAttempts}/${this.config.maxRetries})...`
     );
 
     // Wait before retry
-    await new Promise((resolve) => setTimeout(resolve, delay));
+    await new Promise((resolve) => setTimeout(resolve, this.config.retryDelay));
 
     // Log recovery attempt
     console.log('[MetroGuard] Recovery attempt completed');
@@ -180,7 +109,6 @@ class MetroConnectionGuard {
     this.lastSuccessfulConnection = new Date();
     this.connectionAttempts = 0;
     this.isRecovering = false;
-    this.errorPatterns.clear();
     console.log('[MetroGuard] ✅ Connection marked as successful');
   }
 
@@ -193,22 +121,7 @@ class MetroConnectionGuard {
       connectionAttempts: this.connectionAttempts,
       lastSuccessfulConnection: this.lastSuccessfulConnection,
       maxRetries: this.config.maxRetries,
-      errorPatterns: Array.from(this.errorPatterns.entries()),
-      timeSinceLastSuccess: this.lastSuccessfulConnection
-        ? Date.now() - this.lastSuccessfulConnection.getTime()
-        : null,
     };
-  }
-
-  /**
-   * Reset connection state
-   */
-  reset(): void {
-    console.log('[MetroGuard] Resetting connection state...');
-    this.connectionAttempts = 0;
-    this.isRecovering = false;
-    this.errorPatterns.clear();
-    this.lastSuccessfulConnection = new Date();
   }
 }
 
@@ -223,33 +136,28 @@ export function setupMetroErrorHandler(): void {
     return;
   }
 
-  console.log('[MetroGuard] Setting up global error handler...');
-
   // Handle unhandled promise rejections
-  if (typeof global !== 'undefined') {
-    const originalUnhandledRejection = global.onunhandledrejection;
-    
-    global.onunhandledrejection = (event: any) => {
-      const error = event.reason;
-      
+  const originalHandler = global.Promise.prototype.catch;
+  
+  global.Promise.prototype.catch = function (onRejected) {
+    return originalHandler.call(this, (error: Error) => {
       // Check if it's a Metro connection error
       if (
-        error?.message?.includes('Metro') ||
-        error?.message?.includes('bundler') ||
-        error?.message?.includes('connection') ||
-        error?.message?.includes('ECONNREFUSED') ||
-        error?.message?.includes('ETIMEDOUT')
+        error.message?.includes('Metro') ||
+        error.message?.includes('bundler') ||
+        error.message?.includes('connection')
       ) {
         console.log('[MetroGuard] Caught Metro-related error:', error.message);
         metroConnectionGuard.handleConnectionError(error);
       }
 
       // Call original handler
-      if (originalUnhandledRejection) {
-        originalUnhandledRejection(event);
+      if (onRejected) {
+        return onRejected(error);
       }
-    };
-  }
+      throw error;
+    });
+  };
 
   console.log('[MetroGuard] ✅ Error handler installed');
 }

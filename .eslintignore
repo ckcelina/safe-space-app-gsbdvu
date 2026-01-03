@@ -1,7 +1,18 @@
+
+# Ignore generated files
+_expo/
 dist/
-public/
-babel-plugins/
-backend/
-scripts/
+web-build/
+
+# Ignore node modules
 node_modules/
-.expo/
+
+# Ignore build artifacts
+*.bundle.js
+*.bundle.js.map
+
+# Ignore example/template files
+supabase-edge-function-example.ts
+
+# Ignore Supabase Edge Functions (Deno runtime, different module resolution)
+supabase/functions/

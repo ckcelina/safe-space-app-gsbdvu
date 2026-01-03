@@ -1,4 +1,3 @@
-
 // https://docs.expo.dev/guides/using-eslint/
 module.exports = {
   extends: [
@@ -18,56 +17,33 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: [
-    '/dist/*', 
-    '/public/*', 
-    '/babel-plugins/*', 
-    '/backend/*', 
-    '/scripts/*',
-    '*.js'
-  ],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*'],
   env: {
     browser: true,
-  },
-  settings: {
-    'import/resolver': {
-      'node': {
-        'extensions': ['.js', '.jsx', '.ts', '.tsx']
-      },
-      'typescript': {}
-    }
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
-    "@typescript-eslint/no-require-imports": "off",
-    "@typescript-eslint/array-type": "off",
-    "@typescript-eslint/no-redeclare": "off",
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "off",
-    "import/first": "off",
+    "import/no-unresolved": "error",
     "prefer-const": "off",
-    "react/prop-types": "off",
+    "react/prop-types": 1,
     "no-case-declarations": "off",
     "no-empty": "off",
     "react/display-name": "off",
-    "no-constant-condition": "off",
-    "no-var": "off",
-    "no-useless-escape": "off",
-    "react-hooks/exhaustive-deps": "off"
+    "no-var": "off"
   },
   overrides: [
     {
-      files: ['metro.config.js', 'babel.config.js', 'jest.config.js', 'jest.setup.js', '*.js'],
+      files: ['metro.config.js'],
       rules: {
-        '@typescript-eslint/no-var-requires': 'off',
-        '@typescript-eslint/no-require-imports': 'off'
+        '@typescript-eslint/no-var-requires': 'off'
       }
     }
   ]
