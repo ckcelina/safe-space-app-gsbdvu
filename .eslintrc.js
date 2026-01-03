@@ -8,7 +8,7 @@ module.exports = {
     'plugin:react/jsx-runtime'
   ],
   parser: '@typescript-eslint/parser',
-  plugins: ['@typescript-eslint', 'react', 'import'],
+  plugins: ['@typescript-eslint', 'react'],
   root: true,
   parserOptions: {
     ecmaVersion: 'latest',
@@ -23,6 +23,14 @@ module.exports = {
     jest: true,
     node: true,
   },
+  settings: {
+    'import/resolver': {
+      node: {
+        extensions: ['.js', '.jsx', '.ts', '.tsx']
+      }
+    },
+    'import/ignore': ['react-native']
+  },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-explicit-any": "off",
@@ -33,12 +41,15 @@ module.exports = {
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
+    "prefer-const": "off",
+    "import/first": "off",
     "import/no-unresolved": "off",
     "import/namespace": "off",
     "import/default": "off",
     "import/no-named-as-default": "off",
     "import/no-named-as-default-member": "off",
-    "prefer-const": "off",
+    "import/export": "off",
+    "import/no-duplicates": "off",
     "react/prop-types": 1,
     "no-case-declarations": "off",
     "no-empty": "off",
