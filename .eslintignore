@@ -1,17 +1,37 @@
 
-node_modules/
+# Ignore generated files
+_expo/
 dist/
-.expo/
-.expo-shared/
 web-build/
+
+# Ignore node modules
+node_modules/
+
+# Ignore build artifacts
+*.bundle.js
+*.bundle.js.map
+
+# Ignore cache directories
+.cache/
+node_modules/.cache/
+.eslintcache
+
+# Ignore test files
+**/__tests__/**
 **/*.test.ts
 **/*.test.tsx
-**/__tests__/**
-jest.setup.js
+**/*.spec.ts
+**/*.spec.tsx
+
+# Ignore config files
+babel.config.js
+metro.config.js
 jest.config.js
-*.config.js
-babel-plugins/
-backend/
-.eslintcache
-node_modules/.cache/
-app/(tabs)/(home)/chat.tsx
+jest.setup.js
+
+# Ignore markdown files
+*.md
+
+# Ignore example files
+*.example.ts
+*.example.tsx
