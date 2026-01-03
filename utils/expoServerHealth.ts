@@ -6,6 +6,7 @@
  * for the Expo development server to ensure it never breaks.
  */
 
+import React from 'react';
 import * as Network from 'expo-network';
 
 interface ServerHealthStatus {
@@ -169,6 +170,3 @@ export function useServerHealth() {
 
   return healthStatus;
 }
-
-// For React import
-import React from 'react';

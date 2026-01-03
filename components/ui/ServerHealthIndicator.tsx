@@ -6,7 +6,7 @@
  * and Metro bundler connection. Only visible in development mode.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
 import { useServerHealth } from '@/utils/expoServerHealth';
 import { metroConnectionGuard } from '@/utils/metroConnectionGuard';
@@ -16,7 +16,7 @@ export function ServerHealthIndicator() {
   const healthStatus = useServerHealth();
   const [isExpanded, setIsExpanded] = useState(false);
   const [metroStatus, setMetroStatus] = useState(metroConnectionGuard.getStatus());
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // Update Metro status periodically
   useEffect(() => {
