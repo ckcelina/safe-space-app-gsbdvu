@@ -66,6 +66,36 @@ export interface TherapistPersona {
   forbidden_phrases?: string[];
 }
 
+/**
+ * Preview Content Configuration
+ * 
+ * This defines the preview experience for each therapist persona.
+ * Each preview includes:
+ * - title: Display name
+ * - subtitle: Style label
+ * - description: Short description
+ * - sampleChat: Example conversation showing the persona's style
+ * - quickTips: "What this feels like" bullets
+ * - placeholderUserPrompt: Placeholder text for the "Try it" input
+ * - localPreviewReplyRules: Function to generate local preview replies
+ */
+
+export interface PreviewChatMessage {
+  role: "user" | "assistant";
+  text: string;
+  time?: string;
+}
+
+export interface TherapistPreviewContent {
+  title: string;
+  subtitle: string;
+  description: string;
+  sampleChat: PreviewChatMessage[];
+  quickTips: string[];
+  placeholderUserPrompt: string;
+  localPreviewReplyRules: (inputText: string) => string;
+}
+
 // MEMOIZED: Static avatar sources - loaded once at module initialization
 const AVATAR_DR_ELIAS = require("@/assets/images/4ffc85dc-0a86-4e22-a82a-e5ff70df5bac.png");
 const AVATAR_NOAH = require("@/assets/images/5e56ef26-8123-44b6-9256-dc3690fb94e2.png");
@@ -280,36 +310,6 @@ export function getPersonaSystemPrompt(personaId: string): string {
  */
 export function getAllAvatarSources(): ImageSourcePropType[] {
   return THERAPIST_PERSONAS.map((persona) => persona.image);
-}
-
-/**
- * Preview Content Configuration
- * 
- * This defines the preview experience for each therapist persona.
- * Each preview includes:
- * - title: Display name
- * - subtitle: Style label
- * - description: Short description
- * - sampleChat: Example conversation showing the persona's style
- * - quickTips: "What this feels like" bullets
- * - placeholderUserPrompt: Placeholder text for the "Try it" input
- * - localPreviewReplyRules: Function to generate local preview replies
- */
-
-export interface PreviewChatMessage {
-  role: "user" | "assistant";
-  text: string;
-  time?: string;
-}
-
-export interface TherapistPreviewContent {
-  title: string;
-  subtitle: string;
-  description: string;
-  sampleChat: PreviewChatMessage[];
-  quickTips: string[];
-  placeholderUserPrompt: string;
-  localPreviewReplyRules: (inputText: string) => string;
 }
 
 /**
