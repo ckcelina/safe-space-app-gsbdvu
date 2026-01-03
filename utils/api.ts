@@ -27,9 +27,7 @@ import * as SecureStore from "expo-secure-store";
 /**
  * Backend URL is configured in app.json under expo.extra.backendUrl
  * It is set automatically when the backend is deployed
- * Supports environment variable override via EXPO_PUBLIC_BACKEND_URL
- * 
- * For Supabase-based apps, this may be empty since they use Edge Functions directly
+ * Falls back to empty string in development if not configured
  */
 export const BACKEND_URL = 
   process.env.EXPO_PUBLIC_BACKEND_URL || 
@@ -82,11 +80,15 @@ export const apiCall = async <T = any>(
   options?: RequestInit
 ): Promise<T> => {
   if (!isBackendConfigured()) {
-    // In development, warn but don't crash
+    const errorMessage = "Backend URL not configured. This app uses Supabase for backend services.";
+    
+    // In development, warn instead of throwing to prevent crashes
     if (__DEV__) {
-      console.warn("[API] Backend URL not configured. This is expected for Supabase-based apps using Edge Functions.");
+      console.warn("[API]", errorMessage);
+      throw new Error(errorMessage);
     }
-    throw new Error("Backend URL not configured. If you need a separate backend, please configure it in app.json.");
+    
+    throw new Error(errorMessage);
   }
 
   const url = `${BACKEND_URL}${endpoint}`;
