@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "dev": "EXPO_NO_TELEMETRY=1 expo start --clear --tunnel",
+    "dev": "EXPO_NO_TELEMETRY=1 expo start --clear",
+    "dev:tunnel": "EXPO_NO_TELEMETRY=1 expo start --clear --tunnel",
+    "dev:lan": "EXPO_NO_TELEMETRY=1 expo start --clear --lan",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
     "ios": "EXPO_NO_TELEMETRY=1 expo start --ios",
     "web": "EXPO_NO_TELEMETRY=1 expo start --web",
