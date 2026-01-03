@@ -1,44 +1,67 @@
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image, ImageSourcePropType, Platform } from 'react-native';
 import { safeParseDate, safeFormatDate } from '@/utils/dateHelpers';
+import { useThemeContext } from '@/contexts/ThemeContext';
 
 interface AnimatedChatBubbleProps {
-  content: string;
-  sender: 'user' | 'ai';
+  message?: string;
+  content?: string;
+  isUser: boolean;
   timestamp?: string | number | Date | null | undefined;
-  theme?: any;
+  animate?: boolean;
+  therapistName?: string;
+  therapistAvatarSource?: ImageSourcePropType;
+  therapistPersonaId?: string;
+  // Legacy props for backward compatibility
+  sender?: 'user' | 'ai' | 'assistant';
+  createdAt?: string;
 }
 
 export const AnimatedChatBubble: React.FC<AnimatedChatBubbleProps> = ({
+  message,
   content,
-  sender,
+  isUser,
   timestamp,
-  theme,
+  animate = false,
+  therapistName,
+  therapistAvatarSource,
+  therapistPersonaId,
+  // Legacy props
+  sender,
+  createdAt,
 }) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const { theme } = useThemeContext();
+  const fadeAnim = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  const slideAnim = useRef(new Animated.Value(animate ? 20 : 0)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
+    if (animate) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [animate, fadeAnim, slideAnim]);
+
+  // Handle legacy props
+  const finalMessage = message || content || '';
+  const finalIsUser = sender ? (sender === 'user') : isUser;
+  const finalTimestamp = timestamp || createdAt;
 
   // Safely parse and format the timestamp
-  // If timestamp is invalid, formattedTime will be an empty string
-  const formattedTime = safeFormatDate(timestamp, 'h:mm a', '');
+  const formattedTime = safeFormatDate(finalTimestamp, 'h:mm a', '');
 
-  const isUser = sender === 'user';
+  // Show avatar only for AI messages (not user messages)
+  const showAvatar = !finalIsUser && therapistAvatarSource;
 
   return (
     <Animated.View
@@ -47,29 +70,51 @@ export const AnimatedChatBubble: React.FC<AnimatedChatBubbleProps> = ({
         {
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
-          alignSelf: isUser ? 'flex-end' : 'flex-start',
+          alignSelf: finalIsUser ? 'flex-end' : 'flex-start',
+          flexDirection: finalIsUser ? 'row-reverse' : 'row',
         },
       ]}
     >
+      {/* Avatar - only shown for AI messages, only once per message */}
+      {showAvatar && (
+        <View style={styles.avatarContainer}>
+          <Image
+            source={therapistAvatarSource}
+            style={styles.avatar}
+            resizeMode="cover"
+          />
+        </View>
+      )}
+
+      {/* Message bubble */}
       <View
         style={[
           styles.bubble,
-          isUser ? styles.userBubble : styles.aiBubble,
-          theme && {
-            backgroundColor: isUser ? theme.primary : theme.surface,
+          finalIsUser ? styles.userBubble : styles.aiBubble,
+          {
+            backgroundColor: finalIsUser ? theme.primary : theme.card,
+            maxWidth: showAvatar ? '75%' : '80%',
           },
         ]}
       >
         <Text
           style={[
             styles.content,
-            isUser ? styles.userText : styles.aiText,
+            finalIsUser ? styles.userText : styles.aiText,
+            { color: finalIsUser ? '#FFFFFF' : theme.textPrimary },
           ]}
         >
-          {content}
+          {finalMessage}
         </Text>
         {formattedTime && (
-          <Text style={styles.timestamp}>{formattedTime}</Text>
+          <Text 
+            style={[
+              styles.timestamp,
+              { color: finalIsUser ? 'rgba(255, 255, 255, 0.7)' : theme.textSecondary }
+            ]}
+          >
+            {formattedTime}
+          </Text>
         )}
       </View>
     </Animated.View>
@@ -79,17 +124,58 @@ export const AnimatedChatBubble: React.FC<AnimatedChatBubbleProps> = ({
 const styles = StyleSheet.create({
   container: {
     marginVertical: 4,
-    maxWidth: '80%',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  avatarContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginHorizontal: 8,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
+      },
+    }),
+  },
+  avatar: {
+    width: 32,
+    height: 32,
   },
   bubble: {
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        boxShadow: '0px 1px 4px rgba(0, 0, 0, 0.08)',
+      },
+    }),
   },
   userBubble: {
-    backgroundColor: '#007AFF',
+    borderBottomRightRadius: 4,
   },
   aiBubble: {
-    backgroundColor: '#F0F0F0',
+    borderBottomLeftRadius: 4,
   },
   content: {
     fontSize: 16,
@@ -104,6 +190,6 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 11,
     marginTop: 4,
-    opacity: 0.6,
+    opacity: 0.8,
   },
 });
