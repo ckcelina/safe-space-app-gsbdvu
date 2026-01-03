@@ -53,12 +53,12 @@ config.server = {
       // Set longer timeout for requests
       req.setTimeout(60000); // 60 seconds
       res.setTimeout(60000); // 60 seconds
-
+      
       // Log requests in development
       if (process.env.NODE_ENV === 'development') {
         console.log(`[Metro] ${req.method} ${req.url}`);
       }
-
+      
       return middleware(req, res, next);
     };
   },
