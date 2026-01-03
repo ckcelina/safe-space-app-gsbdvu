@@ -15,8 +15,8 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
-import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { WidgetProvider } from "@/contexts/WidgetContext";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -78,50 +78,70 @@ export default function RootLayout() {
       notification: "rgb(255, 69, 58)", // System Red (Dark Mode)
     },
   };
+
   return (
     <>
       <StatusBar style="auto" animated />
-      <AuthProvider>
-        <ThemeProvider
-          value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
-        >
-          <WidgetProvider>
-            <GestureHandlerRootView>
-            <Stack>
-              {/* Main app with tabs */}
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        {/* AuthProvider wraps everything - mounted FIRST */}
+        <AuthProvider>
+          <ThemeProvider
+            value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
+          >
+            <WidgetProvider>
+              <Stack>
+                {/* Main app with tabs */}
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-              {/* Modal Demo Screens */}
-              <Stack.Screen
-                name="modal"
-                options={{
-                  presentation: "modal",
-                  title: "Standard Modal",
-                }}
-              />
-              <Stack.Screen
-                name="formsheet"
-                options={{
-                  presentation: "formSheet",
-                  title: "Form Sheet Modal",
-                  sheetGrabberVisible: true,
-                  sheetAllowedDetents: [0.5, 0.8, 1.0],
-                  sheetCornerRadius: 20,
-                }}
-              />
-              <Stack.Screen
-                name="transparent-modal"
-                options={{
-                  presentation: "transparentModal",
-                  headerShown: false,
-                }}
-              />
-            </Stack>
-            <SystemBars style={"auto"} />
-            </GestureHandlerRootView>
-          </WidgetProvider>
-        </ThemeProvider>
-      </AuthProvider>
+                {/* Auth screens */}
+                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                <Stack.Screen name="theme-selection" options={{ headerShown: false }} />
+                <Stack.Screen name="signup" options={{ headerShown: false }} />
+                <Stack.Screen name="login" options={{ headerShown: false }} />
+                <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+                <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+                <Stack.Screen name="ai-preferences-onboarding" options={{ headerShown: false }} />
+
+                {/* Legal screens */}
+                <Stack.Screen name="legal/terms-of-service" options={{ headerShown: false }} />
+                <Stack.Screen name="legal/privacy-policy" options={{ headerShown: false }} />
+                <Stack.Screen name="legal/terms-summary" options={{ headerShown: false }} />
+
+                {/* Test screens */}
+                <Stack.Screen name="test-ai-response" options={{ headerShown: false }} />
+
+                {/* Modal Demo Screens */}
+                <Stack.Screen
+                  name="modal"
+                  options={{
+                    presentation: "modal",
+                    title: "Standard Modal",
+                  }}
+                />
+                <Stack.Screen
+                  name="formsheet"
+                  options={{
+                    presentation: "formSheet",
+                    title: "Form Sheet Modal",
+                    sheetGrabberVisible: true,
+                    sheetAllowedDetents: [0.5, 0.8, 1.0],
+                    sheetCornerRadius: 20,
+                  }}
+                />
+                <Stack.Screen
+                  name="transparent-modal"
+                  options={{
+                    presentation: "transparentModal",
+                    headerShown: false,
+                  }}
+                />
+              </Stack>
+              <SystemBars style={"auto"} />
+            </WidgetProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </GestureHandlerRootView>
     </>
   );
 }
