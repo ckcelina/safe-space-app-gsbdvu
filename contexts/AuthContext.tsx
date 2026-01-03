@@ -1,231 +1,175 @@
 
 /**
- * Authentication Context Template
+ * Authentication Context
  *
- * Provides authentication state and methods throughout the app.
+ * Provides authentication state and methods throughout the app using Supabase Auth.
  * Supports:
  * - Email/password authentication
- * - Social auth (Google, Apple, GitHub) with popup flow for web
  * - Session management
- * - User state
+ * - User state with role and premium status
  *
  * Usage:
- * 1. Update imports to match your auth-client.ts path
- * 2. Wrap your app with <AuthProvider>
- * 3. Use useAuth() hook in components to access auth methods
- * 4. Customize user type and auth methods as needed
+ * 1. Wrap your app with <AuthProvider>
+ * 2. Use useAuth() hook in components to access auth state
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { Platform } from "react-native";
-import { authClient, storeWebBearerToken } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-// User type - customize based on your backend
+// User type from database
 interface User {
   id: string;
-  email: string;
-  name?: string;
-  image?: string;
+  email?: string;
+  role: 'free' | 'premium' | 'admin';
+  created_at: string;
 }
 
 interface AuthContextType {
+  currentUser: SupabaseUser | null;
   user: User | null;
+  userId: string | null;
+  role: 'free' | 'premium' | 'admin';
+  isPremium: boolean;
   loading: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, name?: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
-  signInWithGitHub: () => Promise<void>;
-  signOut: () => Promise<void>;
-  fetchUser: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-/**
- * Opens OAuth popup for web-based social authentication
- * Returns a promise that resolves with the token
- */
-function openOAuthPopup(provider: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const popupUrl = `${window.location.origin}/auth-popup?provider=${provider}`;
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-
-    const popup = window.open(
-      popupUrl,
-      "oauth-popup",
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
-    );
-
-    if (!popup) {
-      reject(new Error("Failed to open popup. Please allow popups."));
-      return;
-    }
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === "oauth-success" && event.data?.token) {
-        window.removeEventListener("message", handleMessage);
-        clearInterval(checkClosed);
-        resolve(event.data.token);
-      } else if (event.data?.type === "oauth-error") {
-        window.removeEventListener("message", handleMessage);
-        clearInterval(checkClosed);
-        reject(new Error(event.data.error || "OAuth failed"));
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-
-    // Check if popup was closed manually
-    const checkClosed = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkClosed);
-        window.removeEventListener("message", handleMessage);
-        reject(new Error("Authentication cancelled"));
-      }
-    }, 500);
-  });
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = useCallback(async () => {
+  const fetchUserProfile = useCallback(async (authUser: SupabaseUser) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.warn('[AuthContext] Error fetching user profile:', error);
+        return null;
+      }
+
+      if (!data) {
+        // User profile doesn't exist, create it
+        console.log('[AuthContext] User profile not found, creating one...');
+        
+        const { data: newUser, error: insertError } = await supabase
+          .from('users')
+          .insert([{
+            id: authUser.id,
+            email: authUser.email,
+            role: 'free',
+          }])
+          .select()
+          .single();
+
+        if (insertError) {
+          // Check if it's a duplicate key error (race condition)
+          if (insertError.code === '23505') {
+            console.log('[AuthContext] User profile already exists (race condition)');
+            // Try fetching again
+            const { data: existingUser } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', authUser.id)
+              .single();
+            
+            return existingUser;
+          } else {
+            console.warn('[AuthContext] Failed to create user profile:', insertError);
+            return null;
+          }
+        }
+
+        return newUser;
+      }
+
+      return data;
+    } catch (err) {
+      console.warn('[AuthContext] Exception fetching user profile:', err);
+      return null;
+    }
+  }, []);
+
+  const refreshUser = useCallback(async () => {
     try {
       setLoading(true);
-      const session = await authClient.getSession();
+      
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('[AuthContext] Session error:', sessionError);
+        setCurrentUser(null);
+        setUser(null);
+        return;
+      }
+
       if (session?.user) {
-        setUser(session.user as User);
+        setCurrentUser(session.user);
+        
+        const userProfile = await fetchUserProfile(session.user);
+        setUser(userProfile);
       } else {
+        setCurrentUser(null);
         setUser(null);
       }
     } catch (error) {
-      console.error("Failed to fetch user:", error);
+      console.error('[AuthContext] Failed to refresh user:', error);
+      setCurrentUser(null);
       setUser(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchUserProfile]);
 
   // Fetch current user on mount
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    refreshUser();
+  }, [refreshUser]);
 
-  const signInWithEmail = async (email: string, password: string) => {
-    try {
-      await authClient.signIn.email({ email, password });
-      await fetchUser();
-    } catch (error) {
-      console.error("Email sign in failed:", error);
-      throw error;
-    }
-  };
-
-  const signUpWithEmail = async (email: string, password: string, name?: string) => {
-    try {
-      await authClient.signUp.email({
-        email,
-        password,
-        name,
-        callbackURL: "/profile", // TODO: Update redirect URL
-      });
-      await fetchUser();
-    } catch (error) {
-      console.error("Email sign up failed:", error);
-      throw error;
-    }
-  };
-
-  const signInWithGoogle = async () => {
-    try {
-      if (Platform.OS === "web") {
-        // Web: Use popup flow to avoid cross-origin issues
-        const token = await openOAuthPopup("google");
-        storeWebBearerToken(token);
-        await fetchUser();
+  // Listen for auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AuthContext] Auth state changed:', event);
+      
+      if (session?.user) {
+        setCurrentUser(session.user);
+        
+        const userProfile = await fetchUserProfile(session.user);
+        setUser(userProfile);
       } else {
-        // Native: Use deep linking (handled by Better Auth)
-        await authClient.signIn.social({
-          provider: "google",
-          callbackURL: "/profile", // TODO: Update redirect URL
-        });
-        await fetchUser();
+        setCurrentUser(null);
+        setUser(null);
       }
-    } catch (error) {
-      console.error("Google sign in failed:", error);
-      throw error;
-    }
-  };
+      
+      setLoading(false);
+    });
 
-  const signInWithApple = async () => {
-    try {
-      if (Platform.OS === "web") {
-        // Web: Use popup flow
-        const token = await openOAuthPopup("apple");
-        storeWebBearerToken(token);
-        await fetchUser();
-      } else {
-        // Native: Use deep linking
-        await authClient.signIn.social({
-          provider: "apple",
-          callbackURL: "/profile", // TODO: Update redirect URL
-        });
-        await fetchUser();
-      }
-    } catch (error) {
-      console.error("Apple sign in failed:", error);
-      throw error;
-    }
-  };
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchUserProfile]);
 
-  const signInWithGitHub = async () => {
-    try {
-      if (Platform.OS === "web") {
-        // Web: Use popup flow
-        const token = await openOAuthPopup("github");
-        storeWebBearerToken(token);
-        await fetchUser();
-      } else {
-        // Native: Use deep linking
-        await authClient.signIn.social({
-          provider: "github",
-          callbackURL: "/profile", // TODO: Update redirect URL
-        });
-        await fetchUser();
-      }
-    } catch (error) {
-      console.error("GitHub sign in failed:", error);
-      throw error;
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      await authClient.signOut();
-      setUser(null);
-    } catch (error) {
-      console.error("Sign out failed:", error);
-      throw error;
-    }
-  };
+  const userId = currentUser?.id || null;
+  const role = user?.role || 'free';
+  const isPremium = role === 'premium' || role === 'admin';
 
   return (
     <AuthContext.Provider
       value={{
+        currentUser,
         user,
+        userId,
+        role,
+        isPremium,
         loading,
-        signInWithEmail,
-        signUpWithEmail,
-        signInWithGoogle,
-        signInWithApple,
-        signInWithGitHub,
-        signOut,
-        fetchUser,
+        refreshUser,
       }}
     >
       {children}
