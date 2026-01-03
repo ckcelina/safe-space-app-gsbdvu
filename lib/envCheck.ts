@@ -1,7 +1,8 @@
 
 /**
  * Preflight environment variable check
- * Shows a friendly error screen in dev if required env vars are missing
+ * Shows a friendly warning in dev if optional env vars are missing
+ * Never blocks the app in production
  */
 
 import Constants from 'expo-constants';
@@ -13,21 +14,23 @@ export interface EnvCheckResult {
 }
 
 /**
- * Check if required environment variables are present
+ * Check if optional environment variables are present
  * Returns validation result with missing variables
+ * 
+ * Note: backendUrl is optional for apps using Supabase Edge Functions
  */
 export function checkRequiredEnvVars(): EnvCheckResult {
   const missingVars: string[] = [];
   
-  // Check for backend URL (configured in app.json under expo.extra.backendUrl)
-  const backendUrl = Constants.expoConfig?.extra?.backendUrl;
+  // Get backend URL from env var or app.json
+  const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || Constants.expoConfig?.extra?.backendUrl || '';
   
-  if (!backendUrl || backendUrl.trim() === '') {
-    missingVars.push('backendUrl (in app.json under expo.extra.backendUrl)');
-  }
-
+  // Only warn if backendUrl is needed but not configured
+  // For Supabase-based apps, this is optional since they use Edge Functions
+  // Empty string is acceptable - it means no separate backend is configured
+  
   return {
-    isValid: missingVars.length === 0,
+    isValid: true, // Always valid - we don't block the app for missing backendUrl
     missingVars,
     backendUrl,
   };
@@ -41,5 +44,5 @@ export function getEnvErrorMessage(result: EnvCheckResult): string {
     return '';
   }
 
-  return `Missing required configuration:\n\n${result.missingVars.map(v => `• ${v}`).join('\n')}\n\nPlease configure these in app.json under "extra".`;
+  return `Missing optional configuration:\n\n${result.missingVars.map(v => `• ${v}`).join('\n')}\n\nThe app will continue with limited features.`;
 }

@@ -6,7 +6,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, View, Text, StyleSheet } from "react-native";
+import { useColorScheme, Alert } from "react-native";
 import { useNetworkState } from "expo-network";
 import {
   DarkTheme,
@@ -16,8 +16,7 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
-import { checkRequiredEnvVars, getEnvErrorMessage } from "@/lib/envCheck";
-import Constants from "expo-constants";
+import { checkRequiredEnvVars } from "@/lib/envCheck";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -26,38 +25,30 @@ export const unstable_settings = {
   initialRouteName: "(tabs)", // Ensure any route can link back to `/`
 };
 
-// Error screen component for missing env vars
-function EnvErrorScreen({ message }: { message: string }) {
-  return (
-    <View style={styles.errorContainer}>
-      <Text style={styles.errorEmoji}>⚠️</Text>
-      <Text style={styles.errorTitle}>Configuration Error</Text>
-      <Text style={styles.errorMessage}>{message}</Text>
-      <Text style={styles.errorHint}>
-        This error only appears in development mode.
-      </Text>
-    </View>
-  );
-}
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const networkState = useNetworkState();
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const [envCheckResult, setEnvCheckResult] = useState<ReturnType<typeof checkRequiredEnvVars> | null>(null);
 
-  // Preflight check for required env vars (only in dev)
+  // Preflight check for optional env vars (only logs in dev, never blocks)
   useEffect(() => {
     if (__DEV__) {
       const result = checkRequiredEnvVars();
-      setEnvCheckResult(result);
       
       if (!result.isValid) {
-        console.error('❌ Environment check failed:', result.missingVars);
+        console.warn('⚠️ Optional configuration missing:', result.missingVars);
+        console.warn('The app will continue with limited features.');
       } else {
-        console.log('✅ Environment check passed');
+        console.log('✅ Configuration check passed');
+      }
+      
+      // Log backend URL status
+      if (result.backendUrl) {
+        console.log('📡 Backend URL configured:', result.backendUrl);
+      } else {
+        console.log('📡 No backend URL configured (using Supabase Edge Functions)');
       }
     }
   }, []);
@@ -82,11 +73,6 @@ export default function RootLayout() {
 
   if (!loaded) {
     return null;
-  }
-
-  // Show error screen in dev if env vars are missing
-  if (__DEV__ && envCheckResult && !envCheckResult.isValid) {
-    return <EnvErrorScreen message={getEnvErrorMessage(envCheckResult)} />;
   }
 
   const CustomDefaultTheme: Theme = {
@@ -158,37 +144,3 @@ export default function RootLayout() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#1a1a1a',
-  },
-  errorEmoji: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  errorTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ff6b6b',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  errorMessage: {
-    fontSize: 16,
-    color: '#ffffff',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 24,
-  },
-  errorHint: {
-    fontSize: 14,
-    color: '#888888',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-});
