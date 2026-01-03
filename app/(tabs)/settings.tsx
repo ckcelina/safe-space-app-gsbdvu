@@ -173,7 +173,7 @@ export default function SettingsScreen() {
   const selectedPersona = getPersonaById(preferences.therapist_persona_id || '');
 
   return (
-    <View style={styles.rootContainer}>
+    <View style={styles.rootContainer} pointerEvents="box-none">
       {/* Background gradient - positioned absolutely, doesn't block touches */}
       <LinearGradient
         colors={theme.primaryGradient}
@@ -187,10 +187,11 @@ export default function SettingsScreen() {
       <SafeAreaView 
         style={styles.safeArea} 
         edges={['top', 'bottom']}
+        pointerEvents="box-none"
       >
-        <View style={styles.container}>
+        <View style={styles.container} pointerEvents="box-none">
           {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
-          <View style={styles.topHeader}>
+          <View style={styles.topHeader} pointerEvents="box-none">
             <Pressable 
               onPress={handleBack} 
               style={styles.backButton}
@@ -201,13 +202,13 @@ export default function SettingsScreen() {
             >
               <IconSymbol
                 ios_icon_name="chevron.left"
-                android_material_icon_name="arrow_back"
+                android_material_icon_name="arrow-back"
                 size={24}
                 color={theme.buttonText}
               />
             </Pressable>
             
-            <View style={styles.headerSpacer} />
+            <View style={styles.headerSpacer} pointerEvents="none" />
             
             <Pressable 
               onPress={() => {
@@ -238,6 +239,9 @@ export default function SettingsScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             scrollEnabled={true}
+            bounces={true}
+            alwaysBounceVertical={true}
+            nestedScrollEnabled={true}
           >
             {/* Header */}
             <View style={styles.header}>
@@ -296,7 +300,7 @@ export default function SettingsScreen() {
                 </View>
                 <IconSymbol
                   ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
+                  android_material_icon_name="arrow-forward"
                   size={20}
                   color={theme.textSecondary}
                 />
@@ -328,7 +332,7 @@ export default function SettingsScreen() {
                 <View style={styles.rowLeft}>
                   <IconSymbol
                     ios_icon_name="person.circle.fill"
-                    android_material_icon_name="account_circle"
+                    android_material_icon_name="account-circle"
                     size={20}
                     color={theme.primary}
                   />
@@ -343,7 +347,7 @@ export default function SettingsScreen() {
                 </View>
                 <IconSymbol
                   ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
+                  android_material_icon_name="arrow-forward"
                   size={20}
                   color={theme.textSecondary}
                 />
@@ -406,7 +410,7 @@ export default function SettingsScreen() {
                 </View>
                 <IconSymbol
                   ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
+                  android_material_icon_name="arrow-forward"
                   size={20}
                   color={theme.textSecondary}
                 />
@@ -442,7 +446,7 @@ export default function SettingsScreen() {
                 </View>
                 <IconSymbol
                   ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
+                  android_material_icon_name="arrow-forward"
                   size={20}
                   color={theme.textSecondary}
                 />
@@ -527,7 +531,7 @@ export default function SettingsScreen() {
                 </View>
                 <IconSymbol
                   ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
+                  android_material_icon_name="arrow-forward"
                   size={20}
                   color={theme.textSecondary}
                 />
@@ -558,7 +562,7 @@ export default function SettingsScreen() {
                   </View>
                   <IconSymbol
                     ios_icon_name="chevron.right"
-                    android_material_icon_name="arrow_forward"
+                    android_material_icon_name="arrow-forward"
                     size={20}
                     color={theme.textSecondary}
                   />
@@ -593,7 +597,7 @@ export default function SettingsScreen() {
                 </View>
                 <IconSymbol
                   ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
+                  android_material_icon_name="arrow-forward"
                   size={20}
                   color={theme.textSecondary}
                 />
@@ -620,7 +624,7 @@ export default function SettingsScreen() {
                 </View>
                 <IconSymbol
                   ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
+                  android_material_icon_name="arrow-forward"
                   size={20}
                   color={theme.textSecondary}
                 />
