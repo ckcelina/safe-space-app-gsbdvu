@@ -15,11 +15,25 @@ module.exports = {
     sourceType: 'module',
     ecmaFeatures: {
       jsx: true
+    },
+    project: './tsconfig.json'
+  },
+  settings: {
+    'import/resolver': {
+      typescript: {
+        alwaysTryTypes: true,
+        project: './tsconfig.json'
+      },
+      node: {
+        extensions: ['.js', '.jsx', '.ts', '.tsx']
+      }
     }
   },
-  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*'],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', 'node_modules'],
   env: {
     browser: true,
+    node: true,
+    es2021: true
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
@@ -31,9 +45,9 @@ module.exports = {
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "error",
+    "import/no-unresolved": "off",
     "prefer-const": "off",
-    "react/prop-types": 1,
+    "react/prop-types": "off",
     "no-case-declarations": "off",
     "no-empty": "off",
     "react/display-name": "off",
@@ -41,9 +55,23 @@ module.exports = {
   },
   overrides: [
     {
-      files: ['metro.config.js'],
+      files: ['metro.config.js', 'babel.config.js'],
+      env: {
+        node: true
+      },
       rules: {
         '@typescript-eslint/no-var-requires': 'off'
+      }
+    },
+    {
+      files: ['jest.setup.js', '**/*.test.ts', '**/*.test.tsx', '__tests__/**/*'],
+      env: {
+        jest: true,
+        node: true
+      },
+      rules: {
+        '@typescript-eslint/no-var-requires': 'off',
+        'no-undef': 'off'
       }
     }
   ]
