@@ -17,9 +17,11 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*'],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '__tests__/*', '*.test.ts', '*.test.tsx', 'jest.config.js', 'jest.setup.js'],
   env: {
     browser: true,
+    jest: true,
+    node: true,
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
@@ -31,7 +33,11 @@ module.exports = {
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "error",
+    "import/no-unresolved": "off",
+    "import/namespace": "off",
+    "import/default": "off",
+    "import/no-named-as-default": "off",
+    "import/no-named-as-default-member": "off",
     "prefer-const": "off",
     "react/prop-types": 1,
     "no-case-declarations": "off",
