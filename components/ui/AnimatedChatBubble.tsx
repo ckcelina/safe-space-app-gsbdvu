@@ -1,16 +1,15 @@
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, ImageSourcePropType, Image } from 'react-native';
-import { format, isValid } from 'date-fns';
-import { useThemeContext } from '@/contexts/ThemeContext';
+import { View, Text, StyleSheet, Animated, Image, ImageSourcePropType } from 'react-native';
+import { safeFormatDate } from '@/utils/dateHelpers';
 
 interface AnimatedChatBubbleProps {
   message: string;
   isUser: boolean;
   timestamp: string | number | Date | null | undefined;
-  animate?: boolean;
   therapistName?: string;
   therapistAvatarSource?: ImageSourcePropType;
+  animate?: boolean;
   therapistPersonaId?: string;
 }
 
@@ -18,13 +17,12 @@ export const AnimatedChatBubble: React.FC<AnimatedChatBubbleProps> = ({
   message,
   isUser,
   timestamp,
-  animate = false,
   therapistName,
   therapistAvatarSource,
+  animate = true,
 }) => {
-  const { theme } = useThemeContext();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const fadeAnim = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  const slideAnim = useRef(new Animated.Value(animate ? 20 : 0)).current;
 
   useEffect(() => {
     if (animate) {
@@ -40,35 +38,17 @@ export const AnimatedChatBubble: React.FC<AnimatedChatBubbleProps> = ({
           useNativeDriver: true,
         }),
       ]).start();
-    } else {
-      fadeAnim.setValue(1);
-      slideAnim.setValue(0);
     }
-  }, [fadeAnim, slideAnim, animate]);
+  }, [animate, fadeAnim, slideAnim]);
 
-  // Safe timestamp parsing - handles null, undefined, invalid strings, etc.
-  const parseTimestamp = (ts: string | number | Date | null | undefined): Date | null => {
-    if (!ts) {
-      return null;
-    }
-    
-    try {
-      const date = new Date(ts);
-      // Use date-fns isValid to check if the date is actually valid
-      return isValid(date) ? date : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const parsedDate = parseTimestamp(timestamp);
-  const formattedTime = parsedDate ? format(parsedDate, 'h:mm a') : '';
+  // Safely format timestamp with fallback
+  const formattedTime = safeFormatDate(timestamp, 'h:mm a', '');
 
   return (
     <Animated.View
       style={[
-        styles.bubbleContainer,
-        isUser ? styles.userBubbleContainer : styles.therapistBubbleContainer,
+        styles.container,
+        isUser ? styles.userContainer : styles.therapistContainer,
         {
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
@@ -78,32 +58,15 @@ export const AnimatedChatBubble: React.FC<AnimatedChatBubbleProps> = ({
       {!isUser && therapistAvatarSource && (
         <Image source={therapistAvatarSource} style={styles.avatar} />
       )}
-      <View
-        style={[
-          styles.bubble,
-          isUser ? { backgroundColor: theme.primary } : { backgroundColor: theme.cardBackground },
-        ]}
-      >
+      <View style={[styles.bubble, isUser ? styles.userBubble : styles.therapistBubble]}>
         {!isUser && therapistName && (
-          <Text style={[styles.therapistName, { color: theme.primary }]}>
-            {therapistName}
-          </Text>
+          <Text style={styles.therapistName}>{therapistName}</Text>
         )}
-        <Text
-          style={[
-            styles.messageText,
-            { color: isUser ? '#FFFFFF' : theme.text },
-          ]}
-        >
+        <Text style={[styles.messageText, isUser ? styles.userText : styles.therapistText]}>
           {message}
         </Text>
         {formattedTime && (
-          <Text
-            style={[
-              styles.timestamp,
-              { color: isUser ? 'rgba(255,255,255,0.7)' : theme.textSecondary },
-            ]}
-          >
+          <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.therapistTimestamp]}>
             {formattedTime}
           </Text>
         )}
@@ -113,15 +76,15 @@ export const AnimatedChatBubble: React.FC<AnimatedChatBubbleProps> = ({
 };
 
 const styles = StyleSheet.create({
-  bubbleContainer: {
+  container: {
     flexDirection: 'row',
     marginVertical: 4,
     paddingHorizontal: 16,
   },
-  userBubbleContainer: {
+  userContainer: {
     justifyContent: 'flex-end',
   },
-  therapistBubbleContainer: {
+  therapistContainer: {
     justifyContent: 'flex-start',
   },
   avatar: {
@@ -135,17 +98,36 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 12,
   },
+  userBubble: {
+    backgroundColor: '#007AFF',
+  },
+  therapistBubble: {
+    backgroundColor: '#E5E5EA',
+  },
   therapistName: {
     fontSize: 12,
     fontWeight: '600',
+    color: '#666',
     marginBottom: 4,
   },
   messageText: {
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 20,
+  },
+  userText: {
+    color: '#FFFFFF',
+  },
+  therapistText: {
+    color: '#000000',
   },
   timestamp: {
     fontSize: 11,
     marginTop: 4,
+  },
+  userTimestamp: {
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  therapistTimestamp: {
+    color: '#999',
   },
 });
