@@ -4,16 +4,16 @@
     "strict": true,
     "baseUrl": ".",
     "jsx": "react-jsx",
-    "noImplicitAny": false,
-    "strictNullChecks": false,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
     "strictFunctionTypes": true,
     "strictBindCallApply": true,
-    "strictPropertyInitialization": false,
+    "strictPropertyInitialization": true,
     "noImplicitThis": true,
     "alwaysStrict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitReturns": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
@@ -30,11 +30,6 @@
     "workbox-config.js",
   ],
   "exclude": [
-    "node_modules",
-    "__tests__",
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "jest.config.js",
-    "jest.setup.js"
+    "node_modules"
   ]
 }

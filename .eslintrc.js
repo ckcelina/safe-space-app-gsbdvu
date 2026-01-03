@@ -8,7 +8,7 @@ module.exports = {
     'plugin:react/jsx-runtime'
   ],
   parser: '@typescript-eslint/parser',
-  plugins: ['@typescript-eslint', 'react'],
+  plugins: ['@typescript-eslint', 'react', 'import'],
   root: true,
   parserOptions: {
     ecmaVersion: 'latest',
@@ -17,19 +17,9 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '__tests__/*', '*.test.ts', '*.test.tsx', 'jest.config.js', 'jest.setup.js'],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*'],
   env: {
     browser: true,
-    jest: true,
-    node: true,
-  },
-  settings: {
-    'import/resolver': {
-      node: {
-        extensions: ['.js', '.jsx', '.ts', '.tsx']
-      }
-    },
-    'import/ignore': ['react-native']
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
@@ -41,15 +31,8 @@ module.exports = {
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
+    "import/no-unresolved": "error",
     "prefer-const": "off",
-    "import/first": "off",
-    "import/no-unresolved": "off",
-    "import/namespace": "off",
-    "import/default": "off",
-    "import/no-named-as-default": "off",
-    "import/no-named-as-default-member": "off",
-    "import/export": "off",
-    "import/no-duplicates": "off",
     "react/prop-types": 1,
     "no-case-declarations": "off",
     "no-empty": "off",
