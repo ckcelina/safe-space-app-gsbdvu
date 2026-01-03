@@ -18,34 +18,9 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: [
-    '/dist/*', 
-    '/public/*', 
-    '/babel-plugins/*', 
-    '/backend/*',
-    'jest.setup.js',
-    'jest.config.js',
-    '**/*.test.ts',
-    '**/*.test.tsx',
-    '__tests__/**/*',
-    '*.config.js',
-    'metro.config.js',
-    'babel.config.js',
-    'scripts/**/*',
-    '.eslintrc.js',
-    'node_modules/',
-    '.expo/',
-    '.cache/',
-    '*.md'
-  ],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '/backend/*'],
   env: {
     browser: true,
-    node: true,
-    es2021: true,
-  },
-  globals: {
-    __DEV__: 'readonly',
-    jest: 'readonly',
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
@@ -59,72 +34,20 @@ module.exports = {
     "react/no-unescaped-entities": "off",
     "import/no-unresolved": "off",
     "prefer-const": "off",
-    "react/prop-types": "off",
+    "react/prop-types": 1,
     "no-case-declarations": "off",
     "no-empty": "off",
     "react/display-name": "off",
     "no-constant-condition": "off",
     "no-var": "off",
-    "no-useless-escape": "off",
-    "no-undef": "off",
-    "@typescript-eslint/no-redeclare": "off"
+    "no-useless-escape": "off"
   },
   overrides: [
     {
-      files: ['*.js', '*.cjs', '*.mjs'],
-      env: {
-        node: true,
-        commonjs: true
-      },
+      files: ['metro.config.js'],
       rules: {
-        '@typescript-eslint/no-var-requires': 'off',
-        'no-undef': 'off'
-      }
-    },
-    {
-      files: ['jest.setup.js', 'jest.config.js', '**/*.test.js', '**/*.test.ts', '**/*.test.tsx', '__tests__/**/*'],
-      env: {
-        jest: true,
-        node: true
-      },
-      globals: {
-        jest: 'readonly',
-        expect: 'readonly',
-        describe: 'readonly',
-        it: 'readonly',
-        beforeEach: 'readonly',
-        afterEach: 'readonly',
-        beforeAll: 'readonly',
-        afterAll: 'readonly'
-      },
-      rules: {
-        'no-undef': 'off',
-        '@typescript-eslint/no-var-requires': 'off'
-      }
-    },
-    {
-      files: ['scripts/**/*.js'],
-      env: {
-        node: true
-      },
-      rules: {
-        'no-undef': 'off',
         '@typescript-eslint/no-var-requires': 'off'
       }
     }
-  ],
-  settings: {
-    'import/resolver': {
-      typescript: {
-        alwaysTryTypes: true,
-        project: './tsconfig.json'
-      },
-      node: {
-        extensions: ['.js', '.jsx', '.ts', '.tsx']
-      }
-    },
-    react: {
-      version: 'detect'
-    }
-  }
+  ]
 };

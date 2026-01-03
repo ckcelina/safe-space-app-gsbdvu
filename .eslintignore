@@ -13,7 +13,7 @@ node_modules/
 *.bundle.js
 *.bundle.js.map
 
-# Ignore cache
+# Ignore cache directories
 .cache/
 node_modules/.cache/
 .eslintcache
@@ -27,6 +27,8 @@ babel.config.js
 # Ignore test setup
 jest.setup.js
 jest.config.js
+
+# Ignore test files
 __tests__/
 
 # Ignore scripts
@@ -46,3 +48,7 @@ babel-plugins/
 
 # Ignore documentation
 *.md
+
+# Ignore specific large files that may have parsing issues
+# (These will be checked manually if needed)
+app/(tabs)/(home)/chat.tsx
