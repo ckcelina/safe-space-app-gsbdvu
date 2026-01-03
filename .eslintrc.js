@@ -18,20 +18,7 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: [
-    '/dist/*',
-    '/public/*',
-    '/babel-plugins/*',
-    '/backend/*',
-    '*.md',
-    '__tests__/*',
-    '*.test.ts',
-    '*.test.tsx',
-    'scripts/*',
-    'jest.setup.js',
-    'jest.config.js',
-    '.eslintcache'
-  ],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '/backend/*'],
   env: {
     browser: true,
     node: true,
@@ -49,24 +36,22 @@ module.exports = {
     "react/no-unescaped-entities": "off",
     "import/no-unresolved": "off",
     "import/namespace": "off",
+    "import/no-unresolved": "off", // Turned off - Metro handles resolution
     "prefer-const": "off",
-    "react/prop-types": "off",
+    "react/prop-types": 1,
     "no-case-declarations": "off",
     "no-empty": "off",
     "react/display-name": "off",
     "no-constant-condition": "off",
     "no-var": "off",
-    "no-useless-escape": "off",
-    "no-undef": "off",
+    "no-useless-escape": "off"
   },
   overrides: [
     {
-      files: ['*.js'],
-      parser: 'espree',
-      parserOptions: {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-      },
-    },
+      files: ['metro.config.js'],
+      rules: {
+        '@typescript-eslint/no-var-requires': 'off'
+      }
+    }
   ]
 };

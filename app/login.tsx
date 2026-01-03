@@ -4,16 +4,81 @@ import { View, Text, StyleSheet, Dimensions, ScrollView, TouchableOpacity, Alert
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { SafeSpaceTitle } from '@/components/ui/SafeSpaceText';
 import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured, getSupabaseConfigError } from '@/lib/supabase';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+/**
+ * Timeout wrapper for async operations
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number = 15000,
+  operation: string = 'Operation'
+): Promise<T> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`${operation} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]);
+}
+
+/**
+ * Check if error is a network/connection issue
+ */
+function isNetworkError(error: any): boolean {
+  const message = error?.message?.toLowerCase() || '';
+  const errorString = String(error).toLowerCase();
+  
+  return (
+    message.includes('network') ||
+    message.includes('timeout') ||
+    message.includes('fetch') ||
+    message.includes('connection') ||
+    message.includes('offline') ||
+    message.includes('failed to fetch') ||
+    errorString.includes('network request failed') ||
+    errorString.includes('authretryablefetcherror')
+  );
+}
+
+/**
+ * Get user-friendly error message
+ */
+function getUserFriendlyError(error: any): string {
+  // Check for network errors first
+  if (isNetworkError(error)) {
+    return 'Connection issue. Please check your internet and try again.';
+  }
+
+  // Check for specific Supabase error messages
+  const message = error?.message || String(error);
+  
+  if (message.includes('Email not confirmed')) {
+    return 'Please verify your email before logging in.';
+  }
+  
+  if (message.includes('Invalid login credentials')) {
+    return 'Invalid email or password. Please try again.';
+  }
+  
+  if (message.includes('timeout')) {
+    return 'Connection timeout. Please try again.';
+  }
+
+  // Generic error
+  return message || 'Login failed. Please try again.';
+}
 
 export default function LoginScreen() {
   const { theme } = useThemeContext();
@@ -29,17 +94,37 @@ export default function LoginScreen() {
       return;
     }
 
+    // Check Supabase configuration before attempting login
+    if (!isSupabaseConfigured()) {
+      const configError = getSupabaseConfigError();
+      console.error('[Login] Supabase not configured:', configError);
+      
+      if (__DEV__) {
+        setError(configError || 'Supabase not configured. Check .env file.');
+      } else {
+        setError('App configuration error. Please contact support.');
+      }
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
       console.log('[Login] Attempting to sign in:', email);
+      console.log('[Login] Supabase configured:', isSupabaseConfigured());
       
-      // Step 1: Sign in with Supabase Auth
-      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+      // Step 1: Sign in with Supabase Auth (with timeout)
+      const signInPromise = supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       });
+
+      const { data: authData, error: signInError } = await withTimeout(
+        signInPromise,
+        15000,
+        'Sign in'
+      );
 
       if (signInError) {
         console.error('[Login] Sign in error:', signInError);
@@ -61,8 +146,8 @@ export default function LoginScreen() {
           return;
         }
 
-        // Generic error
-        setError(signInError.message || 'Login failed. Please try again.');
+        // Use user-friendly error message
+        setError(getUserFriendlyError(signInError));
         setIsLoading(false);
         return;
       }
@@ -76,32 +161,44 @@ export default function LoginScreen() {
 
       console.log('[Login] Sign in successful:', authData.user.email);
 
-      // Step 2: Ensure user profile exists in public.users
+      // Step 2: Ensure user profile exists in public.users (with timeout)
       const userId = authData.user.id;
       console.log('[Login] Checking user profile for:', userId);
 
       try {
-        const { data: userProfile, error: fetchError } = await supabase
+        const fetchPromise = supabase
           .from('users')
           .select('*')
           .eq('id', userId)
           .maybeSingle();
 
+        const { data: userProfile, error: fetchError } = await withTimeout(
+          fetchPromise,
+          10000,
+          'Fetch user profile'
+        );
+
         if (fetchError && fetchError.code !== 'PGRST116') {
           console.warn('[Login] Error fetching user profile:', fetchError);
         }
 
-        // Step 3: If user profile doesn't exist, create it
+        // Step 3: If user profile doesn't exist, create it (with timeout)
         if (!userProfile) {
           console.log('[Login] User profile not found, creating one...');
           
-          const { error: insertError } = await supabase
+          const insertPromise = supabase
             .from('users')
             .insert([{
               id: userId,
               email: authData.user.email,
               role: 'free',
             }]);
+
+          const { error: insertError } = await withTimeout(
+            insertPromise,
+            10000,
+            'Create user profile'
+          );
 
           if (insertError) {
             // Check if it's a duplicate key error (race condition)
@@ -119,6 +216,11 @@ export default function LoginScreen() {
         }
       } catch (profileError) {
         console.warn('[Login] Exception handling user profile:', profileError);
+        
+        // If it's a network error, show a warning but don't block login
+        if (isNetworkError(profileError)) {
+          console.warn('[Login] Network error during profile setup, continuing anyway');
+        }
         // Don't block login - the AuthContext will handle this
       }
 
@@ -128,7 +230,9 @@ export default function LoginScreen() {
       
     } catch (err: any) {
       console.error('[Login] Unexpected login error:', err);
-      setError('An unexpected error occurred. Please try again.');
+      
+      // Provide user-friendly error message
+      setError(getUserFriendlyError(err));
     } finally {
       setIsLoading(false);
     }
@@ -146,6 +250,7 @@ export default function LoginScreen() {
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
     >
+      <StatusBar style="light" translucent backgroundColor="transparent" />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <KeyboardAvoider>
           <ScrollView
@@ -194,7 +299,7 @@ export default function LoginScreen() {
                     <Ionicons
                       name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={24}
-                      color={theme.textSecondary}
+                      color={theme.buttonText}
                     />
                   </TouchableOpacity>
                 </View>

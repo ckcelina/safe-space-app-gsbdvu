@@ -34,14 +34,16 @@
     },
     "plugins": [
       "expo-font",
-      "expo-router"
+      "expo-router",
+      "expo-web-browser"
     ],
     "scheme": "natively",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "backendUrl": ""
     }
   }
 }

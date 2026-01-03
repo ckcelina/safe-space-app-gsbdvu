@@ -1227,7 +1227,6 @@ export default function ChatScreen() {
     preferences.ai_science_mode,
     preferences.ai_tone_id,
     getCurrentTherapistMetadata,
-    retryFailedMessage,
   ]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading || isGenerating;

@@ -1,15 +1,27 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+/**
+ * Error Boundary Component
+ *
+ * Catches JavaScript errors anywhere in the child component tree,
+ * logs those errors, and displays a fallback UI.
+ *
+ * IMPORTANT: This component uses static styles and does NOT call useThemeContext
+ * to prevent crashes when ThemeProvider is not available.
+ */
+
+import React, { Component, ReactNode } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: React.ErrorInfo | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -18,54 +30,72 @@ export class ErrorBoundary extends Component<Props, State> {
     this.state = {
       hasError: false,
       error: null,
+      errorInfo: null,
     };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    // Log but don't crash
-    console.log('[Startup] Error boundary caught:', error?.message || error);
     return {
       hasError: true,
       error,
+      errorInfo: null,
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Silent logging - no red screen
-    console.log('[Startup] Unhandled error:', error?.message || error);
-    console.log('[Startup] Error info:', errorInfo?.componentStack || 'No stack');
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log error to console
+    console.error("Error caught by boundary:", error, errorInfo);
+
+    // Update state with error info
+    this.setState({
+      error,
+      errorInfo,
+    });
+
+    // Call custom error handler if provided
+    this.props.onError?.(error, errorInfo);
   }
 
   handleReset = () => {
     this.setState({
       hasError: false,
       error: null,
+      errorInfo: null,
     });
   };
 
   render() {
     if (this.state.hasError) {
+      // Custom fallback UI
       if (this.props.fallback) {
         return this.props.fallback;
       }
 
+      // Default fallback UI with static styles (no theme context)
       return (
         <View style={styles.container}>
-          <View style={styles.content}>
-            <Text style={styles.emoji}>😔</Text>
-            <Text style={styles.title}>Something went wrong</Text>
-            <Text style={styles.message}>
-              We&apos;re sorry, but something unexpected happened. Please try again.
-            </Text>
-            {__DEV__ && this.state.error && (
-              <View style={styles.errorDetails}>
-                <Text style={styles.errorText}>{this.state.error.toString()}</Text>
-              </View>
-            )}
-            <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-              <Text style={styles.buttonText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.title}>Oops! Something went wrong</Text>
+          <Text style={styles.message}>
+            We're sorry for the inconvenience. The app encountered an error.
+          </Text>
+
+          {__DEV__ && this.state.error && (
+            <ScrollView style={styles.errorDetails}>
+              <Text style={styles.errorTitle}>Error Details (Dev Only):</Text>
+              <Text style={styles.errorText}>
+                {this.state.error.toString()}
+              </Text>
+              {this.state.errorInfo && (
+                <Text style={styles.errorStack}>
+                  {this.state.errorInfo.componentStack}
+                </Text>
+              )}
+            </ScrollView>
+          )}
+
+          <TouchableOpacity style={styles.button} onPress={this.handleReset}>
+            <Text style={styles.buttonText}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -74,57 +104,70 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
+// Static styles - no theme context dependency
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 24,
-  },
-  content: {
-    alignItems: 'center',
-    maxWidth: 400,
-  },
-  emoji: {
-    fontSize: 64,
-    marginBottom: 16,
+    backgroundColor: "#F2F2F7",
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-    marginBottom: 12,
-    textAlign: 'center',
+    fontWeight: "bold",
+    marginBottom: 16,
+    color: "#000",
+    textAlign: "center",
   },
   message: {
     fontSize: 16,
-    color: '#666666',
-    textAlign: 'center',
-    lineHeight: 24,
+    textAlign: "center",
+    color: "#666",
     marginBottom: 24,
+    paddingHorizontal: 16,
   },
   errorDetails: {
-    backgroundColor: '#FFE5E5',
-    padding: 12,
-    borderRadius: 8,
+    maxHeight: 200,
+    width: "100%",
+    padding: 16,
+    backgroundColor: "#fff",
+    borderRadius: 12,
     marginBottom: 24,
-    width: '100%',
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  errorTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+    color: "#FF3B30",
   },
   errorText: {
     fontSize: 12,
-    color: '#CC0000',
-    fontFamily: 'monospace',
+    color: "#333",
+    fontFamily: "monospace",
+    marginBottom: 8,
+  },
+  errorStack: {
+    fontSize: 10,
+    color: "#666",
+    fontFamily: "monospace",
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
