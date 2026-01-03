@@ -1,51 +1,41 @@
 
-import { format, isValid, parseISO } from 'date-fns';
+import { parseISO, format, isValid } from 'date-fns';
 
-/**
- * Safely parse a timestamp into a Date object
- * @param timestamp - Can be string, number, Date, null, or undefined
- * @returns Valid Date object or null
- */
-export function safeParseDate(timestamp: string | number | Date | null | undefined): Date | null {
+export const safeParseDate = (timestamp: string | number | Date | null | undefined): Date | null => {
   if (!timestamp) return null;
   
   try {
-    let date: Date;
+    let parsedDate: Date;
     
-    if (timestamp instanceof Date) {
-      date = timestamp;
-    } else if (typeof timestamp === 'string') {
-      date = parseISO(timestamp);
+    if (typeof timestamp === 'string') {
+      // Handle empty strings
+      if (timestamp.trim() === '') return null;
+      parsedDate = parseISO(timestamp);
     } else if (typeof timestamp === 'number') {
-      date = new Date(timestamp);
+      parsedDate = new Date(timestamp);
+    } else if (timestamp instanceof Date) {
+      parsedDate = timestamp;
     } else {
       return null;
     }
     
-    return isValid(date) ? date : null;
-  } catch {
+    return isValid(parsedDate) ? parsedDate : null;
+  } catch (error) {
+    console.warn('[dateHelpers] Error parsing date:', error);
     return null;
   }
-}
+};
 
-/**
- * Safely format a timestamp with a fallback
- * @param timestamp - Can be string, number, Date, null, or undefined
- * @param formatString - date-fns format string
- * @param fallback - Fallback string if timestamp is invalid
- * @returns Formatted date string or fallback
- */
-export function safeFormatDate(
-  timestamp: string | number | Date | null | undefined,
-  formatString: string = 'h:mm a',
-  fallback: string = ''
-): string {
-  const date = safeParseDate(timestamp);
-  if (!date) return fallback;
+export const safeFormatDate = (
+  date: Date | null, 
+  formatStr = 'MMM dd, yyyy hh:mm a'
+): string => {
+  if (!date || !isValid(date)) return '';
   
   try {
-    return format(date, formatString);
-  } catch {
-    return fallback;
+    return format(date, formatStr);
+  } catch (error) {
+    console.warn('[dateHelpers] Error formatting date:', error);
+    return '';
   }
-}
+};
