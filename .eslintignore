@@ -4,7 +4,6 @@ _expo/
 dist/
 web-build/
 .expo/
-.expo-shared/
 
 # Ignore node modules
 node_modules/
@@ -13,32 +12,23 @@ node_modules/
 *.bundle.js
 *.bundle.js.map
 
-# Ignore cache directories
-.cache/
-node_modules/.cache/
-.eslintcache
-
-# Ignore config files
-*.config.js
-metro.config.js
-babel.config.js
-.eslintrc.js
-
-# Ignore test setup
+# Ignore test files
+__tests__/
+*.test.ts
+*.test.tsx
 jest.setup.js
 jest.config.js
 
-# Ignore test files
-__tests__/
+# Ignore config files
+metro.config.js
+babel.config.js
+workbox-config.js
+
+# Ignore documentation
+*.md
 
 # Ignore scripts
 scripts/
-
-# Ignore example/template files
-supabase-edge-function-example.ts
-
-# Ignore Supabase Edge Functions (Deno runtime, different module resolution)
-supabase/functions/
 
 # Ignore backend
 backend/
@@ -46,9 +36,5 @@ backend/
 # Ignore babel plugins
 babel-plugins/
 
-# Ignore documentation
-*.md
-
-# Ignore specific large files that may have parsing issues
-# (These will be checked manually if needed)
-app/(tabs)/(home)/chat.tsx
+# Ignore ESLint cache
+.eslintcache
