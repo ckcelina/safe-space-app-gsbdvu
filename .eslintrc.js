@@ -1,4 +1,3 @@
-
 // https://docs.expo.dev/guides/using-eslint/
 module.exports = {
   extends: [
@@ -18,11 +17,9 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '/backend/*'],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*'],
   env: {
     browser: true,
-    node: true,
-    es2021: true,
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
@@ -34,16 +31,13 @@ module.exports = {
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "off", // Turned off - Metro handles resolution
-    "import/namespace": "off",
+    "import/no-unresolved": "error",
     "prefer-const": "off",
     "react/prop-types": 1,
     "no-case-declarations": "off",
     "no-empty": "off",
     "react/display-name": "off",
-    "no-constant-condition": "off",
-    "no-var": "off",
-    "no-useless-escape": "off"
+    "no-var": "off"
   },
   overrides: [
     {

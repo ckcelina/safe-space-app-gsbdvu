@@ -1,195 +1,157 @@
 
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Image, ImageSourcePropType, Platform } from 'react-native';
-import { safeParseDate, safeFormatDate } from '@/utils/dateHelpers';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Animated, ImageSourcePropType } from 'react-native';
+import { Image } from 'expo-image';
 import { useThemeContext } from '@/contexts/ThemeContext';
+import { AIHeaderRow } from './AIHeaderRow';
+import { format } from 'date-fns';
 
 interface AnimatedChatBubbleProps {
-  message?: string;
-  content?: string;
+  message: string;
   isUser: boolean;
-  timestamp?: string | number | Date | null | undefined;
+  timestamp: string;
   animate?: boolean;
   therapistName?: string;
   therapistAvatarSource?: ImageSourcePropType;
   therapistPersonaId?: string;
-  // Legacy props for backward compatibility
-  sender?: 'user' | 'ai' | 'assistant';
-  createdAt?: string;
 }
 
-export const AnimatedChatBubble: React.FC<AnimatedChatBubbleProps> = ({
+export function AnimatedChatBubble({
   message,
-  content,
   isUser,
   timestamp,
   animate = false,
   therapistName,
   therapistAvatarSource,
   therapistPersonaId,
-  // Legacy props
-  sender,
-  createdAt,
-}) => {
+}: AnimatedChatBubbleProps) {
   const { theme } = useThemeContext();
   const fadeAnim = useRef(new Animated.Value(animate ? 0 : 1)).current;
   const slideAnim = useRef(new Animated.Value(animate ? 20 : 0)).current;
+  const [hasAnimated, setHasAnimated] = useState(!animate);
 
   useEffect(() => {
-    if (animate) {
+    if (animate && !hasAnimated) {
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 300,
+          duration: 400,
           useNativeDriver: true,
         }),
-        Animated.timing(slideAnim, {
+        Animated.spring(slideAnim, {
           toValue: 0,
-          duration: 300,
+          tension: 50,
+          friction: 7,
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start(() => {
+        setHasAnimated(true);
+      });
     }
-  }, [animate, fadeAnim, slideAnim]);
+  }, [animate, hasAnimated, fadeAnim, slideAnim]);
 
-  // Handle legacy props
-  const finalMessage = message || content || '';
-  const finalIsUser = sender ? (sender === 'user') : isUser;
-  const finalTimestamp = timestamp || createdAt;
-
-  // Safely parse and format the timestamp
-  const formattedTime = safeFormatDate(finalTimestamp, 'h:mm a', '');
-
-  // Show avatar only for AI messages (not user messages)
-  const showAvatar = !finalIsUser && therapistAvatarSource;
+  const formattedTime = format(new Date(timestamp), 'h:mm a');
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
-          alignSelf: finalIsUser ? 'flex-end' : 'flex-start',
-          flexDirection: finalIsUser ? 'row-reverse' : 'row',
-        },
-      ]}
-    >
-      {/* Avatar - only shown for AI messages, only once per message */}
-      {showAvatar && (
-        <View style={styles.avatarContainer}>
-          <Image
-            source={therapistAvatarSource}
-            style={styles.avatar}
-            resizeMode="cover"
-          />
-        </View>
+    <View style={styles.container}>
+      {!isUser && therapistName && therapistAvatarSource && (
+        <AIHeaderRow
+          therapistName={therapistName}
+          therapistAvatarSource={therapistAvatarSource}
+        />
       )}
-
-      {/* Message bubble */}
-      <View
+      
+      <Animated.View
         style={[
-          styles.bubble,
-          finalIsUser ? styles.userBubble : styles.aiBubble,
+          styles.bubbleWrapper,
+          isUser ? styles.userBubbleWrapper : styles.aiBubbleWrapper,
           {
-            backgroundColor: finalIsUser ? theme.primary : theme.card,
-            maxWidth: showAvatar ? '75%' : '80%',
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
           },
         ]}
       >
-        <Text
+        {!isUser && therapistAvatarSource && (
+          <Image
+            source={therapistAvatarSource}
+            style={styles.avatarIcon}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            priority="high"
+            transition={0}
+          />
+        )}
+        
+        <View
           style={[
-            styles.content,
-            finalIsUser ? styles.userText : styles.aiText,
-            { color: finalIsUser ? '#FFFFFF' : theme.textPrimary },
+            styles.bubble,
+            isUser
+              ? { backgroundColor: theme.primary }
+              : { backgroundColor: theme.card },
           ]}
         >
-          {finalMessage}
-        </Text>
-        {formattedTime && (
-          <Text 
+          <Text
+            style={[
+              styles.messageText,
+              { color: isUser ? '#FFFFFF' : theme.textPrimary },
+            ]}
+          >
+            {message}
+          </Text>
+          <Text
             style={[
               styles.timestamp,
-              { color: finalIsUser ? 'rgba(255, 255, 255, 0.7)' : theme.textSecondary }
+              { color: isUser ? 'rgba(255, 255, 255, 0.7)' : theme.textSecondary },
             ]}
           >
             {formattedTime}
           </Text>
-        )}
-      </View>
-    </Animated.View>
+        </View>
+      </Animated.View>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 4,
+    marginBottom: 16,
+  },
+  bubbleWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    maxWidth: '80%',
   },
-  avatarContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginHorizontal: 8,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-      default: {
-        boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
-      },
-    }),
+  userBubbleWrapper: {
+    alignSelf: 'flex-end',
+    justifyContent: 'flex-end',
   },
-  avatar: {
-    width: 32,
-    height: 32,
+  aiBubbleWrapper: {
+    alignSelf: 'flex-start',
+    justifyContent: 'flex-start',
+  },
+  avatarIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
   },
   bubble: {
-    borderRadius: 20,
+    borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 2,
-      },
-      default: {
-        boxShadow: '0px 1px 4px rgba(0, 0, 0, 0.08)',
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  userBubble: {
-    borderBottomRightRadius: 4,
-  },
-  aiBubble: {
-    borderBottomLeftRadius: 4,
-  },
-  content: {
+  messageText: {
     fontSize: 16,
     lineHeight: 22,
   },
-  userText: {
-    color: '#FFFFFF',
-  },
-  aiText: {
-    color: '#000000',
-  },
   timestamp: {
     fontSize: 11,
-    marginTop: 4,
-    opacity: 0.8,
+    marginTop: 6,
+    fontWeight: '500',
   },
 });

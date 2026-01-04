@@ -8,7 +8,7 @@ import { prefetchSelectedAvatar } from '@/lib/avatarPrefetch';
 interface UserPreferences {
   ai_tone_id: string;
   ai_science_mode: boolean;
-  therapist_persona_id?: string;
+  therapist_persona_id?: string; // NEW: Therapist persona selection
   conversation_style?: string;
   stress_response?: string;
   processing_style?: string;
@@ -34,7 +34,6 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     ai_science_mode: false,
   });
   const [loading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
 
   const fetchPreferences = useCallback(async () => {
     if (!userId) {
@@ -48,7 +47,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     }
 
     // Wrap in timeout to prevent blocking startup
-    const timeoutPromise = new Promise<null>((_, reject) => 
+    const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Preferences fetch timeout')), 3000)
     );
 
@@ -62,53 +61,48 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
         .eq('user_id', userId)
         .maybeSingle();
 
-      const result = await Promise.race([
+      const { data, error } = await Promise.race([
         fetchPromise,
         timeoutPromise
-      ]);
+      ]) as any;
 
-      // Type guard to check if result is from Supabase
-      if (result && typeof result === 'object' && 'data' in result) {
-        const { data, error } = result;
-
-        if (error) {
-          console.log('[UserPreferences] Error fetching preferences (using defaults):', error?.message || 'Unknown error');
-          // Use defaults on error - do not crash
-          setPreferences({
-            ai_tone_id: DEFAULT_TONE_ID,
-            ai_science_mode: false,
-          });
-        } else if (data) {
-          console.log('[UserPreferences] Preferences loaded');
-          const loadedPreferences: UserPreferences = {
-            ai_tone_id: data.ai_tone_id || DEFAULT_TONE_ID,
-            ai_science_mode: data.ai_science_mode ?? false,
-            therapist_persona_id: data.therapist_persona_id || undefined,
-            conversation_style: data.conversation_style || undefined,
-            stress_response: data.stress_response || undefined,
-            processing_style: data.processing_style || undefined,
-            decision_style: data.decision_style || undefined,
-            cultural_context: data.cultural_context || undefined,
-            values_boundaries: data.values_boundaries || undefined,
-            recent_changes: data.recent_changes || undefined,
-          };
-          setPreferences(loadedPreferences);
-          
-          // Prefetch selected therapist avatar if set
-          if (data.therapist_persona_id) {
-            console.log('[UserPreferences] Prefetching selected therapist avatar');
-            prefetchSelectedAvatar(data.therapist_persona_id).catch((err) => {
-              console.warn('[UserPreferences] Avatar prefetch failed (non-critical):', err);
-            });
-          }
-        } else {
-          console.log('[UserPreferences] No preferences found, using defaults');
-          // No row exists yet - use defaults
-          setPreferences({
-            ai_tone_id: DEFAULT_TONE_ID,
-            ai_science_mode: false,
+      if (error) {
+        console.log('[UserPreferences] Error fetching preferences (using defaults):', error?.message || 'Unknown error');
+        // Use defaults on error - do not crash
+        setPreferences({
+          ai_tone_id: DEFAULT_TONE_ID,
+          ai_science_mode: false,
+        });
+      } else if (data) {
+        console.log('[UserPreferences] Preferences loaded');
+        const loadedPreferences = {
+          ai_tone_id: data.ai_tone_id || DEFAULT_TONE_ID,
+          ai_science_mode: data.ai_science_mode ?? false,
+          therapist_persona_id: data.therapist_persona_id,
+          conversation_style: data.conversation_style,
+          stress_response: data.stress_response,
+          processing_style: data.processing_style,
+          decision_style: data.decision_style,
+          cultural_context: data.cultural_context,
+          values_boundaries: data.values_boundaries,
+          recent_changes: data.recent_changes,
+        };
+        setPreferences(loadedPreferences);
+        
+        // Prefetch selected therapist avatar if set
+        if (data.therapist_persona_id) {
+          console.log('[UserPreferences] Prefetching selected therapist avatar');
+          prefetchSelectedAvatar(data.therapist_persona_id).catch((err) => {
+            console.warn('[UserPreferences] Avatar prefetch failed (non-critical):', err);
           });
         }
+      } else {
+        console.log('[UserPreferences] No preferences found, using defaults');
+        // No row exists yet - use defaults
+        setPreferences({
+          ai_tone_id: DEFAULT_TONE_ID,
+          ai_science_mode: false,
+        });
       }
     } catch (err: any) {
       console.log('[UserPreferences] Unexpected error (using defaults):', err?.message || 'Unknown error');
@@ -124,13 +118,12 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
 
   useEffect(() => {
     // Move fetch into useEffect to prevent blocking initial render
-    if (currentUser && !initialized) {
-      setInitialized(true);
+    if (currentUser) {
       fetchPreferences();
-    } else if (!currentUser) {
+    } else {
       setLoading(false);
     }
-  }, [currentUser, initialized, fetchPreferences]);
+  }, [currentUser, fetchPreferences]);
 
   const updatePreferences = useCallback(async (patch: Partial<UserPreferences>) => {
     if (!userId) {
