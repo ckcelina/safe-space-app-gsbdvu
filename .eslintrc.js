@@ -34,6 +34,8 @@ module.exports = {
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
+    "import/no-unresolved": "off",
+    "import/namespace": "off",
     "import/no-unresolved": "off", // Turned off - Metro handles resolution
     "prefer-const": "off",
     "react/prop-types": 1,
