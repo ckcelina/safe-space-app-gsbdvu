@@ -746,22 +746,6 @@ export default function ChatScreen() {
     loadMessages();
   }, [loadMessages]);
 
-  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
-    if (!authUser?.id || !personId) {
-      return;
-    }
-
-    console.log('[Chat] Retrying failed message:', messageId);
-
-    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-
-    setInputText(retryContent);
-    
-    setTimeout(() => {
-      sendMessage();
-    }, 100);
-  }, [authUser?.id, personId]);
-
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
 
@@ -1228,6 +1212,22 @@ export default function ChatScreen() {
     preferences.ai_tone_id,
     getCurrentTherapistMetadata,
   ]);
+
+  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
+    if (!authUser?.id || !personId) {
+      return;
+    }
+
+    console.log('[Chat] Retrying failed message:', messageId);
+
+    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+
+    setInputText(retryContent);
+    
+    setTimeout(() => {
+      sendMessage();
+    }, 100);
+  }, [authUser?.id, personId, sendMessage]);
 
   const isSendDisabled = !inputText.trim() || isSending || loading || isGenerating;
 

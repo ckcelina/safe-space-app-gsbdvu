@@ -1,3 +1,4 @@
+
 /* eslint-disable */
 
 // @eslint-ignore-file
@@ -45,6 +46,12 @@ export default function EditableElement_(_props: PropsWithChildren<any>) {
   } = useContext(EditableContext);
 
   const { children } = _props;
+  
+  // Safety check: ensure children exists and has props
+  if (!children || !children.props) {
+    return children;
+  }
+  
   const { props } = children;
 
   // If we are not running in the web the windows will causes
@@ -56,8 +63,8 @@ export default function EditableElement_(_props: PropsWithChildren<any>) {
   const type = getType(children);
   const __sourceLocation = props.__sourceLocation;
   const __trace = props.__trace;
-  const id = __trace.join("");
-  const attributes = overwrittenProps[id] ?? {};
+  const id = __trace?.join("") ?? "";
+  const attributes = overwrittenProps?.[id] ?? {};
 
   const editStyling =
     selected === id
@@ -96,8 +103,8 @@ export default function EditableElement_(_props: PropsWithChildren<any>) {
     if (!editModeEnabled) return children;
 
     return cloneElement(children, {
-      ...editProps,
       ...props,
+      ...editProps,
       style: [...toArray(props.style), editStyling, attributes.style ?? {}],
       children: attributes.children ?? children.props.children,
     });
@@ -135,4 +142,17 @@ export default function EditableElement_(_props: PropsWithChildren<any>) {
       children: children.props.children,
     });
   }
+
+  // For all other components (including LinearGradient), preserve all props
+  // Don't add edit props if edit mode is not enabled
+  if (!editModeEnabled) {
+    return children;
+  }
+
+  // When edit mode is enabled, preserve ALL original props and only add edit handlers
+  // This ensures critical props like 'colors' for LinearGradient are never lost
+  return cloneElement(children, {
+    ...props,
+    ...editProps,
+  });
 }

@@ -10,7 +10,7 @@
  * - Automatic user profile creation
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase, isSupabaseConfigured, getSupabaseConfigError } from '@/lib/supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -76,47 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch current user on mount with retry
-  useEffect(() => {
-    fetchUserWithRetry();
-
-    // Subscribe to auth state changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('[Auth] State change:', event);
-        
-        if (event === 'SIGNED_IN' && session?.user) {
-          await loadUserProfile(session.user);
-        } else if (event === 'SIGNED_OUT') {
-          setCurrentUser(null);
-        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          await loadUserProfile(session.user);
-        }
-      }
-    );
-
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, []);
-
-  const fetchUserWithRetry = async (retryCount = 0) => {
-    try {
-      await fetchUser();
-    } catch (error) {
-      // Retry once after 1 second if network error
-      if (retryCount === 0 && isNetworkError(error)) {
-        console.log('[Auth] Retrying session fetch after network error...');
-        setTimeout(() => fetchUserWithRetry(1), 1000);
-      } else {
-        // Don't block app startup on auth errors
-        console.log('[Auth] Session fetch failed, continuing without user');
-        setLoading(false);
-      }
-    }
-  };
-
-  const fetchUser = async () => {
+  const fetchUser = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -165,9 +125,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadUserProfile = async (authUser: SupabaseUser) => {
+  const loadUserProfile = useCallback(async (authUser: SupabaseUser) => {
     try {
       // Fetch user profile with timeout
       const profilePromise = supabase
@@ -235,7 +195,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isPremium: false,
       });
     }
-  };
+  }, []);
+
+  const fetchUserWithRetry = useCallback(async (retryCount = 0) => {
+    try {
+      await fetchUser();
+    } catch (error) {
+      // Retry once after 1 second if network error
+      if (retryCount === 0 && isNetworkError(error)) {
+        console.log('[Auth] Retrying session fetch after network error...');
+        setTimeout(() => fetchUserWithRetry(1), 1000);
+      } else {
+        // Don't block app startup on auth errors
+        console.log('[Auth] Session fetch failed, continuing without user');
+        setLoading(false);
+      }
+    }
+  }, [fetchUser]);
+
+  // Fetch current user on mount with retry
+  useEffect(() => {
+    fetchUserWithRetry();
+
+    // Subscribe to auth state changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('[Auth] State change:', event);
+        
+        if (event === 'SIGNED_IN' && session?.user) {
+          await loadUserProfile(session.user);
+        } else if (event === 'SIGNED_OUT') {
+          setCurrentUser(null);
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          await loadUserProfile(session.user);
+        }
+      }
+    );
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, [fetchUserWithRetry, loadUserProfile]);
 
   const signIn = async (email: string, password: string) => {
     // Validate Supabase configuration
