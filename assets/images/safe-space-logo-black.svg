@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Black background -->
+  <rect width="100" height="100" rx="20" fill="#000000"/>
+
+  <!-- Speech Bubble Outline -->
+  <path
+    d="M 20 25
+       Q 20 15, 30 15
+       L 70 15
+       Q 80 15, 80 25
+       L 80 55
+       Q 80 65, 70 65
+       L 55 65
+       L 50 75
+       L 45 65
+       L 30 65
+       Q 20 65, 20 55
+       Z"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Heart Shape inside bubble -->
+  <path
+    d="M 50 55
+       C 50 55, 45 50, 45 45
+       C 45 40, 48 38, 50 38
+       C 52 38, 55 40, 55 45
+       C 55 50, 50 55, 50 55
+       Z"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Left heart curve -->
+  <path
+    d="M 45 45
+       C 45 42, 43 40, 41 40
+       C 39 40, 37 42, 37 45
+       C 37 47, 39 49, 41 50"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Right heart curve -->
+  <path
+    d="M 55 45
+       C 55 42, 57 40, 59 40
+       C 61 40, 63 42, 63 45
+       C 63 47, 61 49, 59 50"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Small decorative dots -->
+  <circle cx="35" cy="30" r="3" fill="#FFFFFF" opacity="0.6" />
+  <circle cx="65" cy="30" r="3" fill="#FFFFFF" opacity="0.6" />
+</svg>

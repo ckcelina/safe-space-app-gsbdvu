@@ -3,32 +3,32 @@ import 'dotenv/config';
 
 export default {
   expo: {
-    name: "Natively",
-    slug: "Natively",
+    name: "Safe Space",
+    slug: "Safe Space",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/natively-dark.png",
+    icon: "./assets/images/safe-space-logo-gradient.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     splash: {
-      image: "./assets/images/natively-dark.png",
+      image: "./assets/images/safe-space-logo-black.png",
       resizeMode: "contain",
       backgroundColor: "#000000"
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.anonymous.Natively",
+      bundleIdentifier: "com.anonymous.SafeSpace",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false
       }
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/images/natively-dark.png",
+        foregroundImage: "./assets/images/safe-space-logo-gradient.png",
         backgroundColor: "#000000"
       },
       edgeToEdgeEnabled: true,
-      package: "com.anonymous.Natively"
+      package: "com.anonymous.SafeSpace"
     },
     web: {
       favicon: "./assets/images/final_quest_240x240.png",
@@ -39,7 +39,7 @@ export default {
       "expo-router",
       "expo-web-browser"
     ],
-    scheme: "natively",
+    scheme: "safespace",
     experiments: {
       typedRoutes: true
     },
