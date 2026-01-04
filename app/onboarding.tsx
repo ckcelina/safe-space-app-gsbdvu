@@ -15,7 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
-  const { theme } = useThemeContext();
+  const { gradientColors, colors } = useThemeContext();
   const { session, signIn, loading } = useAuth();
   const [tapCount, setTapCount] = useState(0);
   const [showReviewerModal, setShowReviewerModal] = useState(false);
@@ -84,7 +84,7 @@ export default function OnboardingScreen() {
 
   return (
     <LinearGradient
-      colors={theme.primaryGradient}
+      colors={gradientColors}
       style={styles.gradientBackground}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
@@ -103,12 +103,12 @@ export default function OnboardingScreen() {
           </View>
 
           {/* Title */}
-          <SafeSpaceTitle style={[styles.title, { color: theme.buttonText }]}>
+          <SafeSpaceTitle style={[styles.title, { color: '#FFFFFF' }]}>
             Safe Space
           </SafeSpaceTitle>
 
           {/* Subtitle */}
-          <SafeSpaceSubtitle style={[styles.subtitle, { color: theme.buttonText }]}>
+          <SafeSpaceSubtitle style={[styles.subtitle, { color: '#FFFFFF' }]}>
             Your private emotional sanctuary for healing and growth.
           </SafeSpaceSubtitle>
 
@@ -133,12 +133,12 @@ export default function OnboardingScreen() {
         onRequestClose={handleCloseModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
               Reviewer Login
             </Text>
             
-            <Text style={[styles.modalDescription, { color: theme.textSecondary }]}>
+            <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
               For App Store Review team only.
             </Text>
 

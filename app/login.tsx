@@ -81,7 +81,7 @@ function getUserFriendlyError(error: any): string {
 }
 
 export default function LoginScreen() {
-  const { theme } = useThemeContext();
+  const { gradientColors } = useThemeContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -245,7 +245,7 @@ export default function LoginScreen() {
 
   return (
     <LinearGradient
-      colors={theme.primaryGradient}
+      colors={gradientColors}
       style={styles.gradientBackground}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
@@ -261,7 +261,7 @@ export default function LoginScreen() {
           >
             <View style={styles.content}>
               <View style={styles.titleContainer}>
-                <SafeSpaceTitle style={{ color: theme.buttonText }}>
+                <SafeSpaceTitle style={{ color: '#FFFFFF' }}>
                   Welcome Back
                 </SafeSpaceTitle>
               </View>
@@ -299,7 +299,7 @@ export default function LoginScreen() {
                     <Ionicons
                       name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={24}
-                      color={theme.buttonText}
+                      color="#FFFFFF"
                     />
                   </TouchableOpacity>
                 </View>
@@ -309,7 +309,7 @@ export default function LoginScreen() {
                   disabled={isLoading}
                   style={styles.forgotPasswordContainer}
                 >
-                  <Text style={[styles.forgotPasswordText, { color: theme.buttonText }]}>
+                  <Text style={[styles.forgotPasswordText, { color: '#FFFFFF' }]}>
                     Forgot Password?
                   </Text>
                 </TouchableOpacity>
@@ -335,7 +335,7 @@ export default function LoginScreen() {
                 <SafeSpaceLinkButton 
                   onPress={() => router.replace('/signup')} 
                   disabled={isLoading}
-                  style={{ color: theme.buttonText }}
+                  style={{ color: '#FFFFFF' }}
                 >
                   Don&apos;t have an account? Sign Up
                 </SafeSpaceLinkButton>

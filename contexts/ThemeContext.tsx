@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ThemeKey = 'ocean' | 'rose' | 'forest' | 'custom';
 
-interface Theme {
+interface ThemeColors {
   primary: string;
   secondary: string;
   background: string;
@@ -17,78 +17,98 @@ interface Theme {
   warning: string;
 }
 
-const themes: Record<ThemeKey, Theme> = {
+interface Theme {
+  key: ThemeKey;
+  name: string;
+  colors: ThemeColors;
+  gradientColors: string[];
+}
+
+const THEMES: Record<ThemeKey, Theme> = {
   ocean: {
-    primary: '#007AFF',
-    secondary: '#5AC8FA',
-    background: '#F2F2F7',
-    surface: '#FFFFFF',
-    text: '#000000',
-    textSecondary: '#8E8E93',
-    border: '#C6C6C8',
-    error: '#FF3B30',
-    success: '#34C759',
-    warning: '#FF9500',
+    key: 'ocean',
+    name: 'Ocean Blue',
+    colors: {
+      primary: '#007AFF',
+      secondary: '#5AC8FA',
+      background: '#F2F2F7',
+      surface: '#FFFFFF',
+      text: '#000000',
+      textSecondary: '#8E8E93',
+      border: '#C6C6C8',
+      error: '#FF3B30',
+      success: '#34C759',
+      warning: '#FF9500',
+    },
+    gradientColors: ['#007AFF', '#5AC8FA'],
   },
   rose: {
-    primary: '#FF2D55',
-    secondary: '#FF6482',
-    background: '#FFF5F7',
-    surface: '#FFFFFF',
-    text: '#000000',
-    textSecondary: '#8E8E93',
-    border: '#FFD1DC',
-    error: '#FF3B30',
-    success: '#34C759',
-    warning: '#FF9500',
+    key: 'rose',
+    name: 'Soft Rose',
+    colors: {
+      primary: '#FF2D55',
+      secondary: '#FF6482',
+      background: '#FFF5F7',
+      surface: '#FFFFFF',
+      text: '#000000',
+      textSecondary: '#8E8E93',
+      border: '#FFD1DC',
+      error: '#FF3B30',
+      success: '#34C759',
+      warning: '#FF9500',
+    },
+    gradientColors: ['#FF2D55', '#FF6482'],
   },
   forest: {
-    primary: '#34C759',
-    secondary: '#30D158',
-    background: '#F0F9F4',
-    surface: '#FFFFFF',
-    text: '#000000',
-    textSecondary: '#8E8E93',
-    border: '#B8E6C9',
-    error: '#FF3B30',
-    success: '#34C759',
-    warning: '#FF9500',
+    key: 'forest',
+    name: 'Forest Green',
+    colors: {
+      primary: '#34C759',
+      secondary: '#30D158',
+      background: '#F2F9F4',
+      surface: '#FFFFFF',
+      text: '#000000',
+      textSecondary: '#8E8E93',
+      border: '#C6E5CE',
+      error: '#FF3B30',
+      success: '#34C759',
+      warning: '#FF9500',
+    },
+    gradientColors: ['#34C759', '#30D158'],
   },
   custom: {
-    primary: '#007AFF',
-    secondary: '#5AC8FA',
-    background: '#F2F2F7',
-    surface: '#FFFFFF',
-    text: '#000000',
-    textSecondary: '#8E8E93',
-    border: '#C6C6C8',
-    error: '#FF3B30',
-    success: '#34C759',
-    warning: '#FF9500',
+    key: 'custom',
+    name: 'Custom',
+    colors: {
+      primary: '#007AFF',
+      secondary: '#5AC8FA',
+      background: '#F2F2F7',
+      surface: '#FFFFFF',
+      text: '#000000',
+      textSecondary: '#8E8E93',
+      border: '#C6C6C8',
+      error: '#FF3B30',
+      success: '#34C759',
+      warning: '#FF9500',
+    },
+    gradientColors: ['#007AFF', '#5AC8FA'],
   },
 };
-
-const defaultTheme: Theme = themes.ocean;
 
 interface ThemeContextType {
   theme: Theme;
   themeKey: ThemeKey;
-  setThemeKey: (key: ThemeKey) => void;
+  setTheme: (key: ThemeKey) => void;
+  colors: ThemeColors;
+  gradientColors: string[];
 }
 
-const defaultContextValue: ThemeContextType = {
-  theme: defaultTheme,
-  themeKey: 'ocean',
-  setThemeKey: () => {},
-};
-
-export const ThemeContext = createContext<ThemeContextType>(defaultContextValue);
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = '@safe_space_theme';
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themeKey, setThemeKeyState] = useState<ThemeKey>('ocean');
-  const [theme, setTheme] = useState<Theme>(themes.ocean);
+  const [themeKey, setThemeKey] = useState<ThemeKey>('ocean');
 
   useEffect(() => {
     loadTheme();
@@ -96,52 +116,57 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const loadTheme = async () => {
     try {
-      const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme && (savedTheme as ThemeKey) in themes) {
-        const key = savedTheme as ThemeKey;
-        setThemeKeyState(key);
-        setTheme(themes[key]);
+      const saved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+      if (saved && THEMES[saved as ThemeKey]) {
+        setThemeKey(saved as ThemeKey);
       }
     } catch (error) {
       console.error('Failed to load theme:', error);
     }
   };
 
-  const setThemeKey = async (key: ThemeKey) => {
+  const setTheme = async (key: ThemeKey) => {
     try {
-      setThemeKeyState(key);
-      setTheme(themes[key]);
       await AsyncStorage.setItem(THEME_STORAGE_KEY, key);
+      setThemeKey(key);
     } catch (error) {
       console.error('Failed to save theme:', error);
     }
   };
 
+  const theme = THEMES[themeKey];
+
   return (
-    <ThemeContext.Provider value={{ theme, themeKey, setThemeKey }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        themeKey,
+        setTheme,
+        colors: theme.colors,
+        gradientColors: theme.gradientColors,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );
 }
 
-/**
- * Hook to access theme context
- * Must be used within ThemeProvider
- * Throws error if used outside provider (for development)
- */
 export function useThemeContext() {
   const context = useContext(ThemeContext);
-  if (!context || context === defaultContextValue) {
+  if (context === undefined) {
     throw new Error('useThemeContext must be used within a ThemeProvider');
   }
   return context;
 }
 
-/**
- * Safe hook that returns default theme if context is not available
- * Use this in error boundaries and fallback components
- */
+// Safe hook that provides default theme if context unavailable
 export function useThemeSafe() {
   const context = useContext(ThemeContext);
-  return context || defaultContextValue;
+  return context ?? {
+    theme: THEMES.ocean,
+    themeKey: 'ocean' as ThemeKey,
+    setTheme: () => {},
+    colors: THEMES.ocean.colors,
+    gradientColors: THEMES.ocean.gradientColors,
+  };
 }
