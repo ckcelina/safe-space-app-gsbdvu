@@ -1,7 +1,8 @@
+
 {
   "expo": {
     "name": "Safe Space",
-    "slug": "Safe Space",
+    "slug": "Natively",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -44,6 +45,5 @@
     "extra": {
       "router": {}
     }
-  },
-  "scheme": "Safe Space"
+  }
 }
