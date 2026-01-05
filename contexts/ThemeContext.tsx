@@ -19,6 +19,7 @@ interface ThemeContextType {
   themeKey: ThemeKey;
   theme: Theme;
   setTheme: (themeKey: ThemeKey) => Promise<void>;
+  isHydrated: boolean; // True when theme has been loaded from storage
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -83,17 +84,27 @@ const themes: Record<ThemeKey, Theme> = {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeKey, setThemeKey] = useState<ThemeKey>('OceanBlue');
   const [theme, setThemeState] = useState<Theme>(oceanBlueTheme);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const loadTheme = useCallback(async () => {
     try {
+      console.log('[ThemeProvider] Loading theme from storage...');
       const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
       if (savedTheme && savedTheme in themes) {
         const key = savedTheme as ThemeKey;
+        console.log('[ThemeProvider] Loaded saved theme:', key);
         setThemeKey(key);
         setThemeState(themes[key]);
+      } else {
+        console.log('[ThemeProvider] No saved theme, using default: OceanBlue');
       }
     } catch (error) {
-      console.error('Error loading theme:', error);
+      console.error('[ThemeProvider] Error loading theme:', error);
+      // Use default theme on error
+    } finally {
+      // Mark as hydrated regardless of success/failure
+      setIsHydrated(true);
+      console.log('[ThemeProvider] Theme hydration complete');
     }
   }, []);
 
@@ -112,7 +123,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ themeKey, theme, setTheme }}>
+    <ThemeContext.Provider value={{ themeKey, theme, setTheme, isHydrated }}>
       {children}
     </ThemeContext.Provider>
   );
