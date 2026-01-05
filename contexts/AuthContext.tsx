@@ -32,6 +32,7 @@ interface AuthContextType {
   role: 'free' | 'premium' | 'admin';
   isPremium: boolean;
   loading: boolean;
+  isHydrated: boolean;
   refreshUser: () => Promise<void>;
 }
 
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const fetchUserProfile = useCallback(async (authUser: SupabaseUser) => {
     try {
@@ -100,59 +102,93 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (sessionError) {
-        console.error('[AuthContext] Session error:', sessionError);
-        setCurrentUser(null);
-        setUser(null);
+        console.warn('[AuthContext] Session error (not clearing state):', sessionError);
+        // Don't clear session on network errors - preserve existing state
         return;
       }
 
       if (session?.user) {
         setCurrentUser(session.user);
-        
+
         const userProfile = await fetchUserProfile(session.user);
         setUser(userProfile);
       } else {
+        // Only clear if there's genuinely no session
         setCurrentUser(null);
         setUser(null);
       }
     } catch (error) {
-      console.error('[AuthContext] Failed to refresh user:', error);
-      setCurrentUser(null);
-      setUser(null);
+      console.warn('[AuthContext] Failed to refresh user (not clearing state):', error);
+      // Don't clear session on network errors - preserve existing state
     } finally {
       setLoading(false);
     }
   }, [fetchUserProfile]);
 
-  // Fetch current user on mount
+  // Initialize auth state and listen for changes
   useEffect(() => {
-    refreshUser();
-  }, [refreshUser]);
+    let mounted = true;
+    let subscription: any;
 
-  // Listen for auth state changes
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[AuthContext] Auth state changed:', event);
-      
-      if (session?.user) {
-        setCurrentUser(session.user);
-        
-        const userProfile = await fetchUserProfile(session.user);
-        setUser(userProfile);
-      } else {
-        setCurrentUser(null);
-        setUser(null);
+    async function initialize() {
+      try {
+        // 1. Get initial session ONCE
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (!mounted) return;
+
+        // 2. Set initial state from session (don't clear on error)
+        if (session?.user) {
+          setCurrentUser(session.user);
+          const userProfile = await fetchUserProfile(session.user);
+          if (mounted) {
+            setUser(userProfile);
+          }
+        }
+
+        // 3. Mark as hydrated (initial load complete)
+        if (mounted) {
+          setIsHydrated(true);
+          setLoading(false);
+        }
+
+        // 4. Subscribe to auth state changes
+        const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log('[AuthContext] Auth state changed:', event);
+
+            if (session?.user) {
+              setCurrentUser(session.user);
+              const userProfile = await fetchUserProfile(session.user);
+              setUser(userProfile);
+            } else if (event === 'SIGNED_OUT') {
+              // Only clear on explicit sign out, not on network errors
+              setCurrentUser(null);
+              setUser(null);
+            }
+          }
+        );
+
+        subscription = sub;
+      } catch (error) {
+        console.warn('[AuthContext] Failed to initialize (preserving state):', error);
+        // Don't clear session on network errors
+        if (mounted) {
+          setIsHydrated(true);
+          setLoading(false);
+        }
       }
-      
-      setLoading(false);
-    });
+    }
+
+    initialize();
 
     return () => {
-      subscription.unsubscribe();
+      mounted = false;
+      subscription?.unsubscribe();
     };
   }, [fetchUserProfile]);
 
@@ -169,6 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role,
         isPremium,
         loading,
+        isHydrated,
         refreshUser,
       }}
     >

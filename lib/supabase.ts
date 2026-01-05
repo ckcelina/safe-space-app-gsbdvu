@@ -1,7 +1,7 @@
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { Alert } from 'react-native';
+import { secureStoreAdapter } from './secureStoreAdapter';
 
 // Environment variables with validation
 // Check process.env first, then fall back to hardcoded values
@@ -31,12 +31,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create and export a single Supabase client instance
+// Uses SecureStore for encrypted token storage (more secure than AsyncStorage)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: secureStoreAdapter,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // Use PKCE flow for better security
+    flowType: 'pkce',
   },
 });
 
