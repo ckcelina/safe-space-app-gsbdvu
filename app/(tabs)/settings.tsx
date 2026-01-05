@@ -1,4 +1,16 @@
 
+// ⚠️⚠️⚠️ DO NOT REDESIGN THIS SCREEN ⚠️⚠️⚠️
+// This Settings screen UI is LOCKED and must be preserved 1:1.
+// ONLY bug fixes for scroll/tap interactions are allowed.
+// DO NOT change:
+// - Layout structure (cards, rows, headers)
+// - Visual design (colors, spacing, shadows, borders)
+// - Component hierarchy (ScrollView, SafeAreaView, modals)
+// - Navigation behavior (back button, modal flows)
+// - Any UI elements or their styling
+// If you need to make changes, consult the original implementation first.
+// ⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -105,6 +117,9 @@ function formatRelativeDate(dateString: string): string {
   }
 }
 
+// 🔒 DEVELOPER GUARD: This component name and export must remain unchanged
+// to ensure routing always points to this exact Settings screen implementation.
+// DO NOT rename this component or change the default export.
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
@@ -2598,6 +2613,12 @@ export default function SettingsScreen() {
     </View>
   );
 }
+
+// 🔒 DEVELOPER GUARD: Verify this is the correct Settings screen component
+// This component must remain the default export for routing to work correctly.
+// Component name: SettingsScreen
+// Export type: default
+// File path: app/(tabs)/settings.tsx
 
 const styles = StyleSheet.create({
   outerContainer: {
