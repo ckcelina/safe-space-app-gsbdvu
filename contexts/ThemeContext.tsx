@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { switchAppIcon } from '@/utils/appIconSwitcher';
 
 export type ThemeKey = 'OceanBlue' | 'SoftRose' | 'ForestGreen' | 'SunnyYellow';
 
@@ -91,6 +92,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const key = savedTheme as ThemeKey;
         setThemeKey(key);
         setThemeState(themes[key]);
+
+        // Switch app icon to match loaded theme (iOS only)
+        await switchAppIcon(key);
       }
     } catch (error) {
       console.error('Error loading theme:', error);
@@ -106,6 +110,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeKey);
       setThemeKey(newThemeKey);
       setThemeState(themes[newThemeKey]);
+
+      // Switch app icon to match new theme (iOS only)
+      await switchAppIcon(newThemeKey);
     } catch (error) {
       console.error('Error saving theme:', error);
     }
