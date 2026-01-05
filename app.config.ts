@@ -4,8 +4,8 @@ import 'dotenv/config';
 export default {
   expo: {
     name: "Safe Space",
-    slug: "Safe Space",
-    version: "1.0.11",
+    slug: "Natively",
+    version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/safe-space-logo-gradient.png",
     userInterfaceStyle: "automatic",
@@ -20,7 +20,8 @@ export default {
       bundleIdentifier: "com.anonymous.SafeSpace",
       icon: "./assets/images/safe-space-logo-gradient.png",
       infoPlist: {
-        ITSAppUsesNonExemptEncryption: false
+        ITSAppUsesNonExemptEncryption: false,
+        CFBundleDisplayName: "Safe Space"
       }
     },
     android: {
