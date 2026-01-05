@@ -36,130 +36,132 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUserProfile = async (authUserId: string, retryCount = 0) => {
-    const MAX_RETRIES = 2;
-    
-    // Wrap in timeout to prevent blocking startup
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
-    );
+    const MAX_RETRIES = 3;
 
     try {
       console.log('[AuthContext] Fetching user profile for:', authUserId);
-      
-      // Race between fetch and timeout
-      const fetchPromise = (async () => {
-        // Step 1: Check if user profile already exists
-        const { data: existingUser, error: selectError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUserId)
-          .maybeSingle();
 
-        if (selectError && selectError.code !== 'PGRST116') {
-          console.log('[AuthContext] Error checking existing user profile:', selectError.message);
+      // Step 1: Check if user profile already exists
+      const { data: existingUser, error: selectError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUserId)
+        .maybeSingle();
+
+      // CRITICAL: Network errors should NOT clear user state
+      // Just log and use fallback - user stays logged in
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.log('[AuthContext] Error checking existing user profile:', selectError.message);
+
+        // If it's a network error, retry
+        if (retryCount < MAX_RETRIES && (selectError.message.includes('network') || selectError.message.includes('fetch'))) {
+          console.log(`[AuthContext] Network error, retrying (${retryCount + 1}/${MAX_RETRIES})...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          return fetchUserProfile(authUserId, retryCount + 1);
         }
 
-        // Step 2: If user exists, set it and stop
-        if (existingUser) {
-          console.log('[AuthContext] User profile found');
-          setUser(existingUser);
-          return;
-        }
-
-        // Step 3: User doesn't exist, create one
-        console.log('[AuthContext] User profile not found, creating one');
+        // Non-network error or max retries reached - use fallback but DON'T logout
+        console.log('[AuthContext] Using fallback user profile due to error');
         const { data: authUser } = await supabase.auth.getUser();
-        
-        const { data: newUser, error: insertError } = await supabase
-          .from('users')
-          .insert([{ 
-            id: authUserId, 
-            email: authUser.user?.email || null,
-            role: 'free' 
-          }])
-          .select()
-          .maybeSingle();
+        setUser({
+          id: authUserId,
+          email: authUser.user?.email || null,
+          username: null,
+          role: 'free',
+          created_at: new Date().toISOString()
+        });
+        return;
+      }
 
-        // Step 4: Handle duplicate key error gracefully
-        if (insertError) {
-          if (insertError.code === '23505') {
-            // Duplicate key error - this is non-fatal
-            console.log('[AuthContext] Duplicate user profile detected, fetching existing profile');
-            
-            // Re-select the existing user profile
-            const { data: retryUser, error: retrySelectError } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', authUserId)
-              .maybeSingle();
+      // Step 2: If user exists, set it and stop
+      if (existingUser) {
+        console.log('[AuthContext] User profile found');
+        setUser(existingUser);
+        return;
+      }
 
-            if (retrySelectError) {
-              console.log('[AuthContext] Error fetching existing user profile after duplicate error:', retrySelectError.message);
-              // Set a fallback user object
-              setUser({ 
-                id: authUserId, 
-                email: authUser.user?.email || null,
-                username: null,
-                role: 'free', 
-                created_at: new Date().toISOString() 
-              });
-            } else if (retryUser) {
-              console.log('[AuthContext] Successfully fetched existing user profile');
-              setUser(retryUser);
-            } else {
-              console.log('[AuthContext] No user found after duplicate error, using fallback');
-              setUser({ 
-                id: authUserId, 
-                email: authUser.user?.email || null,
-                username: null,
-                role: 'free', 
-                created_at: new Date().toISOString() 
-              });
-            }
-          } else {
-            // Real error - log it but don't block the user
-            console.log('[AuthContext] Error creating user profile:', insertError.message);
-            
-            // Retry logic for transient errors
-            if (retryCount < MAX_RETRIES && insertError.message.includes('network')) {
-              console.log(`[AuthContext] Retrying profile creation (${retryCount + 1}/${MAX_RETRIES})...`);
-              await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-              return fetchUserProfile(authUserId, retryCount + 1);
-            }
-            
-            setUser({ 
-              id: authUserId, 
-              email: authUser.user?.email || null,
-              username: null,
-              role: 'free', 
-              created_at: new Date().toISOString() 
-            });
+      // Step 3: User doesn't exist, create one
+      console.log('[AuthContext] User profile not found, creating one');
+      const { data: authUser } = await supabase.auth.getUser();
+
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .insert([{
+          id: authUserId,
+          email: authUser.user?.email || null,
+          role: 'free'
+        }])
+        .select()
+        .maybeSingle();
+
+      // Step 4: Handle errors gracefully
+      if (insertError) {
+        if (insertError.code === '23505') {
+          // Duplicate key error - this is non-fatal, just fetch the existing user
+          console.log('[AuthContext] Duplicate user profile detected, fetching existing profile');
+
+          const { data: retryUser, error: retrySelectError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', authUserId)
+            .maybeSingle();
+
+          if (retrySelectError) {
+            console.log('[AuthContext] Error fetching existing user after duplicate, using fallback');
           }
-        } else if (newUser) {
-          console.log('[AuthContext] User profile created');
-          setUser(newUser);
-        } else {
-          // Fallback if insert returns no data
-          setUser({ 
-            id: authUserId, 
+
+          setUser(retryUser || {
+            id: authUserId,
             email: authUser.user?.email || null,
             username: null,
-            role: 'free', 
-            created_at: new Date().toISOString() 
+            role: 'free',
+            created_at: new Date().toISOString()
+          });
+        } else {
+          // Other error - log it but use fallback (DON'T logout)
+          console.log('[AuthContext] Error creating user profile:', insertError.message);
+
+          // Retry on network errors
+          if (retryCount < MAX_RETRIES && (insertError.message.includes('network') || insertError.message.includes('fetch'))) {
+            console.log(`[AuthContext] Network error, retrying (${retryCount + 1}/${MAX_RETRIES})...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+            return fetchUserProfile(authUserId, retryCount + 1);
+          }
+
+          setUser({
+            id: authUserId,
+            email: authUser.user?.email || null,
+            username: null,
+            role: 'free',
+            created_at: new Date().toISOString()
           });
         }
-      })();
-
-      await Promise.race([fetchPromise, timeoutPromise]);
+      } else if (newUser) {
+        console.log('[AuthContext] User profile created');
+        setUser(newUser);
+      } else {
+        // Fallback if insert returns no data
+        setUser({
+          id: authUserId,
+          email: authUser.user?.email || null,
+          username: null,
+          role: 'free',
+          created_at: new Date().toISOString()
+        });
+      }
     } catch (error: any) {
       console.log('[AuthContext] Error in fetchUserProfile:', error?.message || 'Unknown error');
-      // Set a default user object to prevent blocking
-      setUser({ 
-        id: authUserId, 
-        email: null,
+
+      // CRITICAL: Network errors should NOT logout user
+      // Just use fallback profile and let user continue
+      const { data: authUser } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+
+      setUser({
+        id: authUserId,
+        email: authUser.user?.email || null,
         username: null,
-        role: 'free', 
-        created_at: new Date().toISOString() 
+        role: 'free',
+        created_at: new Date().toISOString()
       });
     }
   };
@@ -172,38 +174,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     console.log('[AuthContext] Initializing...');
-    
-    // Wrap initial session fetch in timeout
+
+    let mounted = true;
+
+    // Initialize auth with improved error handling and no aggressive timeouts
     const initAuth = async () => {
       try {
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session fetch timeout')), 5000)
-        );
-
-        const sessionPromise = supabase.auth.getSession();
-
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any;
+        // Get existing session from storage
+        const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error) {
           console.log('[AuthContext] Error getting initial session:', error.message);
-          setLoading(false);
+          // Don't throw - just log and continue with no session
+          if (mounted) {
+            setLoading(false);
+          }
           return;
         }
 
+        if (!mounted) return;
+
         console.log('[AuthContext] Initial session:', session?.user?.email || 'No session');
+
+        // CRITICAL: Set session and user BEFORE fetching profile
+        // This prevents race condition where UI shows logged out state briefly
         setSession(session);
         setCurrentUser(session?.user ?? null);
-        
+
+        // Fetch user profile if we have a session
         if (session?.user) {
-          await fetchUserProfile(session.user.id);
+          // Don't await - let it happen in background
+          // UI can show with basic auth info while profile loads
+          fetchUserProfile(session.user.id).finally(() => {
+            if (mounted) {
+              setLoading(false);
+            }
+          });
+        } else {
+          if (mounted) {
+            setLoading(false);
+          }
         }
       } catch (error: any) {
         console.log('[AuthContext] Error initializing auth:', error?.message || 'Unknown error');
-      } finally {
-        setLoading(false);
+        // CRITICAL: Don't clear auth state on initialization error
+        // Keep any existing session that might be in memory
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -212,17 +230,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log('[AuthContext] Auth state changed:', _event, session?.user?.email || 'No session');
+
+      if (!mounted) return;
+
       setSession(session);
       setCurrentUser(session?.user ?? null);
-      
+
       if (session?.user) {
-        await fetchUserProfile(session.user.id);
+        // Fetch profile in background, don't block auth state update
+        fetchUserProfile(session.user.id);
       } else {
         setUser(null);
       }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);

@@ -1,7 +1,7 @@
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { Alert } from 'react-native';
+import { secureStorage } from './secureStorage';
 
 // Environment variables with validation
 // Check process.env first, then fall back to hardcoded values
@@ -13,7 +13,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.log('[Supabase] Missing environment variables!');
   console.log('[Supabase] URL:', supabaseUrl ? 'Present' : 'MISSING');
   console.log('[Supabase] Key:', supabaseAnonKey ? 'Present' : 'MISSING');
-  
+
   // Show user-friendly error instead of crashing
   setTimeout(() => {
     Alert.alert(
@@ -30,10 +30,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
   }
 }
 
-// Create and export a single Supabase client instance
+/**
+ * Create and export a single Supabase client instance (SINGLETON PATTERN)
+ *
+ * CRITICAL: Uses SecureStore for auth persistence to prevent random logouts
+ * - storage: secureStorage (encrypted SecureStore on native, localStorage on web)
+ * - autoRefreshToken: true (automatically refresh tokens before expiry)
+ * - persistSession: true (persist session across app restarts)
+ * - detectSessionInUrl: false (Expo doesn't use URL-based auth)
+ */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: secureStorage as any,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
