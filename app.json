@@ -1,7 +1,8 @@
+
 {
   "expo": {
-    "name": "Safe Space",
-    "slug": "Safe Space",
+    "name": "Natively",
+    "slug": "Natively",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -16,9 +17,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleDisplayName": "Safe Space"
-      }
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "scheme": "natively"
     },
     "android": {
       "adaptiveIcon": {
@@ -26,7 +27,21 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Natively"
+      "package": "com.anonymous.Natively",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "natively"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
@@ -37,13 +52,11 @@
       "expo-router",
       "expo-web-browser"
     ],
-    "scheme": "natively",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {}
     }
-  },
-  "scheme": "Safe Space"
+  }
 }
