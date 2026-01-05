@@ -1,149 +1,152 @@
 
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, ImageSourcePropType } from 'react-native';
-import { Image } from 'expo-image';
-import { useThemeContext } from '@/contexts/ThemeContext';
-import { AIHeaderRow } from './AIHeaderRow';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated, Image, ImageSourcePropType } from 'react-native';
 import { format } from 'date-fns';
+import { useThemeContext } from '@/contexts/ThemeContext';
 
 interface AnimatedChatBubbleProps {
-  message: string;
-  isUser: boolean;
-  timestamp: string;
-  animate?: boolean;
-  therapistName?: string;
-  therapistAvatarSource?: ImageSourcePropType;
-  therapistPersonaId?: string;
+  message: {
+    sender: 'user' | 'ai';
+    content: string;
+    timestamp?: string | number | Date | null;
+    therapist_name?: string;
+    therapist_avatar_source?: ImageSourcePropType;
+  };
+  index: number;
 }
 
-export function AnimatedChatBubble({
-  message,
-  isUser,
-  timestamp,
-  animate = false,
-  therapistName,
-  therapistAvatarSource,
-  therapistPersonaId,
-}: AnimatedChatBubbleProps) {
+/**
+ * Safe timestamp normalization helper
+ * Accepts: string | number | Date | null | undefined
+ * Returns: valid Date or null
+ */
+const normalizeTimestamp = (timestamp: string | number | Date | null | undefined): Date | null => {
+  if (!timestamp) return null;
+
+  let date: Date;
+  
+  if (typeof timestamp === 'string') {
+    date = new Date(timestamp);
+  } else if (typeof timestamp === 'number') {
+    date = new Date(timestamp);
+  } else if (timestamp instanceof Date) {
+    date = timestamp;
+  } else {
+    return null;
+  }
+
+  // Validate the date
+  return isNaN(date.getTime()) ? null : date;
+};
+
+export const AnimatedChatBubble: React.FC<AnimatedChatBubbleProps> = ({ message, index }) => {
   const { theme } = useThemeContext();
-  const fadeAnim = useRef(new Animated.Value(animate ? 0 : 1)).current;
-  const slideAnim = useRef(new Animated.Value(animate ? 20 : 0)).current;
-  const [hasAnimated, setHasAnimated] = useState(!animate);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
-    if (animate && !hasAnimated) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setHasAnimated(true);
-      });
-    }
-  }, [animate, hasAnimated, fadeAnim, slideAnim]);
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        delay: index * 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        delay: index * 50,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
-  const formattedTime = format(new Date(timestamp), 'h:mm a');
+  const isUser = message.sender === 'user';
+  
+  // Safe timestamp formatting
+  const normalizedTimestamp = normalizeTimestamp(message.timestamp);
+  const formattedTime = normalizedTimestamp ? format(normalizedTimestamp, 'p') : '';
 
   return (
-    <View style={styles.container}>
-      {!isUser && therapistName && therapistAvatarSource && (
-        <AIHeaderRow
-          therapistName={therapistName}
-          therapistAvatarSource={therapistAvatarSource}
+    <Animated.View
+      style={[
+        styles.messageContainer,
+        isUser ? styles.userMessageContainer : styles.aiMessageContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+    >
+      {!isUser && message.therapist_avatar_source && (
+        <Image
+          source={message.therapist_avatar_source}
+          style={styles.avatar}
         />
       )}
-      
-      <Animated.View
+      <View
         style={[
-          styles.bubbleWrapper,
-          isUser ? styles.userBubbleWrapper : styles.aiBubbleWrapper,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
+          styles.bubble,
+          isUser
+            ? { backgroundColor: theme.colors.primary }
+            : { backgroundColor: theme.colors.surface },
         ]}
       >
-        {!isUser && therapistAvatarSource && (
-          <Image
-            source={therapistAvatarSource}
-            style={styles.avatarIcon}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            priority="high"
-            transition={0}
-          />
+        {!isUser && message.therapist_name && (
+          <Text style={[styles.therapistName, { color: theme.colors.primary }]}>
+            {message.therapist_name}
+          </Text>
         )}
-        
-        <View
+        <Text
           style={[
-            styles.bubble,
-            isUser
-              ? { backgroundColor: theme.primary }
-              : { backgroundColor: theme.card },
+            styles.messageText,
+            { color: isUser ? '#FFFFFF' : theme.colors.text },
           ]}
         >
-          <Text
-            style={[
-              styles.messageText,
-              { color: isUser ? '#FFFFFF' : theme.textPrimary },
-            ]}
-          >
-            {message}
-          </Text>
+          {message.content}
+        </Text>
+        {formattedTime && (
           <Text
             style={[
               styles.timestamp,
-              { color: isUser ? 'rgba(255, 255, 255, 0.7)' : theme.textSecondary },
+              { color: isUser ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary },
             ]}
           >
             {formattedTime}
           </Text>
-        </View>
-      </Animated.View>
-    </View>
+        )}
+      </View>
+    </Animated.View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 16,
-  },
-  bubbleWrapper: {
+  messageContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    maxWidth: '80%',
+    marginVertical: 4,
+    paddingHorizontal: 16,
   },
-  userBubbleWrapper: {
-    alignSelf: 'flex-end',
+  userMessageContainer: {
     justifyContent: 'flex-end',
   },
-  aiBubbleWrapper: {
-    alignSelf: 'flex-start',
+  aiMessageContainer: {
     justifyContent: 'flex-start',
   },
-  avatarIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     marginRight: 8,
   },
   bubble: {
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    maxWidth: '75%',
+    borderRadius: 16,
+    padding: 12,
+  },
+  therapistName: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   messageText: {
     fontSize: 16,
@@ -151,7 +154,6 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 11,
-    marginTop: 6,
-    fontWeight: '500',
+    marginTop: 4,
   },
 });
