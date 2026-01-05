@@ -4,7 +4,7 @@ import { ImageSourcePropType } from 'react-native';
 import { AnimatedChatBubble } from './AnimatedChatBubble';
 
 interface ChatBubbleProps {
-  message?: string;
+  message: string;
   isUser: boolean;
   timestamp?: string;
   animate?: boolean;
@@ -13,7 +13,7 @@ interface ChatBubbleProps {
   therapistAvatarSource?: ImageSourcePropType;
   therapistPersonaId?: string;
   // Legacy props for backward compatibility
-  sender?: 'user' | 'ai' | 'assistant';
+  sender?: 'user' | 'ai';
   content?: string;
   createdAt?: string;
 }
@@ -42,7 +42,7 @@ export function ChatBubble({
 }: ChatBubbleProps) {
   // Handle legacy props
   const finalMessage = message || content || '';
-  const finalIsUser = sender ? (sender === 'user') : isUser;
+  const finalIsUser = sender ? sender === 'user' : isUser;
   const finalTimestamp = timestamp || createdAt;
   
   return (

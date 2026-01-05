@@ -2,9 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Modal, Text, Dimensions } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
+import { SafeSpaceScreen } from '@/components/ui/SafeSpaceScreen';
 import { SafeSpaceTitle, SafeSpaceSubtitle } from '@/components/ui/SafeSpaceText';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
@@ -15,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
-  const { gradientColors, colors } = useThemeContext();
+  const { theme } = useThemeContext();
   const { session, signIn, loading } = useAuth();
   const [tapCount, setTapCount] = useState(0);
   const [showReviewerModal, setShowReviewerModal] = useState(false);
@@ -83,47 +81,37 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <LinearGradient
-      colors={gradientColors}
-      style={styles.gradientBackground}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-    >
-      <StatusBar style="light" translucent backgroundColor="transparent" />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.content}>
-          {/* App Icon - with hidden tap gesture - now using gradient version like widget/app icon */}
-          <View style={styles.iconContainer}>
-            <TouchableOpacity 
-              onPress={handleLogoTap}
-              activeOpacity={1}
-            >
-              <SafeSpaceLogo size={Math.min(SCREEN_WIDTH * 0.3, 120)} useGradient={true} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Title */}
-          <SafeSpaceTitle style={[styles.title, { color: '#FFFFFF' }]}>
-            Safe Space
-          </SafeSpaceTitle>
-
-          {/* Subtitle */}
-          <SafeSpaceSubtitle style={[styles.subtitle, { color: '#FFFFFF' }]}>
-            Your private emotional sanctuary for healing and growth.
-          </SafeSpaceSubtitle>
-
-          {/* Buttons */}
-          <View style={styles.buttonContainer}>
-            <SafeSpaceButton onPress={handleCreateSpace}>
-              Create My Safe Space
-            </SafeSpaceButton>
-
-            <SafeSpaceLinkButton variant="outline" onPress={handleLogin}>
-              Log In
-            </SafeSpaceLinkButton>
-          </View>
+    <SafeSpaceScreen scrollable={true} keyboardAware={false} useGradient={true}>
+      <View style={styles.content}>
+        {/* App Icon - with hidden tap gesture - now using gradient version like widget/app icon */}
+        <View style={styles.iconContainer}>
+          <TouchableOpacity 
+            onPress={handleLogoTap}
+            activeOpacity={1}
+          >
+            <SafeSpaceLogo size={Math.min(SCREEN_WIDTH * 0.3, 120)} useGradient={true} />
+          </TouchableOpacity>
         </View>
-      </SafeAreaView>
+
+        {/* Title */}
+        <SafeSpaceTitle style={styles.title}>Safe Space</SafeSpaceTitle>
+
+        {/* Subtitle */}
+        <SafeSpaceSubtitle style={styles.subtitle}>
+          Your private emotional sanctuary for healing and growth.
+        </SafeSpaceSubtitle>
+
+        {/* Buttons */}
+        <View style={styles.buttonContainer}>
+          <SafeSpaceButton onPress={handleCreateSpace}>
+            Create My Safe Space
+          </SafeSpaceButton>
+
+          <SafeSpaceLinkButton variant="outline" onPress={handleLogin}>
+            Log In
+          </SafeSpaceLinkButton>
+        </View>
+      </View>
 
       {/* Apple Reviewer Login Modal */}
       <Modal
@@ -133,12 +121,12 @@ export default function OnboardingScreen() {
         onRequestClose={handleCloseModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
               Reviewer Login
             </Text>
             
-            <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
+            <Text style={[styles.modalDescription, { color: theme.textSecondary }]}>
               For App Store Review team only.
             </Text>
 
@@ -162,25 +150,15 @@ export default function OnboardingScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </SafeSpaceScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  gradientBackground: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  safeArea: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: Math.min(SCREEN_WIDTH * 0.06, 24),
     paddingVertical: SCREEN_HEIGHT * 0.05,
     minHeight: SCREEN_HEIGHT * 0.7,
   },
@@ -197,7 +175,6 @@ const styles = StyleSheet.create({
     marginBottom: SCREEN_HEIGHT * 0.06,
     fontSize: Math.min(SCREEN_WIDTH * 0.045, 17),
     lineHeight: Math.min(SCREEN_WIDTH * 0.068, 26),
-    textAlign: 'center',
   },
   buttonContainer: {
     width: '100%',

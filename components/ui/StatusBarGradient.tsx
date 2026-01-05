@@ -12,7 +12,7 @@ import { StatusBar } from 'expo-status-bar';
  * that matches the selected theme's primary gradient.
  */
 export function StatusBarGradient() {
-  const { gradientColors } = useThemeContext();
+  const { theme } = useThemeContext();
   const insets = useSafeAreaInsets();
 
   // Only render on screens where status bar is visible
@@ -25,7 +25,7 @@ export function StatusBarGradient() {
       <StatusBar style="light" translucent />
       <View style={[styles.container, { height: insets.top }]} pointerEvents="none">
         <LinearGradient
-          colors={gradientColors}
+          colors={theme.primaryGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
