@@ -184,11 +184,12 @@ export default function SettingsScreen() {
       />
       
       {/* Interactive content */}
-      <SafeAreaView 
-        style={styles.safeArea} 
+      <SafeAreaView
+        style={styles.safeArea}
         edges={['top', 'bottom']}
+        pointerEvents="box-none"
       >
-        <View style={styles.container}>
+        <View style={styles.container} pointerEvents="box-none">
           {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
           <View style={styles.topHeader}>
             <Pressable 
@@ -235,8 +236,10 @@ export default function SettingsScreen() {
               { paddingBottom: 60 + insets.bottom + 16 }
             ]}
             showsVerticalScrollIndicator={false}
+            scrollEnabled={true}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
+            nestedScrollEnabled={true}
           >
             {/* Header */}
             <View style={styles.header}>
