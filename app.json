@@ -1,52 +1,49 @@
+
 {
   "expo": {
     "name": "Safe Space",
-    "slug": "Safe Space",
-    "version": "1.0.11",
+    "slug": "Natively",
+    "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
+    "icon": "./assets/images/natively-dark.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/50700152-0497-4417-a1a6-a8569da19ed5.png",
+      "image": "./assets/images/natively-dark.png",
       "resizeMode": "contain",
-      "backgroundColor": "#5B9FED"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
-      "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDisplayName": "Safe Space"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
-        "backgroundColor": "#4A90E2"
+        "foregroundImage": "./assets/images/natively-dark.png",
+        "backgroundColor": "#000000"
       },
-      "icon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Natively",
-      "softwareKeyboardLayoutMode": "resize"
+      "package": "com.anonymous.Natively"
     },
     "web": {
-      "favicon": "./assets/images/b74402c4-5458-43d3-8d1e-b0a3c26a1e4e.jpeg",
+      "favicon": "./assets/images/final_quest_240x240.png",
       "bundler": "metro"
     },
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-web-browser"
     ],
-    "scheme": "safespace",
+    "scheme": "natively",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {}
     }
-  },
-  "scheme": "Safe Space"
+  }
 }

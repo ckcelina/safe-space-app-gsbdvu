@@ -3,7 +3,7 @@ import 'dotenv/config';
 
 export default {
   expo: {
-    name: "Natively",
+    name: "Safe Space",
     slug: "Natively",
     version: "1.0.0",
     orientation: "portrait",
@@ -19,7 +19,8 @@ export default {
       supportsTablet: true,
       bundleIdentifier: "com.anonymous.Natively",
       infoPlist: {
-        ITSAppUsesNonExemptEncryption: false
+        ITSAppUsesNonExemptEncryption: false,
+        CFBundleDisplayName: "Safe Space"
       }
     },
     android: {
