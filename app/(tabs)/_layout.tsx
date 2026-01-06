@@ -14,15 +14,9 @@ export default function TabLayout() {
     },
     {
       name: 'library',
-      route: '/(tabs)/library/',
-      icon: 'local-library',
+      route: '/(tabs)/library',
+      icon: 'library-books',
       label: 'Library',
-    },
-    {
-      name: 'settings',
-      route: '/(tabs)/settings',
-      icon: 'settings',
-      label: 'Settings',
     },
   ];
 
@@ -37,7 +31,6 @@ export default function TabLayout() {
       >
         <Stack.Screen key="home" name="(home)" />
         <Stack.Screen key="library" name="library" />
-        <Stack.Screen key="settings" name="settings" />
       </Stack>
       <FloatingTabBar tabs={tabs} />
     </>
