@@ -10,14 +10,16 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { prefetchAllAvatars } from '@/lib/avatarPrefetch';
 
 export default function RootLayout() {
-  // Prefetch all therapist avatars on app start
+  // OPTIMIZATION: Prefetch avatars in background without blocking
   useEffect(() => {
     console.log('[App] Initializing app...');
     
-    // Prefetch avatars in the background
-    prefetchAllAvatars().catch((error) => {
-      console.warn('[App] Avatar prefetch failed (non-critical):', error);
-    });
+    // Prefetch avatars in the background (non-blocking)
+    setTimeout(() => {
+      prefetchAllAvatars().catch((error) => {
+        console.warn('[App] Avatar prefetch failed (non-critical):', error);
+      });
+    }, 1000); // Delay by 1 second to prioritize initial render
   }, []);
 
   return (

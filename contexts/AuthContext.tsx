@@ -184,8 +184,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(currentSession);
           setCurrentUser(currentSession?.user ?? null);
           
+          // OPTIMIZATION: Set loading to false immediately after session check
+          // Fetch user profile in background without blocking UI
+          setLoading(false);
+          
           if (currentSession?.user) {
-            await fetchUserProfile(currentSession.user.id);
+            // Fetch profile asynchronously without blocking
+            fetchUserProfile(currentSession.user.id).catch((err) => {
+              console.log('[AuthContext] Background profile fetch failed:', err);
+            });
           }
         }
       } catch (error: any) {
@@ -209,7 +216,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCurrentUser(newSession?.user ?? null);
       
       if (newSession?.user) {
-        await fetchUserProfile(newSession.user.id);
+        // Fetch profile in background
+        fetchUserProfile(newSession.user.id).catch((err) => {
+          console.log('[AuthContext] Background profile fetch failed:', err);
+        });
       } else {
         setUser(null);
       }

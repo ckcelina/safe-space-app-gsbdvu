@@ -81,6 +81,7 @@ const themes: Record<ThemeKey, Theme> = {
 };
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  // OPTIMIZATION: Start with default theme immediately, load saved theme in background
   const [themeKey, setThemeKey] = useState<ThemeKey>('OceanBlue');
   const [theme, setThemeState] = useState<Theme>(oceanBlueTheme);
 
@@ -93,21 +94,27 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setThemeState(themes[key]);
       }
     } catch (error) {
-      console.error('Error loading theme:', error);
+      console.error('[ThemeContext] Error loading theme:', error);
     }
   }, []);
 
   useEffect(() => {
+    // Load theme in background without blocking render
     loadTheme();
   }, [loadTheme]);
 
   const setTheme = async (newThemeKey: ThemeKey) => {
     try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeKey);
+      // Update UI immediately
       setThemeKey(newThemeKey);
       setThemeState(themes[newThemeKey]);
+      
+      // Save to storage in background
+      AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeKey).catch((error) => {
+        console.error('[ThemeContext] Error saving theme:', error);
+      });
     } catch (error) {
-      console.error('Error saving theme:', error);
+      console.error('[ThemeContext] Error setting theme:', error);
     }
   };
 

@@ -33,7 +33,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     ai_tone_id: DEFAULT_TONE_ID,
     ai_science_mode: false,
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // OPTIMIZATION: Start as false, don't block render
 
   const fetchPreferences = useCallback(async () => {
     if (!userId) {
@@ -42,29 +42,24 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
         ai_tone_id: DEFAULT_TONE_ID,
         ai_science_mode: false,
       });
-      setLoading(false);
       return;
     }
-
-    // Wrap in timeout to prevent blocking startup
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Preferences fetch timeout')), 3000)
-    );
 
     try {
       console.log('[UserPreferences] Fetching preferences for user:', userId);
       
-      // Race between fetch and timeout
-      const fetchPromise = supabase
+      // OPTIMIZATION: Removed timeout race, just fetch with reasonable timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      
+      const { data, error } = await supabase
         .from('user_preferences')
         .select('*')
         .eq('user_id', userId)
+        .abortSignal(controller.signal)
         .maybeSingle();
-
-      const { data, error } = await Promise.race([
-        fetchPromise,
-        timeoutPromise
-      ]) as any;
+      
+      clearTimeout(timeoutId);
 
       if (error) {
         console.log('[UserPreferences] Error fetching preferences (using defaults):', error?.message || 'Unknown error');
@@ -89,7 +84,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
         };
         setPreferences(loadedPreferences);
         
-        // Prefetch selected therapist avatar if set
+        // Prefetch selected therapist avatar if set (in background)
         if (data.therapist_persona_id) {
           console.log('[UserPreferences] Prefetching selected therapist avatar');
           prefetchSelectedAvatar(data.therapist_persona_id).catch((err) => {
@@ -111,17 +106,13 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
         ai_tone_id: DEFAULT_TONE_ID,
         ai_science_mode: false,
       });
-    } finally {
-      setLoading(false);
     }
   }, [userId]);
 
   useEffect(() => {
-    // Move fetch into useEffect to prevent blocking initial render
+    // OPTIMIZATION: Fetch preferences in background without blocking render
     if (currentUser) {
       fetchPreferences();
-    } else {
-      setLoading(false);
     }
   }, [currentUser, fetchPreferences]);
 
@@ -165,7 +156,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
       setPreferences((prev) => ({ ...prev, ...patch }));
       console.log('[UserPreferences] Preferences updated successfully');
       
-      // Prefetch new therapist avatar if persona changed
+      // Prefetch new therapist avatar if persona changed (in background)
       if (patch.therapist_persona_id && patch.therapist_persona_id !== preferences.therapist_persona_id) {
         console.log('[UserPreferences] Therapist persona changed, prefetching new avatar');
         prefetchSelectedAvatar(patch.therapist_persona_id).catch((err) => {
