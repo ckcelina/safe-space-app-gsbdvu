@@ -49,6 +49,15 @@ export default function FloatingTabBar({
   const theme = useTheme();
   const animatedValue = useSharedValue(0);
 
+  // Hide tab bar on chat screens and memories screens
+  const shouldHideTabBar = React.useMemo(() => {
+    // Hide on any route that includes 'chat' or 'memories'
+    return pathname.includes('/chat') || 
+           pathname.includes('/memories') ||
+           pathname.endsWith('/chat') ||
+           pathname.endsWith('/memories');
+  }, [pathname]);
+
   // Improved active tab detection with better path matching
   const activeTabIndex = React.useMemo(() => {
     // Find the best matching tab based on the current pathname
@@ -98,6 +107,11 @@ export default function FloatingTabBar({
   const handleTabPress = (route: Href) => {
     router.push(route);
   };
+
+  // Hide tab bar if on chat screen or memories screen
+  if (shouldHideTabBar) {
+    return null;
+  }
 
   // Remove unnecessary tabBarStyle animation to prevent flickering
 
@@ -156,14 +170,14 @@ export default function FloatingTabBar({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']} pointerEvents="box-none">
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <View style={[
         styles.container,
         {
           width: containerWidth,
           marginBottom: bottomMargin ?? 20
         }
-      ]} pointerEvents="box-none">
+      ]}>
         <BlurView
           intensity={80}
           style={[dynamicStyles.blurContainer, { borderRadius }]}
