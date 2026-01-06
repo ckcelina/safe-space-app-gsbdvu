@@ -489,6 +489,7 @@ export default function SettingsScreen() {
     const persona = getPersonaById(personaId);
     if (!persona) {
       console.error('[Settings] Persona not found:', personaId);
+      showErrorToast('Persona not found');
       return;
     }
 
@@ -497,13 +498,11 @@ export default function SettingsScreen() {
 
     // Small delay to allow modal close animation to complete before navigation
     setTimeout(() => {
+      console.log('[Settings] Navigating to preview with personaId:', persona.id);
       router.push({
         pathname: '/(tabs)/(home)/communication-style-preview',
         params: {
           therapistPersonaId: persona.id,
-          therapistName: persona.name,
-          styleLabel: persona.label,
-          description: persona.short_description,
         },
       });
     }, 200);

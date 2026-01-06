@@ -53,6 +53,16 @@ export default function HomeLayout() {
           animation: 'slide_from_right',
         }}
       />
+      <Stack.Screen
+        name="communication-style-preview"
+        options={{
+          headerShown: false,
+          title: 'Preview Style',
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+          animation: 'slide_from_right',
+        }}
+      />
     </Stack>
   );
 }
