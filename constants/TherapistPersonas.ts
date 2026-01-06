@@ -310,6 +310,9 @@ export interface TherapistPreviewContent {
   quickTips: string[];
   placeholderUserPrompt: string;
   localPreviewReplyRules: (inputText: string) => string;
+  // Simple preview format for preview screens
+  userMessage: string;
+  aiResponse: string;
 }
 
 /**
@@ -341,6 +344,8 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
     title: "Dr. Elias",
     subtitle: "Calm & Grounding",
     description: "Steady, calming support to reduce overwhelm and bring clarity.",
+    userMessage: "I feel overwhelmed and my chest feels tight.",
+    aiResponse: "Let's take a breath for a moment. I can hear that you're feeling a lot right now, and that tightness in your chest is your body responding to that overwhelm. You're safe here.\n\nLet's slow things down together. Can you take a slow breath in through your nose... and out through your mouth? Just once, at your own pace.\n\nWhat's one thing that feels most heavy right now?",
     sampleChat: [
       {
         role: "user",
@@ -393,6 +398,8 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
     title: "Noah",
     subtitle: "Direct & Practical",
     description: "Clear, structured help to untangle situations and find next steps.",
+    userMessage: "I don't know what to do about this situation.",
+    aiResponse: "Okay. Here's the clean version: You're stuck because you don't have clarity on the situation yet.\n\nLet's break this down:\n- What's the actual problem?\n- What's in your control?\n- What's the next smallest step?\n\nStart with the first one. What's really going on?",
     sampleChat: [
       {
         role: "user",
@@ -445,6 +452,8 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
     title: "Maya",
     subtitle: "Gentle & Validating",
     description: "Warm, validating support that helps you feel understood.",
+    userMessage: "I feel like I'm too much for people.",
+    aiResponse: "That sounds really heavy to carry. Feeling like you're 'too much' is such a painful place to be, and I want you to know that your feelings are completely valid.\n\nYou're not too much. You're a person with needs and emotions, and that's okay. It makes sense that you'd feel this way if you've been told—directly or indirectly—that your feelings are a burden.\n\nI'm here with you in this. What would it feel like to be gentle with yourself right now?",
     sampleChat: [
       {
         role: "user",
@@ -497,6 +506,8 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
     title: "Claire",
     subtitle: "Reflective & Insightful",
     description: "Thoughtful questions to help you see patterns and understand yourself.",
+    userMessage: "I keep saying yes to things I don't want to do.",
+    aiResponse: "Something in what you said feels important. You're noticing a pattern—saying yes when you want to say no.\n\nI'm curious: what do you imagine would happen if you said no? What does that bring up for you?",
     sampleChat: [
       {
         role: "user",
@@ -549,6 +560,8 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
     title: "Ruth",
     subtitle: "Nurturing & Wise",
     description: "Warm reassurance and steady perspective when you need comfort.",
+    userMessage: "I feel like I'm failing at everything.",
+    aiResponse: "Oh love, of course you feel this way. When we're overwhelmed and exhausted, our minds tell us we're failing—even when we're doing so much more than we realize.\n\nYou're not failing. You're human. You're carrying a lot, and you're still showing up. That takes strength, even if it doesn't feel like it right now.\n\nBe gentle with yourself today. You're doing better than you think.",
     sampleChat: [
       {
         role: "user",
@@ -601,6 +614,8 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
     title: "Jordan",
     subtitle: "Encouraging & Uplifting",
     description: "Strength-focused encouragement to rebuild confidence and momentum.",
+    userMessage: "I messed up at work today and I feel like a failure.",
+    aiResponse: "I'm proud of you for saying that out loud. It takes courage to admit when something didn't go the way you wanted.\n\nHere's what I see: You showed up. You tried. And you're still here, reflecting on it. That's not failure—that's growth.\n\nOne mistake doesn't define you. You have the strength to learn from this and move forward. What's one thing you're proud of today, even if it's small?",
     sampleChat: [
       {
         role: "user",
@@ -653,6 +668,8 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
     title: "Aisha",
     subtitle: "Curious & Exploratory",
     description: "Open-ended curiosity to explore feelings and new perspectives.",
+    userMessage: "I'm stuck in the same routine and I hate it.",
+    aiResponse: "Can I get curious with you for a second? You said you hate the routine, but you're also stuck in it. That's interesting.\n\nWhat if we looked at this from a different angle? What's keeping the routine in place? What would it feel like to change just one small thing?",
     sampleChat: [
       {
         role: "user",
@@ -705,6 +722,8 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
     title: "Ken",
     subtitle: "Balanced & Analytical",
     description: "A calm blend of logic and emotion to help you make sense of things.",
+    userMessage: "I know I should be happy, but I just feel empty inside.",
+    aiResponse: "Let's break this down logically: You're experiencing a disconnect between what you think you should feel and what you actually feel.\n\nThat's important data. Your emotions are telling you something that your logic hasn't caught up with yet.\n\nHow do your emotions and the facts fit together here? What's the gap between what you expected and what you're experiencing?",
     sampleChat: [
       {
         role: "user",
@@ -756,7 +775,14 @@ export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = 
 
 /**
  * Get preview content for a persona ID
+ * Returns simple preview format with userMessage and aiResponse
  */
-export function getPreviewContentById(personaId: string): TherapistPreviewContent | undefined {
-  return TherapistPreviewContent[personaId];
+export function getPreviewContentById(personaId: string): { userMessage: string; aiResponse: string } | undefined {
+  const content = TherapistPreviewContent[personaId];
+  if (!content) return undefined;
+  
+  return {
+    userMessage: content.userMessage,
+    aiResponse: content.aiResponse,
+  };
 }

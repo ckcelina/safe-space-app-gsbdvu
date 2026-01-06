@@ -1,14 +1,5 @@
 
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
-import { showSuccessToast } from '@/utils/toast';
 import React, { useState, useCallback } from 'react';
-import { IconSymbol } from '@/components/IconSymbol';
-import { useLocalSearchParams, router } from 'expo-router';
-import { useUserPreferences } from '@/contexts/UserPreferencesContext';
-import { LinearGradient } from 'expo-linear-gradient';
-import { getPersonaById, getPreviewContentById } from '@/constants/TherapistPersonas';
-import { useThemeContext } from '@/contexts/ThemeContext';
 import {
   View,
   Text,
@@ -21,39 +12,101 @@ import {
   TextInput,
   KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
+import { showSuccessToast } from '@/utils/toast';
+import { IconSymbol } from '@/components/IconSymbol';
+import { useLocalSearchParams, router } from 'expo-router';
+import { useUserPreferences } from '@/contexts/UserPreferencesContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import { getPersonaById, getPreviewContentById } from '@/constants/TherapistPersonas';
+import { useThemeContext } from '@/contexts/ThemeContext';
 
 const CommunicationStylePreviewScreen = () => {
-  const { personaId } = useLocalSearchParams<{ personaId: string }>();
+  const params = useLocalSearchParams();
   const { theme } = useThemeContext();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { preferences, updatePreferences } = useUserPreferences();
   const [userInput, setUserInput] = useState('');
 
-  const persona = getPersonaById(personaId || 'dr-elias');
-  const previewContent = getPreviewContentById(personaId || 'dr-elias');
+  // Safely normalize personaId from route params
+  const personaId = Array.isArray(params.therapistPersonaId) 
+    ? params.therapistPersonaId[0] 
+    : params.therapistPersonaId || null;
+
+  // Get persona with safe fallback
+  const persona = getPersonaById(personaId || 'dr_elias') || getPersonaById('dr_elias');
+  
+  // Get preview content with safe fallback
+  const previewContent = getPreviewContentById(personaId || 'dr_elias') || {
+    userMessage: "I've been feeling overwhelmed lately.",
+    aiResponse: "I'm here with you. Want to tell me what's been weighing on you most?"
+  };
 
   // Generate preview messages with valid timestamps
+  const now = Date.now();
   const previewMessages = [
     {
       sender: 'user' as const,
       content: previewContent.userMessage,
-      timestamp: Date.now() - 60000, // 1 minute ago
+      timestamp: new Date(now - 60000).toISOString(), // 1 minute ago
     },
     {
       sender: 'ai' as const,
       content: previewContent.aiResponse,
-      timestamp: Date.now() - 30000, // 30 seconds ago
-      therapist_name: persona.name,
-      therapist_avatar_source: persona.avatarSource,
+      timestamp: new Date(now - 30000).toISOString(), // 30 seconds ago
+      therapist_name: persona?.name,
+      therapist_avatar_source: persona?.image,
     },
   ];
 
   const handleSelectPersona = useCallback(async () => {
-    await updatePreferences({ aiPreference: personaId || 'dr-elias' });
+    if (!persona) return;
+    
+    await updatePreferences({ therapist_persona_id: persona.id });
     showSuccessToast(`Communication style set to ${persona.name}`);
     router.back();
-  }, [personaId, persona.name, updatePreferences]);
+  }, [persona, updatePreferences]);
+
+  // Fallback UI if persona not found
+  if (!persona) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <LinearGradient
+          colors={[theme.colors.primary + '20', theme.colors.background]}
+          style={styles.gradient}
+        />
+        
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <IconSymbol 
+                ios_icon_name="chevron.left" 
+                android_material_icon_name="arrow_back" 
+                size={24} 
+                color={theme.colors.text} 
+              />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Preview Style</Text>
+            <View style={styles.placeholder} />
+          </View>
+
+          <View style={styles.errorContainer}>
+            <Text style={[styles.errorText, { color: theme.colors.text }]}>
+              Persona not found. Please go back and try again.
+            </Text>
+            <TouchableOpacity
+              style={[styles.selectButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.selectButtonText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -65,7 +118,12 @@ const CommunicationStylePreviewScreen = () => {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <IconSymbol name="chevron.left" size={24} color={theme.colors.text} />
+            <IconSymbol 
+              ios_icon_name="chevron.left" 
+              android_material_icon_name="arrow_back" 
+              size={24} 
+              color={theme.colors.text} 
+            />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Preview Style</Text>
           <View style={styles.placeholder} />
@@ -73,10 +131,10 @@ const CommunicationStylePreviewScreen = () => {
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           <View style={styles.personaCard}>
-            <Image source={persona.avatarSource} style={styles.personaAvatar} />
+            <Image source={persona.image} style={styles.personaAvatar} />
             <Text style={[styles.personaName, { color: theme.colors.text }]}>{persona.name}</Text>
             <Text style={[styles.personaDescription, { color: theme.colors.textSecondary }]}>
-              {persona.description}
+              {persona.short_description}
             </Text>
           </View>
 
@@ -85,7 +143,13 @@ const CommunicationStylePreviewScreen = () => {
               Conversation Preview
             </Text>
             {previewMessages.map((msg, index) => (
-              <AnimatedChatBubble key={index} message={msg} index={index} />
+              <AnimatedChatBubble 
+                key={index} 
+                message={msg.content}
+                sender={msg.sender}
+                timestamp={msg.timestamp}
+                theme={theme}
+              />
             ))}
           </View>
 
@@ -179,6 +243,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
   },
 });
 
