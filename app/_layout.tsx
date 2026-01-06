@@ -23,6 +23,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
+        {/* AuthProvider wraps everything to provide auth state */}
         <AuthProvider>
           <ThemeProvider>
             <UserPreferencesProvider>
