@@ -1,5 +1,6 @@
+
 import React from "react";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { Pressable, StyleSheet, View, Text } from "react-native";
 import { IconSymbol } from "@/components/IconSymbol";
 import { useTheme } from "@react-navigation/native";
@@ -12,6 +13,14 @@ interface DemoCardProps {
 
 export function DemoCard({ item }: DemoCardProps) {
   const theme = useTheme();
+
+  const handlePress = () => {
+    try {
+      router.push(item.route as any);
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  };
 
   return (
     <GlassView
@@ -32,20 +41,18 @@ export function DemoCard({ item }: DemoCardProps) {
           {item.description}
         </Text>
       </View>
-      <Link href={item.route as any} asChild>
-        <Pressable>
-          <View
-            style={[
-              styles.tryButton,
-              { backgroundColor: theme.dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }
-            ]}
-          >
-            <Text style={[styles.tryButtonText, { color: theme.colors.primary }]}>
-              Try It
-            </Text>
-          </View>
-        </Pressable>
-      </Link>
+      <Pressable onPress={handlePress}>
+        <View
+          style={[
+            styles.tryButton,
+            { backgroundColor: theme.dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }
+          ]}
+        >
+          <Text style={[styles.tryButtonText, { color: theme.colors.primary }]}>
+            Try It
+          </Text>
+        </View>
+      </Pressable>
     </GlassView>
   );
 }

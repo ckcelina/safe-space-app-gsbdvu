@@ -29,7 +29,7 @@ LogBox.ignoreLogs([
 interface PersonWithLastMessage extends Person {
   lastMessage?: string;
   lastMessageTime?: string;
-  lastActivityAt?: string; // For sorting: last_message_at || created_at
+  lastActivityAt?: string;
 }
 
 const DeleteAction = ({ onPress }: { onPress: () => void }) => (
@@ -42,6 +42,7 @@ const DeleteAction = ({ onPress }: { onPress: () => void }) => (
       width: 80,
       height: '100%',
     }}
+    activeOpacity={0.7}
   >
     <IconSymbol
       ios_icon_name="trash.fill"
@@ -52,7 +53,6 @@ const DeleteAction = ({ onPress }: { onPress: () => void }) => (
   </TouchableOpacity>
 );
 
-// Default topics array - used as fallback if DB returns empty
 const DEFAULT_TOPICS = [
   'Anxiety',
   'Social Anxiety',
@@ -70,7 +70,6 @@ export default function HomeScreen() {
   const { theme } = useThemeContext();
   const insets = useSafeAreaInsets();
   
-  // Single source of truth for people and topics
   const [people, setPeople] = useState<PersonWithLastMessage[]>([]);
   const [topics, setTopics] = useState<PersonWithLastMessage[]>([]);
   
@@ -79,10 +78,8 @@ export default function HomeScreen() {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Add Person modal state - single source of truth
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
 
-  // Add Topic modal state - single source of truth
   const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
   const [selectedQuickTopic, setSelectedQuickTopic] = useState<string | null>(null);
   const [customTopicName, setCustomTopicName] = useState('');
@@ -99,14 +96,6 @@ export default function HomeScreen() {
     };
   }, []);
 
-  /**
-   * CACHE-FIRST DATA LOADING
-   * 
-   * STRATEGY:
-   * 1. Load from cache immediately (instant UI)
-   * 2. Revalidate in background
-   * 3. Merge updates into state
-   */
   const fetchData = useCallback(async () => {
     if (!userId) {
       console.log('[Home] No userId available');
@@ -114,9 +103,6 @@ export default function HomeScreen() {
     }
 
     try {
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 1: Load from cache immediately (INSTANT UI)
-      // ═══════════════════════════════════════════════════════════════════
       const cachedPeople = memoryCache.getPeopleList();
       const cachedTopics = memoryCache.getTopicsList();
       
@@ -129,7 +115,7 @@ export default function HomeScreen() {
         if (isMountedRef.current) {
           setPeople(cachedPeople);
           setTopics(cachedTopics);
-          setLoading(false); // Hide loading spinner immediately
+          setLoading(false);
         }
       } else {
         console.log('[Home] Cache empty, showing loading state');
@@ -138,12 +124,8 @@ export default function HomeScreen() {
       
       setError(null);
       
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 2: Revalidate in background
-      // ═══════════════════════════════════════════════════════════════════
       console.log('[Home] Revalidating data in background for user:', userId);
       
-      // STEP 2a: Fetch last message timestamps for ALL persons (people + topics)
       const { data: lastMessageData, error: lastMessageError } = await supabase
         .from('messages')
         .select('person_id, created_at')
@@ -154,7 +136,6 @@ export default function HomeScreen() {
         console.error('[Home] Error fetching last messages:', lastMessageError);
       }
 
-      // Build a map: person_id -> last_message_at
       const lastMessageMap = new Map<string, string>();
       if (lastMessageData && lastMessageData.length > 0) {
         lastMessageData.forEach((msg) => {
@@ -169,7 +150,6 @@ export default function HomeScreen() {
 
       console.log('[Home] Last message map size:', lastMessageMap.size);
       
-      // STEP 2b: Fetch people: relationship_type IS NULL OR relationship_type != 'Topic'
       const { data: peopleData, error: peopleError } = await supabase
         .from('persons')
         .select('*')
@@ -185,7 +165,6 @@ export default function HomeScreen() {
         return;
       }
 
-      // STEP 2c: Fetch topics: relationship_type == 'Topic'
       const { data: topicsData, error: topicsError } = await supabase
         .from('persons')
         .select('*')
@@ -204,12 +183,9 @@ export default function HomeScreen() {
       console.log('[Home] People loaded:', peopleData?.length || 0);
       console.log('[Home] Topics loaded:', topicsData?.length || 0);
 
-      // STEP 2d: Merge last_message_at with people data + compute lastActivityAt
       const peopleWithMessages: PersonWithLastMessage[] = peopleData && peopleData.length > 0
         ? peopleData.map((person) => {
             const lastMessageAt = lastMessageMap.get(person.id);
-            
-            // Compute lastActivityAt: last_message_at || created_at
             const lastActivityAt = lastMessageAt || person.created_at;
             
             return {
@@ -221,11 +197,9 @@ export default function HomeScreen() {
           })
         : [];
 
-      // STEP 2e: Merge last_message_at with topics data + compute lastActivityAt
       const topicsWithMessages: PersonWithLastMessage[] = topicsData && topicsData.length > 0
         ? topicsData.map((topic) => {
             const lastMessageAt = lastMessageMap.get(topic.id);
-            
             const lastActivityAt = lastMessageAt || topic.created_at;
             
             return {
@@ -237,7 +211,6 @@ export default function HomeScreen() {
           })
         : [];
 
-      // STEP 2f: Sort people by lastActivityAt (descending, NULLS LAST)
       peopleWithMessages.sort((a, b) => {
         const aTime = a.lastActivityAt;
         const bTime = b.lastActivityAt;
@@ -249,7 +222,6 @@ export default function HomeScreen() {
         return new Date(bTime).getTime() - new Date(aTime).getTime();
       });
 
-      // STEP 2g: Sort topics by lastActivityAt (descending, NULLS LAST)
       topicsWithMessages.sort((a, b) => {
         const aTime = a.lastActivityAt;
         const bTime = b.lastActivityAt;
@@ -264,13 +236,9 @@ export default function HomeScreen() {
       console.log('[Home] People sorted by activity:', peopleWithMessages.map(p => ({ name: p.name, lastActivityAt: p.lastActivityAt })));
       console.log('[Home] Topics sorted by activity:', topicsWithMessages.map(t => ({ name: t.name, lastActivityAt: t.lastActivityAt })));
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 3: Update cache with fresh data
-      // ═══════════════════════════════════════════════════════════════════
       memoryCache.setPeopleList(peopleWithMessages);
       memoryCache.setTopicsList(topicsWithMessages);
       
-      // Update last activity timestamps in cache
       const activities = [...peopleWithMessages, ...topicsWithMessages]
         .filter(item => item.lastActivityAt)
         .map(item => ({
@@ -282,9 +250,6 @@ export default function HomeScreen() {
         memoryCache.setLastActivityBulk(activities);
       }
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 4: Update state with fresh data
-      // ═══════════════════════════════════════════════════════════════════
       if (isMountedRef.current) {
         setPeople(peopleWithMessages);
         setTopics(topicsWithMessages);
@@ -310,10 +275,6 @@ export default function HomeScreen() {
     }
   }, [userId, fetchData]);
 
-  /**
-   * Focus-based refresh
-   * - Refresh data whenever the screen gains focus
-   */
   useFocusEffect(
     useCallback(() => {
       console.log('[Home] Screen focused - refreshing data');
@@ -373,7 +334,6 @@ export default function HomeScreen() {
         }
       }
 
-      // Update cache after deletion
       if (isTopic) {
         const updatedTopics = topics.filter(t => t.id !== personId);
         memoryCache.setTopicsList(updatedTopics);
@@ -418,12 +378,9 @@ export default function HomeScreen() {
     return filtered;
   }, [topics, searchQuery]);
 
-  // Add Person button handler - closes Add Topic modal if open, opens modal
   const handleAddPersonPress = useCallback(() => {
-    console.log('[Home] Add Person pressed');
-    console.log('[Home] isAddPersonOpen -> true');
+    console.log('[Home] Add Person button pressed');
     
-    // Close Add Topic modal if open
     if (isAddTopicOpen) {
       setIsAddTopicOpen(false);
       setSelectedQuickTopic(null);
@@ -432,24 +389,18 @@ export default function HomeScreen() {
       setCustomTopicFocused(false);
     }
     
-    // Open Add Person modal
     setIsAddPersonOpen(true);
-    console.log('[Home] Add Person modal should now be visible');
+    console.log('[Home] Add Person modal opened');
   }, [isAddTopicOpen]);
 
-  /**
-   * Handle successful person creation with optimistic update + cache update
-   */
   const handlePersonCreated = useCallback((newPerson: Person) => {
     console.log('[Home] handlePersonCreated called with:', newPerson);
     
-    // Ensure the new person has relationship_type !== 'Topic' so it appears under People
     if (newPerson.relationship_type === 'Topic') {
       console.warn('[Home] New person has relationship_type "Topic", skipping optimistic update');
       return;
     }
     
-    // Create a person with last message placeholder + lastActivityAt
     const newPersonWithMessage: PersonWithLastMessage = {
       ...newPerson,
       lastMessage: 'No messages yet',
@@ -457,39 +408,33 @@ export default function HomeScreen() {
       lastActivityAt: newPerson.created_at,
     };
     
-    // STEP 1: Optimistic update - prepend the new person to the list
     console.log('[Home] Performing optimistic update - adding person to top of list');
     setPeople(prev => {
       const updated = [newPersonWithMessage, ...prev];
-      // Update cache immediately
       memoryCache.setPeopleList(updated);
       return updated;
     });
     
-    // STEP 2: Data re-sync - call fetchData() to sync with Supabase
     console.log('[Home] Triggering data re-sync with Supabase');
     if (userId) {
       fetchData();
     }
   }, [userId, fetchData]);
 
-  // Add Topic button handler - closes Add Person modal if open, resets form, opens modal
   const handleAddTopicPress = useCallback(() => {
     console.log('[Home] Add Topic button pressed');
     
-    // Close Add Person modal if open
     if (isAddPersonOpen) {
       setIsAddPersonOpen(false);
     }
     
-    // Reset Add Topic form state (on open)
     setSelectedQuickTopic(null);
     setCustomTopicName('');
     setTopicError('');
     setCustomTopicFocused(false);
     
-    // Open Add Topic modal
     setIsAddTopicOpen(true);
+    console.log('[Home] Add Topic modal opened');
   }, [isAddPersonOpen]);
 
   const handleCloseAddTopicModal = useCallback(() => {
@@ -504,8 +449,8 @@ export default function HomeScreen() {
   const handleQuickTopicSelect = useCallback((topic: string) => {
     console.log('[Home] Quick topic selected:', topic);
     setSelectedQuickTopic(topic);
-    setCustomTopicName(''); // Clear custom input when chip is selected
-    setTopicError(''); // Clear any error
+    setCustomTopicName('');
+    setTopicError('');
   }, []);
 
   const handleCustomTopicChange = useCallback((text: string) => {
@@ -514,19 +459,16 @@ export default function HomeScreen() {
     if (topicError && text.trim()) {
       setTopicError('');
     }
-    // Clear selected quick topic when user types
     if (text.trim() && selectedQuickTopic) {
       setSelectedQuickTopic(null);
     }
   }, [topicError, selectedQuickTopic]);
 
   const handleSaveAddTopic = useCallback(async () => {
-    console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic);
+    console.log('[Home] Save Add Topic called');
     
-    // Determine final topic name: selectedQuickTopic (from chip) OR customTopicName (typed)
     const topicName = selectedQuickTopic || customTopicName.trim();
     
-    // Validate topic name is not empty
     if (!topicName) {
       console.log('[Home] Topic validation failed - topic is empty');
       setTopicError('Please select a topic or type a custom one');
@@ -539,12 +481,11 @@ export default function HomeScreen() {
       return;
     }
 
-    console.log('[Home] Starting save process for topic:', topicName, 'userId:', userId);
+    console.log('[Home] Starting save process for topic:', topicName);
     setTopicError('');
     setSavingTopic(true);
 
     try {
-      // Insert topic for current authenticated user
       const topicData = {
         user_id: userId,
         name: topicName,
@@ -575,16 +516,14 @@ export default function HomeScreen() {
       if (isMountedRef.current) {
         showSuccessToast('Topic added successfully!');
         
-        // Close modal and reset state
         setIsAddTopicOpen(false);
         setSelectedQuickTopic(null);
         setCustomTopicName('');
         setTopicError('');
         setCustomTopicFocused(false);
         
-        // Navigate to chat screen with the new topic
         if (data && data.id) {
-          console.log('[Home] Navigating to chat for new topic:', data.name, 'id:', data.id);
+          console.log('[Home] Navigating to chat for new topic:', data.name);
           router.push({
             pathname: '/(tabs)/(home)/chat',
             params: { 
@@ -596,7 +535,6 @@ export default function HomeScreen() {
           });
         }
         
-        // Refresh Topics list and update cache
         console.log('[Home] Refreshing data');
         await fetchData();
       }
@@ -615,6 +553,7 @@ export default function HomeScreen() {
   }, [customTopicName, selectedQuickTopic, userId, fetchData]);
 
   const handleClosePremiumModal = useCallback(() => {
+    console.log('[Home] Closing premium modal');
     setShowPremiumModal(false);
   }, []);
 
@@ -625,7 +564,7 @@ export default function HomeScreen() {
       return;
     }
 
-    console.log('[Home] Navigating to chat for person:', person.name, 'id:', person.id);
+    console.log('[Home] Person card pressed, navigating to chat:', person.name);
     
     try {
       router.push({
@@ -649,7 +588,7 @@ export default function HomeScreen() {
       return;
     }
 
-    console.log('[Home] Navigating to chat for topic:', topic.name, 'id:', topic.id);
+    console.log('[Home] Topic card pressed, navigating to chat:', topic.name);
     
     try {
       router.push({
@@ -668,17 +607,15 @@ export default function HomeScreen() {
   }, []);
 
   const handleSettingsPress = useCallback(() => {
+    console.log('[Home] Settings button pressed');
     try {
       router.push('/(tabs)/settings');
     } catch (error) {
       console.error('[Home] Settings navigation error:', error);
+      showErrorToast('Failed to open settings');
     }
   }, []);
 
-  // Compute whether Start Chat button should be enabled
-  const isStartChatEnabled = !!(selectedQuickTopic || customTopicName.trim());
-
-  // Debug: Log modal state changes
   useEffect(() => {
     console.log('[Home] isAddPersonOpen state changed to:', isAddPersonOpen);
   }, [isAddPersonOpen]);
@@ -693,6 +630,7 @@ export default function HomeScreen() {
 
   const hasAnyData = people.length > 0 || topics.length > 0;
   const hasFilteredResults = filteredPeople.length > 0 || filteredTopics.length > 0;
+  const isStartChatEnabled = !!(selectedQuickTopic || customTopicName.trim());
 
   return (
     <>
@@ -716,6 +654,7 @@ export default function HomeScreen() {
                 onPress={handleSettingsPress} 
                 style={styles.settingsButton}
                 activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <IconSymbol
                   ios_icon_name="gearshape.fill"
@@ -730,7 +669,7 @@ export default function HomeScreen() {
               style={styles.scrollView}
               contentContainerStyle={[
                 styles.scrollContent,
-                { paddingBottom: 60 + insets.bottom + 16 } // TAB_BAR_HEIGHT = 60
+                { paddingBottom: 60 + insets.bottom + 16 }
               ]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
@@ -753,7 +692,11 @@ export default function HomeScreen() {
                     autoCorrect={false}
                   />
                   {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+                    <TouchableOpacity 
+                      onPress={() => setSearchQuery('')} 
+                      style={styles.clearButton}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
                       <IconSymbol
                         ios_icon_name="xmark.circle.fill"
                         android_material_icon_name="cancel"
@@ -770,6 +713,7 @@ export default function HomeScreen() {
                   onPress={handleAddPersonPress}
                   activeOpacity={0.8}
                   style={styles.addButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                     <Text style={[styles.addButtonText, { color: theme.primary }]}>
@@ -782,6 +726,7 @@ export default function HomeScreen() {
                   onPress={handleAddTopicPress}
                   activeOpacity={0.8}
                   style={styles.addButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
                     <Text style={[styles.addButtonText, { color: theme.primary }]}>
@@ -800,6 +745,7 @@ export default function HomeScreen() {
                       onPress={fetchData}
                       style={[styles.retryButton, { backgroundColor: theme.primary }]}
                       activeOpacity={0.8}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
                         Try Again
@@ -897,17 +843,18 @@ export default function HomeScreen() {
               ) : null}
             </ScrollView>
 
-            {/* Add Person Sheet - WITH OPTIMISTIC UPDATE + CACHE UPDATE */}
             <AddPersonSheet
               visible={isAddPersonOpen}
-              onClose={() => setIsAddPersonOpen(false)}
+              onClose={() => {
+                console.log('[Home] Closing Add Person sheet');
+                setIsAddPersonOpen(false);
+              }}
               userId={userId}
               theme={theme}
               insets={insets}
               onPersonCreated={handlePersonCreated}
             />
 
-            {/* Add Topic Modal - UNCHANGED */}
             <Modal
               visible={isAddTopicOpen}
               transparent={true}
@@ -928,7 +875,6 @@ export default function HomeScreen() {
                     keyboardVerticalOffset={0}
                   >
                     <View style={styles.addTopicSheetCard}>
-                      {/* Header */}
                       <View style={styles.addTopicModalHeader}>
                         <Text style={styles.addTopicModalTitle}>
                           Add Topic
@@ -937,12 +883,12 @@ export default function HomeScreen() {
                           onPress={handleCloseAddTopicModal} 
                           style={styles.addTopicCloseButton}
                           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          activeOpacity={0.7}
                         >
                           <Ionicons name="close" size={28} color="#333" />
                         </TouchableOpacity>
                       </View>
 
-                      {/* ScrollView with chips and input ONLY */}
                       <ScrollView
                         style={styles.addTopicScrollView}
                         contentContainerStyle={styles.addTopicScrollContent}
@@ -950,7 +896,6 @@ export default function HomeScreen() {
                         keyboardDismissMode="interactive"
                         showsVerticalScrollIndicator={false}
                       >
-                        {/* Quick-select topic chips */}
                         <View style={styles.addTopicChipsContainer}>
                           <Text style={styles.addTopicHelperText}>
                             Quick select:
@@ -961,6 +906,7 @@ export default function HomeScreen() {
                                 key={`topic-chip-${index}`}
                                 onPress={() => handleQuickTopicSelect(topic)}
                                 activeOpacity={0.7}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                 style={[
                                   styles.addTopicChip,
                                   selectedQuickTopic === topic && styles.addTopicChipSelected
@@ -977,7 +923,6 @@ export default function HomeScreen() {
                           </View>
                         </View>
 
-                        {/* Custom Topic Input */}
                         <View style={styles.addTopicFieldContainer}>
                           <Text style={styles.addTopicInputLabel}>
                             Or type a custom topic:
@@ -1006,7 +951,6 @@ export default function HomeScreen() {
                           ) : null}
                         </View>
 
-                        {/* Selected topic indicator */}
                         {selectedQuickTopic && (
                           <View style={styles.addTopicSelectedIndicator}>
                             <Text style={styles.addTopicSelectedText}>
@@ -1016,13 +960,13 @@ export default function HomeScreen() {
                         )}
                       </ScrollView>
 
-                      {/* Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
                       <View style={styles.addTopicModalFooter}>
                         <TouchableOpacity
                           onPress={handleCloseAddTopicModal}
                           style={styles.addTopicCancelButton}
                           disabled={savingTopic}
                           activeOpacity={0.7}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
                           <Text style={styles.addTopicCancelButtonText}>
                             Cancel
@@ -1037,6 +981,7 @@ export default function HomeScreen() {
                           ]}
                           disabled={savingTopic || !isStartChatEnabled}
                           activeOpacity={0.8}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
                           <LinearGradient
                             colors={isStartChatEnabled ? theme.primaryGradient : ['#ccc', '#ccc']}
@@ -1084,6 +1029,7 @@ export default function HomeScreen() {
                     onPress={handleClosePremiumModal}
                     style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
                     activeOpacity={0.8}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
                       Not now
@@ -1094,6 +1040,7 @@ export default function HomeScreen() {
                     onPress={handleClosePremiumModal}
                     style={styles.premiumPrimaryButton}
                     activeOpacity={0.8}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <LinearGradient
                       colors={theme.primaryGradient}
@@ -1121,14 +1068,12 @@ export default function HomeScreen() {
             name: 'home',
             route: '/(tabs)/(home)',
             icon: 'home',
-            iosIcon: 'house.fill',
             label: 'Home',
           },
           {
             name: 'library',
             route: '/(tabs)/library',
             icon: 'menu-book',
-            iosIcon: 'book.fill',
             label: 'Library',
           },
         ]}
@@ -1300,8 +1245,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-
-  // Add Topic Modal Styles - UNCHANGED
   addTopicModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
