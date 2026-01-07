@@ -1,22 +1,24 @@
+
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { GlassView } from 'expo-glass-effect';
-import { useTheme } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function Modal() {
-  const theme = useTheme();
-
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text style={[styles.title, { color: theme.colors.text }]}>Standard Modal</Text>
-      <Text style={[styles.text, { color: theme.colors.text }]}>This is a modal presentation.</Text>
+    <LinearGradient
+      colors={['#667eea', '#764ba2']}
+      style={styles.container}
+    >
+      <Text style={styles.title}>Standard Modal</Text>
+      <Text style={styles.text}>This is a modal presentation.</Text>
 
       <Pressable onPress={() => router.back()}>
         <GlassView style={styles.button} glassEffectStyle="clear">
-          <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Close Modal</Text>
+          <Text style={styles.buttonText}>Close Modal</Text>
         </GlassView>
       </Pressable>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -24,20 +26,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 20,
-    // backgroundColor handled dynamically
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 16,
-    // color handled dynamically
+    color: '#FFFFFF',
   },
   text: {
     fontSize: 16,
     marginBottom: 24,
     textAlign: 'center',
-    // color handled dynamically
+    color: '#FFFFFF',
   },
   button: {
     paddingHorizontal: 20,
@@ -47,6 +49,6 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 16,
     fontWeight: '600',
-    // color handled dynamically
+    color: '#FFFFFF',
   },
 });
