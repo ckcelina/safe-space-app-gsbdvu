@@ -17,28 +17,28 @@ export default function ThemeSelectionScreen() {
 
   const themes = [
     {
-      id: 'OceanBlue' as ThemeKey,
+      id: 'ocean' as ThemeKey,
       name: 'Ocean Blue',
-      color: '#1890FF',
+      color: '#0077BE',
       description: 'Calm and serene like the ocean',
     },
     {
-      id: 'SoftRose' as ThemeKey,
+      id: 'rose' as ThemeKey,
       name: 'Soft Rose',
-      color: '#FF69B4',
+      color: '#E91E63',
       description: 'Gentle and nurturing warmth',
     },
     {
-      id: 'ForestGreen' as ThemeKey,
+      id: 'forest' as ThemeKey,
       name: 'Forest Green',
-      color: '#228B22',
+      color: '#2E7D32',
       description: 'Grounded and peaceful nature',
     },
     {
-      id: 'SunnyYellow' as ThemeKey,
-      name: 'Sunny Yellow',
-      color: '#F59E0B',
-      description: 'Bright and uplifting energy',
+      id: 'custom' as ThemeKey,
+      name: 'Custom',
+      color: '#6200EE',
+      description: 'Unique and personalized',
     },
   ];
 

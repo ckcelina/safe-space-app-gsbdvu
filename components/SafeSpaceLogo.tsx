@@ -15,10 +15,10 @@ interface SafeSpaceLogoProps {
 }
 
 const themeGradients: Record<ThemeKey, [string, string]> = {
-  OceanBlue: ['#1890FF', '#40A9FF'],
-  SoftRose: ['#FF69B4', '#FFB6C1'],
-  ForestGreen: ['#228B22', '#90EE90'],
-  SunnyYellow: ['#F59E0B', '#FDE68A'],
+  ocean: ['#0077BE', '#00A8E8'],
+  rose: ['#E91E63', '#F48FB1'],
+  forest: ['#2E7D32', '#66BB6A'],
+  custom: ['#6200EE', '#03DAC6'],
 };
 
 /**
@@ -50,7 +50,7 @@ const themeGradients: Record<ThemeKey, [string, string]> = {
  * - themeKey: Explicit theme override for widget previews (optional)
  */
 export function SafeSpaceLogo({ size, color, useGradient = false, themeKey: explicitThemeKey }: SafeSpaceLogoProps) {
-  const { theme, themeKey: contextThemeKey } = useThemeContext();
+  const { colors, themeKey: contextThemeKey } = useThemeContext();
   
   // Use explicit theme key if provided, otherwise use context theme key
   const activeThemeKey = explicitThemeKey || contextThemeKey;
@@ -58,7 +58,7 @@ export function SafeSpaceLogo({ size, color, useGradient = false, themeKey: expl
   // Responsive sizing: default to 10% of screen width, clamped between 48 and 120
   const responsiveSize = size || Math.min(Math.max(SCREEN_WIDTH * 0.1, 48), 120);
   
-  const finalColor = color || theme.primary;
+  const finalColor = color || colors.primary;
   const gradient = themeGradients[activeThemeKey];
   const iconSize = responsiveSize * 0.6; // Icon is 60% of container size
 
