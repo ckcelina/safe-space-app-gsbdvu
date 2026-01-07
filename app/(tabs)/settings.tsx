@@ -1071,19 +1071,19 @@ export default function SettingsScreen() {
         pointerEvents="none"
       />
       
-      {/* FIX: SafeAreaView with pointerEvents="box-none" to allow children to receive touches */}
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']} pointerEvents="box-none">
+      {/* FIX: SafeAreaView with flex: 1 */}
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.container}>
-          {/* FIX: Header with pointerEvents="box-none" */}
-          <View style={styles.topHeader} pointerEvents="box-none">
-            <Pressable 
+          {/* FIX: Header - removed pointerEvents to allow default behavior */}
+          <View style={styles.topHeader}>
+            <TouchableOpacity 
               onPress={handleBack} 
               style={styles.backButton}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessible={true}
               accessibilityLabel="Go back"
               accessibilityRole="button"
-              pointerEvents="auto"
+              activeOpacity={0.7}
             >
               <IconSymbol
                 ios_icon_name="chevron.left"
@@ -1091,18 +1091,18 @@ export default function SettingsScreen() {
                 size={24}
                 color="#FFFFFF"
               />
-            </Pressable>
+            </TouchableOpacity>
             
-            <View style={styles.headerSpacer} pointerEvents="none" />
+            <View style={styles.headerSpacer} />
             
-            <Pressable 
+            <TouchableOpacity 
               onPress={handleInfoPress} 
               style={styles.infoButton}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessible={true}
               accessibilityLabel="Settings information"
               accessibilityRole="button"
-              pointerEvents="auto"
+              activeOpacity={0.7}
             >
               <IconSymbol
                 ios_icon_name="info.circle"
@@ -1110,23 +1110,24 @@ export default function SettingsScreen() {
                 size={24}
                 color="#FFFFFF"
               />
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
-          {/* FIX: ScrollView with pointerEvents="auto" and keyboardShouldPersistTaps */}
+          {/* FIX: ScrollView with proper scrolling enabled */}
           <ScrollView
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingBottom: 60 + insets.bottom + 16 }
+              { paddingBottom: 120 + insets.bottom }
             ]}
             showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            pointerEvents="auto"
+            scrollEnabled={true}
+            bounces={true}
             style={styles.scrollView}
           >
             {/* Header */}
-            <View style={styles.header} pointerEvents="box-none">
+            <View style={styles.header}>
               <Text style={[styles.title, { color: '#FFFFFF' }]}>
                 Settings
               </Text>
@@ -1136,13 +1137,13 @@ export default function SettingsScreen() {
             </View>
 
             {/* Card 1: Account */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>
                 Account
               </Text>
 
               {/* Email Row */}
-              <View style={[styles.row, { borderBottomWidth: 0 }]} pointerEvents="box-none">
+              <View style={[styles.row, { borderBottomWidth: 0 }]}>
                 <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>
                   Email
                 </Text>
@@ -1153,21 +1154,21 @@ export default function SettingsScreen() {
             </View>
 
             {/* Card 2: Account information */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>
                 Account information
               </Text>
 
-              <Pressable
+              <TouchableOpacity
                 style={[styles.row, { borderBottomWidth: 0 }]}
                 onPress={handleOpenChangePasswordModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel="Change password"
                 accessibilityRole="button"
-                pointerEvents="auto"
+                activeOpacity={0.7}
               >
-                <View style={styles.rowLeft} pointerEvents="none">
+                <View style={styles.rowLeft}>
                   <IconSymbol
                     ios_icon_name="lock.fill"
                     android_material_icon_name="lock"
@@ -1184,11 +1185,11 @@ export default function SettingsScreen() {
                   size={20}
                   color={colors.textSecondary}
                 />
-              </Pressable>
+              </TouchableOpacity>
             </View>
 
             {/* Card 2.5: Therapist Selection (Optional) */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>
                 Therapist Selection (Optional)
               </Text>
@@ -1198,16 +1199,16 @@ export default function SettingsScreen() {
               </Text>
 
               {/* Therapist Persona Selection */}
-              <Pressable
+              <TouchableOpacity
                 style={[styles.row, { borderBottomWidth: 0, marginTop: 8 }]}
                 onPress={handleOpenPersonaModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel={`Therapist selection. Currently ${selectedPersona ? `${selectedPersona.name}, ${selectedPersona.label}` : 'not selected'}`}
                 accessibilityRole="button"
-                pointerEvents="auto"
+                activeOpacity={0.7}
               >
-                <View style={styles.rowLeft} pointerEvents="none">
+                <View style={styles.rowLeft}>
                   <IconSymbol
                     ios_icon_name="person.circle.fill"
                     android_material_icon_name="account_circle"
@@ -1229,44 +1230,44 @@ export default function SettingsScreen() {
                   size={20}
                   color={colors.textSecondary}
                 />
-              </Pressable>
+              </TouchableOpacity>
             </View>
 
             {/* Card 2.6: Personalization (Optional) */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
-              <View style={styles.cardTitleRow} pointerEvents="box-none">
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+              <View style={styles.cardTitleRow}>
                 <Text style={[styles.cardTitle, { color: colors.text }]}>
                   Personalization (Optional)
                 </Text>
-                <Pressable
+                <TouchableOpacity
                   onPress={handleOpenPersonalizationInfoModal}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   style={styles.whyWeAskButton}
                   accessible={true}
                   accessibilityLabel="Why we ask for personalization"
                   accessibilityRole="button"
-                  pointerEvents="auto"
+                  activeOpacity={0.7}
                 >
                   <Text style={[styles.whyWeAskText, { color: colors.primary }]}>
                     Why we ask
                   </Text>
-                </Pressable>
+                </TouchableOpacity>
               </View>
 
               <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
                 Share what helps conversations feel natural for you. You can change or remove this anytime.
               </Text>
 
-              <Pressable
+              <TouchableOpacity
                 style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)', marginTop: 8 }]}
                 onPress={handleOpenPersonalizationModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel={`Personalization settings. ${hasPersonalizationData ? 'Configured' : 'Not set'}`}
                 accessibilityRole="button"
-                pointerEvents="auto"
+                activeOpacity={0.7}
               >
-                <View style={styles.rowLeft} pointerEvents="none">
+                <View style={styles.rowLeft}>
                   <IconSymbol
                     ios_icon_name="person.fill"
                     android_material_icon_name="person"
@@ -1288,19 +1289,19 @@ export default function SettingsScreen() {
                   size={20}
                   color={colors.textSecondary}
                 />
-              </Pressable>
+              </TouchableOpacity>
 
               {/* Updates Over Time Section */}
-              <Pressable
+              <TouchableOpacity
                 style={[styles.row, { borderBottomWidth: 0, marginTop: 0 }]}
                 onPress={handleOpenUpdatesModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel={`Updates over time. ${updates.length > 0 ? `${updates.length} update${updates.length !== 1 ? 's' : ''}` : 'No updates yet'}`}
                 accessibilityRole="button"
-                pointerEvents="auto"
+                activeOpacity={0.7}
               >
-                <View style={styles.rowLeft} pointerEvents="none">
+                <View style={styles.rowLeft}>
                   <IconSymbol
                     ios_icon_name="clock.fill"
                     android_material_icon_name="schedule"
@@ -1322,11 +1323,11 @@ export default function SettingsScreen() {
                   size={20}
                   color={colors.textSecondary}
                 />
-              </Pressable>
+              </TouchableOpacity>
             </View>
 
             {/* Card 3: Appearance */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>
                 Appearance
               </Text>
@@ -1335,9 +1336,9 @@ export default function SettingsScreen() {
                 Theme
               </Text>
 
-              <View style={styles.pillContainer} pointerEvents="box-none">
+              <View style={styles.pillContainer}>
                 {themes.map((themeOption, index) => (
-                  <Pressable
+                  <TouchableOpacity
                     key={index}
                     style={[
                       styles.pill,
@@ -1354,7 +1355,7 @@ export default function SettingsScreen() {
                     accessible={true}
                     accessibilityLabel={`${themeOption.name} theme. ${selectedTheme === themeOption.key ? 'Selected' : 'Not selected'}`}
                     accessibilityRole="button"
-                    pointerEvents="auto"
+                    activeOpacity={0.7}
                   >
                     <Text
                       style={[
@@ -1369,7 +1370,7 @@ export default function SettingsScreen() {
                     >
                       {themeOption.name}
                     </Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 ))}
               </View>
             </View>
@@ -1378,21 +1379,21 @@ export default function SettingsScreen() {
             <WidgetPreviewCard />
 
             {/* Card 4: Support */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>
                 Support
               </Text>
 
-              <Pressable
+              <TouchableOpacity
                 style={styles.row}
                 onPress={handleSupportPress}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel="Contact support"
                 accessibilityRole="button"
-                pointerEvents="auto"
+                activeOpacity={0.7}
               >
-                <View style={styles.rowLeft} pointerEvents="none">
+                <View style={styles.rowLeft}>
                   <IconSymbol
                     ios_icon_name="envelope.fill"
                     android_material_icon_name="email"
@@ -1409,19 +1410,19 @@ export default function SettingsScreen() {
                   size={20}
                   color={colors.textSecondary}
                 />
-              </Pressable>
+              </TouchableOpacity>
 
               {__DEV__ && (
-                <Pressable
+                <TouchableOpacity
                   style={[styles.row, { borderBottomWidth: 0 }]}
                   onPress={() => router.push('/test-ai-response')}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessible={true}
                   accessibilityLabel="Test AI Response (Dev Only)"
                   accessibilityRole="button"
-                  pointerEvents="auto"
+                  activeOpacity={0.7}
                 >
-                  <View style={styles.rowLeft} pointerEvents="none">
+                  <View style={styles.rowLeft}>
                     <IconSymbol
                       ios_icon_name="wrench.and.screwdriver.fill"
                       android_material_icon_name="build"
@@ -1438,26 +1439,26 @@ export default function SettingsScreen() {
                     size={20}
                     color={colors.textSecondary}
                   />
-                </Pressable>
+                </TouchableOpacity>
               )}
             </View>
 
             {/* Card 5: Legal */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>
                 Legal
               </Text>
 
-              <Pressable
+              <TouchableOpacity
                 style={styles.row}
                 onPress={handlePrivacyPress}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel="Privacy policy"
                 accessibilityRole="button"
-                pointerEvents="auto"
+                activeOpacity={0.7}
               >
-                <View style={styles.rowLeft} pointerEvents="none">
+                <View style={styles.rowLeft}>
                   <IconSymbol
                     ios_icon_name="lock.shield.fill"
                     android_material_icon_name="shield"
@@ -1474,18 +1475,18 @@ export default function SettingsScreen() {
                   size={20}
                   color={colors.textSecondary}
                 />
-              </Pressable>
+              </TouchableOpacity>
 
-              <Pressable
+              <TouchableOpacity
                 style={[styles.row, { borderBottomWidth: 0 }]}
                 onPress={handleTermsPress}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel="Terms and conditions"
                 accessibilityRole="button"
-                pointerEvents="auto"
+                activeOpacity={0.7}
               >
-                <View style={styles.rowLeft} pointerEvents="none">
+                <View style={styles.rowLeft}>
                   <IconSymbol
                     ios_icon_name="doc.text.fill"
                     android_material_icon_name="description"
@@ -1502,18 +1503,18 @@ export default function SettingsScreen() {
                   size={20}
                   color={colors.textSecondary}
                 />
-              </Pressable>
+              </TouchableOpacity>
             </View>
 
             {/* Log Out Button */}
-            <Pressable
+            <TouchableOpacity
               style={[styles.logoutButton, { backgroundColor: '#FF6B6B' }]}
               onPress={handleSignOut}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessible={true}
               accessibilityLabel="Log out"
               accessibilityRole="button"
-              pointerEvents="auto"
+              activeOpacity={0.7}
             >
               <IconSymbol
                 ios_icon_name="arrow.right.square.fill"
@@ -1522,22 +1523,22 @@ export default function SettingsScreen() {
                 color="#FFFFFF"
               />
               <Text style={styles.logoutText}>Log Out</Text>
-            </Pressable>
+            </TouchableOpacity>
 
             {/* Account Deletion Section */}
-            <View style={styles.accountSection} pointerEvents="box-none">
+            <View style={styles.accountSection}>
               <Text style={[styles.sectionTitle, { color: '#FFFFFF' }]}>
                 Account
               </Text>
-              <View style={[styles.dangerCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
-                <Pressable
+              <View style={[styles.dangerCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <TouchableOpacity
                   style={styles.deleteButton}
                   onPress={handleDeleteAccount}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessible={true}
                   accessibilityLabel="Delete my account"
                   accessibilityRole="button"
-                  pointerEvents="auto"
+                  activeOpacity={0.7}
                 >
                   <IconSymbol
                     ios_icon_name="trash.fill"
@@ -1546,7 +1547,7 @@ export default function SettingsScreen() {
                     color="#FFFFFF"
                   />
                   <Text style={styles.deleteButtonText}>Delete My Account</Text>
-                </Pressable>
+                </TouchableOpacity>
                 <Text style={[styles.helperText, { color: colors.textSecondary }]}>
                   This will permanently remove your profile and conversations.
                 </Text>
@@ -1567,7 +1568,6 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCloseInfoModal}
-            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1613,7 +1613,6 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCancelDelete}
-            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1677,12 +1676,10 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
-            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleCloseChangePasswordModal}
-              pointerEvents="auto"
             >
               <ScrollView
                 contentContainerStyle={styles.modalScrollContent}
@@ -1823,12 +1820,10 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
-            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleClosePersonaModal}
-              pointerEvents="auto"
             >
               <Pressable 
                 style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}
@@ -1905,7 +1900,6 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleClosePersonalizationInfoModal}
-            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1951,7 +1945,6 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCloseClearPersonalizationModal}
-            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -2012,16 +2005,14 @@ export default function SettingsScreen() {
           animationType="slide"
           onRequestClose={handleClosePersonalizationModal}
         >
-          <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']} pointerEvents="box-none">
+          <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={styles.personalizationModalContainer}
-              pointerEvents="box-none"
             >
               <Pressable 
                 style={{ flex: 1 }}
                 onPress={handleClosePersonalizationModal}
-                pointerEvents="auto"
               >
                 <Pressable 
                   style={[
@@ -2259,16 +2250,14 @@ export default function SettingsScreen() {
           animationType="slide"
           onRequestClose={handleCloseUpdatesModal}
         >
-          <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']} pointerEvents="box-none">
+          <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={styles.updatesModalContainer}
-              pointerEvents="box-none"
             >
               <Pressable 
                 style={{ flex: 1 }}
                 onPress={handleCloseUpdatesModal}
-                pointerEvents="auto"
               >
                 <Pressable 
                   style={[
@@ -2467,12 +2456,10 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
-            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleCloseAddUpdateModal}
-              pointerEvents="auto"
             >
               <ScrollView
                 contentContainerStyle={styles.modalScrollContent}
