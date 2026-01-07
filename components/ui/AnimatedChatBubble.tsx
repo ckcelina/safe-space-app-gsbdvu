@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { format } from 'date-fns';
@@ -41,6 +42,7 @@ export function AnimatedChatBubble({ message, sender, timestamp, theme }: Animat
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
+  // FIXED: Added fadeAnim and slideAnim to dependency array
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -54,7 +56,7 @@ export function AnimatedChatBubble({ message, sender, timestamp, theme }: Animat
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [fadeAnim, slideAnim]);
 
   // Safe timestamp formatting
   const safeDate = normalizeTimestamp(timestamp);

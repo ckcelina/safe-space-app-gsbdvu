@@ -1227,7 +1227,7 @@ export default function ChatScreen() {
     preferences.ai_science_mode,
     preferences.ai_tone_id,
     getCurrentTherapistMetadata,
-  ]);
+  ]); // FIXED: Removed 'sendMessage' from dependencies to avoid circular dependency
 
   const isSendDisabled = !inputText.trim() || isSending || loading || isGenerating;
 
