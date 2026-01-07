@@ -191,10 +191,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Hook to access auth context (strict)
+ * Must be used within AuthProvider - throws error otherwise
+ * Use this for screens that require authentication
+ */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
+}
+
+/**
+ * Hook to access auth context (optional)
+ * Returns safe defaults if used outside AuthProvider
+ * Use this for screens where auth is optional or can handle loading state
+ */
+export function useAuthOptional(): AuthContextType {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    // Return safe defaults instead of throwing
+    console.warn('useAuthOptional: Used outside AuthProvider, returning safe defaults');
+    return {
+      user: null,
+      authUser: null,
+      session: null,
+      loading: true,
+      userId: null,
+      email: null,
+      role: null,
+      signInWithEmail: async () => {
+        console.warn('useAuthOptional: signInWithEmail called outside AuthProvider');
+      },
+      signUpWithEmail: async () => {
+        console.warn('useAuthOptional: signUpWithEmail called outside AuthProvider');
+      },
+      signOut: async () => {
+        console.warn('useAuthOptional: signOut called outside AuthProvider');
+      },
+      fetchUserProfile: async () => {
+        console.warn('useAuthOptional: fetchUserProfile called outside AuthProvider');
+      },
+    };
   }
   return context;
 }

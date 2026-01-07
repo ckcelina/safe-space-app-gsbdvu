@@ -9,7 +9,7 @@ import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, TextInput, LogBox, Modal, Pressable, KeyboardAvoidingView } from 'react-native';
 import { router, Redirect } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthOptional } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { memoryCache } from '@/lib/cache/memoryCache';
 import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
@@ -54,7 +54,7 @@ const DeleteAction = ({ onPress }: { onPress: () => void }) => {
 
 export default function HomeScreen() {
   const { theme } = useThemeContext();
-  const { userId } = useAuth();
+  const { userId, loading: authLoading } = useAuthOptional();
   const insets = useSafeAreaInsets();
   const [people, setPeople] = useState<PersonWithLastMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -197,6 +197,24 @@ export default function HomeScreen() {
     fetchData();
   }, [fetchData]);
 
+  // Early return with loading state if auth is still loading
+  if (authLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <StatusBar style={theme.statusBarStyle} />
+        <LinearGradient
+          colors={theme.gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <LoadingOverlay visible={true} />
+      </View>
+    );
+  }
+
+  // Redirect to login if no userId after loading completes
   if (!userId) {
     return <Redirect href="/login" />;
   }
