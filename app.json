@@ -1,12 +1,14 @@
+
 {
   "expo": {
-    "name": "Safe Space",
-    "slug": "Safe Space",
+    "name": "Natively",
+    "slug": "Natively",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "scheme": "natively",
     "splash": {
       "image": "./assets/images/natively-dark.png",
       "resizeMode": "contain",
@@ -14,7 +16,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.safespace",
+      "bundleIdentifier": "com.anonymous.Natively",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -25,7 +27,7 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.safespace"
+      "package": "com.anonymous.Natively"
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
@@ -36,15 +38,11 @@
       "expo-router",
       "expo-web-browser"
     ],
-    "scheme": "safespace",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
-      "supabaseUrl": "",
-      "supabaseAnonKey": ""
+      "router": {}
     }
-  },
-  "scheme": "Safe Space"
+  }
 }

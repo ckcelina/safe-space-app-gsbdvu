@@ -1,37 +1,31 @@
 
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
-// Read credentials from environment variables with fallback to expo.extra
-const supabaseUrl = 
-  process.env.EXPO_PUBLIC_SUPABASE_URL || 
-  Constants.expoConfig?.extra?.supabaseUrl || 
-  '';
+// Get Supabase credentials from environment or constants
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-const supabaseAnonKey = 
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 
-  Constants.expoConfig?.extra?.supabaseAnonKey || 
-  '';
+// Platform-specific storage adapter
+const ExpoSecureStoreAdapter = {
+  getItem: (key: string) => {
+    return SecureStore.getItemAsync(key);
+  },
+  setItem: (key: string, value: string) => {
+    SecureStore.setItemAsync(key, value);
+  },
+  removeItem: (key: string) => {
+    SecureStore.deleteItemAsync(key);
+  },
+};
 
-// Validate credentials (log once, don't spam)
-let credentialsLogged = false;
-if (!supabaseUrl || !supabaseAnonKey) {
-  if (!credentialsLogged) {
-    console.error('❌ Missing Supabase credentials. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY');
-    credentialsLogged = true;
-  }
-}
-
-// Create single canonical Supabase client with AsyncStorage for Expo Go compatibility
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: AsyncStorage,
+    storage: Platform.OS === 'web' ? AsyncStorage : ExpoSecureStoreAdapter,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
   },
 });
-
-// Export for backward compatibility
-export default supabase;
