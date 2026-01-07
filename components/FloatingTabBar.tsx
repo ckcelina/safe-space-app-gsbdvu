@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -48,6 +48,12 @@ export default function FloatingTabBar({
   const pathname = usePathname();
   const theme = useTheme();
   const animatedValue = useSharedValue(0);
+
+  // Check if we should hide the tab bar on settings routes
+  // Updated to match the actual route structure: /(tabs)/settings
+  const shouldHideTabBar = useMemo(() => {
+    return pathname.includes('/settings') || pathname === '/settings';
+  }, [pathname]);
 
   // Improved active tab detection with better path matching
   const activeTabIndex = React.useMemo(() => {
@@ -101,7 +107,6 @@ export default function FloatingTabBar({
 
   const tabWidthPercent = ((100 / tabs.length) - 1).toFixed(2);
 
-  // FIXED: Move useAnimatedStyle to top level (unconditional)
   const indicatorStyle = useAnimatedStyle(() => {
     const tabWidth = (containerWidth - 8) / tabs.length; // Account for container padding (4px on each side)
     return {
@@ -153,6 +158,11 @@ export default function FloatingTabBar({
       width: `${tabWidthPercent}%` as `${number}%`, // Dynamic width based on number of tabs
     },
   };
+
+  // Hide tab bar on settings routes
+  if (shouldHideTabBar) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
