@@ -1,75 +1,158 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router } from 'expo-router';
-import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
-import { IconSymbol } from '@/components/IconSymbol';
-import { useTheme } from '@react-navigation/native';
 
-// Safe persona data retrieval
-function getPreviewForPersona(personaId: string | null) {
-  // Add your persona-specific preview content here
-  const previews: Record<string, { userMessage: string; therapistMessage: string }> = {
-    therapist: {
-      userMessage: "I've been feeling overwhelmed lately.",
-      therapistMessage: "I'm here with you. Want to tell me what's been weighing on you most?"
-    },
-    // Add more personas as needed
-  };
-  
-  return personaId && previews[personaId] ? previews[personaId] : null;
-}
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { IconSymbol } from '@/components/IconSymbol';
+import { useThemeContext } from '@/contexts/ThemeContext';
+import { getPreviewContentById, getPersonaDisplayName } from '@/constants/TherapistPersonas';
+import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
+
+// Hardcoded fallback preview content
+const DEFAULT_PREVIEW_CONTENT = {
+  userMessage: "I've been feeling really overwhelmed lately with everything going on.",
+  aiResponse: "I hear you. Feeling overwhelmed is completely valid, especially when life feels like it's coming at you from all directions. Let's take a moment together—what's weighing on you most right now?",
+};
 
 export default function CommunicationStylePreview() {
-  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const { themeKey, theme: contextTheme } = useThemeContext();
   const params = useLocalSearchParams();
   
   // Safely normalize personaId
-  const personaId = Array.isArray(params.personaId) 
+  const personaId = typeof params.personaId === 'string' 
+    ? params.personaId 
+    : Array.isArray(params.personaId) 
     ? params.personaId[0] 
-    : params.personaId || null;
-  
-  // Get preview content with safe fallback
-  const previewContent = getPreviewForPersona(personaId) ?? {
-    userMessage: "I've been feeling overwhelmed lately.",
-    therapistMessage: "I'm here with you. Want to tell me what's been weighing on you most?"
+    : undefined;
+
+  // Ensure theme is always defined with safe defaults
+  const theme = useMemo(() => {
+    if (contextTheme && contextTheme.background) {
+      return contextTheme;
+    }
+    // Fallback theme if context theme is undefined
+    return {
+      background: ['#667eea', '#764ba2'],
+      text: '#FFFFFF',
+      textSecondary: 'rgba(255, 255, 255, 0.8)',
+      card: 'rgba(255, 255, 255, 0.15)',
+      border: 'rgba(255, 255, 255, 0.2)',
+      primary: '#FFFFFF',
+    };
+  }, [contextTheme]);
+
+  // Get preview content with fallback
+  const previewContent = useMemo(() => {
+    if (!personaId) {
+      return DEFAULT_PREVIEW_CONTENT;
+    }
+    
+    try {
+      const content = getPreviewContentById(personaId);
+      // Ensure content has required fields
+      if (!content || !content.userMessage || !content.aiResponse) {
+        return DEFAULT_PREVIEW_CONTENT;
+      }
+      return content;
+    } catch (error) {
+      console.warn('Failed to load preview content:', error);
+      return DEFAULT_PREVIEW_CONTENT;
+    }
+  }, [personaId]);
+
+  const personaName = useMemo(() => {
+    if (!personaId) return 'Therapist';
+    try {
+      return getPersonaDisplayName(personaId) || 'Therapist';
+    } catch {
+      return 'Therapist';
+    }
+  }, [personaId]);
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/settings');
+    }
   };
-  
+
   // Generate valid timestamps for preview
   const now = Date.now();
   const userTimestamp = new Date(now - 60000).toISOString(); // 1 min ago
-  const therapistTimestamp = new Date(now - 30000).toISOString(); // 30 sec ago
+  const aiTimestamp = new Date(now - 30000).toISOString(); // 30 sec ago
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <IconSymbol 
-            ios_icon_name="chevron.left" 
-            android_material_icon_name="arrow-back" 
-            size={24} 
-            color={theme.colors.primary} 
-          />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Preview Style</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={theme.background}
+        style={StyleSheet.absoluteFill}
+      />
+      
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: insets.top }]}>
+          <TouchableOpacity
+            onPress={handleBack}
+            style={styles.backButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <IconSymbol
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow-back"
+              size={24}
+              color={theme.text}
+            />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>
+            Preview: {personaName}
+          </Text>
+          <View style={styles.headerSpacer} />
+        </View>
 
-      <ScrollView style={styles.chatContainer}>
-        <AnimatedChatBubble
-          message={previewContent.userMessage}
-          sender="user"
-          timestamp={userTimestamp}
-          theme={theme}
-        />
-        <AnimatedChatBubble
-          message={previewContent.therapistMessage}
-          sender="ai"
-          timestamp={therapistTimestamp}
-          theme={theme}
-        />
-      </ScrollView>
-    </SafeAreaView>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + 20 }
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Info Card */}
+          <View style={[styles.infoCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.infoTitle, { color: theme.text }]}>
+              Communication Style Preview
+            </Text>
+            <Text style={[styles.infoText, { color: theme.textSecondary }]}>
+              This is how {personaName} would respond to you in a conversation.
+            </Text>
+          </View>
+
+          {/* Chat Preview */}
+          <View style={styles.chatContainer}>
+            {/* User Message */}
+            <AnimatedChatBubble
+              message={previewContent.userMessage}
+              isUser={true}
+              timestamp={userTimestamp}
+              theme={theme}
+              index={0}
+            />
+
+            {/* AI Message */}
+            <AnimatedChatBubble
+              message={previewContent.aiResponse}
+              isUser={false}
+              timestamp={aiTimestamp}
+              theme={theme}
+              index={1}
+            />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -77,27 +160,53 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'flex-start',
   },
-  title: {
+  headerTitle: {
     fontSize: 18,
     fontWeight: '600',
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+  },
+  infoCard: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+  },
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 15,
+    lineHeight: 22,
   },
   chatContainer: {
-    flex: 1,
-    paddingTop: 20,
+    marginBottom: 24,
   },
 });

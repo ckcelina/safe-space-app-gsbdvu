@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,6 @@ import {
   Platform,
   useWindowDimensions,
   Image,
-  TextInput,
-  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
@@ -22,44 +20,89 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { getPersonaById, getPreviewContentById } from '@/constants/TherapistPersonas';
 import { useThemeContext } from '@/contexts/ThemeContext';
 
+// Hardcoded fallback preview content
+const DEFAULT_PREVIEW_CONTENT = {
+  userMessage: "I've been feeling really overwhelmed lately with everything going on.",
+  aiResponse: "I hear you. Feeling overwhelmed is completely valid, especially when life feels like it's coming at you from all directions. Let's take a moment together—what's weighing on you most right now?",
+};
+
 const CommunicationStylePreviewScreen = () => {
   const params = useLocalSearchParams();
-  const { theme } = useThemeContext();
+  const { theme: contextTheme } = useThemeContext();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { preferences, updatePreferences } = useUserPreferences();
-  const [userInput, setUserInput] = useState('');
+
+  // Ensure theme is always defined with safe defaults
+  const theme = useMemo(() => {
+    if (contextTheme && contextTheme.background) {
+      return contextTheme;
+    }
+    // Fallback theme if context theme is undefined
+    return {
+      background: ['#667eea', '#764ba2'],
+      text: '#FFFFFF',
+      textSecondary: 'rgba(255, 255, 255, 0.8)',
+      card: 'rgba(255, 255, 255, 0.15)',
+      border: 'rgba(255, 255, 255, 0.2)',
+      primary: '#FFFFFF',
+    };
+  }, [contextTheme]);
 
   // Safely normalize personaId from route params
-  const personaId = Array.isArray(params.therapistPersonaId) 
-    ? params.therapistPersonaId[0] 
-    : params.therapistPersonaId || null;
+  const personaId = useMemo(() => {
+    const rawId = params.therapistPersonaId || params.personaId;
+    if (Array.isArray(rawId)) {
+      return rawId[0] || undefined;
+    }
+    return rawId || undefined;
+  }, [params]);
 
   // Get persona with safe fallback
-  const persona = getPersonaById(personaId || 'dr_elias') || getPersonaById('dr_elias');
+  const persona = useMemo(() => {
+    if (!personaId) {
+      return getPersonaById('dr_elias');
+    }
+    return getPersonaById(personaId) || getPersonaById('dr_elias');
+  }, [personaId]);
   
   // Get preview content with safe fallback
-  const previewContent = getPreviewContentById(personaId || 'dr_elias') || {
-    userMessage: "I've been feeling overwhelmed lately.",
-    aiResponse: "I'm here with you. Want to tell me what's been weighing on you most?"
-  };
+  const previewContent = useMemo(() => {
+    if (!personaId) {
+      return DEFAULT_PREVIEW_CONTENT;
+    }
+    
+    try {
+      const content = getPreviewContentById(personaId);
+      // Ensure content has required fields
+      if (!content || !content.userMessage || !content.aiResponse) {
+        return DEFAULT_PREVIEW_CONTENT;
+      }
+      return content;
+    } catch (error) {
+      console.warn('Failed to load preview content:', error);
+      return DEFAULT_PREVIEW_CONTENT;
+    }
+  }, [personaId]);
 
   // Generate preview messages with valid timestamps
-  const now = Date.now();
-  const previewMessages = [
-    {
-      sender: 'user' as const,
-      content: previewContent.userMessage,
-      timestamp: new Date(now - 60000).toISOString(), // 1 minute ago
-    },
-    {
-      sender: 'ai' as const,
-      content: previewContent.aiResponse,
-      timestamp: new Date(now - 30000).toISOString(), // 30 seconds ago
-      therapist_name: persona?.name,
-      therapist_avatar_source: persona?.image,
-    },
-  ];
+  const previewMessages = useMemo(() => {
+    const now = Date.now();
+    return [
+      {
+        sender: 'user' as const,
+        content: previewContent.userMessage,
+        timestamp: new Date(now - 60000).toISOString(), // 1 minute ago
+      },
+      {
+        sender: 'ai' as const,
+        content: previewContent.aiResponse,
+        timestamp: new Date(now - 30000).toISOString(), // 30 seconds ago
+        therapist_name: persona?.name,
+        therapist_avatar_source: persona?.image,
+      },
+    ];
+  }, [previewContent, persona]);
 
   const handleSelectPersona = useCallback(async () => {
     if (!persona) return;
@@ -69,36 +112,44 @@ const CommunicationStylePreviewScreen = () => {
     router.back();
   }, [persona, updatePreferences]);
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/settings');
+    }
+  };
+
   // Fallback UI if persona not found
   if (!persona) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background[1] || theme.background }]}>
         <LinearGradient
-          colors={[theme.colors.primary + '20', theme.colors.background]}
+          colors={theme.background}
           style={styles.gradient}
         />
         
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
               <IconSymbol 
                 ios_icon_name="chevron.left" 
-                android_material_icon_name="arrow_back" 
+                android_material_icon_name="arrow-back" 
                 size={24} 
-                color={theme.colors.text} 
+                color={theme.text} 
               />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Preview Style</Text>
+            <Text style={[styles.headerTitle, { color: theme.text }]}>Preview Style</Text>
             <View style={styles.placeholder} />
           </View>
 
           <View style={styles.errorContainer}>
-            <Text style={[styles.errorText, { color: theme.colors.text }]}>
+            <Text style={[styles.errorText, { color: theme.text }]}>
               Persona not found. Please go back and try again.
             </Text>
             <TouchableOpacity
-              style={[styles.selectButton, { backgroundColor: theme.colors.primary }]}
-              onPress={() => router.back()}
+              style={[styles.selectButton, { backgroundColor: theme.primary }]}
+              onPress={handleBack}
             >
               <Text style={styles.selectButtonText}>Go Back</Text>
             </TouchableOpacity>
@@ -109,52 +160,53 @@ const CommunicationStylePreviewScreen = () => {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background[1] || theme.background }]}>
       <LinearGradient
-        colors={[theme.colors.primary + '20', theme.colors.background]}
+        colors={theme.background}
         style={styles.gradient}
       />
       
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <IconSymbol 
               ios_icon_name="chevron.left" 
-              android_material_icon_name="arrow_back" 
+              android_material_icon_name="arrow-back" 
               size={24} 
-              color={theme.colors.text} 
+              color={theme.text} 
             />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Preview Style</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Preview Style</Text>
           <View style={styles.placeholder} />
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           <View style={styles.personaCard}>
             <Image source={persona.image} style={styles.personaAvatar} />
-            <Text style={[styles.personaName, { color: theme.colors.text }]}>{persona.name}</Text>
-            <Text style={[styles.personaDescription, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.personaName, { color: theme.text }]}>{persona.name}</Text>
+            <Text style={[styles.personaDescription, { color: theme.textSecondary }]}>
               {persona.short_description}
             </Text>
           </View>
 
           <View style={styles.chatPreview}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
               Conversation Preview
             </Text>
             {previewMessages.map((msg, index) => (
               <AnimatedChatBubble 
                 key={index} 
                 message={msg.content}
-                sender={msg.sender}
+                isUser={msg.sender === 'user'}
                 timestamp={msg.timestamp}
                 theme={theme}
+                index={index}
               />
             ))}
           </View>
 
           <TouchableOpacity
-            style={[styles.selectButton, { backgroundColor: theme.colors.primary }]}
+            style={[styles.selectButton, { backgroundColor: theme.primary }]}
             onPress={handleSelectPersona}
           >
             <Text style={styles.selectButtonText}>Select This Style</Text>
