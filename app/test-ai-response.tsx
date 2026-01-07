@@ -76,7 +76,12 @@ export default function TestAIResponseScreen() {
         therapistPersonaId: therapistPersonaId,
       };
 
-      console.log('[Test] Calling Edge Function with payload:', testPayload);
+      console.log('[Test] Calling Edge Function with payload:', {
+        userId: testPayload.userId,
+        personId: testPayload.personId,
+        messagesCount: testPayload.messages.length,
+        therapistPersonaId: testPayload.therapistPersonaId,
+      });
 
       const { data, error: invokeError } = await supabase.functions.invoke('generate-ai-response', {
         body: testPayload,
@@ -85,20 +90,51 @@ export default function TestAIResponseScreen() {
         },
       });
 
-      console.log('[Test] Response received:', { data, error: invokeError });
+      console.log('[Test] Response received:', { 
+        hasData: !!data, 
+        hasError: !!invokeError,
+        dataOk: data?.ok,
+      });
 
       if (invokeError) {
+        console.error('[Test] Edge Function invocation error:', {
+          message: invokeError.message,
+          name: (invokeError as any).name,
+          status: (invokeError as any).status,
+        });
         throw new Error(invokeError.message || 'Edge Function invocation failed');
       }
 
       if (data?.ok === false || data?.error) {
+        console.error('[Test] Edge Function returned error:', {
+          code: data.error?.code,
+          message: data.error?.message,
+          details: data.error?.details,
+        });
         throw new Error(data.error?.message || 'Edge Function returned an error');
+      }
+
+      // Check if the assistant message was saved
+      if (data?.data?.assistantMessage) {
+        console.log('[Test] ✅ Assistant message saved successfully:', {
+          id: data.data.assistantMessage.id,
+          user_id: data.data.assistantMessage.user_id,
+          person_id: data.data.assistantMessage.person_id,
+          role: data.data.assistantMessage.role,
+          content_length: data.data.assistantMessage.content?.length,
+        });
+      } else {
+        console.warn('[Test] ⚠️ No assistant message in response - this may indicate a save failure');
       }
 
       setResponse(data);
       console.log('[Test] ✅ Success!');
     } catch (err: any) {
-      console.error('[Test] ❌ Error:', err);
+      console.error('[Test] ❌ Error:', {
+        message: err.message,
+        name: err.name,
+        stack: err.stack,
+      });
       setError(err.message || 'An unexpected error occurred');
     } finally {
       setIsLoading(false);
@@ -133,7 +169,7 @@ export default function TestAIResponseScreen() {
           <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.7}>
             <IconSymbol
               ios_icon_name="chevron.left"
-              android_material_icon_name="arrow_back"
+              android_material_icon_name="arrow-back"
               size={24}
               color="#FFFFFF"
             />
@@ -215,7 +251,7 @@ export default function TestAIResponseScreen() {
               <React.Fragment>
                 <IconSymbol
                   ios_icon_name="play.fill"
-                  android_material_icon_name="play_arrow"
+                  android_material_icon_name="play-arrow"
                   size={20}
                   color="#FFFFFF"
                   style={{ marginRight: 8 }}
@@ -254,9 +290,35 @@ export default function TestAIResponseScreen() {
                 {response.data.assistantMessage && (
                   <React.Fragment>
                     <View style={styles.responseItem}>
+                      <Text style={[styles.responseLabel, { color: theme.textSecondary }]}>✅ Message Saved to Database:</Text>
+                      <Text style={[styles.responseValue, { color: '#34C759' }]}>Yes</Text>
+                    </View>
+
+                    <View style={styles.responseItem}>
                       <Text style={[styles.responseLabel, { color: theme.textSecondary }]}>Message ID:</Text>
                       <Text style={[styles.responseValue, { color: theme.textPrimary }]}>
                         {response.data.assistantMessage.id}
+                      </Text>
+                    </View>
+
+                    <View style={styles.responseItem}>
+                      <Text style={[styles.responseLabel, { color: theme.textSecondary }]}>User ID:</Text>
+                      <Text style={[styles.responseValue, { color: theme.textPrimary }]}>
+                        {response.data.assistantMessage.user_id}
+                      </Text>
+                    </View>
+
+                    <View style={styles.responseItem}>
+                      <Text style={[styles.responseLabel, { color: theme.textSecondary }]}>Person ID:</Text>
+                      <Text style={[styles.responseValue, { color: theme.textPrimary }]}>
+                        {response.data.assistantMessage.person_id}
+                      </Text>
+                    </View>
+
+                    <View style={styles.responseItem}>
+                      <Text style={[styles.responseLabel, { color: theme.textSecondary }]}>Role:</Text>
+                      <Text style={[styles.responseValue, { color: theme.textPrimary }]}>
+                        {response.data.assistantMessage.role}
                       </Text>
                     </View>
 
@@ -273,7 +335,23 @@ export default function TestAIResponseScreen() {
                         {response.data.assistantMessage.subject || 'None'}
                       </Text>
                     </View>
+
+                    <View style={styles.responseItem}>
+                      <Text style={[styles.responseLabel, { color: theme.textSecondary }]}>Created At:</Text>
+                      <Text style={[styles.responseValue, { color: theme.textPrimary }]}>
+                        {response.data.assistantMessage.created_at}
+                      </Text>
+                    </View>
                   </React.Fragment>
+                )}
+
+                {!response.data.assistantMessage && (
+                  <View style={styles.responseItem}>
+                    <Text style={[styles.responseLabel, { color: theme.textSecondary }]}>⚠️ Message Saved:</Text>
+                    <Text style={[styles.responseValue, { color: '#FF9500' }]}>
+                      No assistant message in response - check Edge Function logs
+                    </Text>
+                  </View>
                 )}
 
                 {response.latency && (
@@ -374,7 +452,10 @@ export default function TestAIResponseScreen() {
             4. View the response below
           </Text>
           <Text style={[styles.instructionText, { color: theme.textSecondary, marginTop: 12 }]}>
-            Note: This will NOT create a real person or save messages to your account. It uses a test person ID.
+            Note: This uses a test person ID. The Edge Function will save the assistant message to the database automatically.
+          </Text>
+          <Text style={[styles.instructionText, { color: theme.textSecondary, marginTop: 8, fontWeight: '600' }]}>
+            ✅ If you see &quot;Message Saved to Database: Yes&quot; above, the save was successful!
           </Text>
         </View>
       </ScrollView>
