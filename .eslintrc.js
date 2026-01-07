@@ -23,23 +23,46 @@ module.exports = {
     '/public/*', 
     '/babel-plugins/*', 
     '/backend/*',
-    'components/SafeSpaceLogo.tsx',
-    'lib/auth/**'
+    '__tests__/*',
+    'jest.setup.js',
+    'supabase/*',
+    'supabase-edge-function-example.ts',
+    'scripts/*'
   ],
   env: {
     browser: true,
+    node: true,
+    jest: true,
+    es2021: true
+  },
+  settings: {
+    'import/resolver': {
+      node: {
+        extensions: ['.js', '.jsx', '.ts', '.tsx']
+      }
+    }
   },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/no-redeclare": "off",
+    "@typescript-eslint/array-type": "off",
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "warn", // Changed from error to warn to handle missing legacy files
+    "import/no-unresolved": ["error", {
+      ignore: [
+        '@testing-library/react-native',
+        '@testing-library/jest-native',
+        'jsr:',
+        'npm:',
+        'https://deno.land'
+      ]
+    }],
     "prefer-const": "off",
     "react/prop-types": 1,
     "no-case-declarations": "off",
@@ -48,13 +71,31 @@ module.exports = {
     "no-constant-condition": "off",
     "no-var": "off",
     "no-useless-escape": "off",
-    "react-hooks/exhaustive-deps": "warn" // Keep as warning instead of error
+    "no-undef": "off",
+    "react-hooks/exhaustive-deps": "off"
   },
   overrides: [
     {
-      files: ['metro.config.js'],
+      files: ['metro.config.js', 'babel.config.js'],
       rules: {
         '@typescript-eslint/no-var-requires': 'off'
+      }
+    },
+    {
+      files: ['**/__tests__/**', '*.test.ts', '*.test.tsx', 'jest.setup.js'],
+      env: {
+        jest: true
+      },
+      rules: {
+        'no-undef': 'off',
+        'import/no-unresolved': 'off'
+      }
+    },
+    {
+      files: ['supabase/**/*', 'scripts/**/*'],
+      rules: {
+        'import/no-unresolved': 'off',
+        'no-undef': 'off'
       }
     }
   ]

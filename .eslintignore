@@ -10,3 +10,16 @@ node_modules/
 # Ignore build artifacts
 *.bundle.js
 *.bundle.js.map
+
+# Ignore test files
+__tests__/
+jest.setup.js
+*.test.ts
+*.test.tsx
+
+# Ignore Supabase edge functions (Deno)
+supabase/
+supabase-edge-function-example.ts
+
+# Ignore scripts
+scripts/

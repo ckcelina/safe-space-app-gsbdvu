@@ -302,7 +302,7 @@ export interface PreviewChatMessage {
   time?: string;
 }
 
-export interface TherapistPreviewContent {
+export interface TherapistPreviewContentType {
   title: string;
   subtitle: string;
   description: string;
@@ -339,7 +339,7 @@ function detectEmotionalKeywords(text: string): {
   };
 }
 
-export const TherapistPreviewContent: Record<string, TherapistPreviewContent> = {
+export const TherapistPreviewContent: Record<string, TherapistPreviewContentType> = {
   dr_elias: {
     title: "Dr. Elias",
     subtitle: "Calm & Grounding",
