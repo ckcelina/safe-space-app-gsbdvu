@@ -1,99 +1,87 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme as useNavigationTheme } from '@react-navigation/native';
 
 export type ThemeKey = 'ocean' | 'rose' | 'forest' | 'custom';
 
-export interface ThemeColors {
+interface ThemeColors {
   primary: string;
   secondary: string;
   background: string;
-  card: string;
+  surface: string;
   text: string;
+  textSecondary: string;
   border: string;
-  muted: string;
-  accent: string;
+  error: string;
   success: string;
   warning: string;
-  error: string;
 }
-
-export interface Theme {
-  key: ThemeKey;
-  name: string;
-  colors: ThemeColors;
-}
-
-// Default theme - always available as fallback
-export const defaultTheme: Theme = {
-  key: 'ocean',
-  name: 'Ocean Blue',
-  colors: {
-    primary: '#007AFF',
-    secondary: '#5AC8FA',
-    background: '#F2F2F7',
-    card: '#FFFFFF',
-    text: '#000000',
-    border: '#C6C6C8',
-    muted: '#8E8E93',
-    accent: '#0A84FF',
-    success: '#34C759',
-    warning: '#FF9500',
-    error: '#FF3B30',
-  },
-};
-
-const themes: Record<ThemeKey, Theme> = {
-  ocean: defaultTheme,
-  rose: {
-    key: 'rose',
-    name: 'Soft Rose',
-    colors: {
-      primary: '#FF6B9D',
-      secondary: '#FFA8C5',
-      background: '#FFF5F7',
-      card: '#FFFFFF',
-      text: '#2C2C2E',
-      border: '#FFD4E5',
-      muted: '#C7A3B3',
-      accent: '#FF85A8',
-      success: '#34C759',
-      warning: '#FF9500',
-      error: '#FF3B30',
-    },
-  },
-  forest: {
-    key: 'forest',
-    name: 'Forest Green',
-    colors: {
-      primary: '#34C759',
-      secondary: '#30D158',
-      background: '#F0F9F4',
-      card: '#FFFFFF',
-      text: '#1C1C1E',
-      border: '#C6E5D1',
-      muted: '#8E9E93',
-      accent: '#32D74B',
-      success: '#34C759',
-      warning: '#FF9500',
-      error: '#FF3B30',
-    },
-  },
-  custom: defaultTheme, // Fallback to ocean for custom
-};
 
 interface ThemeContextType {
-  theme: Theme;
   themeKey: ThemeKey;
-  setTheme: (key: ThemeKey) => Promise<void>;
   colors: ThemeColors;
+  setTheme: (key: ThemeKey) => Promise<void>;
+  isDark: boolean;
 }
-
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = '@safe_space_theme';
 
+const THEME_PRESETS: Record<ThemeKey, ThemeColors> = {
+  ocean: {
+    primary: '#0077BE',
+    secondary: '#00A8E8',
+    background: '#F0F8FF',
+    surface: '#FFFFFF',
+    text: '#1A1A1A',
+    textSecondary: '#666666',
+    border: '#E0E0E0',
+    error: '#D32F2F',
+    success: '#388E3C',
+    warning: '#F57C00',
+  },
+  rose: {
+    primary: '#E91E63',
+    secondary: '#F48FB1',
+    background: '#FFF0F5',
+    surface: '#FFFFFF',
+    text: '#1A1A1A',
+    textSecondary: '#666666',
+    border: '#E0E0E0',
+    error: '#D32F2F',
+    success: '#388E3C',
+    warning: '#F57C00',
+  },
+  forest: {
+    primary: '#2E7D32',
+    secondary: '#66BB6A',
+    background: '#F1F8F4',
+    surface: '#FFFFFF',
+    text: '#1A1A1A',
+    textSecondary: '#666666',
+    border: '#E0E0E0',
+    error: '#D32F2F',
+    success: '#388E3C',
+    warning: '#F57C00',
+  },
+  custom: {
+    primary: '#6200EE',
+    secondary: '#03DAC6',
+    background: '#FFFFFF',
+    surface: '#F5F5F5',
+    text: '#000000',
+    textSecondary: '#666666',
+    border: '#E0E0E0',
+    error: '#B00020',
+    success: '#388E3C',
+    warning: '#F57C00',
+  },
+};
+
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const navigationTheme = useNavigationTheme();
   const [themeKey, setThemeKey] = useState<ThemeKey>('ocean');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -103,9 +91,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const loadTheme = async () => {
     try {
-      const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme && themes[savedTheme as ThemeKey]) {
-        setThemeKey(savedTheme as ThemeKey);
+      const saved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+      if (saved && (saved as ThemeKey) in THEME_PRESETS) {
+        setThemeKey(saved as ThemeKey);
       }
     } catch (error) {
       console.error('Failed to load theme:', error);
@@ -116,59 +104,39 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = async (key: ThemeKey) => {
     try {
-      setThemeKey(key);
       await AsyncStorage.setItem(THEME_STORAGE_KEY, key);
+      setThemeKey(key);
     } catch (error) {
       console.error('Failed to save theme:', error);
     }
   };
 
-  const currentTheme = themes[themeKey] || defaultTheme;
+  const colors = THEME_PRESETS[themeKey];
 
-  return (
-    <ThemeContext.Provider
-      value={{
-        theme: currentTheme,
-        themeKey,
-        setTheme,
-        colors: currentTheme.colors,
-      }}
-    >
-      {children}
-    </ThemeContext.Provider>
-  );
+  const value: ThemeContextType = {
+    themeKey,
+    colors,
+    setTheme,
+    isDark: navigationTheme.dark,
+  };
+
+  if (isLoading) {
+    return null;
+  }
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-/**
- * Hook to access theme context
- * ALWAYS returns a valid theme object, never undefined
- * Safe to use anywhere in the app
- */
 export function useThemeContext(): ThemeContextType {
   const context = useContext(ThemeContext);
-  
-  // If context is not available (provider not mounted yet), return safe default
   if (!context) {
+    // Return safe defaults to prevent crashes
     return {
-      theme: defaultTheme,
       themeKey: 'ocean',
+      colors: THEME_PRESETS.ocean,
       setTheme: async () => {},
-      colors: defaultTheme.colors,
+      isDark: false,
     };
   }
-  
   return context;
 }
-
-/**
- * Helper to get safe gradient colors for LinearGradient
- * Always returns valid array of color strings
- */
-export function getSafeGradientColors(theme?: Theme | null, fallback?: string[]): string[] {
-  if (!theme?.colors) {
-    return fallback || [defaultTheme.colors.primary, defaultTheme.colors.secondary];
-  }
-  return [theme.colors.primary, theme.colors.secondary];
-}
-
-export { themes };
