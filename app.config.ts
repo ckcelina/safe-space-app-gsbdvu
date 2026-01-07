@@ -7,13 +7,13 @@ export default {
     slug: "Natively",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/natively-dark.png",
+    icon: "./assets/images/safe-space-logo-gradient.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     splash: {
-      image: "./assets/images/natively-dark.png",
+      image: "./assets/images/safe-space-logo-gradient.png",
       resizeMode: "contain",
-      backgroundColor: "#000000"
+      backgroundColor: "#FFFFFF"
     },
     ios: {
       supportsTablet: true,
@@ -25,14 +25,14 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/images/natively-dark.png",
-        backgroundColor: "#000000"
+        foregroundImage: "./assets/images/safe-space-logo-gradient.png",
+        backgroundColor: "#FFFFFF"
       },
       edgeToEdgeEnabled: true,
       package: "com.anonymous.Natively"
     },
     web: {
-      favicon: "./assets/images/final_quest_240x240.png",
+      favicon: "./assets/images/safe-space-logo-gradient.png",
       bundler: "metro"
     },
     plugins: [
