@@ -1,45 +1,67 @@
 
-import * as Linking from 'expo-linking';
+import { Linking, Alert, Platform } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 
 /**
- * Opens the user's email app with a pre-filled support email
+ * Safely opens a mailto link with proper encoding and fallback handling
+ * @param subject - Email subject line
+ * @param body - Email body content
  */
-export async function openSupportEmail() {
-  const email = 'support@byceli.com';
-  const subject = 'Safe Space App Support';
-  const body = 'Hi Support Team,';
-  const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
+export const handleSupportEmail = async (subject: string, body: string): Promise<void> => {
   try {
-    const supported = await Linking.canOpenURL(mailtoUrl);
-    if (supported) {
+    // Properly encode subject and body for mailto URL
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(body);
+    const mailtoUrl = `mailto:support@byceli.com?subject=${encodedSubject}&body=${encodedBody}`;
+
+    // Check if the device can open mailto links
+    const canOpen = await Linking.canOpenURL(mailtoUrl);
+
+    if (canOpen) {
       await Linking.openURL(mailtoUrl);
     } else {
-      console.warn('[SupportHelpers] Cannot open email URL');
+      // Fallback: Show alert with copy option
+      showEmailFallback(body);
     }
   } catch (error) {
-    console.error('[SupportHelpers] Error opening email:', error);
+    console.error('Error opening support email:', error);
+    // If any error occurs, show fallback
+    showEmailFallback(body);
   }
-}
+};
 
 /**
- * Opens a URL in the device's browser or in-app browser
+ * Shows a fallback alert when mailto links cannot be opened
+ * @param body - Email body content to copy
  */
-export async function openURL(url: string) {
-  try {
-    const canOpen = await Linking.canOpenURL(url);
-    if (canOpen) {
-      await Linking.openURL(url);
-    } else {
-      console.error('Cannot open URL:', url);
-    }
-  } catch (error) {
-    console.error('Error opening URL:', error);
-  }
-}
+const showEmailFallback = (body: string) => {
+  Alert.alert(
+    'Email Unavailable',
+    `Please send your message to support@byceli.com\n\nYou can copy the message below:`,
+    [
+      {
+        text: 'Copy Email',
+        onPress: async () => {
+          await Clipboard.setStringAsync('support@byceli.com');
+          Alert.alert('Copied!', 'Email address copied to clipboard');
+        },
+      },
+      {
+        text: 'Copy Message',
+        onPress: async () => {
+          await Clipboard.setStringAsync(body);
+          Alert.alert('Copied!', 'Message copied to clipboard');
+        },
+      },
+      { text: 'OK', style: 'cancel' },
+    ]
+  );
+};
 
-// Placeholder URLs - can be easily replaced later
-export const LEGAL_URLS = {
-  terms: 'https://example.com/terms',
-  privacy: 'https://example.com/privacy',
+/**
+ * Quick contact support with a predefined message
+ */
+export const contactSupport = async (message?: string) => {
+  const defaultMessage = message || 'I need help with the app.';
+  await handleSupportEmail('Support Request', defaultMessage);
 };
