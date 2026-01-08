@@ -10,66 +10,55 @@ import {
   RefreshControl,
   Platform,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { IconSymbol } from '@/components/IconSymbol';
-import { PersonCard } from '@/components/ui/PersonCard';
-import { AddPersonSheet } from '@/components/ui/AddPersonSheet';
-import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
-import FloatingTabBar from '@/components/FloatingTabBar';
-
-interface Person {
-  id: string;
-  user_id: string;
-  name: string;
-  relationship_type: string;
-  context_label?: string;
-  created_at: string;
-  updated_at: string;
-}
+import { Person } from '@/types/database.types';
+import AddPersonSheet from '@/components/ui/AddPersonSheet';
+import { showErrorToast } from '@/utils/toast';
 
 export default function HomeScreen() {
-  const { userId } = useAuth();
+  const { user, publicUser } = useAuth();
   const { theme } = useThemeContext();
+  const insets = useSafeAreaInsets();
   const [persons, setPersons] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [showAddPersonSheet, setShowAddPersonSheet] = useState(false);
 
   // Fetch persons when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('[HomeScreen] Screen focused, fetching persons');
-      fetchPersons();
-    }, [userId])
+      if (user) {
+        fetchPersons();
+      }
+    }, [user])
   );
 
-  const fetchPersons = async () => {
-    if (!userId) {
-      console.log('[HomeScreen] No userId, skipping fetch');
-      setLoading(false);
-      return;
-    }
+  const fetchPersons = async (isRefreshing = false) => {
+    if (!user) return;
 
     try {
-      console.log('[HomeScreen] Fetching persons for user:', userId);
-      
+      if (!isRefreshing) setLoading(true);
+
       const { data, error } = await supabase
         .from('persons')
         .select('*')
-        .eq('user_id', userId)
-        .order('updated_at', { ascending: false });
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('[HomeScreen] Error fetching persons:', error);
-      } else {
-        console.log('[HomeScreen] Fetched', data?.length || 0, 'persons');
-        setPersons(data || []);
+        showErrorToast('Failed to load persons');
+        throw error;
       }
+
+      console.log('[HomeScreen] Fetched persons:', data?.length || 0);
+      setPersons(data || []);
     } catch (error) {
       console.error('[HomeScreen] Exception fetching persons:', error);
     } finally {
@@ -79,103 +68,112 @@ export default function HomeScreen() {
   };
 
   const handleRefresh = () => {
-    console.log('[HomeScreen] Refreshing persons list');
     setRefreshing(true);
-    fetchPersons();
-  };
-
-  const handleAddPerson = () => {
-    console.log('[HomeScreen] Add person button pressed');
-    setShowAddSheet(true);
-  };
-
-  const handlePersonCreated = (newPerson: Person) => {
-    console.log('[HomeScreen] New person created:', newPerson.name);
-    setPersons(prev => [newPerson, ...prev]);
-    setShowAddSheet(false);
+    fetchPersons(true);
   };
 
   const handlePersonPress = (person: Person) => {
-    console.log('[HomeScreen] Person card pressed:', person.name);
+    console.log('[HomeScreen] Navigating to chat for person:', person.name);
     router.push({
       pathname: '/(tabs)/(home)/chat',
       params: {
         personId: person.id,
         personName: person.name,
-        relationshipType: person.relationship_type,
       },
     });
   };
 
+  const handleAddPerson = () => {
+    console.log('[HomeScreen] Opening add person sheet');
+    setShowAddPersonSheet(true);
+  };
+
+  const handlePersonCreated = (newPerson: Person) => {
+    console.log('[HomeScreen] Person created:', newPerson.name);
+    setPersons((prev) => [newPerson, ...prev]);
+    setShowAddPersonSheet(false);
+  };
+
   const renderPerson = ({ item }: { item: Person }) => (
-    <PersonCard
-      person={item}
+    <TouchableOpacity
+      style={[styles.personCard, { backgroundColor: theme.surface }]}
       onPress={() => handlePersonPress(item)}
-      theme={theme}
-    />
+      activeOpacity={0.7}
+    >
+      <View style={styles.personInfo}>
+        <Text style={[styles.personName, { color: theme.textPrimary }]}>
+          {item.name}
+        </Text>
+        <Text style={[styles.personRelationship, { color: theme.textSecondary }]}>
+          {item.relationship_type || 'No relationship specified'}
+        </Text>
+      </View>
+      <IconSymbol
+        ios_icon_name="chevron.forward"
+        android_material_icon_name="chevron-right"
+        size={24}
+        color={theme.textSecondary}
+      />
+    </TouchableOpacity>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <IconSymbol
-        ios_icon_name="person.2.fill"
+        ios_icon_name="person.2"
         android_material_icon_name="group"
         size={64}
-        color={theme.textSecondary}
+        color="rgba(255, 255, 255, 0.6)"
       />
-      <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>
-        No conversations yet
-      </Text>
-      <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
-        Add someone you'd like to talk about
+      <Text style={styles.emptyTitle}>No Persons Yet</Text>
+      <Text style={styles.emptyText}>
+        Add someone to start talking about them in a safe space
       </Text>
       <TouchableOpacity
-        style={[styles.emptyButton, { backgroundColor: theme.primary }]}
+        style={[styles.emptyButton, { backgroundColor: theme.accent }]}
         onPress={handleAddPerson}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
-        <IconSymbol
-          ios_icon_name="plus"
-          android_material_icon_name="add"
-          size={20}
-          color="#FFFFFF"
-        />
-        <Text style={styles.emptyButtonText}>Add Person</Text>
+        <Text style={styles.emptyButtonText}>Add Your First Person</Text>
       </TouchableOpacity>
     </View>
   );
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
-      <LinearGradient
-        colors={theme.primaryGradient}
-        style={styles.container}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-      >
-        <StatusBarGradient />
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <LinearGradient colors={theme.gradientColors} style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top']}>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FFFFFF" />
+            <ActivityIndicator size="large" color="#fff" />
+            <Text style={styles.loadingText}>Loading Safe Space...</Text>
           </View>
         </SafeAreaView>
-        <FloatingTabBar />
       </LinearGradient>
     );
   }
 
   return (
-    <LinearGradient
-      colors={theme.primaryGradient}
-      style={styles.container}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-    >
-      <StatusBarGradient />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <LinearGradient colors={theme.gradientColors} style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.title}>Safe Space</Text>
-          <Text style={styles.subtitle}>Your private conversations</Text>
+          <View>
+            <Text style={styles.title}>Safe Space</Text>
+            <Text style={styles.subtitle}>
+              Plan: {publicUser?.role ? publicUser.role.charAt(0).toUpperCase() + publicUser.role.slice(1) : 'Free'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => router.push('/(tabs)/settings')}
+            activeOpacity={0.7}
+          >
+            <IconSymbol
+              ios_icon_name="gearshape.fill"
+              android_material_icon_name="settings"
+              size={28}
+              color="#fff"
+            />
+          </TouchableOpacity>
         </View>
 
         <FlatList
@@ -183,16 +181,16 @@ export default function HomeScreen() {
           renderItem={renderPerson}
           keyExtractor={(item) => item.id}
           contentContainerStyle={[
-            styles.listContent,
-            persons.length === 0 && styles.listContentEmpty,
+            styles.listContainer,
+            persons.length === 0 && styles.listContainerEmpty,
           ]}
           ListEmptyComponent={renderEmptyState}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor="#FFFFFF"
-              colors={['#FFFFFF']}
+              tintColor="#fff"
+              colors={['#fff']}
             />
           }
           showsVerticalScrollIndicator={false}
@@ -200,30 +198,34 @@ export default function HomeScreen() {
 
         {persons.length > 0 && (
           <TouchableOpacity
-            style={[styles.fab, { backgroundColor: theme.primary }]}
+            style={[
+              styles.fab,
+              {
+                backgroundColor: theme.accent,
+                bottom: Platform.OS === 'ios' ? insets.bottom + 80 : 80,
+              },
+            ]}
             onPress={handleAddPerson}
             activeOpacity={0.8}
           >
             <IconSymbol
               ios_icon_name="plus"
               android_material_icon_name="add"
-              size={28}
-              color="#FFFFFF"
+              size={32}
+              color="#fff"
             />
           </TouchableOpacity>
         )}
+
+        <AddPersonSheet
+          visible={showAddPersonSheet}
+          onClose={() => setShowAddPersonSheet(false)}
+          onPersonCreated={handlePersonCreated}
+          userId={user?.id || ''}
+          theme={theme}
+          insets={insets}
+        />
       </SafeAreaView>
-
-      <AddPersonSheet
-        visible={showAddSheet}
-        onClose={() => setShowAddSheet(false)}
-        onPersonCreated={handlePersonCreated}
-        userId={userId || ''}
-        theme={theme}
-        insets={{ top: 0, bottom: 0, left: 0, right: 0 }}
-      />
-
-      <FloatingTabBar />
     </LinearGradient>
   );
 }
@@ -232,82 +234,144 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  safeArea: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 16 : 8,
-    paddingBottom: 16,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 120, // Space for FloatingTabBar
-  },
-  listContentEmpty: {
-    flexGrow: 1,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  loadingText: {
+    color: '#fff',
+    fontSize: 16,
+    marginTop: 16,
+    fontWeight: '500',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 4,
+  },
+  settingsButton: {
+    padding: 8,
+  },
+  listContainer: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  listContainerEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  personCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+      default: {
+        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+      },
+    }),
+  },
+  personInfo: {
+    flex: 1,
+  },
+  personName: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  personRelationship: {
+    fontSize: 14,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 40,
-    paddingBottom: 80,
+    paddingVertical: 60,
   },
   emptyTitle: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: '#fff',
     marginTop: 24,
-    marginBottom: 8,
-    textAlign: 'center',
+    marginBottom: 12,
   },
-  emptySubtitle: {
+  emptyText: {
     fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
-    marginBottom: 32,
     lineHeight: 24,
+    marginBottom: 32,
   },
   emptyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 50,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+      default: {
+        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.2)',
+      },
+    }),
   },
   emptyButtonText: {
-    color: '#FFFFFF',
+    color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 100, // Above FloatingTabBar
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+      default: {
+        boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.3)',
+      },
+    }),
   },
 });

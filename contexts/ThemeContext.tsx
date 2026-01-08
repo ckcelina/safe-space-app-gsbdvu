@@ -5,118 +5,74 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export type ThemeKey = 'ocean' | 'rose' | 'forest' | 'custom';
 
 interface Theme {
-  // Core colors
-  primary: string;
-  secondary: string;
+  primaryGradient: string[];
+  secondaryGradient: string[];
   background: string;
-  card: string;
   surface: string;
-  
-  // Text colors
   textPrimary: string;
   textSecondary: string;
-  buttonText: string;
-  
-  // UI elements
-  border: string;
-  error: string;
-  success: string;
-  warning: string;
-  
-  // Gradients
-  primaryGradient: string[];
-  gradientColors: string[];
-  
-  // Status bar
+  accent: string;
   statusBarStyle: 'light' | 'dark';
+  gradientColors: string[];
 }
 
-interface ThemeContextType {
-  themeKey: ThemeKey;
-  theme: Theme;
-  colors: Theme; // Alias for backwards compatibility
-  setTheme: (key: ThemeKey) => Promise<void>;
-  isDark: boolean;
-}
-
-const THEME_STORAGE_KEY = '@safe_space_theme';
-
-const THEME_PRESETS: Record<ThemeKey, Theme> = {
+const THEMES: Record<ThemeKey, Theme> = {
   ocean: {
-    primary: '#0077BE',
-    secondary: '#00A8E8',
-    background: '#F0F8FF',
-    card: '#FFFFFF',
-    surface: '#FFFFFF',
-    textPrimary: '#1A1A1A',
-    textSecondary: '#666666',
-    buttonText: '#FFFFFF',
-    border: '#E0E0E0',
-    error: '#D32F2F',
-    success: '#388E3C',
-    warning: '#F57C00',
-    primaryGradient: ['#0077BE', '#00A8E8'],
-    gradientColors: ['#0077BE', '#00A8E8'],
-    statusBarStyle: 'light',
+    primaryGradient: ['#667eea', '#764ba2'],
+    secondaryGradient: ['#4facfe', '#00f2fe'],
+    background: '#f0f4f8',
+    surface: '#ffffff',
+    textPrimary: '#1a202c',
+    textSecondary: '#718096',
+    accent: '#667eea',
+    statusBarStyle: 'dark',
+    gradientColors: ['#667eea', '#764ba2'],
   },
   rose: {
-    primary: '#E91E63',
-    secondary: '#F48FB1',
-    background: '#FFF0F5',
-    card: '#FFFFFF',
-    surface: '#FFFFFF',
-    textPrimary: '#1A1A1A',
-    textSecondary: '#666666',
-    buttonText: '#FFFFFF',
-    border: '#E0E0E0',
-    error: '#D32F2F',
-    success: '#388E3C',
-    warning: '#F57C00',
-    primaryGradient: ['#E91E63', '#F48FB1'],
-    gradientColors: ['#E91E63', '#F48FB1'],
-    statusBarStyle: 'light',
+    primaryGradient: ['#f093fb', '#f5576c'],
+    secondaryGradient: ['#ffecd2', '#fcb69f'],
+    background: '#fff5f7',
+    surface: '#ffffff',
+    textPrimary: '#2d3748',
+    textSecondary: '#718096',
+    accent: '#f5576c',
+    statusBarStyle: 'dark',
+    gradientColors: ['#f093fb', '#f5576c'],
   },
   forest: {
-    primary: '#2E7D32',
-    secondary: '#66BB6A',
-    background: '#F1F8F4',
-    card: '#FFFFFF',
-    surface: '#FFFFFF',
-    textPrimary: '#1A1A1A',
-    textSecondary: '#666666',
-    buttonText: '#FFFFFF',
-    border: '#E0E0E0',
-    error: '#D32F2F',
-    success: '#388E3C',
-    warning: '#F57C00',
-    primaryGradient: ['#2E7D32', '#66BB6A'],
-    gradientColors: ['#2E7D32', '#66BB6A'],
-    statusBarStyle: 'light',
+    primaryGradient: ['#56ab2f', '#a8e063'],
+    secondaryGradient: ['#134e5e', '#71b280'],
+    background: '#f0f9f4',
+    surface: '#ffffff',
+    textPrimary: '#1a202c',
+    textSecondary: '#718096',
+    accent: '#56ab2f',
+    statusBarStyle: 'dark',
+    gradientColors: ['#56ab2f', '#a8e063'],
   },
   custom: {
-    primary: '#6200EE',
-    secondary: '#03DAC6',
-    background: '#FFFFFF',
-    card: '#F5F5F5',
-    surface: '#F5F5F5',
-    textPrimary: '#000000',
-    textSecondary: '#666666',
-    buttonText: '#FFFFFF',
-    border: '#E0E0E0',
-    error: '#B00020',
-    success: '#388E3C',
-    warning: '#F57C00',
-    primaryGradient: ['#6200EE', '#03DAC6'],
-    gradientColors: ['#6200EE', '#03DAC6'],
-    statusBarStyle: 'light',
+    primaryGradient: ['#667eea', '#764ba2'],
+    secondaryGradient: ['#4facfe', '#00f2fe'],
+    background: '#f0f4f8',
+    surface: '#ffffff',
+    textPrimary: '#1a202c',
+    textSecondary: '#718096',
+    accent: '#667eea',
+    statusBarStyle: 'dark',
+    gradientColors: ['#667eea', '#764ba2'],
   },
 };
+
+interface ThemeContextType {
+  theme: Theme;
+  themeKey: ThemeKey;
+  setTheme: (key: ThemeKey) => void;
+}
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [themeKey, setThemeKey] = useState<ThemeKey>('ocean');
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadTheme();
@@ -124,55 +80,33 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const loadTheme = async () => {
     try {
-      const saved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (saved && (saved as ThemeKey) in THEME_PRESETS) {
-        setThemeKey(saved as ThemeKey);
-      }
+      const saved = await AsyncStorage.getItem('theme');
+      if (saved) setThemeKey(saved as ThemeKey);
     } catch (error) {
       console.error('Failed to load theme:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const setTheme = async (key: ThemeKey) => {
     try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, key);
+      await AsyncStorage.setItem('theme', key);
       setThemeKey(key);
     } catch (error) {
       console.error('Failed to save theme:', error);
     }
   };
 
-  const theme = THEME_PRESETS[themeKey];
-
-  const value: ThemeContextType = {
-    themeKey,
-    theme,
-    colors: theme, // Alias for backwards compatibility
-    setTheme,
-    isDark: false, // Safe Space uses light themes
-  };
-
-  if (isLoading) {
-    return null;
-  }
-
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={{ theme: THEMES[themeKey], themeKey, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
-export function useThemeContext(): ThemeContextType {
+export function useThemeContext() {
   const context = useContext(ThemeContext);
   if (!context) {
-    // Return safe defaults to prevent crashes
-    console.warn('useThemeContext: Used outside ThemeProvider, returning safe defaults');
-    return {
-      themeKey: 'ocean',
-      theme: THEME_PRESETS.ocean,
-      colors: THEME_PRESETS.ocean,
-      setTheme: async () => {},
-      isDark: false,
-    };
+    throw new Error('useThemeContext must be used within ThemeProvider');
   }
   return context;
 }

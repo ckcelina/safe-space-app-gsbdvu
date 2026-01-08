@@ -3,42 +3,39 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from '@/lib/supabase';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
-interface User {
+interface PublicUser {
   id: string;
-  email: string;
-  user_metadata?: any;
+  user_id: string;
+  role: 'free' | 'premium' | 'admin';
+  created_at: string;
 }
 
 interface AuthContextType {
-  user: User | null;
-  authUser: SupabaseUser | null;
   session: Session | null;
+  user: SupabaseUser | null;
+  publicUser: PublicUser | null;
   loading: boolean;
-  userId: string | null;
-  email: string | null;
-  role: string | null;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  fetchUserProfile: () => Promise<void>;
+  refreshPublicUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [authUser, setAuthUser] = useState<SupabaseUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [publicUser, setPublicUser] = useState<PublicUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setAuthUser(session?.user ?? null);
+      setUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserProfile();
+        fetchPublicUser(session.user.id);
       } else {
         setLoading(false);
       }
@@ -47,12 +44,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      setAuthUser(session?.user ?? null);
+      setUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserProfile();
+        fetchPublicUser(session.user.id);
       } else {
-        setUser(null);
-        setRole(null);
+        setPublicUser(null);
         setLoading(false);
       }
     });
@@ -60,181 +56,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserProfile = async () => {
+  const fetchPublicUser = async (userId: string) => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) {
-        setUser(null);
-        setRole(null);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch user profile from public.users
-      const { data: profile, error } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('user_id', authUser.id)
+        .eq('user_id', userId)
         .single();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user profile:', error);
+        console.error('Error fetching public user:', error);
       }
 
-      // If profile doesn't exist, create it
-      if (!profile) {
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            user_id: authUser.id,
-            role: 'free',
-          });
-
-        if (insertError) {
-          console.error('Error creating user profile:', insertError);
-        }
-
-        setRole('free');
+      if (data) {
+        setPublicUser(data);
       } else {
-        setRole(profile.role || 'free');
-      }
+        // Create public user if doesn't exist
+        const { data: newUser, error: insertError } = await supabase
+          .from('users')
+          .insert({ user_id: userId, role: 'free' })
+          .select()
+          .single();
 
-      setUser({
-        id: authUser.id,
-        email: authUser.email || '',
-        user_metadata: authUser.user_metadata,
-      });
+        if (!insertError && newUser) {
+          setPublicUser(newUser);
+        }
+      }
     } catch (error) {
-      console.error('Failed to fetch user profile:', error);
+      console.error('Failed to fetch public user:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const signInWithEmail = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-      await fetchUserProfile();
-    } catch (error) {
-      console.error('Email sign in failed:', error);
-      throw error;
-    }
+  const signUp = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
   };
 
-  const signUpWithEmail = async (email: string, password: string) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      // Create user profile
-      if (data.user) {
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            user_id: data.user.id,
-            role: 'free',
-          });
-
-        // Don't block signup if profile creation fails
-        if (insertError) {
-          console.error('Error creating user profile:', insertError);
-        }
-      }
-
-      await fetchUserProfile();
-    } catch (error) {
-      console.error('Email sign up failed:', error);
-      throw error;
-    }
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
   };
 
   const signOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setAuthUser(null);
-      setSession(null);
-      setRole(null);
-    } catch (error) {
-      console.error('Sign out failed:', error);
-      throw error;
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  };
+
+  const refreshPublicUser = async () => {
+    if (user) {
+      await fetchPublicUser(user.id);
     }
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        authUser,
-        session,
-        loading,
-        userId: authUser?.id || null,
-        email: authUser?.email || null,
-        role,
-        signInWithEmail,
-        signUpWithEmail,
-        signOut,
-        fetchUserProfile,
-      }}
-    >
+    <AuthContext.Provider value={{ session, user, publicUser, loading, signUp, signIn, signOut, refreshPublicUser }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-/**
- * Hook to access auth context (strict)
- * Must be used within AuthProvider - throws error otherwise
- * Use this for screens that require authentication
- */
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-}
-
-/**
- * Hook to access auth context (optional)
- * Returns safe defaults if used outside AuthProvider
- * Use this for screens where auth is optional or can handle loading state
- */
-export function useAuthOptional(): AuthContextType {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    // Return safe defaults instead of throwing
-    console.warn('useAuthOptional: Used outside AuthProvider, returning safe defaults');
-    return {
-      user: null,
-      authUser: null,
-      session: null,
-      loading: true,
-      userId: null,
-      email: null,
-      role: null,
-      signInWithEmail: async () => {
-        console.warn('useAuthOptional: signInWithEmail called outside AuthProvider');
-      },
-      signUpWithEmail: async () => {
-        console.warn('useAuthOptional: signUpWithEmail called outside AuthProvider');
-      },
-      signOut: async () => {
-        console.warn('useAuthOptional: signOut called outside AuthProvider');
-      },
-      fetchUserProfile: async () => {
-        console.warn('useAuthOptional: fetchUserProfile called outside AuthProvider');
-      },
-    };
   }
   return context;
 }
