@@ -37,6 +37,7 @@ import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
 import { upsertPersonMemories } from '@/lib/memory/personMemory';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
 import { getPersonaById, DEFAULT_PERSONA_ID } from '@/constants/TherapistPersonas';
+import { getRecommendedTherapistForTopic, isTherapistOptimalForTopic } from '@/constants/TopicTherapistMapping';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { memoryCache } from '@/lib/cache/memoryCache';
@@ -65,7 +66,7 @@ interface ExtendedMessage extends Message {
   retry_content?: string;
   optimistic?: boolean;
   temp_id?: string;
-  is_system_message?: boolean; // NEW: Flag for system messages
+  is_system_message?: boolean;
 }
 
 // Message or Date Separator item type
@@ -296,8 +297,11 @@ async function updatePersonActivity(
   }
 }
 
-// NEW: Storage key for tracking therapist switch warnings
+// Storage key for tracking therapist switch warnings
 const THERAPIST_SWITCH_WARNING_KEY = '@therapist_switch_warning_shown';
+
+// NEW: Storage key for tracking dismissed therapist suggestions per topic
+const DISMISSED_SUGGESTIONS_KEY = '@dismissed_therapist_suggestions';
 
 export default function ChatScreen() {
   const params = useLocalSearchParams<{
@@ -333,7 +337,7 @@ export default function ChatScreen() {
 
   const { currentUser: authUser, role, isPremium } = useAuth();
   const { theme } = useThemeContext();
-  const { preferences } = useUserPreferences();
+  const { preferences, updatePreferences } = useUserPreferences();
 
   const [allMessages, setAllMessages] = useState<ExtendedMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -344,6 +348,12 @@ export default function ChatScreen() {
   const [currentSubject, setCurrentSubject] = useState<string>('General');
   const [availableSubjects, setAvailableSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // NEW: Therapist suggestion state
+  const [showTherapistSuggestion, setShowTherapistSuggestion] = useState(false);
+  const [suggestedTherapistId, setSuggestedTherapistId] = useState<string | null>(null);
+  const [suggestionReason, setSuggestionReason] = useState<string>('');
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
 
   const isGeneratingRef = useRef(false);
   const messagesRef = useRef<ExtendedMessage[]>([]);
@@ -373,7 +383,7 @@ export default function ChatScreen() {
 
   const isMountedRef = useRef(true);
 
-  // NEW: Track previous therapist to detect switches
+  // Track previous therapist to detect switches
   const previousTherapistIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -382,6 +392,108 @@ export default function ChatScreen() {
       isMountedRef.current = false;
     };
   }, []);
+
+  // NEW: Load dismissed suggestions from storage
+  useEffect(() => {
+    const loadDismissedSuggestions = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(DISMISSED_SUGGESTIONS_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setDismissedSuggestions(new Set(parsed));
+        }
+      } catch (err) {
+        console.warn('[Chat] Failed to load dismissed suggestions:', err);
+      }
+    };
+
+    loadDismissedSuggestions();
+  }, []);
+
+  // NEW: Check if therapist is optimal for current subject and show suggestion
+  useEffect(() => {
+    if (!currentSubject || currentSubject === 'General') {
+      // Don't show suggestions for General subject
+      setShowTherapistSuggestion(false);
+      return;
+    }
+
+    const currentTherapistId = preferences.therapist_persona_id || DEFAULT_PERSONA_ID;
+    
+    // Check if current therapist is optimal for this subject
+    const isOptimal = isTherapistOptimalForTopic(currentSubject, currentTherapistId);
+    
+    if (!isOptimal) {
+      // Get recommended therapist
+      const recommendation = getRecommendedTherapistForTopic(currentSubject);
+      
+      if (recommendation) {
+        // Check if user has dismissed this suggestion before
+        const suggestionKey = `${currentSubject}:${recommendation.recommendedTherapistId}`;
+        
+        if (!dismissedSuggestions.has(suggestionKey)) {
+          console.log('[Chat] Showing therapist suggestion:', recommendation.recommendedTherapistId, 'for subject:', currentSubject);
+          setSuggestedTherapistId(recommendation.recommendedTherapistId);
+          setSuggestionReason(recommendation.reason);
+          setShowTherapistSuggestion(true);
+        } else {
+          console.log('[Chat] Suggestion already dismissed for:', suggestionKey);
+          setShowTherapistSuggestion(false);
+        }
+      }
+    } else {
+      // Current therapist is optimal - hide suggestion
+      setShowTherapistSuggestion(false);
+    }
+  }, [currentSubject, preferences.therapist_persona_id, dismissedSuggestions]);
+
+  // NEW: Handle accepting therapist suggestion
+  const handleAcceptTherapistSuggestion = useCallback(async () => {
+    if (!suggestedTherapistId) {
+      return;
+    }
+
+    console.log('[Chat] User accepted therapist suggestion:', suggestedTherapistId);
+
+    // Update preferences to switch therapist
+    const result = await updatePreferences({
+      therapist_persona_id: suggestedTherapistId,
+    });
+
+    if (result.success) {
+      showSuccessToast('Therapist switched successfully');
+      setShowTherapistSuggestion(false);
+      
+      // The therapist switch message will be inserted by the existing useEffect
+    } else {
+      showErrorToast('Failed to switch therapist');
+    }
+  }, [suggestedTherapistId, updatePreferences]);
+
+  // NEW: Handle dismissing therapist suggestion
+  const handleDismissTherapistSuggestion = useCallback(async () => {
+    if (!suggestedTherapistId) {
+      return;
+    }
+
+    console.log('[Chat] User dismissed therapist suggestion:', suggestedTherapistId, 'for subject:', currentSubject);
+
+    // Add to dismissed suggestions
+    const suggestionKey = `${currentSubject}:${suggestedTherapistId}`;
+    const newDismissed = new Set(dismissedSuggestions);
+    newDismissed.add(suggestionKey);
+    setDismissedSuggestions(newDismissed);
+
+    // Save to storage
+    try {
+      await AsyncStorage.setItem(DISMISSED_SUGGESTIONS_KEY, JSON.stringify(Array.from(newDismissed)));
+    } catch (err) {
+      console.warn('[Chat] Failed to save dismissed suggestions:', err);
+    }
+
+    // Hide suggestion
+    setShowTherapistSuggestion(false);
+  }, [suggestedTherapistId, currentSubject, dismissedSuggestions]);
 
   // SAFEGUARD: Clean up UI overlays when leaving Chat screen
   useFocusEffect(
@@ -407,6 +519,9 @@ export default function ChatScreen() {
         if (__DEV__) {
           setDebugInfo(null);
         }
+
+        // Hide therapist suggestion
+        setShowTherapistSuggestion(false);
       };
     }, [])
   );
@@ -437,6 +552,9 @@ export default function ChatScreen() {
         if (__DEV__) {
           setDebugInfo(null);
         }
+
+        // Hide therapist suggestion
+        setShowTherapistSuggestion(false);
       }
     });
 
@@ -466,7 +584,7 @@ export default function ChatScreen() {
     };
   }, [preferences.therapist_persona_id]);
 
-  // NEW: Function to insert system message when therapist switches
+  // Function to insert system message when therapist switches
   const insertTherapistSwitchMessage = useCallback((therapistName: string) => {
     const systemMessage: ExtendedMessage = {
       id: generateTempId(),
@@ -488,7 +606,7 @@ export default function ChatScreen() {
     }
   }, [authUser?.id, personId, currentSubject]);
 
-  // NEW: Show one-time warning about therapist switches
+  // Show one-time warning about therapist switches
   const showTherapistSwitchWarning = useCallback(async () => {
     try {
       const hasShownWarning = await AsyncStorage.getItem(THERAPIST_SWITCH_WARNING_KEY);
@@ -506,7 +624,7 @@ export default function ChatScreen() {
     }
   }, []);
 
-  // NEW: Detect therapist switches and insert system message
+  // Detect therapist switches and insert system message
   useEffect(() => {
     const currentTherapistId = preferences.therapist_persona_id || DEFAULT_PERSONA_ID;
     
@@ -1478,6 +1596,13 @@ export default function ChatScreen() {
     );
   }, [isGenerating, getCurrentTherapistMetadata, preferences.therapist_persona_id]);
 
+  // NEW: Get suggested therapist name for display
+  const suggestedTherapistName = React.useMemo(() => {
+    if (!suggestedTherapistId) return '';
+    const persona = getPersonaById(suggestedTherapistId);
+    return persona?.name || '';
+  }, [suggestedTherapistId]);
+
   return (
     <FullScreenSwipeHandler enabled={!isGenerating && !isSending}>
       <KeyboardAvoidingView
@@ -1486,7 +1611,6 @@ export default function ChatScreen() {
         keyboardVerticalOffset={0}
       >
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-          {/* FIXED: Added pointerEvents="none" to prevent touch blocking */}
           <LinearGradient
             colors={theme.primaryGradient}
             start={{ x: 0, y: 0 }}
@@ -1495,7 +1619,6 @@ export default function ChatScreen() {
             pointerEvents="none"
           />
 
-          {/* FIXED: Added pointerEvents="box-none" to allow touches through to children */}
           <LinearGradient
             colors={theme.primaryGradient}
             start={{ x: 0, y: 0 }}
@@ -1570,6 +1693,49 @@ export default function ChatScreen() {
               keyExtractor={(item, index) => `subject-${index}-${item}`}
             />
           </View>
+
+          {/* NEW: Therapist Suggestion Banner */}
+          {showTherapistSuggestion && suggestedTherapistName && (
+            <View style={[styles.suggestionBanner, { backgroundColor: theme.primary + '15' }]}>
+              <View style={styles.suggestionContent}>
+                <IconSymbol
+                  ios_icon_name="lightbulb.fill"
+                  android_material_icon_name="lightbulb"
+                  size={20}
+                  color={theme.primary}
+                  style={styles.suggestionIcon}
+                />
+                <View style={styles.suggestionTextContainer}>
+                  <Text style={[styles.suggestionTitle, { color: theme.textPrimary }]}>
+                    Try {suggestedTherapistName}?
+                  </Text>
+                  <Text style={[styles.suggestionReason, { color: theme.textSecondary }]}>
+                    {suggestionReason}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.suggestionButtons}>
+                <TouchableOpacity
+                  onPress={handleDismissTherapistSuggestion}
+                  style={[styles.suggestionButton, styles.suggestionDismissButton]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.suggestionButtonText, { color: theme.textSecondary }]}>
+                    Not now
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleAcceptTherapistSuggestion}
+                  style={[styles.suggestionButton, styles.suggestionAcceptButton, { backgroundColor: theme.primary }]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.suggestionButtonText, { color: '#FFFFFF' }]}>
+                    Switch
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {__DEV__ && debugInfo && (
             <TouchableOpacity 
@@ -1899,6 +2065,56 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontSize: 14,
+  },
+  // NEW: Therapist Suggestion Banner Styles
+  suggestionBanner: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  suggestionContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  suggestionIcon: {
+    marginRight: 10,
+    marginTop: 2,
+  },
+  suggestionTextContainer: {
+    flex: 1,
+  },
+  suggestionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  suggestionReason: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  suggestionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  suggestionButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  suggestionDismissButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  suggestionAcceptButton: {
+    // backgroundColor set dynamically
+  },
+  suggestionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   debugBanner: {
     flexDirection: 'row',
