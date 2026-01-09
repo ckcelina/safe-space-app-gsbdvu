@@ -26,7 +26,7 @@ export async function generateAIReply(params: {
   personId: string;
   personName: string;
   relationshipType?: string | null;
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  messages: { role: 'user' | 'assistant'; content: string }[];
 }): Promise<string> {
   const fallbackMessage = "I'm having trouble replying right now, but your feelings matter. Please try again in a moment.";
   

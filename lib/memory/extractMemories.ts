@@ -18,7 +18,7 @@ export async function extractMemories(params: {
   personName: string;
   recentUserMessages: string[];
   lastAssistantMessage?: string;
-  existingMemories: Array<{ key: string; value: string; category: string }>;
+  existingMemories: { key: string; value: string; category: string }[];
   userId: string;
   personId: string;
 }): Promise<{

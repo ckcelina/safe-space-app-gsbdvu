@@ -37,7 +37,7 @@ interface DiagnosticReport {
   metroConnection: {
     isRecovering: boolean;
     connectionAttempts: number;
-    errorPatterns: Array<[string, number]>;
+    errorPatterns: [string, number][];
     timeSinceLastSuccess: number | null;
   };
   recommendations: string[];

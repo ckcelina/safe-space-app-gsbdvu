@@ -99,10 +99,10 @@ export function shouldGenerateAIResponse(params: {
  * @returns Formatted messages for AI
  */
 export function formatMessagesForAI(
-  messages: Array<{ role: 'user' | 'assistant'; content: string; subject?: string; created_at: string }>,
+  messages: { role: 'user' | 'assistant'; content: string; subject?: string; created_at: string }[],
   currentSubject: string,
   maxMessages: number = 20
-): Array<{ role: 'user' | 'assistant'; content: string; createdAt: string }> {
+): { role: 'user' | 'assistant'; content: string; createdAt: string }[] {
   // Filter by current subject
   const subjectMessages = messages.filter((msg) => {
     const msgSubject = msg.subject || 'General';

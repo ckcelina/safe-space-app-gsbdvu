@@ -6,7 +6,7 @@ interface AIReplyParams {
   person_id: string;
   person_name: string;
   relationship_type: string;
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  messages: { role: 'user' | 'assistant'; content: string }[];
 }
 
 /**
