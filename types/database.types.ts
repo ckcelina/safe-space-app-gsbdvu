@@ -8,6 +8,7 @@ export interface Message {
   content: string;
   subject?: string; // Added subject field for topic-based conversations
   created_at: string;
+  is_system_message?: boolean; // NEW: Flag for system messages (not stored in DB, client-side only)
 }
 
 export interface Person {

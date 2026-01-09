@@ -32,7 +32,7 @@ import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
 import { AnimatedTypingIndicator } from '@/components/ui/AnimatedTypingIndicator';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
-import { showErrorToast } from '@/utils/toast';
+import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
 import { upsertPersonMemories } from '@/lib/memory/personMemory';
 import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
@@ -40,6 +40,7 @@ import { getPersonaById, DEFAULT_PERSONA_ID } from '@/constants/TherapistPersona
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { memoryCache } from '@/lib/cache/memoryCache';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -64,6 +65,7 @@ interface ExtendedMessage extends Message {
   retry_content?: string;
   optimistic?: boolean;
   temp_id?: string;
+  is_system_message?: boolean; // NEW: Flag for system messages
 }
 
 // Message or Date Separator item type
@@ -294,6 +296,9 @@ async function updatePersonActivity(
   }
 }
 
+// NEW: Storage key for tracking therapist switch warnings
+const THERAPIST_SWITCH_WARNING_KEY = '@therapist_switch_warning_shown';
+
 export default function ChatScreen() {
   const params = useLocalSearchParams<{
     personId?: string | string[];
@@ -367,6 +372,9 @@ export default function ChatScreen() {
   const [newSubjectName, setNewSubjectName] = useState('');
 
   const isMountedRef = useRef(true);
+
+  // NEW: Track previous therapist to detect switches
+  const previousTherapistIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -457,6 +465,73 @@ export default function ChatScreen() {
       personaId: persona.id,
     };
   }, [preferences.therapist_persona_id]);
+
+  // NEW: Function to insert system message when therapist switches
+  const insertTherapistSwitchMessage = useCallback((therapistName: string) => {
+    const systemMessage: ExtendedMessage = {
+      id: generateTempId(),
+      temp_id: generateTempId(),
+      user_id: authUser?.id || '',
+      person_id: personId,
+      role: 'assistant',
+      content: `You are now talking to ${therapistName}.`,
+      subject: currentSubject,
+      created_at: new Date().toISOString(),
+      is_system_message: true,
+      optimistic: true,
+    };
+
+    console.log('[Chat] Inserting therapist switch system message:', therapistName);
+    
+    if (isMountedRef.current) {
+      setAllMessages((prev) => mergeMessages(prev, [systemMessage]));
+    }
+  }, [authUser?.id, personId, currentSubject]);
+
+  // NEW: Show one-time warning about therapist switches
+  const showTherapistSwitchWarning = useCallback(async () => {
+    try {
+      const hasShownWarning = await AsyncStorage.getItem(THERAPIST_SWITCH_WARNING_KEY);
+      
+      if (!hasShownWarning) {
+        // Show warning toast
+        showSuccessToast('Different therapists may respond differently. Your chat stays private.');
+        
+        // Mark as shown
+        await AsyncStorage.setItem(THERAPIST_SWITCH_WARNING_KEY, 'true');
+        console.log('[Chat] Therapist switch warning shown');
+      }
+    } catch (err) {
+      console.warn('[Chat] Failed to check/set therapist switch warning:', err);
+    }
+  }, []);
+
+  // NEW: Detect therapist switches and insert system message
+  useEffect(() => {
+    const currentTherapistId = preferences.therapist_persona_id || DEFAULT_PERSONA_ID;
+    
+    // Skip on initial mount
+    if (previousTherapistIdRef.current === null) {
+      previousTherapistIdRef.current = currentTherapistId;
+      return;
+    }
+
+    // Detect switch
+    if (previousTherapistIdRef.current !== currentTherapistId) {
+      console.log('[Chat] Therapist switch detected:', previousTherapistIdRef.current, '->', currentTherapistId);
+      
+      const therapistMeta = getCurrentTherapistMetadata();
+      
+      // Insert system message
+      insertTherapistSwitchMessage(therapistMeta.name);
+      
+      // Show one-time warning
+      showTherapistSwitchWarning();
+      
+      // Update ref
+      previousTherapistIdRef.current = currentTherapistId;
+    }
+  }, [preferences.therapist_persona_id, getCurrentTherapistMetadata, insertTherapistSwitchMessage, showTherapistSwitchWarning]);
 
   const backfillSubjects = useCallback(async () => {
     if (!personId || !authUser?.id) {
@@ -1325,6 +1400,7 @@ export default function ChatScreen() {
           therapistName={message.therapist_name}
           therapistAvatarSource={message.therapist_avatar_source}
           therapistPersonaId={preferences.therapist_persona_id}
+          isSystemMessage={message.is_system_message}
         />
         {isFailed && message.retry_content && (
           <TouchableOpacity

@@ -14,6 +14,7 @@ interface AnimatedChatBubbleProps {
   therapistName?: string;
   therapistAvatarSource?: ImageSourcePropType;
   therapistPersonaId?: string;
+  isSystemMessage?: boolean; // NEW: Flag for system messages
 }
 
 export function AnimatedChatBubble({
@@ -24,6 +25,7 @@ export function AnimatedChatBubble({
   therapistName,
   therapistAvatarSource,
   therapistPersonaId,
+  isSystemMessage = false, // NEW: Default to false
 }: AnimatedChatBubbleProps) {
   const { theme } = useThemeContext();
   const fadeAnim = useRef(new Animated.Value(animate ? 0 : 1)).current;
@@ -51,6 +53,27 @@ export function AnimatedChatBubble({
   }, [animate, hasAnimated, fadeAnim, slideAnim]);
 
   const formattedTime = format(new Date(timestamp), 'h:mm a');
+
+  // NEW: Render system message with special styling
+  if (isSystemMessage) {
+    return (
+      <Animated.View
+        style={[
+          styles.systemMessageContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <View style={[styles.systemMessageBubble, { backgroundColor: theme.card }]}>
+          <Text style={[styles.systemMessageText, { color: theme.textSecondary }]}>
+            {message}
+          </Text>
+        </View>
+      </Animated.View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -153,5 +176,27 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 6,
     fontWeight: '500',
+  },
+  // NEW: System message styles
+  systemMessageContainer: {
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  systemMessageBubble: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 16,
+    maxWidth: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  systemMessageText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
