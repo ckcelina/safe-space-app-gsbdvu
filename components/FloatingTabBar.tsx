@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -48,12 +48,6 @@ export default function FloatingTabBar({
   const pathname = usePathname();
   const theme = useTheme();
   const animatedValue = useSharedValue(0);
-
-  // Check if we should hide the tab bar on settings routes
-  // Updated to match the actual route structure: /(tabs)/settings
-  const shouldHideTabBar = useMemo(() => {
-    return pathname.includes('/settings') || pathname === '/settings';
-  }, [pathname]);
 
   // Improved active tab detection with better path matching
   const activeTabIndex = React.useMemo(() => {
@@ -104,6 +98,8 @@ export default function FloatingTabBar({
   const handleTabPress = (route: Href) => {
     router.push(route);
   };
+
+  // Remove unnecessary tabBarStyle animation to prevent flickering
 
   const tabWidthPercent = ((100 / tabs.length) - 1).toFixed(2);
 
@@ -159,20 +155,15 @@ export default function FloatingTabBar({
     },
   };
 
-  // Hide tab bar on settings routes
-  if (shouldHideTabBar) {
-    return null;
-  }
-
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom']} pointerEvents="box-none">
       <View style={[
         styles.container,
         {
           width: containerWidth,
           marginBottom: bottomMargin ?? 20
         }
-      ]}>
+      ]} pointerEvents="box-none">
         <BlurView
           intensity={80}
           style={[dynamicStyles.blurContainer, { borderRadius }]}

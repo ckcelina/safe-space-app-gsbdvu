@@ -18,28 +18,19 @@ module.exports = {
       jsx: true
     }
   },
-  ignorePatterns: [
-    '/dist/*', 
-    '/public/*', 
-    '/babel-plugins/*', 
-    '/backend/*',
-    '__tests__/*',
-    'jest.setup.js',
-    'supabase/*',
-    'supabase-edge-function-example.ts',
-    'scripts/*'
-  ],
+  ignorePatterns: ['/dist/*', '/public/*', '/babel-plugins/*', '/backend/*'],
   env: {
     browser: true,
-    node: true,
-    jest: true,
-    es2021: true
+    es2021: true,
   },
   settings: {
     'import/resolver': {
       node: {
         extensions: ['.js', '.jsx', '.ts', '.tsx']
       }
+    },
+    react: {
+      version: 'detect'
     }
   },
   rules: {
@@ -47,55 +38,80 @@ module.exports = {
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
-    "@typescript-eslint/no-redeclare": "off",
-    "@typescript-eslint/array-type": "off",
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
+    "@typescript-eslint/no-redeclare": "off",
+    "@typescript-eslint/array-type": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": ["error", {
-      ignore: [
-        '@testing-library/react-native',
-        '@testing-library/jest-native',
-        'jsr:',
-        'npm:',
-        'https://deno.land'
-      ]
-    }],
+    "react/prop-types": "off",
+    "react/display-name": "off",
     "prefer-const": "off",
-    "react/prop-types": 1,
     "no-case-declarations": "off",
     "no-empty": "off",
-    "react/display-name": "off",
     "no-constant-condition": "off",
     "no-var": "off",
     "no-useless-escape": "off",
-    "no-undef": "off",
-    "react-hooks/exhaustive-deps": "off"
+    "react-hooks/exhaustive-deps": "warn",
+    "import/no-unresolved": ["error", {
+      ignore: [
+        'better-auth',
+        '@better-auth',
+        'expo-secure-store',
+        '@testing-library'
+      ]
+    }]
   },
   overrides: [
     {
-      files: ['metro.config.js', 'babel.config.js'],
-      rules: {
-        '@typescript-eslint/no-var-requires': 'off'
-      }
-    },
-    {
-      files: ['**/__tests__/**', '*.test.ts', '*.test.tsx', 'jest.setup.js'],
+      // Node.js scripts
+      files: ['scripts/**/*.js', 'metro.config.js', 'babel.config.js'],
       env: {
-        jest: true
+        node: true,
+        browser: false
+      },
+      globals: {
+        '__dirname': 'readonly',
+        '__filename': 'readonly',
+        'process': 'readonly',
+        'require': 'readonly',
+        'module': 'readonly',
+        'exports': 'readonly'
       },
       rules: {
-        'no-undef': 'off',
-        'import/no-unresolved': 'off'
+        '@typescript-eslint/no-var-requires': 'off',
+        'no-undef': 'off'
       }
     },
     {
-      files: ['supabase/**/*', 'scripts/**/*'],
+      // Jest test files
+      files: [
+        '**/__tests__/**/*',
+        '**/*.test.ts',
+        '**/*.test.tsx',
+        'jest.setup.js',
+        'jest.config.js'
+      ],
+      env: {
+        jest: true,
+        node: true
+      },
+      globals: {
+        'jest': 'readonly',
+        'describe': 'readonly',
+        'it': 'readonly',
+        'test': 'readonly',
+        'expect': 'readonly',
+        'beforeEach': 'readonly',
+        'afterEach': 'readonly',
+        'beforeAll': 'readonly',
+        'afterAll': 'readonly'
+      },
       rules: {
         'import/no-unresolved': 'off',
-        'no-undef': 'off'
+        'no-undef': 'off',
+        '@typescript-eslint/no-var-requires': 'off'
       }
     }
   ]

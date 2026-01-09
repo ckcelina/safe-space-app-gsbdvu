@@ -1,7 +1,8 @@
+
 {
   "expo": {
     "name": "Safe Space",
-    "slug": "Safe Space",
+    "slug": "safe-space",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/safe-space-icon.png",
@@ -10,25 +11,25 @@
     "splash": {
       "image": "./assets/images/safe-space-splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.Natively",
+      "bundleIdentifier": "com.anonymous.safespace",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/safe-space-adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "foregroundImage": "./assets/images/safe-space-icon.png",
+        "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Natively"
+      "package": "com.anonymous.safespace"
     },
     "web": {
-      "favicon": "./assets/images/safe-space-favicon.png",
+      "favicon": "./assets/images/safe-space-icon.png",
       "bundler": "metro"
     },
     "plugins": [
@@ -36,13 +37,11 @@
       "expo-router",
       "expo-web-browser"
     ],
-    "scheme": "natively",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {}
     }
-  },
-  "scheme": "Safe Space"
+  }
 }

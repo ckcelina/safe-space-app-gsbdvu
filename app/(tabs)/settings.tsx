@@ -117,20 +117,12 @@ function formatRelativeDate(dateString: string): string {
   }
 }
 
-// Theme colors mapping for gradient
-const THEME_GRADIENTS: Record<ThemeKey, string[]> = {
-  ocean: ['#0077BE', '#00A8E8'],
-  rose: ['#E91E63', '#F48FB1'],
-  forest: ['#2E7D32', '#66BB6A'],
-  custom: ['#6200EE', '#03DAC6'],
-};
-
 // 🔒 DEVELOPER GUARD: This component name and export must remain unchanged
 // to ensure routing always points to this exact Settings screen implementation.
 // DO NOT rename this component or change the default export.
 export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
-  const { themeKey, colors, setTheme } = useThemeContext();
+  const { themeKey, theme, setTheme } = useThemeContext();
   const { preferences, updatePreferences } = useUserPreferences();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -191,9 +183,6 @@ export default function SettingsScreen() {
   const modalMaxWidth = Math.min(windowWidth * 0.92, 520);
   const actionBarHeight = 140; // Approximate height for action buttons area
 
-  // Get gradient colors for current theme
-  const primaryGradient = THEME_GRADIENTS[themeKey] || THEME_GRADIENTS.ocean;
-
   // DEV-ONLY DIAGNOSTIC: Full-screen transparent Pressable to detect overlays
   useEffect(() => {
     if (__DEV__) {
@@ -252,10 +241,10 @@ export default function SettingsScreen() {
   }, [preferences]);
 
   const themes: { key: ThemeKey; name: string }[] = [
-    { key: 'ocean', name: 'Ocean Blue' },
-    { key: 'rose', name: 'Soft Rose' },
-    { key: 'forest', name: 'Forest Green' },
-    { key: 'custom', name: 'Custom' },
+    { key: 'OceanBlue', name: 'Ocean Blue' },
+    { key: 'SoftRose', name: 'Soft Rose' },
+    { key: 'ForestGreen', name: 'Forest Green' },
+    { key: 'SunnyYellow', name: 'Sunny Yellow' },
   ];
 
   const handleThemeSelect = async (themeKey: ThemeKey) => {
@@ -500,7 +489,6 @@ export default function SettingsScreen() {
     const persona = getPersonaById(personaId);
     if (!persona) {
       console.error('[Settings] Persona not found:', personaId);
-      showErrorToast('Persona not found');
       return;
     }
 
@@ -509,11 +497,13 @@ export default function SettingsScreen() {
 
     // Small delay to allow modal close animation to complete before navigation
     setTimeout(() => {
-      console.log('[Settings] Navigating to preview with personaId:', persona.id);
       router.push({
         pathname: '/(tabs)/(home)/communication-style-preview',
         params: {
           therapistPersonaId: persona.id,
+          therapistName: persona.name,
+          styleLabel: persona.label,
+          description: persona.short_description,
         },
       });
     }, 200);
@@ -894,8 +884,8 @@ export default function SettingsScreen() {
         style={[
           styles.personaCard,
           {
-            backgroundColor: isSelected ? colors.primary + '15' : colors.background,
-            borderColor: isSelected ? colors.primary : colors.textSecondary + '30',
+            backgroundColor: isSelected ? theme.primary + '15' : theme.background,
+            borderColor: isSelected ? theme.primary : theme.textSecondary + '30',
           },
         ]}
         onPress={() => {
@@ -925,7 +915,7 @@ export default function SettingsScreen() {
                   style={[
                     styles.personaName,
                     {
-                      color: isSelected ? colors.primary : colors.text,
+                      color: isSelected ? theme.primary : theme.textPrimary,
                       fontWeight: isSelected ? '700' : '600',
                     },
                   ]}
@@ -936,7 +926,7 @@ export default function SettingsScreen() {
                   style={[
                     styles.personaLabel,
                     {
-                      color: isSelected ? colors.primary : colors.textSecondary,
+                      color: isSelected ? theme.primary : theme.textSecondary,
                     },
                   ]}
                 >
@@ -948,11 +938,11 @@ export default function SettingsScreen() {
                   ios_icon_name="checkmark.circle.fill"
                   android_material_icon_name="check_circle"
                   size={24}
-                  color={colors.primary}
+                  color={theme.primary}
                 />
               )}
             </View>
-            <Text style={[styles.personaDescription, { color: colors.textSecondary }]}>
+            <Text style={[styles.personaDescription, { color: theme.textSecondary }]}>
               {persona.short_description}
             </Text>
           </View>
@@ -960,7 +950,7 @@ export default function SettingsScreen() {
         
         {/* Preview Style Button */}
         <Pressable
-          style={[styles.previewButton, { borderColor: colors.primary }]}
+          style={[styles.previewButton, { borderColor: theme.primary }]}
           onPress={(e) => {
             e.stopPropagation();
             handleOpenPreview(persona.id);
@@ -974,9 +964,9 @@ export default function SettingsScreen() {
             ios_icon_name="eye.fill"
             android_material_icon_name="visibility"
             size={16}
-            color={colors.primary}
+            color={theme.primary}
           />
-          <Text style={[styles.previewButtonText, { color: colors.primary }]}>
+          <Text style={[styles.previewButtonText, { color: theme.primary }]}>
             Preview style
           </Text>
         </Pressable>
@@ -997,8 +987,8 @@ export default function SettingsScreen() {
             style={[
               styles.optionCard,
               {
-                backgroundColor: selectedValue === option ? colors.primary + '15' : colors.background,
-                borderColor: selectedValue === option ? colors.primary : colors.textSecondary + '30',
+                backgroundColor: selectedValue === option ? theme.primary + '15' : theme.background,
+                borderColor: selectedValue === option ? theme.primary : theme.textSecondary + '30',
               },
             ]}
             onPress={() => {
@@ -1015,7 +1005,7 @@ export default function SettingsScreen() {
                 style={[
                   styles.optionCardText,
                   {
-                    color: selectedValue === option ? colors.primary : colors.text,
+                    color: selectedValue === option ? theme.primary : theme.textPrimary,
                     fontWeight: selectedValue === option ? '600' : '500',
                   },
                 ]}
@@ -1027,7 +1017,7 @@ export default function SettingsScreen() {
                   ios_icon_name="checkmark.circle.fill"
                   android_material_icon_name="check_circle"
                   size={18}
-                  color={colors.primary}
+                  color={theme.primary}
                 />
               )}
             </View>
@@ -1064,118 +1054,117 @@ export default function SettingsScreen() {
     <View style={styles.outerContainer}>
       {/* FIX: Gradient behind everything with pointerEvents="none" */}
       <LinearGradient
-        colors={primaryGradient}
+        colors={theme.primaryGradient}
         style={StyleSheet.absoluteFill}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         pointerEvents="none"
       />
       
-      {/* FIX: SafeAreaView with flex: 1 */}
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      {/* FIX: SafeAreaView with pointerEvents="box-none" to allow children to receive touches */}
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']} pointerEvents="box-none">
         <View style={styles.container}>
-          {/* FIX: Header - removed pointerEvents to allow default behavior */}
-          <View style={styles.topHeader}>
-            <TouchableOpacity 
+          {/* FIX: Header with pointerEvents="box-none" */}
+          <View style={styles.topHeader} pointerEvents="box-none">
+            <Pressable 
               onPress={handleBack} 
               style={styles.backButton}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessible={true}
               accessibilityLabel="Go back"
               accessibilityRole="button"
-              activeOpacity={0.7}
+              pointerEvents="auto"
             >
               <IconSymbol
                 ios_icon_name="chevron.left"
                 android_material_icon_name="arrow_back"
                 size={24}
-                color="#FFFFFF"
+                color={theme.buttonText}
               />
-            </TouchableOpacity>
+            </Pressable>
             
-            <View style={styles.headerSpacer} />
+            <View style={styles.headerSpacer} pointerEvents="none" />
             
-            <TouchableOpacity 
+            <Pressable 
               onPress={handleInfoPress} 
               style={styles.infoButton}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessible={true}
               accessibilityLabel="Settings information"
               accessibilityRole="button"
-              activeOpacity={0.7}
+              pointerEvents="auto"
             >
               <IconSymbol
                 ios_icon_name="info.circle"
                 android_material_icon_name="info"
                 size={24}
-                color="#FFFFFF"
+                color={theme.buttonText}
               />
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
-          {/* FIX: ScrollView with proper scrolling enabled */}
+          {/* FIX: ScrollView with pointerEvents="auto" and keyboardShouldPersistTaps */}
           <ScrollView
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingBottom: 120 + insets.bottom }
+              { paddingBottom: 60 + insets.bottom + 16 }
             ]}
             showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            scrollEnabled={true}
-            bounces={true}
+            pointerEvents="auto"
             style={styles.scrollView}
           >
             {/* Header */}
-            <View style={styles.header}>
-              <Text style={[styles.title, { color: '#FFFFFF' }]}>
+            <View style={styles.header} pointerEvents="box-none">
+              <Text style={[styles.title, { color: theme.buttonText }]}>
                 Settings
               </Text>
-              <Text style={[styles.subtitle, { color: '#FFFFFF', opacity: 0.9 }]}>
+              <Text style={[styles.subtitle, { color: theme.buttonText, opacity: 0.9 }]}>
                 Your account & preferences
               </Text>
             </View>
 
             {/* Card 1: Account */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                 Account
               </Text>
 
               {/* Email Row */}
-              <View style={[styles.row, { borderBottomWidth: 0 }]}>
-                <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>
+              <View style={[styles.row, { borderBottomWidth: 0 }]} pointerEvents="box-none">
+                <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
                   Email
                 </Text>
-                <Text style={[styles.rowValue, { color: colors.text }]} numberOfLines={1}>
+                <Text style={[styles.rowValue, { color: theme.textPrimary }]} numberOfLines={1}>
                   {email || 'Not available'}
                 </Text>
               </View>
             </View>
 
             {/* Card 2: Account information */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                 Account information
               </Text>
 
-              <TouchableOpacity
+              <Pressable
                 style={[styles.row, { borderBottomWidth: 0 }]}
                 onPress={handleOpenChangePasswordModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel="Change password"
                 accessibilityRole="button"
-                activeOpacity={0.7}
+                pointerEvents="auto"
               >
-                <View style={styles.rowLeft}>
+                <View style={styles.rowLeft} pointerEvents="none">
                   <IconSymbol
                     ios_icon_name="lock.fill"
                     android_material_icon_name="lock"
                     size={20}
-                    color={colors.primary}
+                    color={theme.primary}
                   />
-                  <Text style={[styles.rowLabel, { color: colors.text, marginLeft: 12 }]}>
+                  <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
                     Change password
                   </Text>
                 </View>
@@ -1183,43 +1172,43 @@ export default function SettingsScreen() {
                   ios_icon_name="chevron.right"
                   android_material_icon_name="arrow_forward"
                   size={20}
-                  color={colors.textSecondary}
+                  color={theme.textSecondary}
                 />
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             {/* Card 2.5: Therapist Selection (Optional) */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                 Therapist Selection (Optional)
               </Text>
 
-              <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              <Text style={[styles.cardDescription, { color: theme.textSecondary }]}>
                 Choose a communication style that feels comfortable. You can change or skip this anytime.
               </Text>
 
               {/* Therapist Persona Selection */}
-              <TouchableOpacity
+              <Pressable
                 style={[styles.row, { borderBottomWidth: 0, marginTop: 8 }]}
                 onPress={handleOpenPersonaModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel={`Therapist selection. Currently ${selectedPersona ? `${selectedPersona.name}, ${selectedPersona.label}` : 'not selected'}`}
                 accessibilityRole="button"
-                activeOpacity={0.7}
+                pointerEvents="auto"
               >
-                <View style={styles.rowLeft}>
+                <View style={styles.rowLeft} pointerEvents="none">
                   <IconSymbol
                     ios_icon_name="person.circle.fill"
                     android_material_icon_name="account_circle"
                     size={20}
-                    color={colors.primary}
+                    color={theme.primary}
                   />
                   <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={[styles.rowLabel, { color: colors.text }]}>
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
                       Therapist
                     </Text>
-                    <Text style={[styles.rowSubtext, { color: colors.textSecondary }]}>
+                    <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
                       {selectedPersona ? `${selectedPersona.name} — ${selectedPersona.label}` : 'Not selected'}
                     </Text>
                   </View>
@@ -1228,57 +1217,57 @@ export default function SettingsScreen() {
                   ios_icon_name="chevron.right"
                   android_material_icon_name="arrow_forward"
                   size={20}
-                  color={colors.textSecondary}
+                  color={theme.textSecondary}
                 />
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             {/* Card 2.6: Personalization (Optional) */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <View style={styles.cardTitleRow}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+              <View style={styles.cardTitleRow} pointerEvents="box-none">
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                   Personalization (Optional)
                 </Text>
-                <TouchableOpacity
+                <Pressable
                   onPress={handleOpenPersonalizationInfoModal}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   style={styles.whyWeAskButton}
                   accessible={true}
                   accessibilityLabel="Why we ask for personalization"
                   accessibilityRole="button"
-                  activeOpacity={0.7}
+                  pointerEvents="auto"
                 >
-                  <Text style={[styles.whyWeAskText, { color: colors.primary }]}>
+                  <Text style={[styles.whyWeAskText, { color: theme.primary }]}>
                     Why we ask
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               </View>
 
-              <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              <Text style={[styles.cardDescription, { color: theme.textSecondary }]}>
                 Share what helps conversations feel natural for you. You can change or remove this anytime.
               </Text>
 
-              <TouchableOpacity
+              <Pressable
                 style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)', marginTop: 8 }]}
                 onPress={handleOpenPersonalizationModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel={`Personalization settings. ${hasPersonalizationData ? 'Configured' : 'Not set'}`}
                 accessibilityRole="button"
-                activeOpacity={0.7}
+                pointerEvents="auto"
               >
-                <View style={styles.rowLeft}>
+                <View style={styles.rowLeft} pointerEvents="none">
                   <IconSymbol
                     ios_icon_name="person.fill"
                     android_material_icon_name="person"
                     size={20}
-                    color={colors.primary}
+                    color={theme.primary}
                   />
                   <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={[styles.rowLabel, { color: colors.text }]}>
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
                       Personalization settings
                     </Text>
-                    <Text style={[styles.rowSubtext, { color: colors.textSecondary }]}>
+                    <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
                       {hasPersonalizationData ? 'Configured' : 'Not set'}
                     </Text>
                   </View>
@@ -1287,32 +1276,32 @@ export default function SettingsScreen() {
                   ios_icon_name="chevron.right"
                   android_material_icon_name="arrow_forward"
                   size={20}
-                  color={colors.textSecondary}
+                  color={theme.textSecondary}
                 />
-              </TouchableOpacity>
+              </Pressable>
 
               {/* Updates Over Time Section */}
-              <TouchableOpacity
+              <Pressable
                 style={[styles.row, { borderBottomWidth: 0, marginTop: 0 }]}
                 onPress={handleOpenUpdatesModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel={`Updates over time. ${updates.length > 0 ? `${updates.length} update${updates.length !== 1 ? 's' : ''}` : 'No updates yet'}`}
                 accessibilityRole="button"
-                activeOpacity={0.7}
+                pointerEvents="auto"
               >
-                <View style={styles.rowLeft}>
+                <View style={styles.rowLeft} pointerEvents="none">
                   <IconSymbol
                     ios_icon_name="clock.fill"
                     android_material_icon_name="schedule"
                     size={20}
-                    color={colors.primary}
+                    color={theme.primary}
                   />
                   <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={[styles.rowLabel, { color: colors.text }]}>
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
                       Updates Over Time
                     </Text>
-                    <Text style={[styles.rowSubtext, { color: colors.textSecondary }]}>
+                    <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
                       {updates.length > 0 ? `${updates.length} update${updates.length !== 1 ? 's' : ''}` : 'No updates yet'}
                     </Text>
                   </View>
@@ -1321,33 +1310,33 @@ export default function SettingsScreen() {
                   ios_icon_name="chevron.right"
                   android_material_icon_name="arrow_forward"
                   size={20}
-                  color={colors.textSecondary}
+                  color={theme.textSecondary}
                 />
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             {/* Card 3: Appearance */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                 Appearance
               </Text>
 
-              <Text style={[styles.label, { color: colors.textSecondary }]}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>
                 Theme
               </Text>
 
-              <View style={styles.pillContainer}>
+              <View style={styles.pillContainer} pointerEvents="box-none">
                 {themes.map((themeOption, index) => (
-                  <TouchableOpacity
+                  <Pressable
                     key={index}
                     style={[
                       styles.pill,
                       {
                         backgroundColor:
                           selectedTheme === themeOption.key
-                            ? colors.primary
-                            : colors.background,
-                        borderColor: selectedTheme === themeOption.key ? colors.primary : '#E0E0E0',
+                            ? theme.primary
+                            : theme.background,
+                        borderColor: selectedTheme === themeOption.key ? theme.primary : '#E0E0E0',
                       },
                     ]}
                     onPress={() => handleThemeSelect(themeOption.key)}
@@ -1355,7 +1344,7 @@ export default function SettingsScreen() {
                     accessible={true}
                     accessibilityLabel={`${themeOption.name} theme. ${selectedTheme === themeOption.key ? 'Selected' : 'Not selected'}`}
                     accessibilityRole="button"
-                    activeOpacity={0.7}
+                    pointerEvents="auto"
                   >
                     <Text
                       style={[
@@ -1364,13 +1353,13 @@ export default function SettingsScreen() {
                           color:
                             selectedTheme === themeOption.key
                               ? '#FFFFFF'
-                              : colors.text,
+                              : theme.textPrimary,
                         },
                       ]}
                     >
                       {themeOption.name}
                     </Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 ))}
               </View>
             </View>
@@ -1379,28 +1368,28 @@ export default function SettingsScreen() {
             <WidgetPreviewCard />
 
             {/* Card 4: Support */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                 Support
               </Text>
 
-              <TouchableOpacity
+              <Pressable
                 style={styles.row}
                 onPress={handleSupportPress}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel="Contact support"
                 accessibilityRole="button"
-                activeOpacity={0.7}
+                pointerEvents="auto"
               >
-                <View style={styles.rowLeft}>
+                <View style={styles.rowLeft} pointerEvents="none">
                   <IconSymbol
                     ios_icon_name="envelope.fill"
                     android_material_icon_name="email"
                     size={20}
-                    color={colors.primary}
+                    color={theme.primary}
                   />
-                  <Text style={[styles.rowLabel, { color: colors.text, marginLeft: 12 }]}>
+                  <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
                     Contact Support
                   </Text>
                 </View>
@@ -1408,28 +1397,28 @@ export default function SettingsScreen() {
                   ios_icon_name="chevron.right"
                   android_material_icon_name="arrow_forward"
                   size={20}
-                  color={colors.textSecondary}
+                  color={theme.textSecondary}
                 />
-              </TouchableOpacity>
+              </Pressable>
 
               {__DEV__ && (
-                <TouchableOpacity
+                <Pressable
                   style={[styles.row, { borderBottomWidth: 0 }]}
                   onPress={() => router.push('/test-ai-response')}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessible={true}
                   accessibilityLabel="Test AI Response (Dev Only)"
                   accessibilityRole="button"
-                  activeOpacity={0.7}
+                  pointerEvents="auto"
                 >
-                  <View style={styles.rowLeft}>
+                  <View style={styles.rowLeft} pointerEvents="none">
                     <IconSymbol
                       ios_icon_name="wrench.and.screwdriver.fill"
                       android_material_icon_name="build"
                       size={20}
                       color="#FF9500"
                     />
-                    <Text style={[styles.rowLabel, { color: colors.text, marginLeft: 12 }]}>
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
                       Test AI Response (Dev)
                     </Text>
                   </View>
@@ -1437,35 +1426,35 @@ export default function SettingsScreen() {
                     ios_icon_name="chevron.right"
                     android_material_icon_name="arrow_forward"
                     size={20}
-                    color={colors.textSecondary}
+                    color={theme.textSecondary}
                   />
-                </TouchableOpacity>
+                </Pressable>
               )}
             </View>
 
             {/* Card 5: Legal */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>
+            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
                 Legal
               </Text>
 
-              <TouchableOpacity
+              <Pressable
                 style={styles.row}
                 onPress={handlePrivacyPress}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel="Privacy policy"
                 accessibilityRole="button"
-                activeOpacity={0.7}
+                pointerEvents="auto"
               >
-                <View style={styles.rowLeft}>
+                <View style={styles.rowLeft} pointerEvents="none">
                   <IconSymbol
                     ios_icon_name="lock.shield.fill"
                     android_material_icon_name="shield"
                     size={20}
-                    color={colors.primary}
+                    color={theme.primary}
                   />
-                  <Text style={[styles.rowLabel, { color: colors.text, marginLeft: 12 }]}>
+                  <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
                     Privacy Policy
                   </Text>
                 </View>
@@ -1473,27 +1462,27 @@ export default function SettingsScreen() {
                   ios_icon_name="chevron.right"
                   android_material_icon_name="arrow_forward"
                   size={20}
-                  color={colors.textSecondary}
+                  color={theme.textSecondary}
                 />
-              </TouchableOpacity>
+              </Pressable>
 
-              <TouchableOpacity
+              <Pressable
                 style={[styles.row, { borderBottomWidth: 0 }]}
                 onPress={handleTermsPress}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
                 accessibilityLabel="Terms and conditions"
                 accessibilityRole="button"
-                activeOpacity={0.7}
+                pointerEvents="auto"
               >
-                <View style={styles.rowLeft}>
+                <View style={styles.rowLeft} pointerEvents="none">
                   <IconSymbol
                     ios_icon_name="doc.text.fill"
                     android_material_icon_name="description"
                     size={20}
-                    color={colors.primary}
+                    color={theme.primary}
                   />
-                  <Text style={[styles.rowLabel, { color: colors.text, marginLeft: 12 }]}>
+                  <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
                     Terms and Conditions
                   </Text>
                 </View>
@@ -1501,20 +1490,20 @@ export default function SettingsScreen() {
                   ios_icon_name="chevron.right"
                   android_material_icon_name="arrow_forward"
                   size={20}
-                  color={colors.textSecondary}
+                  color={theme.textSecondary}
                 />
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             {/* Log Out Button */}
-            <TouchableOpacity
+            <Pressable
               style={[styles.logoutButton, { backgroundColor: '#FF6B6B' }]}
               onPress={handleSignOut}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessible={true}
               accessibilityLabel="Log out"
               accessibilityRole="button"
-              activeOpacity={0.7}
+              pointerEvents="auto"
             >
               <IconSymbol
                 ios_icon_name="arrow.right.square.fill"
@@ -1523,22 +1512,22 @@ export default function SettingsScreen() {
                 color="#FFFFFF"
               />
               <Text style={styles.logoutText}>Log Out</Text>
-            </TouchableOpacity>
+            </Pressable>
 
             {/* Account Deletion Section */}
-            <View style={styles.accountSection}>
-              <Text style={[styles.sectionTitle, { color: '#FFFFFF' }]}>
+            <View style={styles.accountSection} pointerEvents="box-none">
+              <Text style={[styles.sectionTitle, { color: theme.buttonText }]}>
                 Account
               </Text>
-              <View style={[styles.dangerCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                <TouchableOpacity
+              <View style={[styles.dangerCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+                <Pressable
                   style={styles.deleteButton}
                   onPress={handleDeleteAccount}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessible={true}
                   accessibilityLabel="Delete my account"
                   accessibilityRole="button"
-                  activeOpacity={0.7}
+                  pointerEvents="auto"
                 >
                   <IconSymbol
                     ios_icon_name="trash.fill"
@@ -1547,8 +1536,8 @@ export default function SettingsScreen() {
                     color="#FFFFFF"
                   />
                   <Text style={styles.deleteButtonText}>Delete My Account</Text>
-                </TouchableOpacity>
-                <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+                </Pressable>
+                <Text style={[styles.helperText, { color: theme.textSecondary }]}>
                   This will permanently remove your profile and conversations.
                 </Text>
               </View>
@@ -1568,6 +1557,7 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCloseInfoModal}
+            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1578,20 +1568,20 @@ export default function SettingsScreen() {
                   ios_icon_name="info.circle.fill"
                   android_material_icon_name="info"
                   size={48}
-                  color={colors.primary}
+                  color={theme.primary}
                 />
               </View>
 
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                 Settings
               </Text>
 
-              <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
                 Here you can update your theme and manage your account.
               </Text>
 
               <Pressable
-                style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                style={[styles.modalButton, { backgroundColor: theme.primary }]}
                 onPress={handleCloseInfoModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
@@ -1613,6 +1603,7 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCancelDelete}
+            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1627,22 +1618,22 @@ export default function SettingsScreen() {
                 />
               </View>
 
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                 Delete account?
               </Text>
 
-              <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
                 This action is permanent and cannot be undone.
               </Text>
 
               <View style={styles.modalButtons}>
                 <Pressable
-                  style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                  style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                   onPress={handleCancelDelete}
                   disabled={isDeleting}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
-                  <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                  <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                     Cancel
                   </Text>
                 </Pressable>
@@ -1676,10 +1667,12 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
+            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleCloseChangePasswordModal}
+              pointerEvents="auto"
             >
               <ScrollView
                 contentContainerStyle={styles.modalScrollContent}
@@ -1696,33 +1689,33 @@ export default function SettingsScreen() {
                       ios_icon_name="lock.fill"
                       android_material_icon_name="lock"
                       size={48}
-                      color={colors.primary}
+                      color={theme.primary}
                     />
                   </View>
 
-                  <Text style={[styles.modalTitle, { color: colors.text }]}>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                     Change password
                   </Text>
 
-                  <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+                  <Text style={[styles.modalText, { color: theme.textSecondary }]}>
                     Update your password to keep your account secure.
                   </Text>
 
                   <View style={styles.inputContainer}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                       Current password
                     </Text>
                     <TextInput
                       style={[
                         styles.textInput,
                         {
-                          backgroundColor: colors.background,
-                          color: colors.text,
-                          borderColor: colors.primary,
+                          backgroundColor: theme.background,
+                          color: theme.textPrimary,
+                          borderColor: theme.primary,
                         },
                       ]}
                       placeholder="Enter current password"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholderTextColor={theme.textSecondary}
                       secureTextEntry
                       value={currentPassword}
                       onChangeText={setCurrentPassword}
@@ -1732,20 +1725,20 @@ export default function SettingsScreen() {
                   </View>
 
                   <View style={styles.inputContainer}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                       New password
                     </Text>
                     <TextInput
                       style={[
                         styles.textInput,
                         {
-                          backgroundColor: colors.background,
-                          color: colors.text,
-                          borderColor: colors.primary,
+                          backgroundColor: theme.background,
+                          color: theme.textPrimary,
+                          borderColor: theme.primary,
                         },
                       ]}
                       placeholder="Enter new password"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholderTextColor={theme.textSecondary}
                       secureTextEntry
                       value={newPassword}
                       onChangeText={setNewPassword}
@@ -1755,20 +1748,20 @@ export default function SettingsScreen() {
                   </View>
 
                   <View style={styles.inputContainer}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                       Confirm new password
                     </Text>
                     <TextInput
                       style={[
                         styles.textInput,
                         {
-                          backgroundColor: colors.background,
-                          color: colors.text,
-                          borderColor: colors.primary,
+                          backgroundColor: theme.background,
+                          color: theme.textPrimary,
+                          borderColor: theme.primary,
                         },
                       ]}
                       placeholder="Confirm new password"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholderTextColor={theme.textSecondary}
                       secureTextEntry
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
@@ -1779,18 +1772,18 @@ export default function SettingsScreen() {
 
                   <View style={styles.modalButtons}>
                     <Pressable
-                      style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                      style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                       onPress={handleCloseChangePasswordModal}
                       disabled={isUpdatingPassword}
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
-                      <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                      <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                         Cancel
                       </Text>
                     </Pressable>
 
                     <Pressable
-                      style={[styles.modalButtonHalf, { backgroundColor: colors.primary }]}
+                      style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
                       onPress={handleSavePassword}
                       disabled={isUpdatingPassword}
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -1820,10 +1813,12 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
+            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleClosePersonaModal}
+              pointerEvents="auto"
             >
               <Pressable 
                 style={[styles.modalContent, { backgroundColor: '#FFFFFF', maxHeight: SCREEN_HEIGHT * 0.85 }]}
@@ -1834,15 +1829,15 @@ export default function SettingsScreen() {
                     ios_icon_name="person.circle.fill"
                     android_material_icon_name="account_circle"
                     size={48}
-                    color={colors.primary}
+                    color={theme.primary}
                   />
                 </View>
 
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
+                <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                   Choose a Communication Style
                 </Text>
 
-                <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+                <Text style={[styles.modalText, { color: theme.textSecondary }]}>
                   Pick a style that feels comfortable. This is optional and you can change it anytime.
                 </Text>
 
@@ -1858,18 +1853,18 @@ export default function SettingsScreen() {
 
                 <View style={styles.modalButtons}>
                   <Pressable
-                    style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                    style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                     onPress={handleClosePersonaModal}
                     disabled={isUpdatingPersona}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
-                    <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                    <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                       Cancel
                     </Text>
                   </Pressable>
 
                   <Pressable
-                    style={[styles.modalButtonHalf, { backgroundColor: colors.primary }]}
+                    style={[styles.modalButtonHalf, { backgroundColor: theme.primary }]}
                     onPress={handleSavePersona}
                     disabled={isUpdatingPersona}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -1900,6 +1895,7 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleClosePersonalizationInfoModal}
+            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1910,20 +1906,20 @@ export default function SettingsScreen() {
                   ios_icon_name="info.circle.fill"
                   android_material_icon_name="info"
                   size={48}
-                  color={colors.primary}
+                  color={theme.primary}
                 />
               </View>
 
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                 Why Personalization?
               </Text>
 
-              <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
                 This helps the AI match your preferred tone, pacing, and examples. It does not diagnose or label you. You&apos;re always in control, and you can clear this anytime.
               </Text>
 
               <Pressable
-                style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                style={[styles.modalButton, { backgroundColor: theme.primary }]}
                 onPress={handleClosePersonalizationInfoModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
@@ -1945,6 +1941,7 @@ export default function SettingsScreen() {
           <Pressable 
             style={styles.modalOverlay}
             onPress={handleCloseClearPersonalizationModal}
+            pointerEvents="auto"
           >
             <Pressable 
               style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}
@@ -1959,22 +1956,22 @@ export default function SettingsScreen() {
                 />
               </View>
 
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                 Clear personalization?
               </Text>
 
-              <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+              <Text style={[styles.modalText, { color: theme.textSecondary }]}>
                 This removes the personalization details from your account. The AI will go back to default behavior.
               </Text>
 
               <View style={styles.modalButtons}>
                 <Pressable
-                  style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                  style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                   onPress={handleCloseClearPersonalizationModal}
                   disabled={isClearingPersonalization}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
-                  <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                  <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                     Cancel
                   </Text>
                 </Pressable>
@@ -2005,14 +2002,16 @@ export default function SettingsScreen() {
           animationType="slide"
           onRequestClose={handleClosePersonalizationModal}
         >
-          <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']}>
+          <SafeAreaView style={styles.personalizationModalSafeArea} edges={['top', 'bottom']} pointerEvents="box-none">
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={styles.personalizationModalContainer}
+              pointerEvents="box-none"
             >
               <Pressable 
                 style={{ flex: 1 }}
                 onPress={handleClosePersonalizationModal}
+                pointerEvents="auto"
               >
                 <Pressable 
                   style={[
@@ -2033,15 +2032,15 @@ export default function SettingsScreen() {
                         ios_icon_name="person.fill"
                         android_material_icon_name="person"
                         size={isCompactScreen ? 40 : 48}
-                        color={colors.primary}
+                        color={theme.primary}
                       />
                     </View>
 
-                    <Text style={[styles.modalTitle, { color: colors.text, fontSize: isCompactScreen ? 20 : 24 }]}>
+                    <Text style={[styles.modalTitle, { color: theme.textPrimary, fontSize: isCompactScreen ? 20 : 24 }]}>
                       Personalization (Optional)
                     </Text>
 
-                    <Text style={[styles.modalText, { color: colors.textSecondary, marginBottom: isCompactScreen ? 12 : 16 }]}>
+                    <Text style={[styles.modalText, { color: theme.textSecondary, marginBottom: isCompactScreen ? 12 : 16 }]}>
                       Share what helps conversations feel natural for you. You can change or remove this anytime.
                     </Text>
                   </View>
@@ -2061,10 +2060,10 @@ export default function SettingsScreen() {
                   >
                     {/* Preferred conversation style */}
                     <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                      <Text style={[styles.personalizationFieldLabel, { color: colors.text }]}>
+                      <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                         Preferred conversation style
                       </Text>
-                      <Text style={[styles.personalizationFieldHelper, { color: colors.textSecondary }]}>
+                      <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
                         Choose the tone that feels best to you.
                       </Text>
                       {renderOptionCard(CONVERSATION_STYLES, conversationStyle, setConversationStyle)}
@@ -2072,10 +2071,10 @@ export default function SettingsScreen() {
 
                     {/* When you're stressed, what helps most? */}
                     <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                      <Text style={[styles.personalizationFieldLabel, { color: colors.text }]}>
+                      <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                         When you&apos;re stressed, what helps most?
                       </Text>
-                      <Text style={[styles.personalizationFieldHelper, { color: colors.textSecondary }]}>
+                      <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
                         This helps the AI respond in a way that feels more useful.
                       </Text>
                       {renderOptionCard(STRESS_RESPONSES, stressResponse, setStressResponse)}
@@ -2083,10 +2082,10 @@ export default function SettingsScreen() {
 
                     {/* How do you prefer to process feelings? */}
                     <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                      <Text style={[styles.personalizationFieldLabel, { color: colors.text }]}>
+                      <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                         How do you prefer to process feelings?
                       </Text>
-                      <Text style={[styles.personalizationFieldHelper, { color: colors.textSecondary }]}>
+                      <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
                         Everyone processes differently — pick what fits you best.
                       </Text>
                       {renderOptionCard(PROCESSING_STYLES, processingStyle, setProcessingStyle)}
@@ -2094,10 +2093,10 @@ export default function SettingsScreen() {
 
                     {/* Decision-making style */}
                     <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                      <Text style={[styles.personalizationFieldLabel, { color: colors.text }]}>
+                      <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                         Decision-making style
                       </Text>
-                      <Text style={[styles.personalizationFieldHelper, { color: colors.textSecondary }]}>
+                      <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
                         How do you usually prefer to decide?
                       </Text>
                       {renderOptionCard(DECISION_STYLES, decisionStyle, setDecisionStyle)}
@@ -2105,23 +2104,23 @@ export default function SettingsScreen() {
 
                     {/* Cultural context (optional) */}
                     <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                      <Text style={[styles.personalizationFieldLabel, { color: colors.text }]}>
+                      <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                         Cultural context (optional)
                       </Text>
-                      <Text style={[styles.personalizationFieldHelper, { color: colors.textSecondary }]}>
+                      <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
                         Share anything that helps the AI understand your context.
                       </Text>
                       <TextInput
                         style={[
                           styles.multilineTextInput,
                           {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.textSecondary + '30',
+                            backgroundColor: theme.background,
+                            color: theme.textPrimary,
+                            borderColor: theme.textSecondary + '30',
                           },
                         ]}
                         placeholder="Optional"
-                        placeholderTextColor={colors.textSecondary}
+                        placeholderTextColor={theme.textSecondary}
                         multiline
                         numberOfLines={3}
                         value={culturalContext}
@@ -2132,23 +2131,23 @@ export default function SettingsScreen() {
 
                     {/* Values or boundaries (optional) */}
                     <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                      <Text style={[styles.personalizationFieldLabel, { color: colors.text }]}>
+                      <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                         Values or boundaries (optional)
                       </Text>
-                      <Text style={[styles.personalizationFieldHelper, { color: colors.textSecondary }]}>
+                      <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
                         Anything the AI should respect while responding?
                       </Text>
                       <TextInput
                         style={[
                           styles.multilineTextInput,
                           {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.textSecondary + '30',
+                            backgroundColor: theme.background,
+                            color: theme.textPrimary,
+                            borderColor: theme.textSecondary + '30',
                           },
                         ]}
                         placeholder="Optional"
-                        placeholderTextColor={colors.textSecondary}
+                        placeholderTextColor={theme.textSecondary}
                         multiline
                         numberOfLines={3}
                         value={valuesBoundaries}
@@ -2159,23 +2158,23 @@ export default function SettingsScreen() {
 
                     {/* Recent changes you've noticed (optional) */}
                     <View style={[styles.personalizationSection, { marginBottom: isCompactScreen ? 16 : 20 }]}>
-                      <Text style={[styles.personalizationFieldLabel, { color: colors.text }]}>
+                      <Text style={[styles.personalizationFieldLabel, { color: theme.textPrimary }]}>
                         Recent changes you&apos;ve noticed (optional)
                       </Text>
-                      <Text style={[styles.personalizationFieldHelper, { color: colors.textSecondary }]}>
+                      <Text style={[styles.personalizationFieldHelper, { color: theme.textSecondary }]}>
                         If something feels different lately, you can note it here.
                       </Text>
                       <TextInput
                         style={[
                           styles.multilineTextInput,
                           {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.textSecondary + '30',
+                            backgroundColor: theme.background,
+                            color: theme.textPrimary,
+                            borderColor: theme.textSecondary + '30',
                           },
                         ]}
                         placeholder="Optional"
-                        placeholderTextColor={colors.textSecondary}
+                        placeholderTextColor={theme.textSecondary}
                         multiline
                         numberOfLines={3}
                         value={recentChanges}
@@ -2185,7 +2184,7 @@ export default function SettingsScreen() {
                     </View>
 
                     {/* Privacy copy */}
-                    <Text style={[styles.personalizationPrivacyText, { color: colors.textSecondary }]}>
+                    <Text style={[styles.personalizationPrivacyText, { color: theme.textSecondary }]}>
                       Personalization is optional. You can edit or clear it anytime.
                     </Text>
                   </ScrollView>
@@ -2201,7 +2200,7 @@ export default function SettingsScreen() {
                     ]}
                   >
                     <Pressable
-                      style={[styles.modalButton, { backgroundColor: colors.primary, marginBottom: 10 }]}
+                      style={[styles.modalButton, { backgroundColor: theme.primary, marginBottom: 10 }]}
                       onPress={handleSavePersonalization}
                       disabled={isUpdatingPersonalization}
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -2215,12 +2214,12 @@ export default function SettingsScreen() {
 
                     <View style={styles.modalButtons}>
                       <Pressable
-                        style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                        style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                         onPress={handleClosePersonalizationModal}
                         disabled={isUpdatingPersonalization}
                         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       >
-                        <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                        <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                           Cancel
                         </Text>
                       </Pressable>
@@ -2250,14 +2249,16 @@ export default function SettingsScreen() {
           animationType="slide"
           onRequestClose={handleCloseUpdatesModal}
         >
-          <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']}>
+          <SafeAreaView style={styles.updatesModalSafeArea} edges={['top', 'bottom']} pointerEvents="box-none">
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={styles.updatesModalContainer}
+              pointerEvents="box-none"
             >
               <Pressable 
                 style={{ flex: 1 }}
                 onPress={handleCloseUpdatesModal}
+                pointerEvents="auto"
               >
                 <Pressable 
                   style={[
@@ -2280,10 +2281,10 @@ export default function SettingsScreen() {
                         ios_icon_name="xmark"
                         android_material_icon_name="close"
                         size={24}
-                        color={colors.textSecondary}
+                        color={theme.textSecondary}
                       />
                     </Pressable>
-                    <Text style={[styles.updatesModalTitle, { color: colors.text }]}>
+                    <Text style={[styles.updatesModalTitle, { color: theme.textPrimary }]}>
                       Updates Over Time
                     </Text>
                     <View style={{ width: 40 }} />
@@ -2291,12 +2292,12 @@ export default function SettingsScreen() {
 
                   {/* Description + Add Button */}
                   <View style={styles.updatesModalTopSection}>
-                    <Text style={[styles.updatesModalDescription, { color: colors.textSecondary }]}>
+                    <Text style={[styles.updatesModalDescription, { color: theme.textSecondary }]}>
                       Add short updates so responses stay relevant to what you&apos;re experiencing.
                     </Text>
 
                     <Pressable
-                      style={[styles.addUpdateButton, { backgroundColor: colors.primary }]}
+                      style={[styles.addUpdateButton, { backgroundColor: theme.primary }]}
                       onPress={handleOpenAddUpdateModal}
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
@@ -2326,7 +2327,7 @@ export default function SettingsScreen() {
                   >
                     {isLoadingUpdates ? (
                       <View style={styles.updatesLoadingContainer}>
-                        <ActivityIndicator size="large" color={colors.primary} />
+                        <ActivityIndicator size="large" color={theme.primary} />
                       </View>
                     ) : updates.length === 0 ? (
                       <View style={styles.updatesEmptyContainer}>
@@ -2334,12 +2335,12 @@ export default function SettingsScreen() {
                           ios_icon_name="clock"
                           android_material_icon_name="schedule"
                           size={isCompactScreen ? 40 : 48}
-                          color={colors.textSecondary}
+                          color={theme.textSecondary}
                         />
-                        <Text style={[styles.updatesEmptyText, { color: colors.textSecondary, fontSize: isCompactScreen ? 16 : 18 }]}>
+                        <Text style={[styles.updatesEmptyText, { color: theme.textSecondary, fontSize: isCompactScreen ? 16 : 18 }]}>
                           No updates yet
                         </Text>
-                        <Text style={[styles.updatesEmptySubtext, { color: colors.textSecondary, fontSize: isCompactScreen ? 13 : 14 }]}>
+                        <Text style={[styles.updatesEmptySubtext, { color: theme.textSecondary, fontSize: isCompactScreen ? 13 : 14 }]}>
                           Add your first update to help personalize your experience
                         </Text>
                       </View>
@@ -2354,8 +2355,8 @@ export default function SettingsScreen() {
                             style={[
                               styles.updateCard,
                               {
-                                backgroundColor: colors.background,
-                                borderColor: colors.textSecondary + '20',
+                                backgroundColor: theme.background,
+                                borderColor: theme.textSecondary + '20',
                               },
                             ]}
                           >
@@ -2366,18 +2367,18 @@ export default function SettingsScreen() {
                             >
                               <View style={styles.updateCardHeader}>
                                 <Text 
-                                  style={[styles.updateCardTitle, { color: colors.text }]}
+                                  style={[styles.updateCardTitle, { color: theme.textPrimary }]}
                                   numberOfLines={isExpanded ? undefined : 3}
                                 >
                                   {update.title}
                                 </Text>
-                                <Text style={[styles.updateCardDate, { color: colors.textSecondary }]}>
+                                <Text style={[styles.updateCardDate, { color: theme.textSecondary }]}>
                                   {formatRelativeDate(update.created_at)}
                                 </Text>
                               </View>
 
                               {hasLongContent && (
-                                <Text style={[styles.expandText, { color: colors.primary }]}>
+                                <Text style={[styles.expandText, { color: theme.primary }]}>
                                   {isExpanded ? 'Show less' : 'Show more'}
                                 </Text>
                               )}
@@ -2385,7 +2386,7 @@ export default function SettingsScreen() {
 
                             {update.details && (
                               <Text
-                                style={[styles.updateCardDetails, { color: colors.textSecondary }]}
+                                style={[styles.updateCardDetails, { color: theme.textSecondary }]}
                                 numberOfLines={isExpanded ? undefined : 2}
                               >
                                 {update.details}
@@ -2393,8 +2394,8 @@ export default function SettingsScreen() {
                             )}
 
                             {update.ai_preference && (
-                              <View style={[styles.updateCardPreference, { backgroundColor: colors.primary + '15' }]}>
-                                <Text style={[styles.updateCardPreferenceText, { color: colors.primary }]}>
+                              <View style={[styles.updateCardPreference, { backgroundColor: theme.primary + '15' }]}>
+                                <Text style={[styles.updateCardPreferenceText, { color: theme.primary }]}>
                                   {update.ai_preference}
                                 </Text>
                               </View>
@@ -2410,9 +2411,9 @@ export default function SettingsScreen() {
                                   ios_icon_name="pencil"
                                   android_material_icon_name="edit"
                                   size={18}
-                                  color={colors.primary}
+                                  color={theme.primary}
                                 />
-                                <Text style={[styles.updateCardActionText, { color: colors.primary }]}>
+                                <Text style={[styles.updateCardActionText, { color: theme.primary }]}>
                                   Edit
                                 </Text>
                               </Pressable>
@@ -2456,10 +2457,12 @@ export default function SettingsScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
+            pointerEvents="box-none"
           >
             <Pressable 
               style={{ flex: 1 }}
               onPress={handleCloseAddUpdateModal}
+              pointerEvents="auto"
             >
               <ScrollView
                 contentContainerStyle={styles.modalScrollContent}
@@ -2476,29 +2479,29 @@ export default function SettingsScreen() {
                       ios_icon_name="plus.circle.fill"
                       android_material_icon_name="add_circle"
                       size={48}
-                      color={colors.primary}
+                      color={theme.primary}
                     />
                   </View>
 
-                  <Text style={[styles.modalTitle, { color: colors.text }]}>
+                  <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                     {editingUpdate ? 'Edit Update' : 'Add an update'}
                   </Text>
 
                   <View style={styles.inputContainer}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                       What&apos;s changed recently? *
                     </Text>
                     <TextInput
                       style={[
                         styles.multilineTextInput,
                         {
-                          backgroundColor: colors.background,
-                          color: colors.text,
-                          borderColor: validationError ? '#FF3B30' : colors.primary,
+                          backgroundColor: theme.background,
+                          color: theme.textPrimary,
+                          borderColor: validationError ? '#FF3B30' : theme.primary,
                         },
                       ]}
                       placeholder="What's changed recently?"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholderTextColor={theme.textSecondary}
                       value={updateTitle}
                       onChangeText={(text) => {
                         setUpdateTitle(text);
@@ -2513,27 +2516,27 @@ export default function SettingsScreen() {
                       {validationError ? (
                         <Text style={styles.errorText}>{validationError}</Text>
                       ) : null}
-                      <Text style={[styles.charCount, { color: colors.textSecondary }]}>
+                      <Text style={[styles.charCount, { color: theme.textSecondary }]}>
                         {updateTitle.trim().length}/500
                       </Text>
                     </View>
                   </View>
 
                   <View style={styles.inputContainer}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                       Details (optional)
                     </Text>
                     <TextInput
                       style={[
                         styles.multilineTextInput,
                         {
-                          backgroundColor: colors.background,
-                          color: colors.text,
-                          borderColor: colors.textSecondary + '30',
+                          backgroundColor: theme.background,
+                          color: theme.textPrimary,
+                          borderColor: theme.textSecondary + '30',
                         },
                       ]}
                       placeholder="Add more context if helpful"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholderTextColor={theme.textSecondary}
                       multiline
                       numberOfLines={3}
                       value={updateDetails}
@@ -2543,20 +2546,20 @@ export default function SettingsScreen() {
                   </View>
 
                   <View style={styles.inputContainer}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                       When did this start? (optional)
                     </Text>
                     <TextInput
                       style={[
                         styles.textInput,
                         {
-                          backgroundColor: colors.background,
-                          color: colors.text,
-                          borderColor: colors.textSecondary + '30',
+                          backgroundColor: theme.background,
+                          color: theme.textPrimary,
+                          borderColor: theme.textSecondary + '30',
                         },
                       ]}
                       placeholder="YYYY-MM-DD"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholderTextColor={theme.textSecondary}
                       value={updateStartedAt}
                       onChangeText={setUpdateStartedAt}
                       editable={!isSavingUpdate}
@@ -2564,7 +2567,7 @@ export default function SettingsScreen() {
                   </View>
 
                   <View style={styles.inputContainer}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                       How should the AI respond differently? (optional)
                     </Text>
                     {renderOptionCard(AI_PREFERENCE_OPTIONS, updateAiPreference, setUpdateAiPreference)}
@@ -2572,12 +2575,12 @@ export default function SettingsScreen() {
 
                   <View style={styles.modalButtons}>
                     <Pressable
-                      style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                      style={[styles.modalButtonHalf, styles.cancelButton, { borderColor: theme.textSecondary }]}
                       onPress={handleCloseAddUpdateModal}
                       disabled={isSavingUpdate}
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
-                      <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                      <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
                         Cancel
                       </Text>
                     </Pressable>
@@ -2586,7 +2589,7 @@ export default function SettingsScreen() {
                       style={[
                         styles.modalButtonHalf, 
                         { 
-                          backgroundColor: colors.primary,
+                          backgroundColor: theme.primary,
                           opacity: (!updateTitle.trim() || isSavingUpdate) ? 0.5 : 1,
                         }
                       ]}

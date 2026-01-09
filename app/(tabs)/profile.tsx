@@ -10,13 +10,18 @@ export default function ProfileScreen() {
   const theme = useTheme();
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
+    <SafeAreaView 
+      style={[styles.safeArea, { backgroundColor: theme.colors.background }]} 
+      edges={['top']}
+      pointerEvents="box-none"
+    >
       <ScrollView
         style={styles.container}
         contentContainerStyle={[
           styles.contentContainer,
           Platform.OS !== 'ios' && styles.contentContainerWithTabBar
         ]}
+        keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={true}
       >
@@ -56,10 +61,10 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
-    paddingBottom: 120, // Increased for better scroll clearance
+    flexGrow: 1,
   },
   contentContainerWithTabBar: {
-    paddingBottom: 140, // Extra padding for floating tab bar + buffer
+    paddingBottom: 100,
   },
   profileHeader: {
     alignItems: 'center',

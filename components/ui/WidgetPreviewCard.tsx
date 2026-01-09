@@ -18,7 +18,6 @@ import { useThemeContext } from '@/contexts/ThemeContext';
  * - Responsive sizing based on screen dimensions
  * - Theme-aware colors for background, text, and widget
  * - Consistent with current design language
- * - Uses the same gradient logo as the actual app icon
  * 
  * This component can be used to:
  * - Show users what their home screen widget will look like
@@ -26,7 +25,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
  * - Demonstrate the visual identity of Safe Space
  */
 export function WidgetPreviewCard() {
-  const { colors, themeKey } = useThemeContext();
+  const { theme, themeKey } = useThemeContext();
   const { width: windowWidth } = useWindowDimensions();
 
   // Responsive widget size: scale between 140-200 based on screen width
@@ -34,11 +33,11 @@ export function WidgetPreviewCard() {
   const widgetSize = Math.min(Math.max(windowWidth * 0.35, 140), 200);
 
   return (
-    <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-      <Text style={[styles.title, { color: colors.text }]}>
+    <View style={[styles.card, { backgroundColor: theme.card }]}>
+      <Text style={[styles.title, { color: theme.textPrimary }]}>
         Home Widget Preview
       </Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+      <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
         This is how your Safe Space widget will appear on your home screen
       </Text>
       
@@ -50,7 +49,7 @@ export function WidgetPreviewCard() {
         />
       </View>
 
-      <Text style={[styles.description, { color: colors.textSecondary }]}>
+      <Text style={[styles.description, { color: theme.textSecondary }]}>
         The widget design updates automatically when you change your theme
       </Text>
     </View>
