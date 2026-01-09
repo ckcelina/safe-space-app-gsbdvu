@@ -1162,6 +1162,10 @@ export default function SettingsScreen() {
                 Privacy & Security
               </Text>
 
+              <Text style={[styles.privacyAssurance, { color: theme.textSecondary }]}>
+                🔒 Your chats are private. Messages are encrypted in transit and only you can access your data.
+              </Text>
+
               <Pressable
                 style={[styles.row, { borderBottomWidth: isBiometricAvailable ? 1 : 0, borderBottomColor: 'rgba(0, 0, 0, 0.05)' }]}
                 onPress={handleOpenChangePasswordModal}
@@ -2745,6 +2749,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 8,
+  },
+  privacyAssurance: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    borderRadius: 8,
+    fontWeight: '500',
   },
   row: {
     flexDirection: 'row',
