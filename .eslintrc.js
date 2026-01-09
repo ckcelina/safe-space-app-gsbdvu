@@ -1,5 +1,4 @@
 
-
 // https://docs.expo.dev/guides/using-eslint/
 module.exports = {
   extends: [
@@ -28,6 +27,7 @@ module.exports = {
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/array-type": ["warn", { "default": "array" }],
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
@@ -41,8 +41,7 @@ module.exports = {
     "react/display-name": "off",
     "no-constant-condition": "off",
     "no-var": "off",
-    "no-useless-escape": "off",
-    "@typescript-eslint/array-type": ["warn", { "default": "array", "readonly": "array" }]
+    "no-useless-escape": "off"
   },
   overrides: [
     {
@@ -52,15 +51,10 @@ module.exports = {
       }
     },
     {
-      files: ['__tests__/**/*', '*.test.ts', '*.test.tsx', 'jest.setup.js'],
+      files: ['scripts/**/*.js', '*.config.js'],
       env: {
-        jest: true
+        node: true,
       },
-      rules: {
-        'import/no-unresolved': 'off',
-        'no-undef': 'off'
-      }
     }
   ]
 };
-
