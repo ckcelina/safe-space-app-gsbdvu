@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,8 @@ import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { signInWithGoogle, signInWithApple } from '@/lib/auth/supabaseOAuth';
+import { showErrorToast, showSuccessToast } from '@/utils/toast';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -25,6 +27,7 @@ export default function SignupScreen() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSignup = async () => {
@@ -188,6 +191,32 @@ export default function SignupScreen() {
     }
   };
 
+  async function handleGoogleSignIn() {
+    setOauthLoading('google');
+    try {
+      await signInWithGoogle();
+      showSuccessToast('Signed in with Google');
+      router.replace('/ai-preferences-onboarding');
+    } catch (error: any) {
+      showErrorToast(error.message || 'Google sign in failed');
+    } finally {
+      setOauthLoading(null);
+    }
+  }
+
+  async function handleAppleSignIn() {
+    setOauthLoading('apple');
+    try {
+      await signInWithApple();
+      showSuccessToast('Signed in with Apple');
+      router.replace('/ai-preferences-onboarding');
+    } catch (error: any) {
+      showErrorToast(error.message || 'Apple sign in failed');
+    } finally {
+      setOauthLoading(null);
+    }
+  }
+
   const isFormValid = 
     email.trim() !== '' && 
     password.trim() !== '' && 
@@ -343,16 +372,56 @@ export default function SignupScreen() {
                 <SafeSpaceButton 
                   onPress={handleSignup} 
                   loading={loading} 
-                  disabled={loading || !isFormValid}
+                  disabled={loading || oauthLoading !== null || !isFormValid}
                 >
                   {loading ? 'Creating Account…' : 'Sign Up'}
                 </SafeSpaceButton>
+
+                <View style={styles.divider}>
+                  <View style={[styles.dividerLine, { backgroundColor: theme.buttonText, opacity: 0.3 }]} />
+                  <Text style={[styles.dividerText, { color: theme.buttonText }]}>or</Text>
+                  <View style={[styles.dividerLine, { backgroundColor: theme.buttonText, opacity: 0.3 }]} />
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.oauthButton, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}
+                  onPress={handleGoogleSignIn}
+                  disabled={loading || oauthLoading !== null}
+                >
+                  {oauthLoading === 'google' ? (
+                    <ActivityIndicator color={theme.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-google" size={20} color={theme.primary} />
+                      <Text style={[styles.oauthButtonText, { color: theme.primary }]}>
+                        Continue with Google
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.oauthButton, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}
+                  onPress={handleAppleSignIn}
+                  disabled={loading || oauthLoading !== null}
+                >
+                  {oauthLoading === 'apple' ? (
+                    <ActivityIndicator color={theme.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-apple" size={20} color={theme.primary} />
+                      <Text style={[styles.oauthButtonText, { color: theme.primary }]}>
+                        Continue with Apple
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
 
                 <View style={styles.linkSpacing} />
 
                 <SafeSpaceLinkButton 
                   onPress={() => router.replace('/login')} 
-                  disabled={loading}
+                  disabled={loading || oauthLoading !== null}
                   style={{ color: theme.buttonText }}
                 >
                   Already have an account? Log In
@@ -482,5 +551,31 @@ const styles = StyleSheet.create({
     marginTop: Math.min(SCREEN_HEIGHT * 0.04, 32),
     paddingHorizontal: 8,
     paddingBottom: 16,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: { 
+    flex: 1, 
+    height: 1,
+  },
+  dividerText: { 
+    marginHorizontal: 16, 
+    fontSize: 14,
+  },
+  oauthButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  oauthButtonText: { 
+    fontSize: 16, 
+    fontWeight: '600',
   },
 });
