@@ -22,28 +22,18 @@ module.exports = {
   env: {
     browser: true,
   },
-  settings: {
-    'import/resolver': {
-      node: {
-        extensions: ['.js', '.jsx', '.ts', '.tsx']
-      }
-    },
-    'import/ignore': [
-      'node_modules',
-      '\\.(coffee|scss|css|less|hbs|svg|json)$'
-    ]
-  },
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/array-type": ["warn", { "default": "array-simple" }],
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
     "@typescript-eslint/ban-tslint-comment": "off",
     "react/no-unescaped-entities": "off",
-    "import/no-unresolved": "off",
+    "import/no-unresolved": "error",
     "prefer-const": "off",
     "react/prop-types": 1,
     "no-case-declarations": "off",
@@ -59,6 +49,29 @@ module.exports = {
       rules: {
         '@typescript-eslint/no-var-requires': 'off'
       }
-    }
+    },
+    {
+      files: ['jest.setup.js', 'jest.config.js', '**/*.test.js', '**/*.test.ts', '**/*.test.tsx', '**/__tests__/**'],
+      env: {
+        jest: true,
+        node: true,
+      },
+      globals: {
+        jest: 'readonly',
+      },
+    },
+    {
+      files: ['scripts/**/*.js', 'scripts/**/*.ts', 'babel.config.js', 'metro.config.js'],
+      env: {
+        node: true,
+      },
+      globals: {
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        require: 'readonly',
+        module: 'readonly',
+        process: 'readonly',
+      },
+    },
   ]
 };
