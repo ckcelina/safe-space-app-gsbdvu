@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
@@ -30,10 +30,31 @@ export const BiometricLockProvider: React.FC<{ children: React.ReactNode }> = ({
     loadBiometricPreference();
   }, []);
 
+  const handleAppStateChange = useCallback(async (nextAppState: AppStateStatus) => {
+    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      // App came to foreground
+      if (isBiometricEnabled && backgroundTimeRef.current) {
+        const timeInBackground = Date.now() - backgroundTimeRef.current;
+        if (timeInBackground >= BACKGROUND_TIMEOUT) {
+          setIsLocked(true);
+          const success = await authenticate();
+          if (success) {
+            setIsLocked(false);
+          }
+        }
+      }
+      backgroundTimeRef.current = null;
+    } else if (nextAppState.match(/inactive|background/)) {
+      // App went to background
+      backgroundTimeRef.current = Date.now();
+    }
+    appState.current = nextAppState;
+  }, [isBiometricEnabled]);
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
-  }, [isBiometricEnabled]);
+  }, [handleAppStateChange]);
 
   const checkBiometricAvailability = async () => {
     try {
@@ -55,46 +76,17 @@ export const BiometricLockProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const setBiometricEnabled = async (enabled: boolean) => {
-    try {
-      await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, enabled ? 'true' : 'false');
-      setIsBiometricEnabledState(enabled);
-    } catch (error) {
-      throw error;
-    }
+    await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, enabled ? 'true' : 'false');
+    setIsBiometricEnabledState(enabled);
   };
 
   const authenticate = async (): Promise<boolean> => {
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock Safe Space',
-        fallbackLabel: 'Use Passcode',
-        disableDeviceFallback: false,
-      });
-      return result.success;
-    } catch {
-      return false;
-    }
-  };
-
-  const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-      // App came to foreground
-      if (isBiometricEnabled && backgroundTimeRef.current) {
-        const timeInBackground = Date.now() - backgroundTimeRef.current;
-        if (timeInBackground >= BACKGROUND_TIMEOUT) {
-          setIsLocked(true);
-          const success = await authenticate();
-          if (success) {
-            setIsLocked(false);
-          }
-        }
-      }
-      backgroundTimeRef.current = null;
-    } else if (nextAppState.match(/inactive|background/)) {
-      // App went to background
-      backgroundTimeRef.current = Date.now();
-    }
-    appState.current = nextAppState;
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: 'Unlock Safe Space',
+      fallbackLabel: 'Use Passcode',
+      disableDeviceFallback: false,
+    });
+    return result.success;
   };
 
   const unlock = () => {
