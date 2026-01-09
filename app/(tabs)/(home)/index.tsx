@@ -1,1539 +1,337 @@
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, TextInput, LogBox, Modal, Pressable, KeyboardAvoidingView } from 'react-native';
-import { router, Redirect } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Swipeable } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { StatusBar } from 'expo-status-bar';
-import { useAuth } from '@/contexts/AuthContext';
-import { useThemeContext } from '@/contexts/ThemeContext';
+import { useAuthSafe } from '@/lib/safeGuards/providerGuards';
 import { supabase } from '@/lib/supabase';
-import { Person } from '@/types/database.types';
-import { IconSymbol } from '@/components/IconSymbol';
+import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
+import AddPersonSheet from '@/components/ui/AddPersonSheet';
 import { PersonCard } from '@/components/ui/PersonCard';
-import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
-import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useThemeContext } from '@/contexts/ThemeContext';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import FloatingTabBar from '@/components/FloatingTabBar';
-import AddPersonSheet from '@/components/ui/AddPersonSheet';
-import { SwipeableCenterModal } from '@/components/ui/SwipeableCenterModal';
+import { SafeSpaceLogo } from '@/components/SafeSpaceLogo';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, TextInput, LogBox, Modal, Pressable, KeyboardAvoidingView } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
+import { Ionicons } from '@expo/vector-icons';
 import { memoryCache } from '@/lib/cache/memoryCache';
-
-LogBox.ignoreLogs([
-  'Each child in a list should have a unique "key" prop',
-]);
+import { IconSymbol } from '@/components/IconSymbol';
+import { router, Redirect } from 'expo-router';
+import { Person } from '@/types/database.types';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { useFocusEffect } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 
 interface PersonWithLastMessage extends Person {
   lastMessage?: string;
   lastMessageTime?: string;
-  lastActivityAt?: string; // For sorting: last_message_at || created_at
+  lastActivityAt?: string;
 }
 
+const DEFAULT_TOPICS = [
+  'Anxiety',
+  'Depression',
+  'Relationships',
+  'Work Stress',
+  'Family',
+  'Self-Esteem',
+  'Grief',
+  'Trauma',
+  'Other',
+];
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 100,
+  },
+  header: {
+    paddingTop: 20,
+    paddingBottom: 16,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontSize: 18,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 16,
+    lineHeight: 24,
+  },
+  deleteAction: {
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingRight: 20,
+    marginVertical: 8,
+    borderRadius: 12,
+  },
+  deleteText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+});
+
 const DeleteAction = ({ onPress }: { onPress: () => void }) => (
-  <TouchableOpacity 
-    onPress={onPress}
-    style={{
-      backgroundColor: '#FF3B30',
-      justifyContent: 'center',
-      alignItems: 'center',
-      width: 80,
-      height: '100%',
-    }}
-  >
-    <IconSymbol
-      ios_icon_name="trash.fill"
-      android_material_icon_name="delete"
-      size={28}
-      color="#fff"
-    />
+  <TouchableOpacity style={styles.deleteAction} onPress={onPress}>
+    <Text style={styles.deleteText}>Delete</Text>
   </TouchableOpacity>
 );
 
-// Default topics array - used as fallback if DB returns empty
-const DEFAULT_TOPICS = [
-  'Anxiety',
-  'Social Anxiety',
-  'Self-esteem',
-  'Stress',
-  'Work/Career',
-  'Relationships',
-  'Grief',
-  'Anger',
-  'Motivation',
-];
-
-export default function HomeScreen() {
-  const { currentUser, userId, role, isPremium, loading: authLoading } = useAuth();
-  const { theme } = useThemeContext();
+function HomeScreen() {
   const insets = useSafeAreaInsets();
-  
-  // Single source of truth for people and topics
-  const [people, setPeople] = useState<PersonWithLastMessage[]>([]);
-  const [topics, setTopics] = useState<PersonWithLastMessage[]>([]);
-  
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Add Person modal state - single source of truth
+  const { user, loading: authLoading } = useAuthSafe();
+  const userId = user?.id || null;
+  const { theme } = useThemeContext();
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
+  const [people, setPeople] = useState<PersonWithLastMessage[]>([]);
+  const [topics, setTopics] = useState<string[]>(DEFAULT_TOPICS);
+  const [loading, setLoading] = useState(true);
+  const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
-  // Add Topic modal state - single source of truth
-  const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
-  const [selectedQuickTopic, setSelectedQuickTopic] = useState<string | null>(null);
-  const [customTopicName, setCustomTopicName] = useState('');
-  const [topicError, setTopicError] = useState('');
-  const [savingTopic, setSavingTopic] = useState(false);
-  const [customTopicFocused, setCustomTopicFocused] = useState(false);
-
-  const isMountedRef = useRef(true);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  /**
-   * CACHE-FIRST DATA LOADING
-   * 
-   * STRATEGY:
-   * 1. Load from cache immediately (instant UI)
-   * 2. Revalidate in background
-   * 3. Merge updates into state
-   */
+  // Fail-closed guard: Do not fetch data if userId is null or auth is loading
   const fetchData = useCallback(async () => {
     if (!userId) {
-      console.log('[Home] No userId available');
+      console.log('[Home] fetchData called without userId, aborting');
       return;
     }
 
     try {
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 1: Load from cache immediately (INSTANT UI)
-      // ═══════════════════════════════════════════════════════════════════
-      const cachedPeople = memoryCache.getPeopleList();
-      const cachedTopics = memoryCache.getTopicsList();
-      
-      if (cachedPeople.length > 0 || cachedTopics.length > 0) {
-        console.log('[Home] Loading from cache:', {
-          people: cachedPeople.length,
-          topics: cachedTopics.length,
-        });
-        
-        if (isMountedRef.current) {
-          setPeople(cachedPeople);
-          setTopics(cachedTopics);
-          setLoading(false); // Hide loading spinner immediately
-        }
-      } else {
-        console.log('[Home] Cache empty, showing loading state');
-        setLoading(true);
-      }
-      
-      setError(null);
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 2: Revalidate in background
-      // ═══════════════════════════════════════════════════════════════════
-      console.log('[Home] Revalidating data in background for user:', userId);
-      
-      // STEP 2a: Fetch last message timestamps for ALL persons (people + topics)
-      const { data: lastMessageData, error: lastMessageError } = await supabase
-        .from('messages')
-        .select('person_id, created_at')
+      setLoading(true);
+
+      const { data: personsData, error: personsError } = await supabase
+        .from('persons')
+        .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (lastMessageError) {
-        console.error('[Home] Error fetching last messages:', lastMessageError);
-      }
+      if (personsError) throw personsError;
 
-      // Build a map: person_id -> last_message_at
-      const lastMessageMap = new Map<string, string>();
-      if (lastMessageData && lastMessageData.length > 0) {
-        lastMessageData.forEach((msg) => {
-          if (msg.person_id && msg.created_at) {
-            const existing = lastMessageMap.get(msg.person_id);
-            if (!existing || msg.created_at > existing) {
-              lastMessageMap.set(msg.person_id, msg.created_at);
-            }
-          }
-        });
-      }
+      const personsWithMessages = await Promise.all(
+        (personsData || []).map(async (person) => {
+          const { data: messagesData } = await supabase
+            .from('messages')
+            .select('content, created_at')
+            .eq('user_id', userId)
+            .eq('person_id', person.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
 
-      console.log('[Home] Last message map size:', lastMessageMap.size);
-      
-      // STEP 2b: Fetch people: relationship_type IS NULL OR relationship_type != 'Topic'
-      const { data: peopleData, error: peopleError } = await supabase
-        .from('persons')
-        .select('*')
-        .eq('user_id', userId)
-        .or('relationship_type.is.null,relationship_type.neq.Topic');
+          const { data: activityData } = await supabase
+            .from('person_activity')
+            .select('last_activity_at')
+            .eq('user_id', userId)
+            .eq('person_id', person.id)
+            .order('last_activity_at', { ascending: false })
+            .limit(1);
 
-      if (peopleError) {
-        console.error('[Home] Error fetching people:', peopleError);
-        if (isMountedRef.current) {
-          setError('Failed to load your people. Please try again.');
-          showErrorToast('Failed to load your people');
-        }
-        return;
-      }
+          return {
+            ...person,
+            lastMessage: messagesData?.[0]?.content,
+            lastMessageTime: messagesData?.[0]?.created_at,
+            lastActivityAt: activityData?.[0]?.last_activity_at,
+          };
+        })
+      );
 
-      // STEP 2c: Fetch topics: relationship_type == 'Topic'
+      setPeople(personsWithMessages);
+      memoryCache.setPeopleList(personsWithMessages);
+
       const { data: topicsData, error: topicsError } = await supabase
-        .from('persons')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('relationship_type', 'Topic');
+        .from('topics')
+        .select('name')
+        .eq('user_id', userId);
 
-      if (topicsError) {
-        console.error('[Home] Error fetching topics:', topicsError);
-        if (isMountedRef.current) {
-          setError('Failed to load your topics. Please try again.');
-          showErrorToast('Failed to load your topics');
-        }
-        return;
-      }
+      if (topicsError) throw topicsError;
 
-      console.log('[Home] People loaded:', peopleData?.length || 0);
-      console.log('[Home] Topics loaded:', topicsData?.length || 0);
-
-      // STEP 2d: Merge last_message_at with people data + compute lastActivityAt
-      const peopleWithMessages: PersonWithLastMessage[] = peopleData && peopleData.length > 0
-        ? peopleData.map((person) => {
-            const lastMessageAt = lastMessageMap.get(person.id);
-            
-            // Compute lastActivityAt: last_message_at || created_at
-            const lastActivityAt = lastMessageAt || person.created_at;
-            
-            return {
-              ...person,
-              lastMessage: lastMessageAt ? 'Recent activity' : 'No messages yet',
-              lastMessageTime: lastMessageAt,
-              lastActivityAt,
-            };
-          })
-        : [];
-
-      // STEP 2e: Merge last_message_at with topics data + compute lastActivityAt
-      const topicsWithMessages: PersonWithLastMessage[] = topicsData && topicsData.length > 0
-        ? topicsData.map((topic) => {
-            const lastMessageAt = lastMessageMap.get(topic.id);
-            
-            const lastActivityAt = lastMessageAt || topic.created_at;
-            
-            return {
-              ...topic,
-              lastMessage: lastMessageAt ? 'Recent activity' : 'No messages yet',
-              lastMessageTime: lastMessageAt,
-              lastActivityAt,
-            };
-          })
-        : [];
-
-      // STEP 2f: Sort people by lastActivityAt (descending, NULLS LAST)
-      peopleWithMessages.sort((a, b) => {
-        const aTime = a.lastActivityAt;
-        const bTime = b.lastActivityAt;
-        
-        if (!aTime && !bTime) return 0;
-        if (!aTime) return 1;
-        if (!bTime) return -1;
-        
-        return new Date(bTime).getTime() - new Date(aTime).getTime();
-      });
-
-      // STEP 2g: Sort topics by lastActivityAt (descending, NULLS LAST)
-      topicsWithMessages.sort((a, b) => {
-        const aTime = a.lastActivityAt;
-        const bTime = b.lastActivityAt;
-        
-        if (!aTime && !bTime) return 0;
-        if (!aTime) return 1;
-        if (!bTime) return -1;
-        
-        return new Date(bTime).getTime() - new Date(aTime).getTime();
-      });
-
-      console.log('[Home] People sorted by activity:', peopleWithMessages.map(p => ({ name: p.name, lastActivityAt: p.lastActivityAt })));
-      console.log('[Home] Topics sorted by activity:', topicsWithMessages.map(t => ({ name: t.name, lastActivityAt: t.lastActivityAt })));
-
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 3: Update cache with fresh data
-      // ═══════════════════════════════════════════════════════════════════
-      memoryCache.setPeopleList(peopleWithMessages);
-      memoryCache.setTopicsList(topicsWithMessages);
-      
-      // Update last activity timestamps in cache
-      const activities = [...peopleWithMessages, ...topicsWithMessages]
-        .filter(item => item.lastActivityAt)
-        .map(item => ({
-          personId: item.id,
-          timestamp: item.lastActivityAt!,
-        }));
-      
-      if (activities.length > 0) {
-        memoryCache.setLastActivityBulk(activities);
-      }
-
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP 4: Update state with fresh data
-      // ═══════════════════════════════════════════════════════════════════
-      if (isMountedRef.current) {
-        setPeople(peopleWithMessages);
-        setTopics(topicsWithMessages);
-      }
-    } catch (error: any) {
-      console.error('[Home] Unexpected error fetching data:', error);
-      if (isMountedRef.current) {
-        setError('An unexpected error occurred. Please try again.');
-        showErrorToast('Failed to load data');
-      }
+      const topicNames = topicsData?.map((t) => t.name) || DEFAULT_TOPICS;
+      setTopics(topicNames);
+      memoryCache.setTopicsList(topicNames);
+    } catch (error) {
+      console.error('[Home] Error fetching data:', error);
+      showErrorToast('Failed to load data');
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, [userId]);
 
   useEffect(() => {
-    if (userId) {
-      fetchData();
-    } else {
+    if (!userId || authLoading) {
+      console.log('[Home] userId is null or auth loading, skipping fetchData');
       setLoading(false);
+      return;
     }
-  }, [userId, fetchData]);
+    fetchData();
+  }, [userId, authLoading, fetchData]);
 
-  /**
-   * Focus-based refresh
-   * - Refresh data whenever the screen gains focus
-   */
   useFocusEffect(
     useCallback(() => {
-      console.log('[Home] Screen focused - refreshing data');
-      if (userId) {
-        fetchData();
+      if (!userId || authLoading) {
+        return;
       }
-    }, [userId, fetchData])
+      fetchData();
+    }, [userId, authLoading, fetchData])
   );
 
-  const handleDeletePerson = useCallback(async (personId: string, isTopic: boolean = false) => {
-    if (!personId) {
-      console.error('[Home] Cannot delete - personId is missing');
-      showErrorToast('Invalid data');
-      return;
-    }
+  const cachedPeople = useMemo(() => memoryCache.getPeopleList(), []);
+  const cachedTopics = useMemo(() => memoryCache.getTopicsList(), []);
 
-    if (!userId) {
-      console.error('[Home] Cannot delete - userId is missing');
-      showErrorToast('You must be logged in');
-      return;
-    }
-
-    console.log('[Home] Deleting:', isTopic ? 'topic' : 'person', personId);
-
-    try {
-      const { error: messagesError } = await supabase
-        .from('messages')
-        .delete()
-        .eq('user_id', userId)
-        .eq('person_id', personId);
-
-      if (messagesError) {
-        console.error('[Home] Error deleting messages:', messagesError);
-        showErrorToast('Failed to delete messages');
-        return;
-      }
-
-      const { error: deleteError } = await supabase
-        .from('persons')
-        .delete()
-        .eq('id', personId)
-        .eq('user_id', userId);
-
-      if (deleteError) {
-        console.error('[Home] Error deleting:', deleteError);
-        showErrorToast(isTopic ? 'Failed to delete topic' : 'Failed to delete person');
-        return;
-      }
-
-      if (isMountedRef.current) {
-        if (isTopic) {
-          setTopics(prev => prev.filter(t => t.id !== personId));
-          showSuccessToast('Topic deleted');
-        } else {
-          setPeople(prev => prev.filter(p => p.id !== personId));
-          showSuccessToast('Person deleted');
-        }
-      }
-
-      // Update cache after deletion
-      if (isTopic) {
-        const updatedTopics = topics.filter(t => t.id !== personId);
-        memoryCache.setTopicsList(updatedTopics);
-      } else {
-        const updatedPeople = people.filter(p => p.id !== personId);
-        memoryCache.setPeopleList(updatedPeople);
-      }
-
-      console.log('[Home] Deleted successfully');
-    } catch (error: any) {
-      console.error('[Home] Unexpected error deleting:', error);
-      showErrorToast('An unexpected error occurred');
-    }
-  }, [userId, people, topics]);
-
-  const filteredPeople = useMemo(() => {
-    const filtered = people.filter((person) => {
-      if (!searchQuery.trim()) return true;
-      
-      const query = searchQuery.toLowerCase();
-      const nameMatch = person.name?.toLowerCase().includes(query) || false;
-      const relationshipMatch = person.relationship_type?.toLowerCase().includes(query) || false;
-      
-      return nameMatch || relationshipMatch;
-    });
-
-    console.log('[Home] Filtered people count:', filtered.length);
-    return filtered;
-  }, [people, searchQuery]);
-
-  const filteredTopics = useMemo(() => {
-    const filtered = topics.filter((topic) => {
-      if (!searchQuery.trim()) return true;
-      
-      const query = searchQuery.toLowerCase();
-      const nameMatch = topic.name?.toLowerCase().includes(query) || false;
-      
-      return nameMatch;
-    });
-
-    console.log('[Home] Filtered topics count:', filtered.length);
-    return filtered;
-  }, [topics, searchQuery]);
-
-  // Add Person button handler - closes Add Topic modal if open, opens modal
-  const handleAddPersonPress = useCallback(() => {
-    console.log('[Home] Add Person pressed');
-    console.log('[Home] isAddPersonOpen -> true');
-    
-    // Close Add Topic modal if open
-    if (isAddTopicOpen) {
-      setIsAddTopicOpen(false);
-      setSelectedQuickTopic(null);
-      setCustomTopicName('');
-      setTopicError('');
-      setCustomTopicFocused(false);
-    }
-    
-    // Open Add Person modal
-    setIsAddPersonOpen(true);
-    console.log('[Home] Add Person modal should now be visible');
-  }, [isAddTopicOpen]);
-
-  /**
-   * Handle successful person creation with optimistic update + cache update
-   */
-  const handlePersonCreated = useCallback((newPerson: Person) => {
-    console.log('[Home] handlePersonCreated called with:', newPerson);
-    
-    // Ensure the new person has relationship_type !== 'Topic' so it appears under People
-    if (newPerson.relationship_type === 'Topic') {
-      console.warn('[Home] New person has relationship_type "Topic", skipping optimistic update');
-      return;
-    }
-    
-    // Create a person with last message placeholder + lastActivityAt
-    const newPersonWithMessage: PersonWithLastMessage = {
-      ...newPerson,
-      lastMessage: 'No messages yet',
-      lastMessageTime: undefined,
-      lastActivityAt: newPerson.created_at,
-    };
-    
-    // STEP 1: Optimistic update - prepend the new person to the list
-    console.log('[Home] Performing optimistic update - adding person to top of list');
-    setPeople(prev => {
-      const updated = [newPersonWithMessage, ...prev];
-      // Update cache immediately
-      memoryCache.setPeopleList(updated);
-      return updated;
-    });
-    
-    // STEP 2: Data re-sync - call fetchData() to sync with Supabase
-    console.log('[Home] Triggering data re-sync with Supabase');
-    if (userId) {
-      fetchData();
-    }
-  }, [userId, fetchData]);
-
-  // Add Topic button handler - closes Add Person modal if open, resets form, opens modal
-  const handleAddTopicPress = useCallback(() => {
-    console.log('[Home] Add Topic button pressed');
-    
-    // Close Add Person modal if open
-    if (isAddPersonOpen) {
-      setIsAddPersonOpen(false);
-    }
-    
-    // Reset Add Topic form state (on open)
-    setSelectedQuickTopic(null);
-    setCustomTopicName('');
-    setTopicError('');
-    setCustomTopicFocused(false);
-    
-    // Open Add Topic modal
-    setIsAddTopicOpen(true);
-  }, [isAddPersonOpen]);
-
-  const handleCloseAddTopicModal = useCallback(() => {
-    console.log('[Home] Closing Add Topic modal');
-    setIsAddTopicOpen(false);
-    setCustomTopicName('');
-    setSelectedQuickTopic(null);
-    setTopicError('');
-    setCustomTopicFocused(false);
-  }, []);
-
-  const handleQuickTopicSelect = useCallback((topic: string) => {
-    console.log('[Home] Quick topic selected:', topic);
-    setSelectedQuickTopic(topic);
-    setCustomTopicName(''); // Clear custom input when chip is selected
-    setTopicError(''); // Clear any error
-  }, []);
-
-  const handleCustomTopicChange = useCallback((text: string) => {
-    console.log('[Home] Custom topic name changed to:', text);
-    setCustomTopicName(text);
-    if (topicError && text.trim()) {
-      setTopicError('');
-    }
-    // Clear selected quick topic when user types
-    if (text.trim() && selectedQuickTopic) {
-      setSelectedQuickTopic(null);
-    }
-  }, [topicError, selectedQuickTopic]);
-
-  const handleSaveAddTopic = useCallback(async () => {
-    console.log('[Home] Save Add Topic called with customTopicName:', customTopicName, 'selectedQuickTopic:', selectedQuickTopic);
-    
-    // Determine final topic name: selectedQuickTopic (from chip) OR customTopicName (typed)
-    const topicName = selectedQuickTopic || customTopicName.trim();
-    
-    // Validate topic name is not empty
-    if (!topicName) {
-      console.log('[Home] Topic validation failed - topic is empty');
-      setTopicError('Please select a topic or type a custom one');
-      return;
-    }
-
-    if (!userId) {
-      console.error('[Home] No userId available');
-      showErrorToast('You must be logged in to add a topic');
-      return;
-    }
-
-    console.log('[Home] Starting save process for topic:', topicName, 'userId:', userId);
-    setTopicError('');
-    setSavingTopic(true);
-
-    try {
-      // Insert topic for current authenticated user
-      const topicData = {
-        user_id: userId,
-        name: topicName,
-        relationship_type: 'Topic',
-      };
-      
-      console.log('[Home] Inserting topic data:', topicData);
-      
-      const { data, error } = await supabase
-        .from('persons')
-        .insert([topicData])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('[Home] Error creating topic:', error);
-        
-        if (isMountedRef.current) {
-          const errorMessage = error.message || 'Failed to add topic. Please try again.';
-          showErrorToast(errorMessage);
-          setSavingTopic(false);
-        }
-        return;
-      }
-
-      console.log('[Home] Topic created successfully:', data);
-      
-      if (isMountedRef.current) {
-        showSuccessToast('Topic added successfully!');
-        
-        // Close modal and reset state
-        setIsAddTopicOpen(false);
-        setSelectedQuickTopic(null);
-        setCustomTopicName('');
-        setTopicError('');
-        setCustomTopicFocused(false);
-        
-        // Navigate to chat screen with the new topic
-        if (data && data.id) {
-          console.log('[Home] Navigating to chat for new topic:', data.name, 'id:', data.id);
-          router.push({
-            pathname: '/(tabs)/(home)/chat',
-            params: { 
-              personId: data.id, 
-              personName: data.name || 'Topic',
-              relationshipType: 'Topic',
-              initialSubject: data.name
-            },
-          });
-        }
-        
-        // Refresh Topics list and update cache
-        console.log('[Home] Refreshing data');
-        await fetchData();
-      }
-      
-    } catch (error: any) {
-      console.error('[Home] Unexpected error creating topic:', error);
-      if (isMountedRef.current) {
-        showErrorToast('An unexpected error occurred');
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setSavingTopic(false);
-        console.log('[Home] Save process complete');
-      }
-    }
-  }, [customTopicName, selectedQuickTopic, userId, fetchData]);
-
-  const handleClosePremiumModal = useCallback(() => {
-    setShowPremiumModal(false);
-  }, []);
-
-  const handlePersonPress = useCallback((person: Person) => {
-    if (!person.id) {
-      console.error('[Home] Cannot navigate to chat - person.id is missing');
-      showErrorToast('Invalid person data');
-      return;
-    }
-
-    console.log('[Home] Navigating to chat for person:', person.name, 'id:', person.id);
-    
-    try {
-      router.push({
-        pathname: '/(tabs)/(home)/chat',
-        params: { 
-          personId: person.id, 
-          personName: person.name || 'Chat',
-          relationshipType: person.relationship_type || ''
-        },
-      });
-    } catch (error) {
-      console.error('[Home] Navigation error:', error);
-      showErrorToast('Failed to open chat');
-    }
-  }, []);
-
-  const handleTopicPress = useCallback((topic: Person) => {
-    if (!topic.id) {
-      console.error('[Home] Cannot navigate to chat - topic.id is missing');
-      showErrorToast('Invalid topic data');
-      return;
-    }
-
-    console.log('[Home] Navigating to chat for topic:', topic.name, 'id:', topic.id);
-    
-    try {
-      router.push({
-        pathname: '/(tabs)/(home)/chat',
-        params: { 
-          personId: topic.id, 
-          personName: topic.name || 'Topic',
-          relationshipType: 'Topic',
-          initialSubject: topic.name
-        },
-      });
-    } catch (error) {
-      console.error('[Home] Navigation error:', error);
-      showErrorToast('Failed to open chat');
-    }
-  }, []);
-
-  const handleSettingsPress = useCallback(() => {
-    try {
-      router.push('/(tabs)/settings');
-    } catch (error) {
-      console.error('[Home] Settings navigation error:', error);
-    }
-  }, []);
-
-  // Compute whether Start Chat button should be enabled
-  const isStartChatEnabled = !!(selectedQuickTopic || customTopicName.trim());
-
-  // Debug: Log modal state changes
   useEffect(() => {
-    console.log('[Home] isAddPersonOpen state changed to:', isAddPersonOpen);
+    if (cachedPeople.length > 0) {
+      setPeople(cachedPeople);
+    }
+    if (cachedTopics.length > 0) {
+      setTopics(cachedTopics);
+    }
+  }, [cachedPeople, cachedTopics]);
+
+  useEffect(() => {
+    if (isAddPersonOpen) {
+      swipeableRefs.current.forEach((ref) => ref?.close());
+    }
   }, [isAddPersonOpen]);
 
-  if (authLoading) {
-    return <LoadingOverlay visible={true} />;
-  }
+  const handlePersonCreated = (newPerson: Person) => {
+    setPeople((prev) => [newPerson, ...prev]);
+    memoryCache.setPeopleList([newPerson, ...people]);
+    setIsAddPersonOpen(false);
+    showSuccessToast('Person added successfully');
+  };
 
-  if (!currentUser) {
-    return <Redirect href="/onboarding" />;
-  }
+  const handleDeletePerson = async (personId: string) => {
+    if (!userId) return;
 
-  const hasAnyData = people.length > 0 || topics.length > 0;
-  const hasFilteredResults = filteredPeople.length > 0 || filteredTopics.length > 0;
+    try {
+      const { error } = await supabase.from('persons').delete().eq('id', personId).eq('user_id', userId);
+
+      if (error) throw error;
+
+      setPeople((prev) => prev.filter((p) => p.id !== personId));
+      memoryCache.setPeopleList(people.filter((p) => p.id !== personId));
+      showSuccessToast('Person deleted');
+    } catch (error) {
+      console.error('[Home] Error deleting person:', error);
+      showErrorToast('Failed to delete person');
+    }
+  };
+
+  const handlePersonPress = (person: Person) => {
+    router.push({
+      pathname: '/(tabs)/(home)/chat',
+      params: {
+        personId: person.id,
+        personName: person.name,
+        relationshipType: person.relationship_type || '',
+      },
+    });
+  };
+
+  // Show loading state if auth is not ready
+  if (authLoading || !userId) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingOverlay visible={true} message="Loading..." />
+      </View>
+    );
+  }
 
   return (
-    <>
-      <StatusBar style="light" translucent />
-      <LinearGradient
-        colors={theme.primaryGradient}
-        style={styles.gradientBackground}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-          <View style={styles.container}>
-            <View style={styles.topHeader}>
-              <View style={styles.headerTitleContainer}>
-                <Text style={[styles.headerTitle, { color: theme.buttonText }]}>Safe Space</Text>
-                <Text style={[styles.headerSubtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-                  What do you want to talk about?
-                </Text>
-              </View>
-              <TouchableOpacity 
-                onPress={handleSettingsPress} 
-                style={styles.settingsButton}
-                activeOpacity={0.7}
-              >
-                <IconSymbol
-                  ios_icon_name="gearshape.fill"
-                  android_material_icon_name="settings"
-                  size={24}
-                  color={theme.buttonText}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={[
-                styles.scrollContent,
-                { paddingBottom: 60 + insets.bottom + 16 } // TAB_BAR_HEIGHT = 60
-              ]}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {hasAnyData && (
-                <View style={[styles.searchContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                  <IconSymbol
-                    ios_icon_name="magnifyingglass"
-                    android_material_icon_name="search"
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                  <TextInput
-                    style={[styles.searchInput, { color: theme.textPrimary }]}
-                    placeholder="Search by name or relationship"
-                    placeholderTextColor={theme.textSecondary}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-                      <IconSymbol
-                        ios_icon_name="xmark.circle.fill"
-                        android_material_icon_name="cancel"
-                        size={20}
-                        color={theme.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.addButtonContainer}>
-                <TouchableOpacity
-                  onPress={handleAddPersonPress}
-                  activeOpacity={0.8}
-                  style={styles.addButton}
-                >
-                  <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <Text style={[styles.addButtonText, { color: theme.primary }]}>
-                      Add Person
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={handleAddTopicPress}
-                  activeOpacity={0.8}
-                  style={styles.addButton}
-                >
-                  <View style={[styles.addButtonInner, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <Text style={[styles.addButtonText, { color: theme.primary }]}>
-                      Add Topic
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-
-              {error && (
-                <View style={styles.errorContainer}>
-                  <View style={[styles.errorCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <SafeSpaceLogo size={48} color={theme.primary} />
-                    <Text style={[styles.errorText, { color: theme.textPrimary }]}>{error}</Text>
-                    <TouchableOpacity
-                      onPress={fetchData}
-                      style={[styles.retryButton, { backgroundColor: theme.primary }]}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.retryButtonText, { color: theme.buttonText }]}>
-                        Try Again
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              {!error && !hasAnyData && !loading ? (
-                <View style={styles.emptyState}>
-                  <View style={[styles.emptyIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
-                    <SafeSpaceLogo size={48} color={theme.primary} />
-                  </View>
-                  <Text style={[styles.emptyText, { color: theme.buttonText }]}>Nothing added yet</Text>
-                  <Text style={[styles.emptySubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-                    Tap &apos;Add Person&apos; or &apos;Add Topic&apos; to start
-                  </Text>
-                </View>
-              ) : !error && !loading ? (
-                <>
-                  {!hasFilteredResults && searchQuery.trim() ? (
-                    <View style={styles.noResultsContainer}>
-                      <Text style={[styles.noResultsText, { color: theme.buttonText }]}>
-                        No matches found
-                      </Text>
-                      <Text style={[styles.noResultsSubtext, { color: theme.buttonText, opacity: 0.8 }]}>
-                        Try a different search term
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      {filteredPeople.length > 0 && (
-                        <View style={styles.section}>
-                          <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
-                            People
-                          </Text>
-
-                          <View style={styles.cards}>
-                            {filteredPeople.map((person) => {
-                              if (!person || !person.id) return null;
-
-                              return (
-                                <Swipeable
-                                  key={person.id}
-                                  renderRightActions={() => (
-                                    <DeleteAction onPress={() => handleDeletePerson(person.id!, false)} />
-                                  )}
-                                  overshootRight={false}
-                                >
-                                  <PersonCard
-                                    person={person}
-                                    onPress={() => handlePersonPress(person)}
-                                    isTopic={false}
-                                  />
-                                </Swipeable>
-                              );
-                            })}
-                          </View>
-                        </View>
-                      )}
-
-                      {filteredTopics.length > 0 && (
-                        <View style={styles.section}>
-                          <Text style={[styles.sectionHeader, { color: theme.buttonText }]}>
-                            Topics
-                          </Text>
-
-                          <View style={styles.cards}>
-                            {filteredTopics.map((topic) => {
-                              if (!topic || !topic.id) return null;
-
-                              return (
-                                <Swipeable
-                                  key={topic.id}
-                                  renderRightActions={() => (
-                                    <DeleteAction onPress={() => handleDeletePerson(topic.id!, true)} />
-                                  )}
-                                  overshootRight={false}
-                                >
-                                  <PersonCard
-                                    person={topic}
-                                    onPress={() => handleTopicPress(topic)}
-                                    isTopic={true}
-                                  />
-                                </Swipeable>
-                              );
-                            })}
-                          </View>
-                        </View>
-                      )}
-                    </>
-                  )}
-                </>
-              ) : null}
-            </ScrollView>
-
-            {/* Add Person Sheet - WITH OPTIMISTIC UPDATE + CACHE UPDATE */}
-            <AddPersonSheet
-              visible={isAddPersonOpen}
-              onClose={() => setIsAddPersonOpen(false)}
-              userId={userId}
-              theme={theme}
-              insets={insets}
-              onPersonCreated={handlePersonCreated}
-            />
-
-            {/* Add Topic Modal - UNCHANGED */}
-            <Modal
-              visible={isAddTopicOpen}
-              transparent={true}
-              animationType="slide"
-              onRequestClose={handleCloseAddTopicModal}
-            >
-              <Pressable 
-                style={styles.addTopicModalOverlay}
-                onPress={handleCloseAddTopicModal}
-              >
-                <Pressable 
-                  style={styles.addTopicModalInner}
-                  onPress={(e) => e.stopPropagation()}
-                >
-                  <KeyboardAvoidingView
-                    style={styles.addTopicKeyboardAvoid}
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    keyboardVerticalOffset={0}
-                  >
-                    <View style={styles.addTopicSheetCard}>
-                      {/* Header */}
-                      <View style={styles.addTopicModalHeader}>
-                        <Text style={styles.addTopicModalTitle}>
-                          Add Topic
-                        </Text>
-                        <TouchableOpacity 
-                          onPress={handleCloseAddTopicModal} 
-                          style={styles.addTopicCloseButton}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Ionicons name="close" size={28} color="#333" />
-                        </TouchableOpacity>
-                      </View>
-
-                      {/* ScrollView with chips and input ONLY */}
-                      <ScrollView
-                        style={styles.addTopicScrollView}
-                        contentContainerStyle={styles.addTopicScrollContent}
-                        keyboardShouldPersistTaps="handled"
-                        keyboardDismissMode="interactive"
-                        showsVerticalScrollIndicator={false}
-                      >
-                        {/* Quick-select topic chips */}
-                        <View style={styles.addTopicChipsContainer}>
-                          <Text style={styles.addTopicHelperText}>
-                            Quick select:
-                          </Text>
-                          <View style={styles.addTopicChipsWrapper}>
-                            {DEFAULT_TOPICS.map((topic, index) => (
-                              <TouchableOpacity
-                                key={`topic-chip-${index}`}
-                                onPress={() => handleQuickTopicSelect(topic)}
-                                activeOpacity={0.7}
-                                style={[
-                                  styles.addTopicChip,
-                                  selectedQuickTopic === topic && styles.addTopicChipSelected
-                                ]}
-                              >
-                                <Text style={[
-                                  styles.addTopicChipText,
-                                  selectedQuickTopic === topic && styles.addTopicChipTextSelected
-                                ]}>
-                                  {topic}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        </View>
-
-                        {/* Custom Topic Input */}
-                        <View style={styles.addTopicFieldContainer}>
-                          <Text style={styles.addTopicInputLabel}>
-                            Or type a custom topic:
-                          </Text>
-                          <View style={[
-                            styles.addTopicInputRowContainer,
-                            topicError ? styles.addTopicInputRowError : null
-                          ]}>
-                            <TextInput
-                              style={styles.addTopicTextInput}
-                              placeholder="Enter your own topic..."
-                              placeholderTextColor="#999"
-                              value={customTopicName}
-                              onChangeText={handleCustomTopicChange}
-                              autoCapitalize="sentences"
-                              autoCorrect={false}
-                              maxLength={100}
-                              editable={!savingTopic}
-                              returnKeyType="done"
-                              onSubmitEditing={handleSaveAddTopic}
-                              autoFocus={false}
-                            />
-                          </View>
-                          {topicError ? (
-                            <Text style={styles.addTopicErrorText}>{topicError}</Text>
-                          ) : null}
-                        </View>
-
-                        {/* Selected topic indicator */}
-                        {selectedQuickTopic && (
-                          <View style={styles.addTopicSelectedIndicator}>
-                            <Text style={styles.addTopicSelectedText}>
-                              Selected: <Text style={styles.addTopicSelectedValue}>{selectedQuickTopic}</Text>
-                            </Text>
-                          </View>
-                        )}
-                      </ScrollView>
-
-                      {/* Footer buttons OUTSIDE ScrollView but INSIDE KeyboardAvoidingView */}
-                      <View style={styles.addTopicModalFooter}>
-                        <TouchableOpacity
-                          onPress={handleCloseAddTopicModal}
-                          style={styles.addTopicCancelButton}
-                          disabled={savingTopic}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.addTopicCancelButtonText}>
-                            Cancel
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          onPress={handleSaveAddTopic}
-                          style={[
-                            styles.addTopicSaveButton,
-                            !isStartChatEnabled && styles.addTopicSaveButtonDisabled
-                          ]}
-                          disabled={savingTopic || !isStartChatEnabled}
-                          activeOpacity={0.8}
-                        >
-                          <LinearGradient
-                            colors={isStartChatEnabled ? theme.primaryGradient : ['#ccc', '#ccc']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.addTopicSaveButtonGradient}
-                          >
-                            <Text style={styles.addTopicSaveButtonText}>
-                              {savingTopic ? 'Saving...' : 'Start Chat'}
-                            </Text>
-                          </LinearGradient>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </KeyboardAvoidingView>
-                </Pressable>
-              </Pressable>
-            </Modal>
-
-            <SwipeableCenterModal
-              visible={showPremiumModal}
-              onClose={handleClosePremiumModal}
-              showHandle={true}
-            >
-              <View style={styles.premiumModalInner}>
-                <View style={[styles.premiumIconContainer, { backgroundColor: theme.background }]}>
-                  <IconSymbol
-                    ios_icon_name="lock.fill"
-                    android_material_icon_name="lock"
-                    size={48}
-                    color={theme.primary}
-                  />
-                </View>
-                
-                <Text style={[styles.premiumModalTitle, { color: theme.textPrimary }]}>
-                  Premium feature
-                </Text>
-                
-                <Text style={[styles.premiumModalText, { color: theme.textSecondary }]}>
-                  Upgrade your plan to add more people.
-                </Text>
-
-                <View style={styles.premiumModalButtons}>
-                  <TouchableOpacity
-                    onPress={handleClosePremiumModal}
-                    style={[styles.premiumSecondaryButton, { borderColor: theme.textSecondary }]}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.premiumSecondaryButtonText, { color: theme.textSecondary }]}>
-                      Not now
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleClosePremiumModal}
-                    style={styles.premiumPrimaryButton}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={theme.primaryGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.premiumPrimaryButtonGradient}
-                    >
-                      <Text style={[styles.premiumPrimaryButtonText, { color: theme.buttonText }]}>
-                        Learn about Premium
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </SwipeableCenterModal>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar style="auto" />
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <SafeSpaceLogo size={48} />
+            <Text style={[styles.title, { color: theme.textPrimary }]}>Your Safe Space</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+              {people.length === 0 ? 'Start by adding someone' : `${people.length} ${people.length === 1 ? 'person' : 'people'}`}
+            </Text>
           </View>
-        </SafeAreaView>
-      </LinearGradient>
-      
-      <LoadingOverlay visible={loading && !error} />
-      
-      <FloatingTabBar
-        tabs={[
-          {
-            name: 'home',
-            route: '/(tabs)/(home)',
-            icon: 'home',
-            iosIcon: 'house.fill',
-            label: 'Home',
-          },
-          {
-            name: 'library',
-            route: '/(tabs)/library',
-            icon: 'menu-book',
-            iosIcon: 'book.fill',
-            label: 'Library',
-          },
-        ]}
-      />
-    </>
+
+          <TouchableOpacity style={styles.addButton} onPress={() => setIsAddPersonOpen(true)}>
+            <Ionicons name="add-circle-outline" size={24} color="#FFFFFF" />
+            <Text style={styles.addButtonText}>Add Person</Text>
+          </TouchableOpacity>
+
+          {loading ? (
+            <LoadingOverlay visible={true} message="Loading..." />
+          ) : people.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={64} color="#D1D5DB" />
+              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                No people yet. Add someone to start a conversation.
+              </Text>
+            </View>
+          ) : (
+            people.map((person) => (
+              <Swipeable
+                key={person.id}
+                ref={(ref) => {
+                  if (ref) swipeableRefs.current.set(person.id, ref);
+                  else swipeableRefs.current.delete(person.id);
+                }}
+                renderRightActions={() => <DeleteAction onPress={() => handleDeletePerson(person.id)} />}
+                overshootRight={false}
+              >
+                <PersonCard person={person} onPress={() => handlePersonPress(person)} theme={theme} />
+              </Swipeable>
+            ))
+          )}
+        </ScrollView>
+
+        <AddPersonSheet
+          visible={isAddPersonOpen}
+          onClose={() => setIsAddPersonOpen(false)}
+          onPersonCreated={handlePersonCreated}
+          userId={userId}
+          theme={theme}
+          insets={insets}
+        />
+      </SafeAreaView>
+      <FloatingTabBar />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  gradientBackground: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  safeArea: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  container: {
-    flex: 1,
-  },
-  topHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 24,
-    paddingTop: Platform.OS === 'android' ? 8 : 0,
-    paddingBottom: 16,
-  },
-  headerTitleContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 6,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  settingsButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    marginTop: 4,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderRadius: 20,
-    marginBottom: 16,
-    gap: 12,
-    boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)',
-    elevation: 2,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  clearButton: {
-    padding: 4,
-  },
-  addButtonContainer: {
-    marginBottom: 24,
-    gap: 12,
-  },
-  addButton: {
-    borderRadius: 50,
-    overflow: 'hidden',
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-    elevation: 6,
-  },
-  addButtonInner: {
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  errorContainer: {
-    marginBottom: 24,
-  },
-  errorCard: {
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-    elevation: 3,
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 12,
-    marginBottom: 16,
-    lineHeight: 22,
-  },
-  retryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 24,
-  },
-  retryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  emptyIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-    elevation: 3,
-  },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionHeader: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-    opacity: 0.9,
-  },
-  cards: {
-    gap: 12,
-  },
-  noResultsContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  noResultsText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  noResultsSubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-
-  // Add Topic Modal Styles - UNCHANGED
-  addTopicModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    justifyContent: 'flex-end',
-  },
-  addTopicModalInner: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  addTopicKeyboardAvoid: {
-    width: '100%',
-  },
-  addTopicSheetCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingTop: 20,
-    minHeight: 500,
-    maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  addTopicModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
-  },
-  addTopicModalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  addTopicCloseButton: {
-    padding: 4,
-  },
-  addTopicScrollView: {
-    flex: 1,
-  },
-  addTopicScrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 16,
-  },
-  addTopicChipsContainer: {
-    marginBottom: 28,
-  },
-  addTopicHelperText: {
-    fontSize: 15,
-    color: '#555',
-    marginBottom: 12,
-    fontWeight: '500',
-  },
-  addTopicChipsWrapper: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  addTopicChip: {
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderRadius: 24,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1.5,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  addTopicChipSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  addTopicChipText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  addTopicChipTextSelected: {
-    color: '#FFF',
-  },
-  addTopicFieldContainer: {
-    marginBottom: 20,
-  },
-  addTopicInputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  addTopicInputRowContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  addTopicInputRowError: {
-    borderColor: '#FF3B30',
-  },
-  addTopicTextInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-    paddingVertical: 12,
-    minHeight: 44,
-  },
-  addTopicErrorText: {
-    color: '#FF3B30',
-    fontSize: 12,
-    marginTop: 6,
-    marginLeft: 4,
-  },
-  addTopicSelectedIndicator: {
-    backgroundColor: '#E8F5E9',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#4CAF50',
-  },
-  addTopicSelectedText: {
-    fontSize: 14,
-    color: '#2E7D32',
-    fontWeight: '500',
-  },
-  addTopicSelectedValue: {
-    fontWeight: 'bold',
-    color: '#1B5E20',
-  },
-  addTopicModalFooter: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
-  },
-  addTopicCancelButton: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 50,
-    borderWidth: 2,
-    borderColor: '#999',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addTopicCancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  addTopicSaveButton: {
-    flex: 1,
-    borderRadius: 50,
-    overflow: 'hidden',
-  },
-  addTopicSaveButtonDisabled: {
-    opacity: 0.5,
-  },
-  addTopicSaveButtonGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addTopicSaveButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFF',
-  },
-  premiumModalInner: {
-    padding: 32,
-    alignItems: 'center',
-  },
-  premiumIconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
-  },
-  premiumModalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  premiumModalText: {
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 28,
-  },
-  premiumModalButtons: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: 12,
-  },
-  premiumSecondaryButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 50,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  premiumSecondaryButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  premiumPrimaryButton: {
-    flex: 1,
-    borderRadius: 50,
-    overflow: 'hidden',
-  },
-  premiumPrimaryButtonGradient: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  premiumPrimaryButtonText: {
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-});
+export default HomeScreen;
