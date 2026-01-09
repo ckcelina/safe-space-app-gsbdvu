@@ -7,11 +7,13 @@ export type ThemeKey = 'OceanBlue' | 'SoftRose' | 'ForestGreen' | 'SunnyYellow';
 export interface Theme {
   primary: string;
   primaryGradient: [string, string];
+  gradientColors: [string, string]; // For full-screen gradients like lock screen
   background: string;
   card: string;
   textPrimary: string;
   textSecondary: string;
   buttonText: string;
+  buttonBackground: string; // For button backgrounds
   statusBarGradient: [string, string]; // NEW: Light gradient for status bar
 }
 
@@ -29,11 +31,13 @@ const THEME_STORAGE_KEY = '@safe_space_theme_v2';
 const oceanBlueTheme: Theme = {
   primary: '#1890FF',
   primaryGradient: ['#0050B3', '#40A9FF'],
+  gradientColors: ['#0050B3', '#40A9FF'],
   background: '#E6F7FF',
   card: '#FFFFFF',
   textPrimary: '#001529',
   textSecondary: '#595959',
   buttonText: '#FFFFFF',
+  buttonBackground: '#1890FF',
   statusBarGradient: ['#F0F9FF', '#E6F7FF'], // Very light blue gradient
 };
 
@@ -41,11 +45,13 @@ const oceanBlueTheme: Theme = {
 const softRoseTheme: Theme = {
   primary: '#FF69B4',
   primaryGradient: ['#FF69B4', '#FFB6C1'],
+  gradientColors: ['#FF69B4', '#FFB6C1'],
   background: '#FFF0F5',
   card: '#FFFFFF',
   textPrimary: '#4A1F2F',
   textSecondary: '#8B5A6B',
   buttonText: '#FFFFFF',
+  buttonBackground: '#FF69B4',
   statusBarGradient: ['#FFF5F9', '#FFF0F5'], // Very light rose gradient
 };
 
@@ -53,11 +59,13 @@ const softRoseTheme: Theme = {
 const forestGreenTheme: Theme = {
   primary: '#228B22',
   primaryGradient: ['#228B22', '#90EE90'],
+  gradientColors: ['#228B22', '#90EE90'],
   background: '#F0F8F0',
   card: '#FFFFFF',
   textPrimary: '#1B4D1B',
   textSecondary: '#4A7C4A',
   buttonText: '#FFFFFF',
+  buttonBackground: '#228B22',
   statusBarGradient: ['#F5FBF5', '#F0F8F0'], // Very light green gradient
 };
 
@@ -65,11 +73,13 @@ const forestGreenTheme: Theme = {
 const sunnyYellowTheme: Theme = {
   primary: '#F59E0B',
   primaryGradient: ['#F59E0B', '#FDE68A'],
+  gradientColors: ['#F59E0B', '#FDE68A'],
   background: '#FFFBEA',
   card: '#FFFFFF',
   textPrimary: '#5C4A1A',
   textSecondary: '#8B7355',
   buttonText: '#FFFFFF',
+  buttonBackground: '#F59E0B',
   statusBarGradient: ['#FFFEF5', '#FFFBEA'], // Very light yellow gradient
 };
 

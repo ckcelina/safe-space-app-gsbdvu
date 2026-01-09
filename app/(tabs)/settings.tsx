@@ -37,6 +37,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { useUserPreferences } from '@/contexts/UserPreferencesContext';
+import { useBiometricLock } from '@/contexts/BiometricLockContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
 import { deleteUserAccount } from '@/utils/accountDeletion';
@@ -124,6 +125,7 @@ export default function SettingsScreen() {
   const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
   const { preferences, updatePreferences } = useUserPreferences();
+  const { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled } = useBiometricLock();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
@@ -452,6 +454,18 @@ export default function SettingsScreen() {
       showErrorToast('Something went wrong. Please try again.');
     } finally {
       setIsUpdatingPassword(false);
+    }
+  };
+
+  // Face ID / Biometric Lock Handler
+  const handleToggleBiometric = async (value: boolean) => {
+    try {
+      console.log('[Settings] Toggling biometric lock:', value);
+      await setBiometricEnabled(value);
+      showSuccessToast(value ? 'Face ID enabled' : 'Face ID disabled');
+    } catch (error) {
+      console.error('[Settings] Error toggling biometric lock:', error);
+      showErrorToast('Failed to update Face ID setting');
     }
   };
 
@@ -1142,14 +1156,14 @@ export default function SettingsScreen() {
               </View>
             </View>
 
-            {/* Card 2: Account information */}
+            {/* Card 2: Privacy & Security */}
             <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
               <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                Account information
+                Privacy & Security
               </Text>
 
               <Pressable
-                style={[styles.row, { borderBottomWidth: 0 }]}
+                style={[styles.row, { borderBottomWidth: isBiometricAvailable ? 1 : 0, borderBottomColor: 'rgba(0, 0, 0, 0.05)' }]}
                 onPress={handleOpenChangePasswordModal}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
@@ -1175,6 +1189,35 @@ export default function SettingsScreen() {
                   color={theme.textSecondary}
                 />
               </Pressable>
+
+              {/* Face ID / Biometric Lock Toggle */}
+              {isBiometricAvailable && (
+                <View style={[styles.row, { borderBottomWidth: 0 }]} pointerEvents="box-none">
+                  <View style={styles.rowLeft} pointerEvents="none">
+                    <IconSymbol
+                      ios_icon_name="faceid"
+                      android_material_icon_name="fingerprint"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
+                        Require Face ID to open app
+                      </Text>
+                      <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
+                        Lock app after 30 seconds in background
+                      </Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={isBiometricEnabled}
+                    onValueChange={handleToggleBiometric}
+                    trackColor={{ false: theme.textSecondary + '40', true: theme.primary + '80' }}
+                    thumbColor={isBiometricEnabled ? theme.primary : '#f4f3f4'}
+                    ios_backgroundColor={theme.textSecondary + '40'}
+                  />
+                </View>
+              )}
             </View>
 
             {/* Card 2.5: Therapist Selection (Optional) */}
