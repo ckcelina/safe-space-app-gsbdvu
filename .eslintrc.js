@@ -1,4 +1,5 @@
 
+
 // https://docs.expo.dev/guides/using-eslint/
 module.exports = {
   extends: [
@@ -27,7 +28,6 @@ module.exports = {
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-var-requires": "off",
-    "@typescript-eslint/array-type": ["warn", { "default": "array-simple" }],
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-empty-object-type": "off",
     "@typescript-eslint/no-wrapper-object-types": "off",
@@ -41,7 +41,8 @@ module.exports = {
     "react/display-name": "off",
     "no-constant-condition": "off",
     "no-var": "off",
-    "no-useless-escape": "off"
+    "no-useless-escape": "off",
+    "@typescript-eslint/array-type": ["warn", { "default": "array", "readonly": "array" }]
   },
   overrides: [
     {
@@ -51,27 +52,15 @@ module.exports = {
       }
     },
     {
-      files: ['jest.setup.js', 'jest.config.js', '**/*.test.js', '**/*.test.ts', '**/*.test.tsx', '**/__tests__/**'],
+      files: ['__tests__/**/*', '*.test.ts', '*.test.tsx', 'jest.setup.js'],
       env: {
-        jest: true,
-        node: true,
+        jest: true
       },
-      globals: {
-        jest: 'readonly',
-      },
-    },
-    {
-      files: ['scripts/**/*.js', 'scripts/**/*.ts', 'babel.config.js', 'metro.config.js'],
-      env: {
-        node: true,
-      },
-      globals: {
-        __dirname: 'readonly',
-        __filename: 'readonly',
-        require: 'readonly',
-        module: 'readonly',
-        process: 'readonly',
-      },
-    },
+      rules: {
+        'import/no-unresolved': 'off',
+        'no-undef': 'off'
+      }
+    }
   ]
 };
+

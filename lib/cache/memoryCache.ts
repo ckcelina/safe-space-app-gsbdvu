@@ -178,7 +178,7 @@ class MemoryCache {
   /**
    * Get multiple values at once
    */
-  async getMany<T>(keys: string[]): Promise<(T | null)[]> {
+  async getMany<T>(keys: string[]): Promise<Array<T | null>> {
     return Promise.all(keys.map(key => this.get<T>(key)));
   }
 

@@ -169,12 +169,12 @@ export const linkAppleIdentity = async (): Promise<{ success: boolean; error?: s
  * Gets all identities linked to the current user
  */
 export const getUserIdentities = async (): Promise<{
-  identities: {
+  identities: Array<{
     id: string;
     provider: string;
     email?: string;
     created_at: string;
-  }[];
+  }>;
   error?: string;
 }> => {
   try {

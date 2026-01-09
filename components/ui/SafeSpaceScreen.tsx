@@ -22,7 +22,7 @@ interface SafeSpaceScreenProps {
   keyboardAware?: boolean;
   useGradient?: boolean;
   contentContainerStyle?: ViewStyle;
-  edges?: ('top' | 'bottom' | 'left' | 'right')[];
+  edges?: Array<'top' | 'bottom' | 'left' | 'right'>;
   showStatusBarGradient?: boolean;
 }
 

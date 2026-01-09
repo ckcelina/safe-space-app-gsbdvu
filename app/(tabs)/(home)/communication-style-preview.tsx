@@ -24,10 +24,10 @@ import { showSuccessToast } from '@/utils/toast';
 
 export default function CommunicationStylePreviewScreen() {
   const params = useLocalSearchParams<{
-    therapistPersonaId?: string | string[];
-    therapistName?: string | string[];
-    styleLabel?: string | string[];
-    description?: string | string[];
+    therapistPersonaId?: string | Array<string>;
+    therapistName?: string | Array<string>;
+    styleLabel?: string | Array<string>;
+    description?: string | Array<string>;
   }>();
 
   const therapistPersonaId = Array.isArray(params.therapistPersonaId)
@@ -49,7 +49,7 @@ export default function CommunicationStylePreviewScreen() {
   const { width, height } = useWindowDimensions();
 
   const [tryItInput, setTryItInput] = useState('');
-  const [tryItMessages, setTryItMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const [tryItMessages, setTryItMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Get persona data
@@ -225,22 +225,26 @@ export default function CommunicationStylePreviewScreen() {
                     />
                   </View>
                   <View style={styles.infoHeaderText}>
-                    <Text style={[
-                      styles.therapistName, 
-                      { 
-                        color: theme.textPrimary,
-                        fontSize: scale.nameSize,
-                      }
-                    ]}>
+                    <Text
+                      style={[
+                        styles.therapistName, 
+                        { 
+                          color: theme.textPrimary,
+                          fontSize: scale.nameSize,
+                        }
+                      ]}
+                    >
                       {previewContent.title}
                     </Text>
-                    <Text style={[
-                      styles.styleLabel, 
-                      { 
-                        color: theme.primary,
-                        fontSize: scale.subtitleSize,
-                      }
-                    ]}>
+                    <Text
+                      style={[
+                        styles.styleLabel, 
+                        { 
+                          color: theme.primary,
+                          fontSize: scale.subtitleSize,
+                        }
+                      ]}
+                    >
                       {previewContent.subtitle}
                     </Text>
                   </View>
