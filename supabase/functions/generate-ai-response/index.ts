@@ -27,40 +27,82 @@ const corsHeaders = {
 const DEFAULT_FALLBACK_MESSAGE = "I'm having a little trouble understanding. Could you please rephrase your question?";
 
 // ═══════════════════════════════════════════════════════════════════
-// THERAPIST PERSONA DEFINITIONS
+// THERAPIST PERSONA CONFIGURATIONS
+// Each persona has distinct OpenAI parameters for consistent behavior
 // ═══════════════════════════════════════════════════════════════════
-const THERAPIST_PERSONAS: Record<string, { name: string; systemPrompt: string }> = {
+interface TherapistConfig {
+  name: string;
+  systemPrompt: string;
+  temperature: number;      // 0.0-2.0: Lower = more focused, Higher = more creative
+  max_tokens: number;        // Response length limit
+  presence_penalty?: number; // -2.0 to 2.0: Penalize repetition of topics
+  frequency_penalty?: number; // -2.0 to 2.0: Penalize repetition of exact phrases
+}
+
+const THERAPIST_PERSONAS: Record<string, TherapistConfig> = {
   dr_elias: {
     name: "Dr. Elias",
     systemPrompt: `You are Dr. Elias. Speak slowly, calmly, and with emotional steadiness. Use grounding language, reassurance, and gentle perspective. Avoid urgency. Prioritize emotional safety and regulation. Do not diagnose or label the user.`,
+    temperature: 0.6,        // Lower temperature for calm, consistent responses
+    max_tokens: 250,         // Medium-length responses
+    presence_penalty: 0.3,   // Slight penalty to avoid repetitive topics
+    frequency_penalty: 0.2,  // Slight penalty to avoid repetitive phrasing
   },
   noah: {
     name: "Noah",
     systemPrompt: `You are Noah. Communicate clearly and practically. Ask clarifying questions when needed. Focus on structure, patterns, and actionable reflection. Be supportive but concise. Do not diagnose or label the user.`,
+    temperature: 0.5,        // Lower temperature for direct, practical responses
+    max_tokens: 180,         // Shorter responses (concise)
+    presence_penalty: 0.4,   // Higher penalty to stay focused
+    frequency_penalty: 0.3,  // Avoid repetitive phrasing
   },
   maya: {
     name: "Maya",
     systemPrompt: `You are Maya. Lead with empathy and validation. Reflect emotions clearly and warmly. Avoid rushing solutions. Use gentle language and supportive framing. Do not diagnose or label the user.`,
+    temperature: 0.7,        // Slightly higher for warm, empathetic responses
+    max_tokens: 280,         // Longer responses for validation
+    presence_penalty: 0.2,   // Lower penalty to allow emotional reflection
+    frequency_penalty: 0.2,  // Allow some repetition for emphasis
   },
   claire: {
     name: "Claire",
     systemPrompt: `You are Claire. Ask thoughtful, reflective questions. Highlight patterns gently. Encourage self-awareness without judgment or pressure. Do not diagnose or label the user.`,
+    temperature: 0.7,        // Higher for exploratory, reflective responses
+    max_tokens: 320,         // Longer responses for deep reflection
+    presence_penalty: 0.1,   // Low penalty to explore topics deeply
+    frequency_penalty: 0.1,  // Allow repetition for emphasis
   },
   ruth: {
     name: "Ruth",
     systemPrompt: `You are Ruth. Speak with warmth, care, and emotional steadiness. Offer reassurance and gentle perspective. Avoid being patronizing. Do not diagnose or label the user.`,
+    temperature: 0.7,        // Warm, nurturing tone
+    max_tokens: 350,         // Longer responses for nurturing support
+    presence_penalty: 0.2,   // Allow emotional topics to be revisited
+    frequency_penalty: 0.2,  // Allow some repetition for comfort
   },
   jordan: {
     name: "Jordan",
     systemPrompt: `You are Jordan. Be encouraging, affirming, and strength-focused. Highlight resilience and growth while staying emotionally respectful. Do not diagnose or label the user.`,
+    temperature: 0.7,        // Energetic, encouraging tone
+    max_tokens: 280,         // Medium-length responses
+    presence_penalty: 0.3,   // Avoid repetitive encouragement
+    frequency_penalty: 0.3,  // Vary phrasing for freshness
   },
   aisha: {
     name: "Aisha",
     systemPrompt: `You are Aisha. Lead with curiosity. Ask open-ended questions. Explore perspectives without steering or fixing. Encourage discovery. Do not diagnose or label the user.`,
+    temperature: 0.8,        // Higher for exploratory, curious responses
+    max_tokens: 300,         // Longer responses for exploration
+    presence_penalty: 0.1,   // Low penalty to explore topics freely
+    frequency_penalty: 0.2,  // Allow some repetition for emphasis
   },
   ken: {
     name: "Ken",
     systemPrompt: `You are Ken. Balance emotional awareness with logical clarity. Integrate feelings and reasoning calmly. Maintain a composed, respectful tone. Do not diagnose or label the user.`,
+    temperature: 0.6,        // Balanced, analytical tone
+    max_tokens: 300,         // Medium-length responses
+    presence_penalty: 0.3,   // Stay focused on logic + emotion
+    frequency_penalty: 0.3,  // Avoid repetitive phrasing
   },
 };
 
@@ -378,24 +420,28 @@ Deno.serve(async (req) => {
     console.log(`[Edge][Chat][${requestId}] Validated inputs - userId: ${userId}, personId: ${personId}, messages: ${messages.length}`);
 
     // ═══════════════════════════════════════════════════════════════════
-    // GET THERAPIST PERSONA - DR. ELIAS IS DEFAULT
+    // GET THERAPIST PERSONA CONFIGURATION - DR. ELIAS IS DEFAULT
     // ═══════════════════════════════════════════════════════════════════
-    const personaId = therapistPersonaId || DEFAULT_PERSONA_ID;
-    const persona = THERAPIST_PERSONAS[personaId] || THERAPIST_PERSONAS[DEFAULT_PERSONA_ID];
+    const requestedPersonaId = therapistPersonaId || DEFAULT_PERSONA_ID;
+    const personaConfig = THERAPIST_PERSONAS[requestedPersonaId] || THERAPIST_PERSONAS[DEFAULT_PERSONA_ID];
     
-    console.log(`[Edge][Chat][${requestId}] Therapist persona selected:`, {
+    console.log(`[Edge][Chat][${requestId}] 🎭 Therapist persona selected:`, {
       requestedPersonaId: therapistPersonaId,
-      resolvedPersonaId: personaId,
-      personaName: persona.name,
-      isDefault: personaId === DEFAULT_PERSONA_ID,
+      resolvedPersonaId: requestedPersonaId,
+      personaName: personaConfig.name,
+      isDefault: requestedPersonaId === DEFAULT_PERSONA_ID,
+      temperature: personaConfig.temperature,
+      max_tokens: personaConfig.max_tokens,
+      presence_penalty: personaConfig.presence_penalty,
+      frequency_penalty: personaConfig.frequency_penalty,
     });
 
     // Build comprehensive system prompt
-    let systemPrompt = `You are "${persona.name}," a warm, trauma-aware relationship and emotional support companion.
+    let systemPrompt = `You are "${personaConfig.name}," a warm, trauma-aware relationship and emotional support companion.
 
 You're talking about ${personName || 'this person'} (${personRelationshipType || 'relationship'}).
 
-${persona.systemPrompt}
+${personaConfig.systemPrompt}
 
 Core rules:
 - Keep replies short (1–3 sentences usually).
@@ -422,7 +468,7 @@ Please tailor your response to this specific subject.`;
     }));
 
     // ═══════════════════════════════════════════════════════════════════
-    // CALL OPENAI API WITH TIMEOUT
+    // CALL OPENAI API WITH PERSONA-SPECIFIC PARAMETERS
     // ═══════════════════════════════════════════════════════════════════
     
     const openaiStartTime = Date.now();
@@ -434,8 +480,14 @@ Please tailor your response to this specific subject.`;
 
     let openaiRes: Response;
     try {
-      console.log(`[Edge][Chat][${requestId}] Calling OpenAI API with persona: ${persona.name}...`);
-      console.log(`[Edge][Chat][${requestId}] Using API key: ${OPENAI_API_KEY.substring(0, 15)}...`);
+      console.log(`[Edge][Chat][${requestId}] 🤖 Calling OpenAI API with persona: ${personaConfig.name}...`);
+      console.log(`[Edge][Chat][${requestId}] 🎛️ OpenAI parameters:`, {
+        model: "gpt-4o-mini",
+        temperature: personaConfig.temperature,
+        max_tokens: personaConfig.max_tokens,
+        presence_penalty: personaConfig.presence_penalty,
+        frequency_penalty: personaConfig.frequency_penalty,
+      });
       
       openaiRes = await fetch(OPENAI_API_URL, {
         method: "POST",
@@ -446,8 +498,10 @@ Please tailor your response to this specific subject.`;
         body: JSON.stringify({
           model: "gpt-4o-mini",
           messages: [systemMessage, ...openaiMessages],
-          temperature: 0.7,
-          max_tokens: 300
+          temperature: personaConfig.temperature,
+          max_tokens: personaConfig.max_tokens,
+          presence_penalty: personaConfig.presence_penalty,
+          frequency_penalty: personaConfig.frequency_penalty,
         }),
         signal: openaiAbortController.signal
       });
@@ -565,7 +619,8 @@ Please tailor your response to this specific subject.`;
       replyText = DEFAULT_FALLBACK_MESSAGE;
     }
 
-    console.log(`[Edge][Chat][${requestId}] Final reply length: ${replyText.length} characters`);
+    console.log(`[Edge][Chat][${requestId}] ✅ Final reply length: ${replyText.length} characters`);
+    console.log(`[Edge][Chat][${requestId}] 🎭 Reply generated by: ${personaConfig.name}`);
 
     // ═══════════════════════════════════════════════════════════════════
     // INSERT ASSISTANT MESSAGE INTO DATABASE (SOURCE OF TRUTH)
@@ -629,10 +684,17 @@ Please tailor your response to this specific subject.`;
         total: totalLatency,
         openai: openaiLatency,
         dbInsert: dbInsertLatency
+      },
+      // Include persona info for debugging
+      persona: {
+        id: requestedPersonaId,
+        name: personaConfig.name,
+        temperature: personaConfig.temperature,
+        max_tokens: personaConfig.max_tokens,
       }
     };
 
-    console.log(`[Edge][Chat][${requestId}] ✅ Success - Total: ${totalLatency}ms, OpenAI: ${openaiLatency}ms, DB: ${dbInsertLatency}ms, Persona: ${persona.name}`);
+    console.log(`[Edge][Chat][${requestId}] ✅ Success - Total: ${totalLatency}ms, OpenAI: ${openaiLatency}ms, DB: ${dbInsertLatency}ms, Persona: ${personaConfig.name}`);
 
     return new Response(
       JSON.stringify(responseBody),
