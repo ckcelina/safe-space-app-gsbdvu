@@ -91,7 +91,8 @@ function ContentSection({
 
 export default function LibraryDetailScreen() {
   const { theme } = useThemeContext();
-  const { userId } = useAuth();
+  const { user } = useAuth();
+  const userId = user?.id;
   const { preferences } = useUserPreferences();
   const router = useRouter();
   const params = useLocalSearchParams();

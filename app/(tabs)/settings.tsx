@@ -122,7 +122,9 @@ function formatRelativeDate(dateString: string): string {
 // to ensure routing always points to this exact Settings screen implementation.
 // DO NOT rename this component or change the default export.
 export default function SettingsScreen() {
-  const { email, role, userId, signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const email = user?.email;
+  const userId = user?.id;
   const { themeKey, theme, setTheme } = useThemeContext();
   const { preferences, updatePreferences } = useUserPreferences();
   const { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled } = useBiometricLock();

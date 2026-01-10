@@ -1,120 +1,21 @@
 
 import React, { ReactNode } from 'react';
-import {
-  View,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  ViewStyle,
-  Dimensions,
-} from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useThemeContext } from '@/contexts/ThemeContext';
-import { StatusBarGradient } from './StatusBarGradient';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-interface SafeSpaceScreenProps {
-  children: ReactNode;
-  scrollable?: boolean;
-  keyboardAware?: boolean;
-  useGradient?: boolean;
-  contentContainerStyle?: ViewStyle;
-  edges?: Array<'top' | 'bottom' | 'left' | 'right'>;
-  showStatusBarGradient?: boolean;
-}
-
-export function SafeSpaceScreen({
-  children,
-  scrollable = true,
-  keyboardAware = true,
-  useGradient = true,
-  contentContainerStyle,
-  edges = ['top', 'bottom'],
-  showStatusBarGradient = true,
-}: SafeSpaceScreenProps) {
-  const { theme } = useThemeContext();
-
-  const content = scrollable ? (
-    <ScrollView
-      style={styles.scrollView}
-      contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      bounces={false}
-    >
-      {children}
-    </ScrollView>
-  ) : (
-    <View style={[styles.content, contentContainerStyle]}>{children}</View>
-  );
-
-  const wrappedContent = keyboardAware ? (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.keyboardView}
-      keyboardVerticalOffset={0}
-    >
-      {content}
-    </KeyboardAvoidingView>
-  ) : (
-    content
-  );
-
-  if (useGradient) {
-    return (
-      <LinearGradient
-        colors={[theme.background, theme.card]}
-        style={styles.fullScreenContainer}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-      >
-        {showStatusBarGradient && <StatusBarGradient />}
-        <SafeAreaView 
-          style={[styles.safeArea, { backgroundColor: 'transparent' }]} 
-          edges={edges}
-        >
-          {wrappedContent}
-        </SafeAreaView>
-      </LinearGradient>
-    );
-  }
-
+export function SafeSpaceScreen({ children }: { children: ReactNode }) {
   return (
-    <View style={[styles.fullScreenContainer, { backgroundColor: theme.background }]}>
-      {showStatusBarGradient && <StatusBarGradient />}
-      <SafeAreaView style={styles.safeArea} edges={edges}>
-        {wrappedContent}
-      </SafeAreaView>
-    </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>{children}</View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  fullScreenContainer: {
+  container: {
     flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  safeArea: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: Math.min(SCREEN_WIDTH * 0.06, 24),
-    paddingVertical: SCREEN_HEIGHT * 0.025,
   },
   content: {
     flex: 1,
-    paddingHorizontal: Math.min(SCREEN_WIDTH * 0.06, 24),
-    paddingVertical: SCREEN_HEIGHT * 0.025,
   },
 });

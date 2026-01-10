@@ -363,7 +363,7 @@ export default function ChatScreen() {
     initialSubject?: string;
   }>();
 
-  const { authUser } = useAuth();
+  const { user: authUser } = useAuth();
   const { theme } = useThemeContext();
   const insets = useSafeAreaInsets();
   const { preferences } = useUserPreferences();

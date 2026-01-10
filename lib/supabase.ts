@@ -1,51 +1,22 @@
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
-import { Alert } from 'react-native';
+import Constants from 'expo-constants';
+import 'react-native-url-polyfill/auto';
 
-// Environment variables with validation
-// Check process.env first, then fall back to hardcoded values
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://zjzvkxvahrbuuyzjzxol.supabase.co';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqenZreHZhaHJidXV5emp6eG9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4MzQ0MjMsImV4cCI6MjA4MDQxMDQyM30.TrjFcA0HEbA6ocLLlbadS0RwuEjKU0ttnacGXyEk1M8';
+// Get Supabase configuration from environment variables
+const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Validate environment variables at startup
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('[Supabase] ❌ CRITICAL: Missing environment variables!');
-  console.error('[Supabase] URL:', supabaseUrl ? 'Present' : 'MISSING');
-  console.error('[Supabase] Key:', supabaseAnonKey ? 'Present' : 'MISSING');
-  
-  // Show user-friendly error instead of crashing
-  setTimeout(() => {
-    Alert.alert(
-      'Configuration Error',
-      'The app is missing required configuration. Please contact support.',
-      [{ text: 'OK' }]
-    );
-  }, 1000);
-} else {
-  // Log successful configuration (dev only)
-  if (__DEV__) {
-    const usingEnvVars = !!process.env.EXPO_PUBLIC_SUPABASE_URL;
-    console.log(`[Supabase] ✅ Configuration source: ${usingEnvVars ? 'Environment variables' : 'Hardcoded fallback'}`);
-    console.log(`[Supabase] ✅ URL: ${supabaseUrl.substring(0, 30)}...`);
-    console.log(`[Supabase] ✅ Key: ${supabaseAnonKey.substring(0, 20)}...`);
-  }
+// Validate configuration
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn('⚠️ Supabase configuration missing. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your .env file.');
 }
 
-// Create and export a single Supabase client instance
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Create Supabase client
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
   },
 });
-
-// Log successful initialization
-console.log('[Supabase] ✅ Client initialized successfully');
-
-// Export a function to check if client is ready
-export const isSupabaseReady = () => {
-  return !!(supabaseUrl && supabaseAnonKey && supabase);
-};

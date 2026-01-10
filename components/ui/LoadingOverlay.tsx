@@ -1,45 +1,19 @@
 
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet, Modal } from 'react-native';
-import { useThemeContext } from '@/contexts/ThemeContext';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
-interface LoadingOverlayProps {
-  visible: boolean;
-}
-
-export function LoadingOverlay({ visible }: LoadingOverlayProps) {
-  const { theme } = useThemeContext();
-
-  // CRITICAL: Unmount completely when not visible to prevent touch blocking
-  if (!visible) return null;
-
+export function LoadingOverlay() {
   return (
-    <Modal
-      transparent
-      visible={true}
-      animationType="fade"
-      statusBarTranslucent
-    >
-      <View style={styles.overlay} pointerEvents="auto">
-        <View style={[styles.container, { backgroundColor: theme.card }]}>
-          <ActivityIndicator size="large" color={theme.primary} />
-        </View>
-      </View>
-    </Modal>
+    <View style={styles.container}>
+      <ActivityIndicator size="large" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  container: {
-    padding: 32,
-    borderRadius: 16,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.2)',
-    elevation: 8,
   },
 });

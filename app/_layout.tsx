@@ -26,7 +26,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
-  initialRouteName: "index",
+  initialRouteName: "(tabs)",
 };
 
 export default function RootLayout() {
@@ -89,29 +89,19 @@ export default function RootLayout() {
       <NavigationThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
       >
-        <ThemeProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <ThemeProvider>
             <UserPreferencesProvider>
               <BiometricLockProvider>
                 <WidgetProvider>
                   <GestureHandlerRootView style={{ flex: 1 }}>
-                    <Stack screenOptions={{ headerShown: false }}>
-                      <Stack.Screen name="index" />
-                      <Stack.Screen name="login" />
-                      <Stack.Screen name="signup" />
-                      <Stack.Screen name="onboarding" />
-                      <Stack.Screen name="theme-selection" />
-                      <Stack.Screen name="forgot-password" />
-                      <Stack.Screen name="reset-password" />
-                      <Stack.Screen name="ai-preferences-onboarding" />
-                      <Stack.Screen name="(tabs)" />
-                      <Stack.Screen name="(dev)" />
+                    <Stack>
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                       <Stack.Screen
                         name="modal"
                         options={{
                           presentation: "modal",
                           title: "Standard Modal",
-                          headerShown: true,
                         }}
                       />
                       <Stack.Screen
@@ -119,7 +109,6 @@ export default function RootLayout() {
                         options={{
                           presentation: "formSheet",
                           title: "Form Sheet Modal",
-                          headerShown: true,
                           sheetGrabberVisible: true,
                           sheetAllowedDetents: [0.5, 0.8, 1.0],
                           sheetCornerRadius: 20,
@@ -132,60 +121,14 @@ export default function RootLayout() {
                           headerShown: false,
                         }}
                       />
-                      <Stack.Screen
-                        name="legal/terms-of-service"
-                        options={{
-                          presentation: "modal",
-                          title: "Terms of Service",
-                          headerShown: true,
-                        }}
-                      />
-                      <Stack.Screen
-                        name="legal/privacy-policy"
-                        options={{
-                          presentation: "modal",
-                          title: "Privacy Policy",
-                          headerShown: true,
-                        }}
-                      />
-                      <Stack.Screen
-                        name="legal/terms-summary"
-                        options={{
-                          presentation: "modal",
-                          title: "Terms Summary",
-                          headerShown: true,
-                        }}
-                      />
-                      <Stack.Screen
-                        name="test-ai-response"
-                        options={{
-                          presentation: "modal",
-                          title: "Test AI Response",
-                          headerShown: true,
-                        }}
-                      />
-                      <Stack.Screen
-                        name="edit-profile"
-                        options={{
-                          presentation: "modal",
-                          title: "Edit Profile",
-                          headerShown: true,
-                        }}
-                      />
-                      <Stack.Screen
-                        name="auth-callback"
-                        options={{
-                          headerShown: false,
-                        }}
-                      />
                     </Stack>
                     <SystemBars style={"auto"} />
                   </GestureHandlerRootView>
                 </WidgetProvider>
               </BiometricLockProvider>
             </UserPreferencesProvider>
-          </AuthProvider>
-        </ThemeProvider>
+          </ThemeProvider>
+        </AuthProvider>
       </NavigationThemeProvider>
     </ErrorBoundary>
   );
