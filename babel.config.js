@@ -1,3 +1,4 @@
+
 module.exports = function (api) {
   api.cache(true);
 
@@ -35,11 +36,12 @@ module.exports = function (api) {
             "@hooks": "./hooks",
             "@types": "./types",
             "@contexts": "./contexts",
+            "@lib": "./lib",
           },
         },
       ],
       ...EDITABLE_COMPONENTS,
-      "@babel/plugin-proposal-export-namespace-from",
+      "@babel/plugin-transform-export-namespace-from",
       "react-native-worklets/plugin", // react-native-worklets/plugin must be listed last!
     ],
   };
