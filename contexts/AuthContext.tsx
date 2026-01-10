@@ -42,8 +42,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Track if provider is mounted
-let isProviderMounted = false;
+// Track if AuthProvider is mounted (for dev tools)
+let authProviderMounted = false;
+
+/**
+ * Check if AuthProvider is mounted
+ * Used by dev tools to validate provider setup
+ */
+export function isAuthProviderMounted(): boolean {
+  return authProviderMounted;
+}
 
 /**
  * Opens OAuth popup for web-based social authentication
@@ -97,10 +105,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Mark provider as mounted
   useEffect(() => {
-    isProviderMounted = true;
+    authProviderMounted = true;
+    console.log('✅ AuthProvider mounted');
+    
     return () => {
-      isProviderMounted = false;
+      authProviderMounted = false;
+      console.log('❌ AuthProvider unmounted');
     };
   }, []);
 
@@ -142,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
         name,
-        callbackURL: "/profile",
+        callbackURL: "/profile", // TODO: Update redirect URL
       });
       await fetchUser();
     } catch (error) {
@@ -162,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Native: Use deep linking (handled by Better Auth)
         await authClient.signIn.social({
           provider: "google",
-          callbackURL: "/profile",
+          callbackURL: "/profile", // TODO: Update redirect URL
         });
         await fetchUser();
       }
@@ -183,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Native: Use deep linking
         await authClient.signIn.social({
           provider: "apple",
-          callbackURL: "/profile",
+          callbackURL: "/profile", // TODO: Update redirect URL
         });
         await fetchUser();
       }
@@ -204,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Native: Use deep linking
         await authClient.signIn.social({
           provider: "github",
-          callbackURL: "/profile",
+          callbackURL: "/profile", // TODO: Update redirect URL
         });
         await fetchUser();
       }
@@ -245,34 +257,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 /**
  * Hook to access auth context
- * SAFE: Returns fallback if used outside AuthProvider
+ * Must be used within AuthProvider
+ * 
+ * SAFE FALLBACK: Returns safe defaults if used outside provider
+ * This prevents "useAuth must be used within AuthProvider" crashes
  */
 export function useAuth() {
   const context = useContext(AuthContext);
-  
   if (context === undefined) {
-    console.warn("⚠️ useAuth called outside AuthProvider - returning safe fallback");
-    
-    // Return safe fallback object
+    // Safe fallback: return safe defaults instead of throwing
+    console.warn("⚠️ useAuth called outside AuthProvider. Returning safe fallback.");
     return {
       user: null,
       loading: false,
-      signInWithEmail: async () => { console.warn("Auth not initialized"); },
-      signUpWithEmail: async () => { console.warn("Auth not initialized"); },
-      signInWithGoogle: async () => { console.warn("Auth not initialized"); },
-      signInWithApple: async () => { console.warn("Auth not initialized"); },
-      signInWithGitHub: async () => { console.warn("Auth not initialized"); },
-      signOut: async () => { console.warn("Auth not initialized"); },
-      fetchUser: async () => { console.warn("Auth not initialized"); },
+      signInWithEmail: async () => { console.warn("signInWithEmail called outside AuthProvider"); },
+      signUpWithEmail: async () => { console.warn("signUpWithEmail called outside AuthProvider"); },
+      signInWithGoogle: async () => { console.warn("signInWithGoogle called outside AuthProvider"); },
+      signInWithApple: async () => { console.warn("signInWithApple called outside AuthProvider"); },
+      signInWithGitHub: async () => { console.warn("signInWithGitHub called outside AuthProvider"); },
+      signOut: async () => { console.warn("signOut called outside AuthProvider"); },
+      fetchUser: async () => { console.warn("fetchUser called outside AuthProvider"); },
     };
   }
-  
   return context;
-}
-
-/**
- * Check if AuthProvider is mounted (for debugging)
- */
-export function isAuthProviderMounted() {
-  return isProviderMounted;
 }

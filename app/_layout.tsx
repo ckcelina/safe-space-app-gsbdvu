@@ -8,6 +8,7 @@ import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useColorScheme, Alert } from "react-native";
 import { useNetworkState } from "expo-network";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   DarkTheme,
   DefaultTheme,
@@ -87,53 +88,55 @@ export default function RootLayout() {
     <>
       <StatusBar style="auto" animated />
       <ErrorBoundary>
-        <NavigationThemeProvider
-          value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
-        >
-          <AuthProvider>
-            <ThemeProvider>
-              <UserPreferencesProvider>
-                <BiometricLockProvider>
-                  <WidgetProvider>
-                    <GestureHandlerRootView style={{ flex: 1 }}>
-                      <Stack>
-                        {/* Main app with tabs */}
-                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <SafeAreaProvider>
+            <AuthProvider>
+              <ThemeProvider>
+                <UserPreferencesProvider>
+                  <BiometricLockProvider>
+                    <NavigationThemeProvider
+                      value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
+                    >
+                      <WidgetProvider>
+                        <Stack>
+                          {/* Main app with tabs */}
+                          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-                        {/* Modal Demo Screens */}
-                        <Stack.Screen
-                          name="modal"
-                          options={{
-                            presentation: "modal",
-                            title: "Standard Modal",
-                          }}
-                        />
-                        <Stack.Screen
-                          name="formsheet"
-                          options={{
-                            presentation: "formSheet",
-                            title: "Form Sheet Modal",
-                            sheetGrabberVisible: true,
-                            sheetAllowedDetents: [0.5, 0.8, 1.0],
-                            sheetCornerRadius: 20,
-                          }}
-                        />
-                        <Stack.Screen
-                          name="transparent-modal"
-                          options={{
-                            presentation: "transparentModal",
-                            headerShown: false,
-                          }}
-                        />
-                      </Stack>
-                      <SystemBars style={"auto"} />
-                    </GestureHandlerRootView>
-                  </WidgetProvider>
-                </BiometricLockProvider>
-              </UserPreferencesProvider>
-            </ThemeProvider>
-          </AuthProvider>
-        </NavigationThemeProvider>
+                          {/* Modal Demo Screens */}
+                          <Stack.Screen
+                            name="modal"
+                            options={{
+                              presentation: "modal",
+                              title: "Standard Modal",
+                            }}
+                          />
+                          <Stack.Screen
+                            name="formsheet"
+                            options={{
+                              presentation: "formSheet",
+                              title: "Form Sheet Modal",
+                              sheetGrabberVisible: true,
+                              sheetAllowedDetents: [0.5, 0.8, 1.0],
+                              sheetCornerRadius: 20,
+                            }}
+                          />
+                          <Stack.Screen
+                            name="transparent-modal"
+                            options={{
+                              presentation: "transparentModal",
+                              headerShown: false,
+                            }}
+                          />
+                        </Stack>
+                        <SystemBars style={"auto"} />
+                      </WidgetProvider>
+                    </NavigationThemeProvider>
+                  </BiometricLockProvider>
+                </UserPreferencesProvider>
+              </ThemeProvider>
+            </AuthProvider>
+          </SafeAreaProvider>
+        </GestureHandlerRootView>
       </ErrorBoundary>
     </>
   );
