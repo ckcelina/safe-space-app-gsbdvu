@@ -20,9 +20,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Platform } from "react-native";
 import { authClient, storeWebBearerToken } from "@/lib/auth";
 
-// Dev-only: Module-scoped flag to track provider mounting
-let __AUTH_PROVIDER_MOUNTED__ = false;
-
 // User type - customize based on your backend
 interface User {
   id: string;
@@ -44,6 +41,9 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Dev-only flag to track if provider is mounted
+export let __AUTH_PROVIDER_MOUNTED__ = false;
 
 /**
  * Opens OAuth popup for web-based social authentication
@@ -97,14 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Dev-only: Mark provider as mounted
+  // Mark provider as mounted (dev only)
   useEffect(() => {
     if (__DEV__) {
       __AUTH_PROVIDER_MOUNTED__ = true;
-      console.log('[AuthProvider] Mounted successfully');
     }
-    
-    // Cleanup on unmount
     return () => {
       if (__DEV__) {
         __AUTH_PROVIDER_MOUNTED__ = false;
@@ -253,21 +250,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 /**
  * Hook to access auth context
- * Must be used within AuthProvider
- * 
- * SAFETY GUARD: Returns safe fallback if used outside provider (dev-only warning)
- * This prevents the app from crashing if useAuth is called before AuthProvider mounts
+ * Returns safe fallback if used outside AuthProvider (prevents crashes)
  */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    // Safety guard: Don't crash the app, but warn in dev
-    if (__DEV__) {
-      console.error('❌ useAuth must be used within AuthProvider');
-      console.error('   Stack trace:', new Error().stack);
-      console.error('   Returning safe fallback to prevent crash');
-    }
-    // Return safe fallback to prevent crashes
+    console.error('❌ useAuth must be used within AuthProvider');
+    // Return safe fallback to prevent app crash
     return {
       user: null,
       loading: true,
@@ -284,8 +273,7 @@ export function useAuth() {
 }
 
 /**
- * Export the mount flag for dev checklist
- * This allows the dev checklist to verify AuthProvider is mounted
+ * Check if AuthProvider is mounted (dev only)
  */
 export function isAuthProviderMounted(): boolean {
   return __AUTH_PROVIDER_MOUNTED__;

@@ -128,10 +128,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Hook to access theme context
+ * Returns safe fallback if used outside ThemeProvider (prevents crashes)
+ */
 export function useThemeContext() {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    throw new Error('useThemeContext must be used within a ThemeProvider');
+    console.error('❌ useThemeContext must be used within ThemeProvider');
+    // Return safe fallback to prevent app crash
+    return {
+      themeKey: 'OceanBlue' as ThemeKey,
+      theme: oceanBlueTheme,
+      setTheme: async () => { 
+        console.warn('ThemeProvider not mounted, cannot set theme'); 
+      },
+    };
   }
   return context;
 }

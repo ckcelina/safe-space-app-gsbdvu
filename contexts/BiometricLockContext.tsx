@@ -109,10 +109,30 @@ export const BiometricLockProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
+/**
+ * Hook to access biometric lock context
+ * Returns safe fallback if used outside BiometricLockProvider (prevents crashes)
+ */
 export const useBiometricLock = () => {
   const context = useContext(BiometricLockContext);
   if (!context) {
-    throw new Error('useBiometricLock must be used within BiometricLockProvider');
+    console.error('❌ useBiometricLock must be used within BiometricLockProvider');
+    // Return safe fallback to prevent app crash
+    return {
+      isLocked: false,
+      isBiometricEnabled: false,
+      isBiometricAvailable: false,
+      setBiometricEnabled: async () => {
+        console.warn('BiometricLockProvider not mounted, cannot set biometric');
+      },
+      authenticate: async () => {
+        console.warn('BiometricLockProvider not mounted, cannot authenticate');
+        return false;
+      },
+      unlock: () => {
+        console.warn('BiometricLockProvider not mounted, cannot unlock');
+      },
+    };
   }
   return context;
 };

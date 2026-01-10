@@ -28,7 +28,12 @@ interface UserPreferencesContextType {
 const UserPreferencesContext = createContext<UserPreferencesContextType | undefined>(undefined);
 
 export function UserPreferencesProvider({ children }: { children: React.ReactNode }) {
-  const { userId, currentUser } = useAuth();
+  const authContext = useAuth();
+  
+  // Safe access to auth context
+  const userId = authContext?.user?.id || null;
+  const currentUser = authContext?.user || null;
+  
   const [preferences, setPreferences] = useState<UserPreferences>({
     ai_tone_id: DEFAULT_TONE_ID,
     ai_science_mode: false,
@@ -198,10 +203,29 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
   );
 }
 
+/**
+ * Hook to access user preferences context
+ * Returns safe fallback if used outside UserPreferencesProvider (prevents crashes)
+ */
 export function useUserPreferences() {
   const context = useContext(UserPreferencesContext);
   if (context === undefined) {
-    throw new Error('useUserPreferences must be used within a UserPreferencesProvider');
+    console.error('❌ useUserPreferences must be used within UserPreferencesProvider');
+    // Return safe fallback to prevent app crash
+    return {
+      preferences: {
+        ai_tone_id: DEFAULT_TONE_ID,
+        ai_science_mode: false,
+      },
+      loading: false,
+      updatePreferences: async () => ({ 
+        success: false, 
+        error: 'UserPreferencesProvider not mounted' 
+      }),
+      refreshPreferences: async () => {
+        console.warn('UserPreferencesProvider not mounted, cannot refresh');
+      },
+    };
   }
   return context;
 }
