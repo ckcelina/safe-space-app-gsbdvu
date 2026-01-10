@@ -18,6 +18,8 @@ import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
+import { BiometricLockProvider } from "@/contexts/BiometricLockContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -89,63 +91,99 @@ export default function RootLayout() {
       >
         <ThemeProvider>
           <AuthProvider>
-            <WidgetProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="login" />
-                  <Stack.Screen name="signup" />
-                  <Stack.Screen name="onboarding" />
-                  <Stack.Screen name="theme-selection" />
-                  <Stack.Screen name="forgot-password" />
-                  <Stack.Screen name="reset-password" />
-                  <Stack.Screen name="(tabs)" />
-                  <Stack.Screen
-                    name="modal"
-                    options={{
-                      presentation: "modal",
-                      title: "Standard Modal",
-                      headerShown: true,
-                    }}
-                  />
-                  <Stack.Screen
-                    name="formsheet"
-                    options={{
-                      presentation: "formSheet",
-                      title: "Form Sheet Modal",
-                      headerShown: true,
-                      sheetGrabberVisible: true,
-                      sheetAllowedDetents: [0.5, 0.8, 1.0],
-                      sheetCornerRadius: 20,
-                    }}
-                  />
-                  <Stack.Screen
-                    name="transparent-modal"
-                    options={{
-                      presentation: "transparentModal",
-                      headerShown: false,
-                    }}
-                  />
-                  <Stack.Screen
-                    name="legal/terms-of-service"
-                    options={{
-                      presentation: "modal",
-                      title: "Terms of Service",
-                      headerShown: true,
-                    }}
-                  />
-                  <Stack.Screen
-                    name="legal/privacy-policy"
-                    options={{
-                      presentation: "modal",
-                      title: "Privacy Policy",
-                      headerShown: true,
-                    }}
-                  />
-                </Stack>
-                <SystemBars style={"auto"} />
-              </GestureHandlerRootView>
-            </WidgetProvider>
+            <UserPreferencesProvider>
+              <BiometricLockProvider>
+                <WidgetProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <Stack screenOptions={{ headerShown: false }}>
+                      <Stack.Screen name="index" />
+                      <Stack.Screen name="login" />
+                      <Stack.Screen name="signup" />
+                      <Stack.Screen name="onboarding" />
+                      <Stack.Screen name="theme-selection" />
+                      <Stack.Screen name="forgot-password" />
+                      <Stack.Screen name="reset-password" />
+                      <Stack.Screen name="ai-preferences-onboarding" />
+                      <Stack.Screen name="(tabs)" />
+                      <Stack.Screen name="(dev)" />
+                      <Stack.Screen
+                        name="modal"
+                        options={{
+                          presentation: "modal",
+                          title: "Standard Modal",
+                          headerShown: true,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="formsheet"
+                        options={{
+                          presentation: "formSheet",
+                          title: "Form Sheet Modal",
+                          headerShown: true,
+                          sheetGrabberVisible: true,
+                          sheetAllowedDetents: [0.5, 0.8, 1.0],
+                          sheetCornerRadius: 20,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="transparent-modal"
+                        options={{
+                          presentation: "transparentModal",
+                          headerShown: false,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="legal/terms-of-service"
+                        options={{
+                          presentation: "modal",
+                          title: "Terms of Service",
+                          headerShown: true,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="legal/privacy-policy"
+                        options={{
+                          presentation: "modal",
+                          title: "Privacy Policy",
+                          headerShown: true,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="legal/terms-summary"
+                        options={{
+                          presentation: "modal",
+                          title: "Terms Summary",
+                          headerShown: true,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="test-ai-response"
+                        options={{
+                          presentation: "modal",
+                          title: "Test AI Response",
+                          headerShown: true,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="edit-profile"
+                        options={{
+                          presentation: "modal",
+                          title: "Edit Profile",
+                          headerShown: true,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="auth-callback"
+                        options={{
+                          headerShown: false,
+                        }}
+                      />
+                    </Stack>
+                    <SystemBars style={"auto"} />
+                  </GestureHandlerRootView>
+                </WidgetProvider>
+              </BiometricLockProvider>
+            </UserPreferencesProvider>
           </AuthProvider>
         </ThemeProvider>
       </NavigationThemeProvider>

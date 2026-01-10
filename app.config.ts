@@ -10,6 +10,7 @@ export default {
     icon: "./assets/images/natively-dark.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
+    platforms: ["ios", "android", "web"],
     splash: {
       image: "./assets/images/natively-dark.png",
       resizeMode: "contain",
@@ -37,7 +38,8 @@ export default {
     },
     plugins: [
       "expo-font",
-      "expo-router"
+      "expo-router",
+      "expo-web-browser"
     ],
     scheme: "natively",
     experiments: {
