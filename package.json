@@ -10,8 +10,7 @@
     "web": "EXPO_NO_TELEMETRY=1 expo start --web",
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
-    "lint": "eslint .",
-    "postinstall": "npx expo-doctor"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
@@ -38,11 +37,10 @@
     "expo-font": "^14.0.7",
     "expo-glass-effect": "^0.1.1",
     "expo-haptics": "^15.0.6",
-    "expo-image": "~3.0.11",
+    "expo-image-manipulator": "^14.0.7",
     "expo-image-picker": "^17.0.7",
     "expo-linear-gradient": "^15.0.6",
     "expo-linking": "^8.0.7",
-    "expo-local-authentication": "~17.0.8",
     "expo-network": "^8.0.7",
     "expo-router": "^6.0.0",
     "expo-secure-store": "^15.0.7",
