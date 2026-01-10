@@ -1,12 +1,14 @@
+
 {
   "expo": {
-    "name": "Safe Space",
-    "slug": "Safe Space",
+    "name": "Natively",
+    "slug": "Natively",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "platforms": ["ios", "android"],
     "splash": {
       "image": "./assets/images/natively-dark.png",
       "resizeMode": "contain",
@@ -27,22 +29,21 @@
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively"
     },
-    "web": {
-      "favicon": "./assets/images/final_quest_240x240.png",
-      "bundler": "metro"
-    },
     "plugins": [
       "expo-font",
-      "expo-router"
+      "expo-router",
+      "expo-web-browser"
     ],
-    "scheme": "natively",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
-      "backendUrl": "${EXPO_PUBLIC_BACKEND_URL}"
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "your-project-id"
+      }
     }
-  },
-  "scheme": "Safe Space"
+  }
 }
