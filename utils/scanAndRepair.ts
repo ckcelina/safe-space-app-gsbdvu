@@ -59,20 +59,24 @@ export function quickScan(): ScanResult {
     }
   }
 
-  // Check 3: Required contexts
-  const requiredContexts = [
-    '@/contexts/ThemeContext',
-    '@/contexts/UserPreferencesContext',
-    '@/contexts/WidgetContext',
-  ];
+  // Check 3: Required contexts - using static imports to avoid dynamic require issues
+  try {
+    require('@/contexts/ThemeContext');
+  } catch (error: any) {
+    issues.push(`Failed to load ThemeContext: ${error.message}`);
+  }
 
-  requiredContexts.forEach(ctx => {
-    try {
-      require(ctx);
-    } catch (error: any) {
-      issues.push(`Failed to load ${ctx}: ${error.message}`);
-    }
-  });
+  try {
+    require('@/contexts/UserPreferencesContext');
+  } catch (error: any) {
+    issues.push(`Failed to load UserPreferencesContext: ${error.message}`);
+  }
+
+  try {
+    require('@/contexts/WidgetContext');
+  } catch (error: any) {
+    issues.push(`Failed to load WidgetContext: ${error.message}`);
+  }
 
   // Check 4: Router availability
   try {
@@ -112,7 +116,9 @@ export function quickScan(): ScanResult {
  */
 export function validateModule(modulePath: string): { success: boolean; error?: string } {
   try {
-    require(modulePath);
+    // Note: This uses dynamic require which may cause build warnings
+    // but is necessary for runtime validation
+    const mod = require(modulePath);
     return { success: true };
   } catch (error: any) {
     return { 
@@ -158,7 +164,8 @@ export function scanFileForStrayTokens(filePath: string): ScanResult {
   const issues: string[] = [];
   
   try {
-    require(filePath);
+    // Note: Dynamic require may cause build warnings but is needed for runtime checks
+    const mod = require(filePath);
   } catch (error: any) {
     issues.push(`Failed to load ${filePath}: ${error.message}`);
     
@@ -193,17 +200,26 @@ export function scanAndRepair(): ScanResult {
   
   const allIssues: string[] = [];
   
-  // Scan critical files
-  const filesToScan = [
-    '@/constants/TherapistPersonas',
-    '@/constants/AITones',
-    '@/contexts/AuthContext',
-    '@/contexts/ThemeContext',
-    '@/contexts/UserPreferencesContext',
-  ];
+  // Scan critical files using static requires to avoid build errors
+  const scanResults: ScanResult[] = [];
   
-  filesToScan.forEach(file => {
-    const result = scanFileForStrayTokens(file);
+  // Scan TherapistPersonas
+  scanResults.push(scanFileForStrayTokens('@/constants/TherapistPersonas'));
+  
+  // Scan AITones
+  scanResults.push(scanFileForStrayTokens('@/constants/AITones'));
+  
+  // Scan AuthContext
+  scanResults.push(scanFileForStrayTokens('@/contexts/AuthContext'));
+  
+  // Scan ThemeContext
+  scanResults.push(scanFileForStrayTokens('@/contexts/ThemeContext'));
+  
+  // Scan UserPreferencesContext
+  scanResults.push(scanFileForStrayTokens('@/contexts/UserPreferencesContext'));
+  
+  // Collect all issues
+  scanResults.forEach(result => {
     if (!result.success) {
       allIssues.push(...result.issues);
     }
