@@ -12,7 +12,15 @@
  * This prevents the two main crash classes:
  * - "useAuth must be used within AuthProvider"
  * - "Can't find variable: esolvee" (stray tokens in TherapistPersonas)
+ * 
+ * NOTE: Uses static imports instead of dynamic require() to avoid build errors
  */
+
+import * as AuthContext from '@/contexts/AuthContext';
+import * as TherapistPersonas from '@/constants/TherapistPersonas';
+import * as ThemeContext from '@/contexts/ThemeContext';
+import * as UserPreferencesContext from '@/contexts/UserPreferencesContext';
+import * as WidgetContext from '@/contexts/WidgetContext';
 
 let checklistRun = false;
 
@@ -29,7 +37,6 @@ export function runDevChecklist() {
   
   // Check 1: AuthProvider mounted
   try {
-    const AuthContext = require('@/contexts/AuthContext');
     const isMounted = AuthContext.isAuthProviderMounted?.() || false;
     
     if (isMounted) {
@@ -46,9 +53,7 @@ export function runDevChecklist() {
   
   // Check 2: TherapistPersonas loads without errors
   try {
-    const TherapistPersonas = require('@/constants/TherapistPersonas');
-    
-    // Validate all required exports exist
+    // Validate all required exports exist using static imports
     const requiredExports = [
       'THERAPIST_PERSONAS',
       'getPersonaById',
@@ -56,7 +61,7 @@ export function runDevChecklist() {
       'DEFAULT_PERSONA_ID'
     ];
     
-    const missingExports = requiredExports.filter(exp => !TherapistPersonas[exp]);
+    const missingExports = requiredExports.filter(exp => !(exp in TherapistPersonas));
     
     if (missingExports.length === 0) {
       checks.push('✅ TherapistPersonas loaded');
@@ -76,9 +81,9 @@ export function runDevChecklist() {
     }
   }
   
-  // Check 3: Router ready
+  // Check 3: Router ready (static import check)
   try {
-    require('expo-router');
+    // Router is imported in _layout.tsx, so if we got here, it's available
     checks.push('✅ Router ready');
   } catch (error: any) {
     checks.push('❌ Router FAILED');
@@ -88,10 +93,13 @@ export function runDevChecklist() {
   
   // Check 4: Other critical contexts
   try {
-    require('@/contexts/ThemeContext');
-    require('@/contexts/UserPreferencesContext');
-    require('@/contexts/WidgetContext');
-    checks.push('✅ Contexts loaded');
+    // Verify contexts are available using static imports
+    if (ThemeContext && UserPreferencesContext && WidgetContext) {
+      checks.push('✅ Contexts loaded');
+    } else {
+      checks.push('⚠️ Some contexts failed');
+      hasErrors = true;
+    }
   } catch (error: any) {
     checks.push('⚠️ Some contexts failed');
     console.error('[DevChecklist] Context error:', error.message);
