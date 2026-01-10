@@ -17,15 +17,19 @@ export const useAuthSafe = () => {
     return {
       user: null,
       session: null,
-      loading: true,
+      loading: false,
       signInWithEmail: async () => { 
         throw new Error("Auth not ready"); 
       },
       signUpWithEmail: async () => { 
         throw new Error("Auth not ready"); 
       },
-      signOut: async () => {},
-      fetchUser: async () => {},
+      signOut: async () => {
+        console.warn("signOut called but AuthProvider not mounted");
+      },
+      fetchUser: async () => {
+        console.warn("fetchUser called but AuthProvider not mounted");
+      },
     };
   }
 };
@@ -56,7 +60,9 @@ export const useThemeSafe = () => {
     return {
       theme: defaultTheme,
       themeKey: 'OceanBlue' as const,
-      setTheme: async () => {},
+      setTheme: async () => {
+        console.warn("setTheme called but ThemeProvider not mounted");
+      },
     };
   }
 };
@@ -82,7 +88,9 @@ export const useUserPreferencesSafe = () => {
         success: false, 
         error: 'Preferences not ready' 
       }),
-      refreshPreferences: async () => {},
+      refreshPreferences: async () => {
+        console.warn("refreshPreferences called but UserPreferencesProvider not mounted");
+      },
     };
   }
 };

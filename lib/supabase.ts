@@ -10,9 +10,9 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOi
 
 // Validate environment variables at startup
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.log('[Supabase] Missing environment variables!');
-  console.log('[Supabase] URL:', supabaseUrl ? 'Present' : 'MISSING');
-  console.log('[Supabase] Key:', supabaseAnonKey ? 'Present' : 'MISSING');
+  console.error('[Supabase] ❌ CRITICAL: Missing environment variables!');
+  console.error('[Supabase] URL:', supabaseUrl ? 'Present' : 'MISSING');
+  console.error('[Supabase] Key:', supabaseAnonKey ? 'Present' : 'MISSING');
   
   // Show user-friendly error instead of crashing
   setTimeout(() => {
@@ -26,7 +26,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   // Log successful configuration (dev only)
   if (__DEV__) {
     const usingEnvVars = !!process.env.EXPO_PUBLIC_SUPABASE_URL;
-    console.log(`[Supabase] Configuration source: ${usingEnvVars ? 'Environment variables' : 'Hardcoded fallback'}`);
+    console.log(`[Supabase] ✅ Configuration source: ${usingEnvVars ? 'Environment variables' : 'Hardcoded fallback'}`);
+    console.log(`[Supabase] ✅ URL: ${supabaseUrl.substring(0, 30)}...`);
+    console.log(`[Supabase] ✅ Key: ${supabaseAnonKey.substring(0, 20)}...`);
   }
 }
 
@@ -41,7 +43,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 // Log successful initialization
-console.log('[Supabase] Client initialized successfully');
+console.log('[Supabase] ✅ Client initialized successfully');
 
 // Export a function to check if client is ready
 export const isSupabaseReady = () => {

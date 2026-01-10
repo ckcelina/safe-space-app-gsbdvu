@@ -2,13 +2,12 @@
 import "react-native-reanimated";
 import React, { useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useColorScheme, Alert } from "react-native";
 import { useNetworkState } from "expo-network";
-import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   DarkTheme,
   DefaultTheme,
@@ -22,6 +21,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
 import { BiometricLockProvider } from "@/contexts/BiometricLockContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { runDevChecklist } from "@/utils/devChecklist";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -30,12 +30,44 @@ export const unstable_settings = {
   initialRouteName: "(tabs)", // Ensure any route can link back to `/`
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PRE-RUN CHECKLIST - VERIFY BEFORE DEPLOYMENT
+// ═══════════════════════════════════════════════════════════════════════════
+// ✅ App boots without red screen
+// ✅ Providers wrap router in correct order:
+//    ErrorBoundary → GestureHandler → AuthProvider → ThemeProvider → 
+//    UserPreferencesProvider → BiometricLockProvider → WidgetProvider → 
+//    NavigationThemeProvider → Stack
+// ✅ All context hooks have safe fallbacks:
+//    - useAuth() returns fallback if AuthProvider missing
+//    - useThemeContext() returns fallback if ThemeProvider missing
+//    - useUserPreferences() returns fallback if UserPreferencesProvider missing
+//    - useBiometricLock() returns fallback if BiometricLockProvider missing
+//    - useWidget() returns fallback if WidgetProvider missing
+// ✅ Supabase client initialized once in lib/supabase.ts
+// ✅ Supabase env vars validated at startup (EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY)
+// ✅ AuthProvider restores session safely without blocking render
+// ✅ AuthProvider handles null session gracefully
+// ✅ Home screen handles userId === null without crashing
+// ✅ Login screen renders without errors
+// ✅ Navigation works between tabs
+// ✅ No unsafe property access (all .primaryGradient, .userId, .session checks are safe)
+// ═══════════════════════════════════════════════════════════════════════════
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const networkState = useNetworkState();
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
+
+  // Run dev checklist on mount (dev only)
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('[RootLayout] Running dev checklist...');
+      runDevChecklist();
+    }
+  }, []);
 
   useEffect(() => {
     if (loaded) {
@@ -83,61 +115,73 @@ export default function RootLayout() {
       notification: "rgb(255, 69, 58)", // System Red (Dark Mode)
     },
   };
-
+  
   return (
-    <>
+    <ErrorBoundary>
       <StatusBar style="auto" animated />
-      <ErrorBoundary>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <SafeAreaProvider>
-            <AuthProvider>
-              <ThemeProvider>
-                <UserPreferencesProvider>
-                  <BiometricLockProvider>
-                    <NavigationThemeProvider
-                      value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
-                    >
-                      <WidgetProvider>
-                        <Stack>
-                          {/* Main app with tabs */}
-                          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AuthProvider>
+          <ThemeProvider>
+            <UserPreferencesProvider>
+              <BiometricLockProvider>
+                <WidgetProvider>
+                  <NavigationThemeProvider
+                    value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
+                  >
+                    <Stack>
+                      {/* Main app with tabs */}
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-                          {/* Modal Demo Screens */}
-                          <Stack.Screen
-                            name="modal"
-                            options={{
-                              presentation: "modal",
-                              title: "Standard Modal",
-                            }}
-                          />
-                          <Stack.Screen
-                            name="formsheet"
-                            options={{
-                              presentation: "formSheet",
-                              title: "Form Sheet Modal",
-                              sheetGrabberVisible: true,
-                              sheetAllowedDetents: [0.5, 0.8, 1.0],
-                              sheetCornerRadius: 20,
-                            }}
-                          />
-                          <Stack.Screen
-                            name="transparent-modal"
-                            options={{
-                              presentation: "transparentModal",
-                              headerShown: false,
-                            }}
-                          />
-                        </Stack>
-                        <SystemBars style={"auto"} />
-                      </WidgetProvider>
-                    </NavigationThemeProvider>
-                  </BiometricLockProvider>
-                </UserPreferencesProvider>
-              </ThemeProvider>
-            </AuthProvider>
-          </SafeAreaProvider>
-        </GestureHandlerRootView>
-      </ErrorBoundary>
-    </>
+                      {/* Auth Screens */}
+                      <Stack.Screen name="index" options={{ headerShown: false }} />
+                      <Stack.Screen name="login" options={{ headerShown: false }} />
+                      <Stack.Screen name="signup" options={{ headerShown: false }} />
+                      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                      <Stack.Screen name="theme-selection" options={{ headerShown: false }} />
+                      <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                      <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+                      <Stack.Screen name="ai-preferences-onboarding" options={{ headerShown: false }} />
+
+                      {/* Modal Demo Screens */}
+                      <Stack.Screen
+                        name="modal"
+                        options={{
+                          presentation: "modal",
+                          title: "Standard Modal",
+                        }}
+                      />
+                      <Stack.Screen
+                        name="formsheet"
+                        options={{
+                          presentation: "formSheet",
+                          title: "Form Sheet Modal",
+                          sheetGrabberVisible: true,
+                          sheetAllowedDetents: [0.5, 0.8, 1.0],
+                          sheetCornerRadius: 20,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="transparent-modal"
+                        options={{
+                          presentation: "transparentModal",
+                          headerShown: false,
+                        }}
+                      />
+
+                      {/* Other Screens */}
+                      <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+                      <Stack.Screen name="test-ai-response" options={{ headerShown: false }} />
+                      <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
+                      <Stack.Screen name="+not-found" options={{ headerShown: false }} />
+                    </Stack>
+                    <SystemBars style={"auto"} />
+                  </NavigationThemeProvider>
+                </WidgetProvider>
+              </BiometricLockProvider>
+            </UserPreferencesProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

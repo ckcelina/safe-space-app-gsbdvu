@@ -101,9 +101,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const key = savedTheme as ThemeKey;
         setThemeKey(key);
         setThemeState(themes[key]);
+        console.log('[Theme] ✅ Loaded saved theme:', key);
+      } else {
+        console.log('[Theme] ℹ️ Using default theme: OceanBlue');
       }
     } catch (error) {
-      console.error('Error loading theme:', error);
+      console.error('[Theme] ⚠️ Error loading theme:', error);
     }
   }, []);
 
@@ -116,8 +119,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeKey);
       setThemeKey(newThemeKey);
       setThemeState(themes[newThemeKey]);
+      console.log('[Theme] ✅ Theme changed to:', newThemeKey);
     } catch (error) {
-      console.error('Error saving theme:', error);
+      console.error('[Theme] ⚠️ Error saving theme:', error);
     }
   };
 
@@ -135,7 +139,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function useThemeContext() {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    console.error('❌ useThemeContext must be used within ThemeProvider');
+    console.warn('⚠️ useThemeContext called outside ThemeProvider - returning safe fallback');
     // Return safe fallback to prevent app crash
     return {
       themeKey: 'OceanBlue' as ThemeKey,

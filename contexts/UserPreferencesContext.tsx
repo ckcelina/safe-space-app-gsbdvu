@@ -42,7 +42,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
 
   const fetchPreferences = useCallback(async () => {
     if (!userId) {
-      console.log('[UserPreferences] No userId, using defaults');
+      console.log('[UserPreferences] ℹ️ No userId, using defaults');
       setPreferences({
         ai_tone_id: DEFAULT_TONE_ID,
         ai_science_mode: false,
@@ -72,14 +72,14 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
       ]) as any;
 
       if (error) {
-        console.log('[UserPreferences] Error fetching preferences (using defaults):', error?.message || 'Unknown error');
+        console.log('[UserPreferences] ⚠️ Error fetching preferences (using defaults):', error?.message || 'Unknown error');
         // Use defaults on error - do not crash
         setPreferences({
           ai_tone_id: DEFAULT_TONE_ID,
           ai_science_mode: false,
         });
       } else if (data) {
-        console.log('[UserPreferences] Preferences loaded');
+        console.log('[UserPreferences] ✅ Preferences loaded');
         const loadedPreferences = {
           ai_tone_id: data.ai_tone_id || DEFAULT_TONE_ID,
           ai_science_mode: data.ai_science_mode ?? false,
@@ -102,7 +102,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
           });
         }
       } else {
-        console.log('[UserPreferences] No preferences found, using defaults');
+        console.log('[UserPreferences] ℹ️ No preferences found, using defaults');
         // No row exists yet - use defaults
         setPreferences({
           ai_tone_id: DEFAULT_TONE_ID,
@@ -110,7 +110,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
         });
       }
     } catch (err: any) {
-      console.log('[UserPreferences] Unexpected error (using defaults):', err?.message || 'Unknown error');
+      console.log('[UserPreferences] ⚠️ Unexpected error (using defaults):', err?.message || 'Unknown error');
       // Use defaults on any error - do not crash
       setPreferences({
         ai_tone_id: DEFAULT_TONE_ID,
@@ -132,7 +132,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
 
   const updatePreferences = useCallback(async (patch: Partial<UserPreferences>) => {
     if (!userId) {
-      console.log('[UserPreferences] Cannot update: no userId');
+      console.log('[UserPreferences] ⚠️ Cannot update: no userId');
       return { success: false, error: 'Not logged in' };
     }
 
@@ -162,13 +162,13 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
         );
 
       if (error) {
-        console.log('[UserPreferences] Update error:', error.message);
+        console.log('[UserPreferences] ⚠️ Update error:', error.message);
         return { success: false, error: error.message };
       }
 
       // Update local state
       setPreferences((prev) => ({ ...prev, ...patch }));
-      console.log('[UserPreferences] Preferences updated successfully');
+      console.log('[UserPreferences] ✅ Preferences updated successfully');
       
       // Prefetch new therapist avatar if persona changed
       if (patch.therapist_persona_id && patch.therapist_persona_id !== preferences.therapist_persona_id) {
@@ -180,7 +180,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
       
       return { success: true };
     } catch (err: any) {
-      console.log('[UserPreferences] Unexpected update error:', err?.message || 'Unknown error');
+      console.log('[UserPreferences] ⚠️ Unexpected update error:', err?.message || 'Unknown error');
       return { success: false, error: err?.message || 'Failed to update preferences' };
     }
   }, [userId, preferences]);
@@ -210,7 +210,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
 export function useUserPreferences() {
   const context = useContext(UserPreferencesContext);
   if (context === undefined) {
-    console.error('❌ useUserPreferences must be used within UserPreferencesProvider');
+    console.warn('⚠️ useUserPreferences called outside UserPreferencesProvider - returning safe fallback');
     // Return safe fallback to prevent app crash
     return {
       preferences: {

@@ -35,15 +35,19 @@ export function WidgetProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Hook to access widget context
+ * Returns safe fallback if used outside provider
+ */
 export const useWidget = () => {
   const context = useContext(WidgetContext);
   if (!context) {
-    // Safe fallback: return no-op function instead of throwing
-    console.warn("useWidget must be used within a WidgetProvider. Returning safe fallback.");
+    // Safe fallback - log warning but don't crash
+    console.warn("⚠️ useWidget called outside WidgetProvider - returning no-op fallback");
     return {
       refreshWidget: () => {
-        console.warn("refreshWidget called outside WidgetProvider - no-op");
-      }
+        console.warn("refreshWidget called but WidgetProvider not mounted");
+      },
     };
   }
   return context;

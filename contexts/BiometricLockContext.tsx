@@ -61,7 +61,9 @@ export const BiometricLockProvider: React.FC<{ children: React.ReactNode }> = ({
       const compatible = await LocalAuthentication.hasHardwareAsync();
       const enrolled = await LocalAuthentication.isEnrolledAsync();
       setIsBiometricAvailable(compatible && enrolled);
-    } catch {
+      console.log('[BiometricLock] ✅ Biometric availability checked:', compatible && enrolled);
+    } catch (error) {
+      console.warn('[BiometricLock] ⚠️ Error checking biometric availability:', error);
       setIsBiometricAvailable(false);
     }
   };
@@ -70,7 +72,9 @@ export const BiometricLockProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       const enabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
       setIsBiometricEnabledState(enabled === 'true');
-    } catch {
+      console.log('[BiometricLock] ✅ Biometric preference loaded:', enabled === 'true');
+    } catch (error) {
+      console.warn('[BiometricLock] ⚠️ Error loading biometric preference:', error);
       setIsBiometricEnabledState(false);
     }
   };
@@ -78,6 +82,7 @@ export const BiometricLockProvider: React.FC<{ children: React.ReactNode }> = ({
   const setBiometricEnabled = async (enabled: boolean) => {
     await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, enabled ? 'true' : 'false');
     setIsBiometricEnabledState(enabled);
+    console.log('[BiometricLock] ✅ Biometric enabled set to:', enabled);
   };
 
   const authenticate = async (): Promise<boolean> => {
@@ -116,7 +121,7 @@ export const BiometricLockProvider: React.FC<{ children: React.ReactNode }> = ({
 export const useBiometricLock = () => {
   const context = useContext(BiometricLockContext);
   if (!context) {
-    console.error('❌ useBiometricLock must be used within BiometricLockProvider');
+    console.warn('⚠️ useBiometricLock called outside BiometricLockProvider - returning safe fallback');
     // Return safe fallback to prevent app crash
     return {
       isLocked: false,
