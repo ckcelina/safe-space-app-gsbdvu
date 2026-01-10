@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import React, { useState } from 'react';
@@ -86,6 +86,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
+  const { signIn } = useAuth();
   const { theme } = useThemeContext();
 
   const handleLogin = async () => {
@@ -96,58 +97,12 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      console.log('[Login] Attempting login with email:', email);
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password.trim(),
-      });
-
-      if (error) {
-        console.error('[Login] Supabase auth error:', error);
-        showErrorToast(error.message || 'Login failed');
-        return;
-      }
-
-      if (!data.user) {
-        console.error('[Login] No user returned from Supabase');
-        showErrorToast('Login failed - no user data');
-        return;
-      }
-
-      console.log('[Login] Login successful, user:', data.user.id);
-
-      // Check if user profile exists in public.users
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('user_id', data.user.id)
-        .single();
-
-      if (userError && userError.code !== 'PGRST116') {
-        console.error('[Login] Error fetching user profile:', userError);
-      }
-
-      if (!userData) {
-        console.log('[Login] No user profile found, creating one');
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            user_id: data.user.id,
-            role: 'free',
-          });
-
-        if (insertError) {
-          console.error('[Login] Error creating user profile:', insertError);
-          // Don't block login if profile creation fails
-        }
-      }
-
-      // Navigate to home
+      await signIn(email, password);
+      // Navigation will be handled by auth state change
       router.replace('/(tabs)/(home)');
     } catch (error: any) {
-      console.error('[Login] Unexpected error:', error);
-      showErrorToast(error.message || 'An unexpected error occurred');
+      console.error('[Login] Error:', error);
+      showErrorToast(error.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -157,6 +112,7 @@ export default function LoginScreen() {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
+      router.replace('/(tabs)/(home)');
     } catch (error: any) {
       console.error('[Login] Google sign-in error:', error);
       showErrorToast(error.message || 'Google sign-in failed');
@@ -169,6 +125,7 @@ export default function LoginScreen() {
     setAppleLoading(true);
     try {
       await signInWithApple();
+      router.replace('/(tabs)/(home)');
     } catch (error: any) {
       console.error('[Login] Apple sign-in error:', error);
       showErrorToast(error.message || 'Apple sign-in failed');
@@ -191,7 +148,6 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.form}>
-              {/* Email Input with iOS AutoFill Support */}
               <SafeSpaceTextInput
                 placeholder="Email"
                 value={email}
@@ -204,7 +160,6 @@ export default function LoginScreen() {
                 editable={!loading}
               />
 
-              {/* Password Input with iOS AutoFill Support */}
               <SafeSpaceTextInput
                 placeholder="Password"
                 value={password}
@@ -233,7 +188,6 @@ export default function LoginScreen() {
               />
             </View>
 
-            {/* Social Sign In Options */}
             <View style={styles.divider}>
               <View style={[styles.dividerLine, { backgroundColor: theme.textPrimary }]} />
               <Text style={[styles.dividerText, { color: theme.textPrimary }]}>
@@ -243,7 +197,6 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.socialButtons}>
-              {/* Google Sign In */}
               <TouchableOpacity
                 style={[
                   styles.socialButton,
@@ -267,7 +220,6 @@ export default function LoginScreen() {
                 )}
               </TouchableOpacity>
 
-              {/* Apple Sign In (iOS only) */}
               {Platform.OS === 'ios' && (
                 <TouchableOpacity
                   style={[

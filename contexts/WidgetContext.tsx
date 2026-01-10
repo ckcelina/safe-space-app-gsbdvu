@@ -2,11 +2,13 @@
 import * as React from "react";
 import { createContext, useCallback, useContext } from "react";
 import { ExtensionStorage } from "@bacons/apple-targets";
+import { Platform } from "react-native";
 
-// Initialize storage with your group ID
-const storage = new ExtensionStorage(
-  "group.com.<user_name>.<app_name>"
-);
+// Get widget group ID from environment or use default
+const WIDGET_GROUP_ID = process.env.EXPO_PUBLIC_WIDGET_GROUP_ID || "group.com.anonymous.Natively";
+
+// Initialize storage with group ID (iOS only)
+const storage = Platform.OS === "ios" ? new ExtensionStorage(WIDGET_GROUP_ID) : null;
 
 type WidgetContextType = {
   refreshWidget: () => void;
@@ -17,15 +19,16 @@ const WidgetContext = createContext<WidgetContextType | null>(null);
 export function WidgetProvider({ children }: { children: React.ReactNode }) {
   // Update widget state whenever what we want to show changes
   React.useEffect(() => {
-    // set widget_state to null if we want to reset the widget
-    // storage.set("widget_state", null);
-
-    // Refresh widget
-    ExtensionStorage.reloadWidget();
+    if (Platform.OS === "ios" && storage) {
+      // Refresh widget on mount
+      ExtensionStorage.reloadWidget();
+    }
   }, []);
 
   const refreshWidget = useCallback(() => {
-    ExtensionStorage.reloadWidget();
+    if (Platform.OS === "ios") {
+      ExtensionStorage.reloadWidget();
+    }
   }, []);
 
   return (
@@ -35,20 +38,10 @@ export function WidgetProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Hook to access widget context
- * Returns safe fallback if used outside provider
- */
 export const useWidget = () => {
   const context = useContext(WidgetContext);
   if (!context) {
-    // Safe fallback - log warning but don't crash
-    console.warn("⚠️ useWidget called outside WidgetProvider - returning no-op fallback");
-    return {
-      refreshWidget: () => {
-        console.warn("refreshWidget called but WidgetProvider not mounted");
-      },
-    };
+    throw new Error("useWidget must be used within a WidgetProvider");
   }
   return context;
 };

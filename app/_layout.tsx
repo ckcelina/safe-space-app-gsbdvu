@@ -2,7 +2,7 @@
 import "react-native-reanimated";
 import React, { useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack, router } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -18,41 +18,14 @@ import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
-import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
-import { BiometricLockProvider } from "@/contexts/BiometricLockContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { runDevChecklist } from "@/utils/devChecklist";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
-  initialRouteName: "(tabs)", // Ensure any route can link back to `/`
+  initialRouteName: "index",
 };
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PRE-RUN CHECKLIST - VERIFY BEFORE DEPLOYMENT
-// ═══════════════════════════════════════════════════════════════════════════
-// ✅ App boots without red screen
-// ✅ Providers wrap router in correct order:
-//    ErrorBoundary → GestureHandler → AuthProvider → ThemeProvider → 
-//    UserPreferencesProvider → BiometricLockProvider → WidgetProvider → 
-//    NavigationThemeProvider → Stack
-// ✅ All context hooks have safe fallbacks:
-//    - useAuth() returns fallback if AuthProvider missing
-//    - useThemeContext() returns fallback if ThemeProvider missing
-//    - useUserPreferences() returns fallback if UserPreferencesProvider missing
-//    - useBiometricLock() returns fallback if BiometricLockProvider missing
-//    - useWidget() returns fallback if WidgetProvider missing
-// ✅ Supabase client initialized once in lib/supabase.ts
-// ✅ Supabase env vars validated at startup (EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY)
-// ✅ AuthProvider restores session safely without blocking render
-// ✅ AuthProvider handles null session gracefully
-// ✅ Home screen handles userId === null without crashing
-// ✅ Login screen renders without errors
-// ✅ Navigation works between tabs
-// ✅ No unsafe property access (all .primaryGradient, .userId, .session checks are safe)
-// ═══════════════════════════════════════════════════════════════════════════
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -60,14 +33,6 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-
-  // Run dev checklist on mount (dev only)
-  useEffect(() => {
-    if (__DEV__) {
-      console.log('[RootLayout] Running dev checklist...');
-      runDevChecklist();
-    }
-  }, []);
 
   useEffect(() => {
     if (loaded) {
@@ -95,93 +60,95 @@ export default function RootLayout() {
     ...DefaultTheme,
     dark: false,
     colors: {
-      primary: "rgb(0, 122, 255)", // System Blue
-      background: "rgb(242, 242, 247)", // Light mode background
-      card: "rgb(255, 255, 255)", // White cards/surfaces
-      text: "rgb(0, 0, 0)", // Black text for light mode
-      border: "rgb(216, 216, 220)", // Light gray for separators/borders
-      notification: "rgb(255, 59, 48)", // System Red
+      primary: "rgb(0, 122, 255)",
+      background: "rgb(242, 242, 247)",
+      card: "rgb(255, 255, 255)",
+      text: "rgb(0, 0, 0)",
+      border: "rgb(216, 216, 220)",
+      notification: "rgb(255, 59, 48)",
     },
   };
 
   const CustomDarkTheme: Theme = {
     ...DarkTheme,
     colors: {
-      primary: "rgb(10, 132, 255)", // System Blue (Dark Mode)
-      background: "rgb(1, 1, 1)", // True black background for OLED displays
-      card: "rgb(28, 28, 30)", // Dark card/surface color
-      text: "rgb(255, 255, 255)", // White text for dark mode
-      border: "rgb(44, 44, 46)", // Dark gray for separators/borders
-      notification: "rgb(255, 69, 58)", // System Red (Dark Mode)
+      primary: "rgb(10, 132, 255)",
+      background: "rgb(1, 1, 1)",
+      card: "rgb(28, 28, 30)",
+      text: "rgb(255, 255, 255)",
+      border: "rgb(44, 44, 46)",
+      notification: "rgb(255, 69, 58)",
     },
   };
-  
+
   return (
     <ErrorBoundary>
       <StatusBar style="auto" animated />
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <AuthProvider>
-          <ThemeProvider>
-            <UserPreferencesProvider>
-              <BiometricLockProvider>
-                <WidgetProvider>
-                  <NavigationThemeProvider
-                    value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
-                  >
-                    <Stack>
-                      {/* Main app with tabs */}
-                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-
-                      {/* Auth Screens */}
-                      <Stack.Screen name="index" options={{ headerShown: false }} />
-                      <Stack.Screen name="login" options={{ headerShown: false }} />
-                      <Stack.Screen name="signup" options={{ headerShown: false }} />
-                      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                      <Stack.Screen name="theme-selection" options={{ headerShown: false }} />
-                      <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-                      <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-                      <Stack.Screen name="ai-preferences-onboarding" options={{ headerShown: false }} />
-
-                      {/* Modal Demo Screens */}
-                      <Stack.Screen
-                        name="modal"
-                        options={{
-                          presentation: "modal",
-                          title: "Standard Modal",
-                        }}
-                      />
-                      <Stack.Screen
-                        name="formsheet"
-                        options={{
-                          presentation: "formSheet",
-                          title: "Form Sheet Modal",
-                          sheetGrabberVisible: true,
-                          sheetAllowedDetents: [0.5, 0.8, 1.0],
-                          sheetCornerRadius: 20,
-                        }}
-                      />
-                      <Stack.Screen
-                        name="transparent-modal"
-                        options={{
-                          presentation: "transparentModal",
-                          headerShown: false,
-                        }}
-                      />
-
-                      {/* Other Screens */}
-                      <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
-                      <Stack.Screen name="test-ai-response" options={{ headerShown: false }} />
-                      <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
-                      <Stack.Screen name="+not-found" options={{ headerShown: false }} />
-                    </Stack>
-                    <SystemBars style={"auto"} />
-                  </NavigationThemeProvider>
-                </WidgetProvider>
-              </BiometricLockProvider>
-            </UserPreferencesProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </GestureHandlerRootView>
+      <NavigationThemeProvider
+        value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
+      >
+        <ThemeProvider>
+          <AuthProvider>
+            <WidgetProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="index" />
+                  <Stack.Screen name="login" />
+                  <Stack.Screen name="signup" />
+                  <Stack.Screen name="onboarding" />
+                  <Stack.Screen name="theme-selection" />
+                  <Stack.Screen name="forgot-password" />
+                  <Stack.Screen name="reset-password" />
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen
+                    name="modal"
+                    options={{
+                      presentation: "modal",
+                      title: "Standard Modal",
+                      headerShown: true,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="formsheet"
+                    options={{
+                      presentation: "formSheet",
+                      title: "Form Sheet Modal",
+                      headerShown: true,
+                      sheetGrabberVisible: true,
+                      sheetAllowedDetents: [0.5, 0.8, 1.0],
+                      sheetCornerRadius: 20,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="transparent-modal"
+                    options={{
+                      presentation: "transparentModal",
+                      headerShown: false,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="legal/terms-of-service"
+                    options={{
+                      presentation: "modal",
+                      title: "Terms of Service",
+                      headerShown: true,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="legal/privacy-policy"
+                    options={{
+                      presentation: "modal",
+                      title: "Privacy Policy",
+                      headerShown: true,
+                    }}
+                  />
+                </Stack>
+                <SystemBars style={"auto"} />
+              </GestureHandlerRootView>
+            </WidgetProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </NavigationThemeProvider>
     </ErrorBoundary>
   );
 }

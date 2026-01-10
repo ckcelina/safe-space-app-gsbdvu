@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import React, { useState } from 'react';
@@ -108,10 +108,10 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
+  const { signUp } = useAuth();
   const { theme } = useThemeContext();
 
   const handleSignup = async () => {
-    // Validation
     if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
       showErrorToast('Please fill in all fields');
       return;
@@ -134,48 +134,12 @@ export default function SignupScreen() {
 
     setLoading(true);
     try {
-      console.log('[Signup] Attempting signup with email:', email);
-
-      // Sign up with Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password.trim(),
-      });
-
-      if (error) {
-        console.error('[Signup] Supabase auth error:', error);
-        showErrorToast(error.message || 'Signup failed');
-        return;
-      }
-
-      if (!data.user) {
-        console.error('[Signup] No user returned from Supabase');
-        showErrorToast('Signup failed - no user data');
-        return;
-      }
-
-      console.log('[Signup] Signup successful, user:', data.user.id);
-
-      // Create user profile in public.users
-      const { error: insertError } = await supabase
-        .from('users')
-        .insert({
-          user_id: data.user.id,
-          role: 'free',
-        });
-
-      if (insertError) {
-        console.error('[Signup] Error creating user profile:', insertError);
-        // Don't block signup if profile creation fails
-      }
-
+      await signUp(email, password);
       showSuccessToast('Account created successfully!');
-
-      // Navigate to onboarding or home
       router.replace('/onboarding');
     } catch (error: any) {
-      console.error('[Signup] Unexpected error:', error);
-      showErrorToast(error.message || 'An unexpected error occurred');
+      console.error('[Signup] Error:', error);
+      showErrorToast(error.message || 'Signup failed');
     } finally {
       setLoading(false);
     }
@@ -190,6 +154,7 @@ export default function SignupScreen() {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
+      router.replace('/onboarding');
     } catch (error: any) {
       console.error('[Signup] Google sign-in error:', error);
       showErrorToast(error.message || 'Google sign-in failed');
@@ -207,6 +172,7 @@ export default function SignupScreen() {
     setAppleLoading(true);
     try {
       await signInWithApple();
+      router.replace('/onboarding');
     } catch (error: any) {
       console.error('[Signup] Apple sign-in error:', error);
       showErrorToast(error.message || 'Apple sign-in failed');
@@ -233,7 +199,6 @@ export default function SignupScreen() {
             </View>
 
             <View style={styles.form}>
-              {/* Email Input with iOS AutoFill Support */}
               <SafeSpaceTextInput
                 placeholder="Email"
                 value={email}
@@ -246,7 +211,6 @@ export default function SignupScreen() {
                 editable={!loading}
               />
 
-              {/* Password Input with iOS AutoFill Support for New Password */}
               <SafeSpaceTextInput
                 placeholder="Password"
                 value={password}
@@ -257,7 +221,6 @@ export default function SignupScreen() {
                 editable={!loading}
               />
 
-              {/* Confirm Password with iOS AutoFill Support */}
               <SafeSpaceTextInput
                 placeholder="Confirm Password"
                 value={confirmPassword}
@@ -268,7 +231,6 @@ export default function SignupScreen() {
                 editable={!loading}
               />
 
-              {/* Terms Checkbox */}
               <TouchableOpacity
                 style={styles.checkboxContainer}
                 onPress={() => setAcceptedTerms(!acceptedTerms)}
@@ -298,7 +260,6 @@ export default function SignupScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* Privacy Checkbox */}
               <TouchableOpacity
                 style={styles.checkboxContainer}
                 onPress={() => setAcceptedPrivacy(!acceptedPrivacy)}
@@ -336,7 +297,6 @@ export default function SignupScreen() {
               />
             </View>
 
-            {/* Social Sign In Options */}
             <View style={styles.divider}>
               <View style={[styles.dividerLine, { backgroundColor: theme.textPrimary }]} />
               <Text style={[styles.dividerText, { color: theme.textPrimary }]}>
@@ -346,7 +306,6 @@ export default function SignupScreen() {
             </View>
 
             <View style={styles.socialButtons}>
-              {/* Google Sign In */}
               <TouchableOpacity
                 style={[
                   styles.socialButton,
@@ -370,7 +329,6 @@ export default function SignupScreen() {
                 )}
               </TouchableOpacity>
 
-              {/* Apple Sign In (iOS only) */}
               {Platform.OS === 'ios' && (
                 <TouchableOpacity
                   style={[
