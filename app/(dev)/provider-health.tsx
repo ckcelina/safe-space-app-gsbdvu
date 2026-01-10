@@ -130,11 +130,11 @@ export default function ProviderHealthScreen() {
 
     setChecks(results);
     setLoading(false);
-  }, []);
+  }, [authMounted]);
 
   useEffect(() => {
     runHealthChecks();
-  }, [runHealthChecks, authMounted]);
+  }, [runHealthChecks]);
 
   const handleRunFullScan = () => {
     console.log('\n🔍 Running full scan from Provider Health screen...\n');

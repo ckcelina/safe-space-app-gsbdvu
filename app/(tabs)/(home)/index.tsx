@@ -9,9 +9,9 @@ import { DemoCard } from "@/components/DemoCard";
 const safeMemoryCache = {
   getPeopleList: () => {
     try {
-      // @ts-ignore - memoryCache may not exist
+      // @ts-expect-error - memoryCache may not exist
       if (typeof global.memoryCache?.getPeopleList === 'function') {
-        // @ts-ignore
+        // @ts-expect-error - memoryCache may not exist
         return global.memoryCache.getPeopleList() || [];
       }
       console.warn("memoryCache missing method getPeopleList — using empty fallback");
@@ -24,9 +24,9 @@ const safeMemoryCache = {
   
   setPeopleList: (list: any[]) => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - memoryCache may not exist
       if (typeof global.memoryCache?.setPeopleList === 'function') {
-        // @ts-ignore
+        // @ts-expect-error - memoryCache may not exist
         global.memoryCache.setPeopleList(list);
       }
     } catch (e) {
@@ -36,9 +36,9 @@ const safeMemoryCache = {
   
   getTopicsList: () => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - memoryCache may not exist
       if (typeof global.memoryCache?.getTopicsList === 'function') {
-        // @ts-ignore
+        // @ts-expect-error - memoryCache may not exist
         return global.memoryCache.getTopicsList() || [];
       }
       console.warn("memoryCache missing method getTopicsList — using empty fallback");
@@ -51,9 +51,9 @@ const safeMemoryCache = {
   
   setTopicsList: (list: any[]) => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - memoryCache may not exist
       if (typeof global.memoryCache?.setTopicsList === 'function') {
-        // @ts-ignore
+        // @ts-expect-error - memoryCache may not exist
         global.memoryCache.setTopicsList(list);
       }
     } catch (e) {
