@@ -121,8 +121,11 @@ const DeleteAction = ({ onPress }: { onPress: () => void }) => (
 
 function HomeScreen() {
   const insets = useSafeAreaInsets();
+  
+  // ✅ SAFE: Using useAuthSafe which returns fallback if provider is missing
   const { user, loading: authLoading } = useAuthSafe();
   const userId = user?.id || null;
+  
   const { theme } = useThemeContext();
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
   const [people, setPeople] = useState<PersonWithLastMessage[]>([]);

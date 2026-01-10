@@ -1,222 +1,276 @@
 
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Platform,
-  TouchableOpacity,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { router } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@react-navigation/native';
-import { useWidget } from '@/contexts/WidgetContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { IconSymbol } from '@/components/IconSymbol';
+import { scanAndRepair, validateModule, quickScan } from '@/utils/scanAndRepair';
+import { runDevChecklist } from '@/utils/devChecklist';
+import { runDevScanRepair } from '@/utils/devScanRepair';
+import { LinearGradient } from 'expo-linear-gradient';
+import { isAuthProviderMounted } from '@/contexts/AuthContext';
 
-/**
- * DEV-ONLY Provider Health Debug Screen
- * 
- * Access via: /(dev)/provider-health
- * Shows real-time status of all context providers
- * Hidden in production builds
- */
+interface HealthCheck {
+  name: string;
+  status: 'pass' | 'fail' | 'warning';
+  message: string;
+}
+
 export default function ProviderHealthScreen() {
-  // CRITICAL: Call all hooks at the TOP LEVEL before any conditional logic
-  // This is required by React Hooks rules - hooks cannot be called conditionally
-  
-  let authStatus = 'MISSING';
-  let authDetails: any = {};
-  let authError: Error | null = null;
-  
-  try {
-    const auth = useAuth();
-    authStatus = 'OK';
-    authDetails = {
-      userId: auth.userId || 'null',
-      email: auth.email || 'null',
-      role: auth.role || 'null',
-      isPremium: String(auth.isPremium),
-      loading: String(auth.loading),
-      hasSession: auth.session ? 'true' : 'false',
-      hasSignIn: typeof auth.signInWithEmail === 'function' ? 'true' : 'false',
-      hasSignOut: typeof auth.signOut === 'function' ? 'true' : 'false',
-    };
-  } catch (error) {
-    authStatus = 'MISSING';
-    authError = error as Error;
-    authDetails = { error: (error as Error).message };
-  }
+  const [checks, setChecks] = useState<HealthCheck[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [scanResults, setScanResults] = useState<string[]>([]);
 
-  let widgetStatus = 'MISSING';
-  let widgetDetails: any = {};
-  let widgetError: Error | null = null;
-  
-  try {
-    const widget = useWidget();
-    widgetStatus = 'OK';
-    widgetDetails = {
-      hasContext: widget ? 'true' : 'false',
-      hasRefreshWidget: typeof widget?.refreshWidget === 'function' ? 'true' : 'false',
-    };
-  } catch (error) {
-    widgetStatus = 'MISSING';
-    widgetError = error as Error;
-    widgetDetails = { error: (error as Error).message };
-  }
+  useEffect(() => {
+    runHealthChecks();
+  }, []);
 
-  let themeStatus = 'MISSING';
-  let themeDetails: any = {};
-  let themeError: Error | null = null;
-  
-  try {
-    const theme = useTheme();
-    themeStatus = 'OK';
-    themeDetails = {
-      dark: String(theme.dark),
-      primaryColor: theme.colors.primary,
-      backgroundColor: theme.colors.background,
-      textColor: theme.colors.text,
-    };
-  } catch (error) {
-    themeStatus = 'MISSING';
-    themeError = error as Error;
-    themeDetails = { error: (error as Error).message };
-  }
+  const runHealthChecks = async () => {
+    setLoading(true);
+    const results: HealthCheck[] = [];
 
-  // NOW we can do conditional rendering after all hooks have been called
-  if (!__DEV__) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.notAvailable}>
-          <Text style={styles.notAvailableText}>
-            🔒 Not available in production
-          </Text>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.backButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
+    // Check 1: AuthProvider mounted
+    const authMounted = isAuthProviderMounted();
+    if (authMounted) {
+      results.push({
+        name: 'AuthProvider',
+        status: 'pass',
+        message: 'AuthProvider is mounted correctly',
+      });
+    } else {
+      results.push({
+        name: 'AuthProvider',
+        status: 'fail',
+        message: 'AuthProvider is not mounted - check app/_layout.tsx',
+      });
+    }
+
+    // Check 2: TherapistPersonas
+    const personasCheck = validateModule('@/constants/TherapistPersonas');
+    if (personasCheck.success) {
+      results.push({
+        name: 'TherapistPersonas',
+        status: 'pass',
+        message: 'TherapistPersonas loads without errors',
+      });
+    } else {
+      results.push({
+        name: 'TherapistPersonas',
+        status: 'fail',
+        message: `TherapistPersonas failed: ${personasCheck.error}`,
+      });
+    }
+
+    // Check 3: ThemeContext
+    const themeCheck = validateModule('@/contexts/ThemeContext');
+    if (themeCheck.success) {
+      results.push({
+        name: 'ThemeContext',
+        status: 'pass',
+        message: 'ThemeContext loads correctly',
+      });
+    } else {
+      results.push({
+        name: 'ThemeContext',
+        status: 'fail',
+        message: `ThemeContext failed: ${themeCheck.error}`,
+      });
+    }
+
+    // Check 4: UserPreferencesContext
+    const prefsCheck = validateModule('@/contexts/UserPreferencesContext');
+    if (prefsCheck.success) {
+      results.push({
+        name: 'UserPreferencesContext',
+        status: 'pass',
+        message: 'UserPreferencesContext loads correctly',
+      });
+    } else {
+      results.push({
+        name: 'UserPreferencesContext',
+        status: 'fail',
+        message: `UserPreferencesContext failed: ${prefsCheck.error}`,
+      });
+    }
+
+    // Check 5: Safe Guards
+    const safeGuardsCheck = validateModule('@/lib/safeGuards/providerGuards');
+    if (safeGuardsCheck.success) {
+      results.push({
+        name: 'Safe Guards',
+        status: 'pass',
+        message: 'Safe guard hooks are available',
+      });
+    } else {
+      results.push({
+        name: 'Safe Guards',
+        status: 'warning',
+        message: 'Safe guard hooks not found - components may crash',
+      });
+    }
+
+    setChecks(results);
+    setLoading(false);
+  };
+
+  const handleRunFullScan = () => {
+    console.log('\n🔍 Running full scan from Provider Health screen...\n');
+    
+    // Run dev checklist
+    runDevChecklist();
+    
+    // Run scan & repair
+    const scanResult = runDevScanRepair();
+    
+    // Run quick scan
+    const quickResult = quickScan();
+    
+    setScanResults([
+      `Scan completed at ${new Date().toLocaleTimeString()}`,
+      `Issues found: ${scanResult.issues.length}`,
+      ...scanResult.issues.map(i => `- ${i.file}: ${i.issue}`),
+    ]);
+  };
+
+  const getStatusColor = (status: 'pass' | 'fail' | 'warning') => {
+    switch (status) {
+      case 'pass':
+        return '#10B981';
+      case 'fail':
+        return '#EF4444';
+      case 'warning':
+        return '#F59E0B';
+    }
+  };
+
+  const getStatusIcon = (status: 'pass' | 'fail' | 'warning') => {
+    switch (status) {
+      case 'pass':
+        return 'check-circle';
+      case 'fail':
+        return 'error';
+      case 'warning':
+        return 'warning';
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <LinearGradient
+        colors={['#F0F9FF', '#E0F2FE']}
+        style={styles.gradient}
+      >
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>🔧 Provider Health</Text>
-          <Text style={styles.subtitle}>Dev-only diagnostic screen</Text>
-          <Text style={styles.subtitle}>Access: /(dev)/provider-health</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <IconSymbol
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow-back"
+              size={24}
+              color="#1F2937"
+            />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Provider Health</Text>
+          <View style={styles.headerSpacer} />
         </View>
 
-        {/* Auth Provider Status */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>AuthProvider</Text>
-            <View
-              style={[
-                styles.statusBadge,
-                authStatus === 'OK' ? styles.statusOk : styles.statusMissing,
-              ]}
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          {/* Title */}
+          <Text style={styles.title}>System Health Checks</Text>
+          <Text style={styles.subtitle}>
+            Validates that all providers and contexts are properly configured
+          </Text>
+
+          {/* Health Checks */}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Running health checks...</Text>
+            </View>
+          ) : (
+            <View style={styles.checksContainer}>
+              {checks.map((check, index) => (
+                <View key={index} style={styles.checkCard}>
+                  <View style={styles.checkHeader}>
+                    <IconSymbol
+                      ios_icon_name={getStatusIcon(check.status)}
+                      android_material_icon_name={getStatusIcon(check.status)}
+                      size={24}
+                      color={getStatusColor(check.status)}
+                    />
+                    <Text style={styles.checkName}>{check.name}</Text>
+                  </View>
+                  <Text style={[styles.checkMessage, { color: getStatusColor(check.status) }]}>
+                    {check.message}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Actions */}
+          <View style={styles.actionsContainer}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={runHealthChecks}
             >
-              <Text style={styles.statusText}>{authStatus}</Text>
-            </View>
-          </View>
-          {Object.entries(authDetails).map(([key, value]) => (
-            <View key={key} style={styles.detailRow}>
-              <Text style={styles.detailKey}>{key}:</Text>
-              <Text style={styles.detailValue} numberOfLines={2}>
-                {String(value)}
-              </Text>
-            </View>
-          ))}
-        </View>
+              <LinearGradient
+                colors={['#3B82F6', '#2563EB']}
+                style={styles.actionButtonGradient}
+              >
+                <IconSymbol
+                  ios_icon_name="arrow.clockwise"
+                  android_material_icon_name="refresh"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.actionButtonText}>Re-run Checks</Text>
+              </LinearGradient>
+            </TouchableOpacity>
 
-        {/* Theme Provider Status */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>ThemeProvider</Text>
-            <View
-              style={[
-                styles.statusBadge,
-                themeStatus === 'OK' ? styles.statusOk : styles.statusMissing,
-              ]}
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleRunFullScan}
             >
-              <Text style={styles.statusText}>{themeStatus}</Text>
-            </View>
+              <LinearGradient
+                colors={['#10B981', '#059669']}
+                style={styles.actionButtonGradient}
+              >
+                <IconSymbol
+                  ios_icon_name="magnifyingglass"
+                  android_material_icon_name="search"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.actionButtonText}>Run Full Scan</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
-          {Object.entries(themeDetails).map(([key, value]) => (
-            <View key={key} style={styles.detailRow}>
-              <Text style={styles.detailKey}>{key}:</Text>
-              <Text style={styles.detailValue}>{String(value)}</Text>
-            </View>
-          ))}
-        </View>
 
-        {/* Widget Provider Status */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>WidgetProvider</Text>
-            <View
-              style={[
-                styles.statusBadge,
-                widgetStatus === 'OK' ? styles.statusOk : styles.statusMissing,
-              ]}
-            >
-              <Text style={styles.statusText}>{widgetStatus}</Text>
+          {/* Scan Results */}
+          {scanResults.length > 0 && (
+            <View style={styles.scanResultsContainer}>
+              <Text style={styles.scanResultsTitle}>Scan Results</Text>
+              {scanResults.map((result, index) => (
+                <Text key={index} style={styles.scanResultText}>
+                  {result}
+                </Text>
+              ))}
             </View>
-          </View>
-          {Object.entries(widgetDetails).map(([key, value]) => (
-            <View key={key} style={styles.detailRow}>
-              <Text style={styles.detailKey}>{key}:</Text>
-              <Text style={styles.detailValue}>{String(value)}</Text>
-            </View>
-          ))}
-        </View>
+          )}
 
-        {/* System Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>System Info</Text>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailKey}>Platform:</Text>
-            <Text style={styles.detailValue}>{Platform.OS}</Text>
+          {/* Info */}
+          <View style={styles.infoContainer}>
+            <Text style={styles.infoTitle}>What This Checks</Text>
+            <Text style={styles.infoText}>
+              • AuthProvider is mounted and accessible{'\n'}
+              • TherapistPersonas loads without stray tokens{'\n'}
+              • All contexts are properly configured{'\n'}
+              • Safe guard hooks are available{'\n'}
+              • No syntax errors in critical files
+            </Text>
           </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailKey}>__DEV__:</Text>
-            <Text style={styles.detailValue}>{String(__DEV__)}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailKey}>Version:</Text>
-            <Text style={styles.detailValue}>{Platform.Version}</Text>
-          </View>
-        </View>
-
-        <View style={styles.instructions}>
-          <Text style={styles.instructionsTitle}>💡 How to Use</Text>
-          <Text style={styles.instructionsText}>
-            - This screen shows whether all context providers are properly mounted
-          </Text>
-          <Text style={styles.instructionsText}>
-            - "OK" = Provider is working correctly
-          </Text>
-          <Text style={styles.instructionsText}>
-            - "MISSING" = Provider is not accessible (check _layout.tsx)
-          </Text>
-          <Text style={styles.instructionsText}>
-            - Access this screen by typing: /(dev)/provider-health
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.backButtonText}>← Back to App</Text>
-        </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </LinearGradient>
     </SafeAreaView>
   );
 }
@@ -224,123 +278,142 @@ export default function ProviderHealthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+  },
+  gradient: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  headerSpacer: {
+    width: 40,
   },
   scrollView: {
     flex: 1,
-    padding: 20,
   },
-  header: {
-    marginBottom: 30,
-    paddingTop: 10,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#1F2937',
     marginBottom: 8,
   },
   subtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  checksContainer: {
+    marginBottom: 24,
+  },
+  checkCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  checkHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  checkName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginLeft: 12,
+  },
+  checkMessage: {
     fontSize: 14,
-    color: '#888',
+    lineHeight: 20,
+    marginLeft: 36,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  actionButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  actionButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  scanResultsContainer: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  scanResultsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  scanResultText: {
+    fontSize: 14,
+    color: '#4B5563',
+    lineHeight: 20,
     marginBottom: 4,
   },
-  section: {
-    backgroundColor: '#1a1a1a',
+  infoContainer: {
+    backgroundColor: '#EFF6FF',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusOk: {
-    backgroundColor: '#10b981',
-  },
-  statusMissing: {
-    backgroundColor: '#ef4444',
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    paddingVertical: 6,
-  },
-  detailKey: {
-    fontSize: 14,
-    color: '#888',
-    width: 140,
-    fontWeight: '500',
-  },
-  detailValue: {
-    fontSize: 14,
-    color: '#fff',
-    flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  instructions: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#3b82f6',
+    borderLeftColor: '#3B82F6',
   },
-  instructionsTitle: {
+  infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
-    marginBottom: 12,
+    color: '#1E40AF',
+    marginBottom: 8,
   },
-  instructionsText: {
+  infoText: {
     fontSize: 14,
-    color: '#aaa',
-    marginBottom: 6,
-    lineHeight: 20,
-  },
-  notAvailable: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  notAvailableText: {
-    fontSize: 18,
-    color: '#888',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  backButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 20,
-    marginBottom: 40,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
+    color: '#1E40AF',
+    lineHeight: 22,
   },
 });

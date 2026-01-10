@@ -20,6 +20,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Platform } from "react-native";
 import { authClient, storeWebBearerToken } from "@/lib/auth";
 
+// Dev-only: Module-scoped flag to track provider mounting
+let __AUTH_PROVIDER_MOUNTED__ = false;
+
 // User type - customize based on your backend
 interface User {
   id: string;
@@ -93,6 +96,21 @@ function openOAuthPopup(provider: string): Promise<string> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Dev-only: Mark provider as mounted
+  useEffect(() => {
+    if (__DEV__) {
+      __AUTH_PROVIDER_MOUNTED__ = true;
+      console.log('[AuthProvider] Mounted successfully');
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (__DEV__) {
+        __AUTH_PROVIDER_MOUNTED__ = false;
+      }
+    };
+  }, []);
 
   // Fetch current user on mount
   useEffect(() => {
@@ -237,47 +255,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
  * Hook to access auth context
  * Must be used within AuthProvider
  * 
- * SAFETY GUARD: This is a temporary safety guard to prevent app crashes.
- * Provider order still must be correct - AuthProvider should wrap the entire app.
+ * SAFETY GUARD: Returns safe fallback if used outside provider (dev-only warning)
+ * This prevents the app from crashing if useAuth is called before AuthProvider mounts
  */
 export function useAuth() {
   const context = useContext(AuthContext);
-  
   if (context === undefined) {
-    // Log error but don't crash the app
-    console.error(
-      "⚠️ useAuth must be used within AuthProvider. " +
-      "Check that AuthProvider wraps your app in app/_layout.tsx. " +
-      "Returning fallback auth state to prevent crash."
-    );
-    
-    // Return safe fallback object to prevent crashes
+    // Safety guard: Don't crash the app, but warn in dev
+    if (__DEV__) {
+      console.error('❌ useAuth must be used within AuthProvider');
+      console.error('   Stack trace:', new Error().stack);
+      console.error('   Returning safe fallback to prevent crash');
+    }
+    // Return safe fallback to prevent crashes
     return {
       user: null,
       loading: true,
-      signInWithEmail: async () => {
-        throw new Error("Auth not initialized - AuthProvider missing");
-      },
-      signUpWithEmail: async () => {
-        throw new Error("Auth not initialized - AuthProvider missing");
-      },
-      signInWithGoogle: async () => {
-        throw new Error("Auth not initialized - AuthProvider missing");
-      },
-      signInWithApple: async () => {
-        throw new Error("Auth not initialized - AuthProvider missing");
-      },
-      signInWithGitHub: async () => {
-        throw new Error("Auth not initialized - AuthProvider missing");
-      },
-      signOut: async () => {
-        throw new Error("Auth not initialized - AuthProvider missing");
-      },
-      fetchUser: async () => {
-        throw new Error("Auth not initialized - AuthProvider missing");
-      },
+      signInWithEmail: async () => { throw new Error('Auth not initialized'); },
+      signUpWithEmail: async () => { throw new Error('Auth not initialized'); },
+      signInWithGoogle: async () => { throw new Error('Auth not initialized'); },
+      signInWithApple: async () => { throw new Error('Auth not initialized'); },
+      signInWithGitHub: async () => { throw new Error('Auth not initialized'); },
+      signOut: async () => { throw new Error('Auth not initialized'); },
+      fetchUser: async () => { throw new Error('Auth not initialized'); },
     };
   }
-  
   return context;
+}
+
+/**
+ * Export the mount flag for dev checklist
+ * This allows the dev checklist to verify AuthProvider is mounted
+ */
+export function isAuthProviderMounted(): boolean {
+  return __AUTH_PROVIDER_MOUNTED__;
 }
