@@ -15,13 +15,13 @@ const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
 interface RequestBody {
   personName: string;
-  recentUserMessages: string[];
+  recentUserMessages: Array<string>;
   lastAssistantMessage?: string;
-  existingMemories: {
+  existingMemories: Array<{
     key: string;
     value: string;
     category: string;
-  }[];
+  }>;
   userId?: string;
   personId?: string;
 }

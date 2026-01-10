@@ -30,17 +30,17 @@ interface DiagnosticReport {
   };
   serverHealth: {
     isHealthy: boolean;
-    errors: string[];
+    errors: Array<string>;
     reconnectAttempts: number;
     lastSuccessfulConnection: string | null;
   };
   metroConnection: {
     isRecovering: boolean;
     connectionAttempts: number;
-    errorPatterns: [string, number][];
+    errorPatterns: Array<[string, number]>;
     timeSinceLastSuccess: number | null;
   };
-  recommendations: string[];
+  recommendations: Array<string>;
 }
 
 class Diagnostics {

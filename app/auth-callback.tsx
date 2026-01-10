@@ -1,5 +1,5 @@
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -10,11 +10,7 @@ import { supabase } from '@/lib/supabase';
 export default function AuthCallback() {
   const params = useLocalSearchParams();
 
-  useEffect(() => {
-    handleCallback();
-  }, []);
-
-  async function handleCallback() {
+  const handleCallback = useCallback(async () => {
     try {
       console.log('[AuthCallback] Processing OAuth callback...');
       const { access_token, refresh_token } = params;
@@ -78,7 +74,11 @@ export default function AuthCallback() {
       console.error('[AuthCallback] Auth callback error:', error);
       router.replace('/login');
     }
-  }
+  }, [params]);
+
+  useEffect(() => {
+    handleCallback();
+  }, [handleCallback]);
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

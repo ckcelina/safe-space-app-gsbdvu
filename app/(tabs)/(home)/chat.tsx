@@ -213,8 +213,8 @@ function getDateSeparatorLabel(date: Date): string {
   return format(date, 'MMMM d, yyyy');
 }
 
-function transformMessagesWithSeparators(messages: Array<ExtendedMessage>): Array<MessageListItem> {
-  const result: Array<MessageListItem> = [];
+function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageListItem[] {
+  const result: MessageListItem[] = [];
   let lastDate: Date | null = null;
 
   messages.forEach((msg) => {
@@ -238,9 +238,9 @@ function generateTempId(): string {
 }
 
 function mergeMessages(
-  existing: Array<ExtendedMessage>,
-  incoming: Array<ExtendedMessage>
-): Array<ExtendedMessage> {
+  existing: ExtendedMessage[],
+  incoming: ExtendedMessage[]
+): ExtendedMessage[] {
   const merged = [...existing];
   
   incoming.forEach((incomingMsg) => {
@@ -368,12 +368,12 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const { preferences } = useUserPreferences();
 
-  const [allMessages, setAllMessages] = useState<Array<ExtendedMessage>>([]);
+  const [allMessages, setAllMessages] = useState<ExtendedMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentSubject, setCurrentSubject] = useState(initialSubject || 'General');
-  const [subjects, setSubjects] = useState<Array<string>>(DEFAULT_SUBJECTS);
+  const [subjects, setSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
   const [showTherapistSwitchWarning, setShowTherapistSwitchWarning] = useState(false);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const [uploadingImage, setUploadingImage] = useState(false);

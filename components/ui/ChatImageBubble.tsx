@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Modal, Dimensions, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { supabase } from '@/lib/supabase';
@@ -21,11 +21,7 @@ export function ChatImageBubble({ imageUrl, isUser }: ChatImageBubbleProps) {
   const [error, setError] = useState(false);
 
   // Load signed URL when component mounts
-  React.useEffect(() => {
-    loadSignedUrl();
-  }, [imageUrl]);
-
-  const loadSignedUrl = async () => {
+  const loadSignedUrl = useCallback(async () => {
     try {
       setLoading(true);
       setError(false);
@@ -47,7 +43,11 @@ export function ChatImageBubble({ imageUrl, isUser }: ChatImageBubbleProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [imageUrl]);
+
+  React.useEffect(() => {
+    loadSignedUrl();
+  }, [loadSignedUrl]);
 
   if (loading) {
     return (

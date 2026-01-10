@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +7,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { runDevChecklist } from '@/utils/devChecklist';
 import { runDevScanRepair } from '@/utils/devScanRepair';
 import { LinearGradient } from 'expo-linear-gradient';
-import { isAuthProviderMounted } from '@/contexts/AuthContext';
+import { useIsAuthProviderMounted } from '@/contexts/AuthContext';
 import * as TherapistPersonas from '@/constants/TherapistPersonas';
 import * as ThemeContext from '@/contexts/ThemeContext';
 import * as UserPreferencesContext from '@/contexts/UserPreferencesContext';
@@ -23,10 +23,6 @@ export default function ProviderHealthScreen() {
   const [loading, setLoading] = useState(true);
   const [scanResults, setScanResults] = useState<string[]>([]);
 
-  useEffect(() => {
-    runHealthChecks();
-  }, []);
-
   const validateModule = (moduleName: string, moduleExports: any) => {
     try {
       if (!moduleExports) {
@@ -38,12 +34,12 @@ export default function ProviderHealthScreen() {
     }
   };
 
-  const runHealthChecks = async () => {
+  const runHealthChecks = useCallback(async () => {
     setLoading(true);
     const results: HealthCheck[] = [];
 
     // Check 1: AuthProvider mounted
-    const authMounted = isAuthProviderMounted();
+    const authMounted = useIsAuthProviderMounted();
     if (authMounted) {
       results.push({
         name: 'AuthProvider',
@@ -132,7 +128,11 @@ export default function ProviderHealthScreen() {
 
     setChecks(results);
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    runHealthChecks();
+  }, [runHealthChecks]);
 
   const handleRunFullScan = () => {
     console.log('\n🔍 Running full scan from Provider Health screen...\n');

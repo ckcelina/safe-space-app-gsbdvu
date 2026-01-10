@@ -11,11 +11,11 @@ import { Platform } from 'react-native';
 
 interface StartupValidation {
   isValid: boolean;
-  checks: {
+  checks: Array<{
     name: string;
     passed: boolean;
     message: string;
-  }[];
+  }>;
   timestamp: Date;
 }
 

@@ -989,7 +989,7 @@ export default function SettingsScreen() {
   };
 
   const renderOptionCard = (
-    options: string[],
+    options: Array<string>,
     selectedValue: string,
     onSelect: (value: string) => void
   ) => {
