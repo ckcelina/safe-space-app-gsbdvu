@@ -1,5 +1,22 @@
 
+import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
+import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
+import { getPersonaById, DEFAULT_PERSONA_ID } from '@/constants/TherapistPersonas';
+import { useThemeContext } from '@/contexts/ThemeContext';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { AnimatedTypingIndicator } from '@/components/ui/AnimatedTypingIndicator';
+import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useUserPreferences } from '@/contexts/UserPreferencesContext';
+import { showErrorToast, showSuccessToast } from '@/utils/toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { IconSymbol } from '@/components/IconSymbol';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+import { memoryCache } from '@/lib/cache/memoryCache';
+import { Message } from '@/types/database.types';
 import {
   View,
   Text,
@@ -18,47 +35,20 @@ import {
   ImageSourcePropType,
   AppState,
   AppStateStatus,
+  ActionSheetIOS,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '@/contexts/AuthContext';
-import { useThemeContext } from '@/contexts/ThemeContext';
-import { useUserPreferences } from '@/contexts/UserPreferencesContext';
-import { supabase } from '@/lib/supabase';
-import { Message } from '@/types/database.types';
-import { IconSymbol } from '@/components/IconSymbol';
-import { AnimatedChatBubble } from '@/components/ui/AnimatedChatBubble';
-import { AnimatedTypingIndicator } from '@/components/ui/AnimatedTypingIndicator';
-import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
-import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
-import { showErrorToast, showSuccessToast } from '@/utils/toast';
-import { extractMemoriesFromUserText } from '@/lib/memory/localExtract';
 import { upsertPersonMemories } from '@/lib/memory/personMemory';
-import { captureMemoriesFromMessage } from '@/lib/memoryCapture';
-import { getPersonaById, DEFAULT_PERSONA_ID } from '@/constants/TherapistPersonas';
-import { getRecommendedTherapistForTopic, isTherapistOptimalForTopic } from '@/constants/TopicTherapistMapping';
+import { LinearGradient } from 'expo-linear-gradient';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
-import type { RealtimeChannel } from '@supabase/supabase-js';
-import { memoryCache } from '@/lib/cache/memoryCache';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getRecommendedTherapistForTopic, isTherapistOptimalForTopic } from '@/constants/TopicTherapistMapping';
+import { supabase } from '@/lib/supabase';
+import { FullScreenSwipeHandler } from '@/components/ui/FullScreenSwipeHandler';
+import { pickAndUploadImage, takePhotoAndUpload } from '@/utils/imageUpload';
+import { ChatImageBubble } from '@/components/ui/ChatImageBubble';
+import { Ionicons } from '@expo/vector-icons';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// Default subjects list
-const DEFAULT_SUBJECTS = [
-  'General',
-  'Relationships',
-  'Family',
-  'Friends',
-  'Work & Career',
-  'Self-worth & Confidence',
-  'Mental Health',
-  'Studies & School',
-  'Money & Life Admin',
-];
-
-// Extended Message type with therapist metadata and client-side status
 interface ExtendedMessage extends Message {
   therapist_name?: string;
   therapist_avatar_source?: ImageSourcePropType;
@@ -69,10 +59,7 @@ interface ExtendedMessage extends Message {
   is_system_message?: boolean;
 }
 
-// Message or Date Separator item type
-type MessageListItem = 
-  | { type: 'message'; data: ExtendedMessage; shouldAnimate: boolean }
-  | { type: 'date-separator'; date: Date; label: string };
+type MessageListItem = ExtendedMessage | { type: 'date_separator'; label: string; id: string };
 
 interface SubjectPillProps {
   subject: string;
@@ -81,7 +68,225 @@ interface SubjectPillProps {
   isAddButton?: boolean;
 }
 
-function SubjectPill({ subject, isSelected, onPress, isAddButton = false }: SubjectPillProps) {
+const DEFAULT_SUBJECTS = ['General', 'Work', 'Family', 'Relationships', 'Health'];
+const THERAPIST_SWITCH_WARNING_KEY = 'therapist_switch_warning_dismissed';
+const DISMISSED_SUGGESTIONS_KEY = 'dismissed_therapist_suggestions';
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    flex: 1,
+  },
+  subjectsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  messagesList: {
+    flex: 1,
+  },
+  messagesContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  dateSeparator: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dateSeparatorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+    gap: 8,
+  },
+  attachButton: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inputWrapper: {
+    flex: 1,
+    maxHeight: 100,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    justifyContent: 'center',
+  },
+  input: {
+    fontSize: 16,
+    maxHeight: 80,
+  },
+  sendButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 16,
+  },
+  therapistSwitchBanner: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  therapistSwitchContent: {
+    flex: 1,
+  },
+  therapistSwitchTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  therapistSwitchText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  therapistSwitchClose: {
+    padding: 4,
+  },
+  uploadingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  uploadingText: {
+    fontSize: 14,
+  },
+});
+
+function getDateSeparatorLabel(date: Date): string {
+  if (isToday(date)) return 'Today';
+  if (isYesterday(date)) return 'Yesterday';
+  return format(date, 'MMMM d, yyyy');
+}
+
+function transformMessagesWithSeparators(messages: Array<ExtendedMessage>): Array<MessageListItem> {
+  const result: Array<MessageListItem> = [];
+  let lastDate: Date | null = null;
+
+  messages.forEach((msg) => {
+    const msgDate = new Date(msg.created_at);
+    if (!lastDate || !isSameDay(msgDate, lastDate)) {
+      result.push({
+        type: 'date_separator',
+        label: getDateSeparatorLabel(msgDate),
+        id: `separator_${msg.created_at}`,
+      });
+      lastDate = msgDate;
+    }
+    result.push(msg);
+  });
+
+  return result;
+}
+
+function generateTempId(): string {
+  return `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function mergeMessages(
+  existing: Array<ExtendedMessage>,
+  incoming: Array<ExtendedMessage>
+): Array<ExtendedMessage> {
+  const merged = [...existing];
+  
+  incoming.forEach((incomingMsg) => {
+    const existingIndex = merged.findIndex((m) => m.id === incomingMsg.id);
+    if (existingIndex >= 0) {
+      merged[existingIndex] = incomingMsg;
+    } else {
+      merged.push(incomingMsg);
+    }
+  });
+
+  return merged.sort((a, b) => 
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+}
+
+async function updatePersonActivity(
+  userId: string,
+  personId: string,
+  activityType: 'opened' | 'message'
+): Promise<void> {
+  try {
+    const now = new Date().toISOString();
+    const updateData: any = {};
+
+    if (activityType === 'opened') {
+      updateData.last_opened_at = now;
+    } else if (activityType === 'message') {
+      updateData.last_message_at = now;
+    }
+
+    const { error } = await supabase
+      .from('persons')
+      .update(updateData)
+      .eq('id', personId)
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('[updatePersonActivity] Error:', error);
+    }
+  } catch (err) {
+    console.error('[updatePersonActivity] Unexpected error:', err);
+  }
+}
+
+function SubjectPill({ subject, isSelected, onPress, isAddButton }: SubjectPillProps) {
   const { theme } = useThemeContext();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -89,8 +294,6 @@ function SubjectPill({ subject, isSelected, onPress, isAddButton = false }: Subj
     Animated.spring(scaleAnim, {
       toValue: 0.95,
       useNativeDriver: true,
-      tension: 100,
-      friction: 3,
     }).start();
   };
 
@@ -98,8 +301,6 @@ function SubjectPill({ subject, isSelected, onPress, isAddButton = false }: Subj
     Animated.spring(scaleAnim, {
       toValue: 1,
       useNativeDriver: true,
-      tension: 100,
-      friction: 3,
     }).start();
   };
 
@@ -108,2226 +309,680 @@ function SubjectPill({ subject, isSelected, onPress, isAddButton = false }: Subj
   };
 
   return (
-    <TouchableOpacity
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      onPress={handlePress}
-      activeOpacity={0.8}
-    >
-      <Animated.View
-        style={[
-          styles.pill,
-          {
-            backgroundColor: isSelected ? theme.primary : theme.card,
-            borderColor: isSelected ? theme.primary : theme.textSecondary + '40',
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={{
+          paddingHorizontal: 16,
+          paddingVertical: 8,
+          borderRadius: 20,
+          backgroundColor: isSelected ? theme.primary : theme.card,
+          borderWidth: 1,
+          borderColor: isSelected ? theme.primary : theme.textSecondary + '40',
+        }}
       >
         <Text
-          style={[
-            styles.pillText,
-            {
-              color: isSelected ? '#FFFFFF' : theme.textPrimary,
-              fontWeight: isSelected ? '700' : '500',
-            },
-          ]}
+          style={{
+            fontSize: 14,
+            fontWeight: isSelected ? '600' : '500',
+            color: isSelected ? theme.buttonText : theme.textPrimary,
+          }}
         >
-          {isAddButton ? '+ Add subject' : subject}
+          {isAddButton ? '+ Add' : subject}
         </Text>
-      </Animated.View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
-// Date Separator Component
 function DateSeparator({ label }: { label: string }) {
   const { theme } = useThemeContext();
-  
   return (
-    <View style={styles.dateSeparatorContainer}>
-      <View style={[styles.dateSeparatorPill, { backgroundColor: theme.card }]}>
-        <Text style={[styles.dateSeparatorText, { color: theme.textSecondary }]}>
-          {label}
-        </Text>
-      </View>
+    <View style={styles.dateSeparator}>
+      <Text
+        style={[
+          styles.dateSeparatorText,
+          {
+            color: theme.textSecondary,
+            backgroundColor: theme.card,
+          },
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
 
-// Helper function to format date separator label
-function getDateSeparatorLabel(date: Date): string {
-  if (isToday(date)) {
-    return 'Today';
-  }
-  if (isYesterday(date)) {
-    return 'Yesterday';
-  }
-  return format(date, 'MMM d, yyyy');
-}
-
-// Transform messages into list items with date separators
-function transformMessagesWithSeparators(messages: ExtendedMessage[]): MessageListItem[] {
-  const items: MessageListItem[] = [];
-  let lastDate: Date | null = null;
-  
-  messages.forEach((message, index) => {
-    const messageDate = new Date(message.created_at);
-    
-    if (!lastDate || !isSameDay(lastDate, messageDate)) {
-      items.push({
-        type: 'date-separator',
-        date: messageDate,
-        label: getDateSeparatorLabel(messageDate),
-      });
-      lastDate = messageDate;
-    }
-    
-    const shouldAnimate = message.role === 'assistant' && index === messages.length - 1;
-    items.push({
-      type: 'message',
-      data: message,
-      shouldAnimate,
-    });
-  });
-  
-  return items;
-}
-
-// Generate temporary ID for optimistic messages
-function generateTempId(): string {
-  return `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
-// Helper to merge messages with deduplication
-function mergeMessages(existing: ExtendedMessage[], incoming: ExtendedMessage[]): ExtendedMessage[] {
-  const merged = [...existing];
-  
-  for (const newMsg of incoming) {
-    const existsById = merged.some(m => m.id === newMsg.id);
-    if (existsById) {
-      continue;
-    }
-
-    if (newMsg.temp_id) {
-      const existsByTempId = merged.some(m => m.temp_id === newMsg.temp_id);
-      if (existsByTempId) {
-        continue;
-      }
-    }
-
-    const newTime = new Date(newMsg.created_at).getTime();
-    const isDuplicate = merged.some(m => {
-      if (m.role !== newMsg.role) return false;
-      if (m.subject !== newMsg.subject) return false;
-      if (m.content !== newMsg.content) return false;
-      
-      const existingTime = new Date(m.created_at).getTime();
-      const timeDiff = Math.abs(newTime - existingTime);
-      return timeDiff < 5000;
-    });
-
-    if (!isDuplicate) {
-      merged.push(newMsg);
-    }
-  }
-
-  return merged.sort((a, b) => {
-    const timeA = new Date(a.created_at).getTime();
-    const timeB = new Date(b.created_at).getTime();
-    return timeA - timeB;
-  });
-}
-
-// Update person metadata
-async function updatePersonActivity(
-  userId: string,
-  personId: string,
-  activityType: 'opened' | 'message',
-  timestamp?: string
-): Promise<void> {
-  if (!userId || !personId) {
-    if (__DEV__) {
-      console.warn('[Chat] updatePersonActivity: Missing userId or personId');
-    }
-    return;
-  }
-
-  try {
-    const now = timestamp || new Date().toISOString();
-    
-    if (activityType === 'opened') {
-      const { error } = await supabase
-        .from('persons')
-        .update({
-          last_opened_at: now,
-          last_activity_at: now,
-        })
-        .eq('id', personId)
-        .eq('user_id', userId);
-
-      if (error) {
-        if (__DEV__) {
-          console.warn('[Chat] Failed to update last_opened_at:', error.message);
-        }
-      } else {
-        console.log('[Chat] Updated last_opened_at and last_activity_at for person:', personId);
-      }
-    } else if (activityType === 'message') {
-      const { error } = await supabase
-        .from('persons')
-        .update({
-          last_activity_at: now,
-        })
-        .eq('id', personId)
-        .eq('user_id', userId);
-
-      if (error) {
-        if (__DEV__) {
-          console.warn('[Chat] Failed to update last_activity_at:', error.message);
-        }
-      } else {
-        console.log('[Chat] Updated last_activity_at for person:', personId);
-      }
-    }
-  } catch (err: any) {
-    if (__DEV__) {
-      console.warn('[Chat] updatePersonActivity error:', err?.message || 'unknown');
-    }
-  }
-}
-
-// Storage key for tracking therapist switch warnings
-const THERAPIST_SWITCH_WARNING_KEY = '@therapist_switch_warning_shown';
-
-// NEW: Storage key for tracking dismissed therapist suggestions per topic
-const DISMISSED_SUGGESTIONS_KEY = '@dismissed_therapist_suggestions';
-
 export default function ChatScreen() {
-  const params = useLocalSearchParams<{
-    personId?: string | string[];
-    personName?: string | string[];
-    relationshipType?: string | string[];
-    initialSubject?: string | string[];
+  const { personId, personName, initialSubject } = useLocalSearchParams<{
+    personId: string;
+    personName: string;
+    initialSubject?: string;
   }>();
 
-  const personId = Array.isArray(params.personId) ? params.personId[0] : params.personId || '';
-  const personName = Array.isArray(params.personName) ? params.personName[0] : params.personName || 'Chat';
-  const relationshipType = Array.isArray(params.relationshipType)
-    ? params.relationshipType[0]
-    : params.relationshipType || '';
-  const initialSubject = Array.isArray(params.initialSubject) ? params.initialSubject[0] : params.initialSubject;
-
-  const isTopicChat = relationshipType === 'Topic';
+  const { authUser } = useAuth();
+  const { theme } = useThemeContext();
   const insets = useSafeAreaInsets();
+  const { preferences } = useUserPreferences();
+
+  const [allMessages, setAllMessages] = useState<Array<ExtendedMessage>>([]);
+  const [inputText, setInputText] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [currentSubject, setCurrentSubject] = useState(initialSubject || 'General');
+  const [subjects, setSubjects] = useState<Array<string>>(DEFAULT_SUBJECTS);
+  const [showTherapistSwitchWarning, setShowTherapistSwitchWarning] = useState(false);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const flatListRef = useRef<FlatList>(null);
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
+  const lastTherapistIdRef = useRef<string | null>(null);
+
+  const messageListItems = transformMessagesWithSeparators(allMessages);
 
   useEffect(() => {
-    if (!personId) {
-      if (__DEV__) {
-        console.log('[Chat] Missing personId parameter - navigation may be broken');
-      }
-      showErrorToast('Invalid person ID');
-    }
-    if (!personName || personName === 'Chat') {
-      if (__DEV__) {
-        console.warn('[Chat] Missing personName parameter - using fallback');
-      }
+    if (personId && personName) {
+      console.log('[ChatScreen] Mounted with person:', { personId, personName });
     }
   }, [personId, personName]);
 
-  const { currentUser: authUser, role, isPremium } = useAuth();
-  const { theme } = useThemeContext();
-  const { preferences, updatePreferences } = useUserPreferences();
-
-  const [allMessages, setAllMessages] = useState<ExtendedMessage[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [inputFocused, setInputFocused] = useState(false);
-  const [currentSubject, setCurrentSubject] = useState<string>('General');
-  const [availableSubjects, setAvailableSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  // NEW: Therapist suggestion state
-  const [showTherapistSuggestion, setShowTherapistSuggestion] = useState(false);
-  const [suggestedTherapistId, setSuggestedTherapistId] = useState<string | null>(null);
-  const [suggestionReason, setSuggestionReason] = useState<string>('');
-  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
-
-  const isGeneratingRef = useRef(false);
-  const messagesRef = useRef<ExtendedMessage[]>([]);
-  
-  useEffect(() => {
-    messagesRef.current = allMessages;
-  }, [allMessages]);
-
-  const lastProcessedUserMessageIdRef = useRef<string | null>(null);
-  const flatListRef = useRef<FlatList>(null);
-  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
-
-  const [isNearBottom, setIsNearBottom] = useState(true);
-  const [showScrollArrow, setShowScrollArrow] = useState(false);
-  const scrollArrowOpacity = useRef(new Animated.Value(0)).current;
-  
-  const hasInitialScrolledRef = useRef(false);
-  const contentSizeRef = useRef({ width: 0, height: 0 });
-  const layoutSizeRef = useRef({ width: 0, height: 0 });
-
-  const [debugInfo, setDebugInfo] = useState<string | null>(null);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
-
-  const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
-  const [newSubjectName, setNewSubjectName] = useState('');
-
-  const isMountedRef = useRef(true);
-
-  // Track previous therapist to detect switches
-  const previousTherapistIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // NEW: Load dismissed suggestions from storage
-  useEffect(() => {
-    const loadDismissedSuggestions = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(DISMISSED_SUGGESTIONS_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setDismissedSuggestions(new Set(parsed));
-        }
-      } catch (err) {
-        console.warn('[Chat] Failed to load dismissed suggestions:', err);
-      }
-    };
-
-    loadDismissedSuggestions();
-  }, []);
-
-  // NEW: Check if therapist is optimal for current subject and show suggestion
-  useEffect(() => {
-    if (!currentSubject || currentSubject === 'General') {
-      // Don't show suggestions for General subject
-      setShowTherapistSuggestion(false);
-      return;
-    }
-
-    const currentTherapistId = preferences.therapist_persona_id || DEFAULT_PERSONA_ID;
-    
-    // Check if current therapist is optimal for this subject
-    const isOptimal = isTherapistOptimalForTopic(currentSubject, currentTherapistId);
-    
-    if (!isOptimal) {
-      // Get recommended therapist
-      const recommendation = getRecommendedTherapistForTopic(currentSubject);
-      
-      if (recommendation) {
-        // Check if user has dismissed this suggestion before
-        const suggestionKey = `${currentSubject}:${recommendation.recommendedTherapistId}`;
-        
-        if (!dismissedSuggestions.has(suggestionKey)) {
-          console.log('[Chat] Showing therapist suggestion:', recommendation.recommendedTherapistId, 'for subject:', currentSubject);
-          setSuggestedTherapistId(recommendation.recommendedTherapistId);
-          setSuggestionReason(recommendation.reason);
-          setShowTherapistSuggestion(true);
-        } else {
-          console.log('[Chat] Suggestion already dismissed for:', suggestionKey);
-          setShowTherapistSuggestion(false);
-        }
-      }
-    } else {
-      // Current therapist is optimal - hide suggestion
-      setShowTherapistSuggestion(false);
-    }
-  }, [currentSubject, preferences.therapist_persona_id, dismissedSuggestions]);
-
-  // NEW: Handle accepting therapist suggestion
-  const handleAcceptTherapistSuggestion = useCallback(async () => {
-    if (!suggestedTherapistId) {
-      return;
-    }
-
-    console.log('[Chat] User accepted therapist suggestion:', suggestedTherapistId);
-
-    // Update preferences to switch therapist
-    const result = await updatePreferences({
-      therapist_persona_id: suggestedTherapistId,
-    });
-
-    if (result.success) {
-      showSuccessToast('Therapist switched successfully');
-      setShowTherapistSuggestion(false);
-      
-      // The therapist switch message will be inserted by the existing useEffect
-    } else {
-      showErrorToast('Failed to switch therapist');
-    }
-  }, [suggestedTherapistId, updatePreferences]);
-
-  // NEW: Handle dismissing therapist suggestion
-  const handleDismissTherapistSuggestion = useCallback(async () => {
-    if (!suggestedTherapistId) {
-      return;
-    }
-
-    console.log('[Chat] User dismissed therapist suggestion:', suggestedTherapistId, 'for subject:', currentSubject);
-
-    // Add to dismissed suggestions
-    const suggestionKey = `${currentSubject}:${suggestedTherapistId}`;
-    const newDismissed = new Set(dismissedSuggestions);
-    newDismissed.add(suggestionKey);
-    setDismissedSuggestions(newDismissed);
-
-    // Save to storage
-    try {
-      await AsyncStorage.setItem(DISMISSED_SUGGESTIONS_KEY, JSON.stringify(Array.from(newDismissed)));
-    } catch (err) {
-      console.warn('[Chat] Failed to save dismissed suggestions:', err);
-    }
-
-    // Hide suggestion
-    setShowTherapistSuggestion(false);
-  }, [suggestedTherapistId, currentSubject, dismissedSuggestions]);
-
-  // SAFEGUARD: Clean up UI overlays when leaving Chat screen
-  useFocusEffect(
-    useCallback(() => {
-      // This runs when the screen comes into focus
-      if (__DEV__) {
-        console.log('[Chat] Screen focused');
-      }
-
-      // Return cleanup function that runs when screen loses focus (blur)
-      return () => {
-        if (__DEV__) {
-          console.log('[Chat] Screen blurred - cleaning up UI overlays');
-        }
-        
-        // Close any open modals
-        setShowAddSubjectModal(false);
-        
-        // Clear error banners
-        setError(null);
-        
-        // Clear debug info in dev mode
-        if (__DEV__) {
-          setDebugInfo(null);
-        }
-
-        // Hide therapist suggestion
-        setShowTherapistSuggestion(false);
-      };
-    }, [])
-  );
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      const previousAppState = appStateRef.current;
-      appStateRef.current = nextAppState;
-      setAppState(nextAppState);
-      
-      if (__DEV__) {
-        console.log('[Chat] App state changed:', previousAppState, '->', nextAppState);
-      }
-
-      // SAFEGUARD: Clean up UI overlays when app goes to background or becomes inactive
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        if (__DEV__) {
-          console.log('[Chat] App backgrounded/inactive - cleaning up UI overlays');
-        }
-        
-        // Close any open modals
-        setShowAddSubjectModal(false);
-        
-        // Clear error banners
-        setError(null);
-        
-        // Clear debug info in dev mode
-        if (__DEV__) {
-          setDebugInfo(null);
-        }
-
-        // Hide therapist suggestion
-        setShowTherapistSuggestion(false);
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
-
-  const isFreeUser = role === 'free';
-
-  const getCurrentTherapistMetadata = useCallback(() => {
-    const personaId = preferences.therapist_persona_id || DEFAULT_PERSONA_ID;
-    const persona = getPersonaById(personaId);
-    
-    if (!persona) {
-      return {
-        name: 'Safe Space',
-        avatarSource: undefined,
-        personaId: DEFAULT_PERSONA_ID,
-      };
-    }
-
-    return {
-      name: persona.name,
-      avatarSource: persona.image,
-      personaId: persona.id,
-    };
-  }, [preferences.therapist_persona_id]);
-
-  // Function to insert system message when therapist switches
-  const insertTherapistSwitchMessage = useCallback((therapistName: string) => {
-    const systemMessage: ExtendedMessage = {
-      id: generateTempId(),
-      temp_id: generateTempId(),
-      user_id: authUser?.id || '',
-      person_id: personId,
-      role: 'assistant',
-      content: `You are now talking to ${therapistName}.`,
-      subject: currentSubject,
-      created_at: new Date().toISOString(),
-      is_system_message: true,
-      optimistic: true,
-    };
-
-    console.log('[Chat] Inserting therapist switch system message:', therapistName);
-    
-    if (isMountedRef.current) {
-      setAllMessages((prev) => mergeMessages(prev, [systemMessage]));
-    }
-  }, [authUser?.id, personId, currentSubject]);
-
-  // Show one-time warning about therapist switches
-  const showTherapistSwitchWarning = useCallback(async () => {
-    try {
-      const hasShownWarning = await AsyncStorage.getItem(THERAPIST_SWITCH_WARNING_KEY);
-      
-      if (!hasShownWarning) {
-        // Show warning toast
-        showSuccessToast('Different therapists may respond differently. Your chat stays private.');
-        
-        // Mark as shown
-        await AsyncStorage.setItem(THERAPIST_SWITCH_WARNING_KEY, 'true');
-        console.log('[Chat] Therapist switch warning shown');
-      }
-    } catch (err) {
-      console.warn('[Chat] Failed to check/set therapist switch warning:', err);
-    }
-  }, []);
-
-  // Detect therapist switches and insert system message
-  useEffect(() => {
-    const currentTherapistId = preferences.therapist_persona_id || DEFAULT_PERSONA_ID;
-    
-    // Skip on initial mount
-    if (previousTherapistIdRef.current === null) {
-      previousTherapistIdRef.current = currentTherapistId;
-      return;
-    }
-
-    // Detect switch
-    if (previousTherapistIdRef.current !== currentTherapistId) {
-      console.log('[Chat] Therapist switch detected:', previousTherapistIdRef.current, '->', currentTherapistId);
-      
-      const therapistMeta = getCurrentTherapistMetadata();
-      
-      // Insert system message
-      insertTherapistSwitchMessage(therapistMeta.name);
-      
-      // Show one-time warning
-      showTherapistSwitchWarning();
-      
-      // Update ref
-      previousTherapistIdRef.current = currentTherapistId;
-    }
-  }, [preferences.therapist_persona_id, getCurrentTherapistMetadata, insertTherapistSwitchMessage, showTherapistSwitchWarning]);
-
-  const backfillSubjects = useCallback(async () => {
-    if (!personId || !authUser?.id) {
-      return;
-    }
-
-    try {
-      console.log('[Chat] Backfilling NULL/empty subjects to "General"...');
-      
-      const { error: updateError } = await supabase
-        .from('messages')
-        .update({ subject: 'General' })
-        .eq('person_id', personId)
-        .eq('user_id', authUser.id)
-        .or('subject.is.null,subject.eq.');
-
-      if (updateError) {
-        if (__DEV__) {
-          console.log('[Chat] Backfill error:', updateError);
-        }
-      } else {
-        if (__DEV__) {
-          console.log('[Chat] Backfill completed successfully');
-        }
-      }
-    } catch (err) {
-      if (__DEV__) {
-        console.log('[Chat] Backfill unexpected error:', err);
-      }
-    }
-  }, [personId, authUser?.id]);
-
   const loadMessages = useCallback(async () => {
-    if (!personId) {
-      console.warn('[Chat] loadMessages: personId is missing');
-      if (isMountedRef.current) {
-        setLoading(false);
-        setError('Invalid person ID');
-      }
-      return;
-    }
-
-    if (!authUser?.id) {
-      console.warn('[Chat] loadMessages: No user ID available');
-      if (isMountedRef.current) {
-        setLoading(false);
-        setError('You must be logged in to view messages');
-      }
+    if (!authUser?.id || !personId) {
+      console.log('[ChatScreen] loadMessages: Missing authUser or personId');
       return;
     }
 
     try {
       setLoading(true);
-      setError(null);
-      console.log('[Chat] Loading messages for person:', personId, 'user:', authUser.id);
+      console.log('[ChatScreen] Loading messages for person:', personId);
 
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .eq('person_id', personId)
         .eq('user_id', authUser.id)
+        .eq('person_id', personId)
         .order('created_at', { ascending: true });
 
       if (error) {
-        if (__DEV__) {
-          console.log('[Chat] loadMessages error', error);
-        }
-        if (isMountedRef.current) {
-          setError('Failed to load messages');
-        }
+        console.error('[ChatScreen] Error loading messages:', error);
+        showErrorToast('Failed to load messages');
         return;
       }
 
-      console.log('[Chat] Messages loaded:', data?.length || 0);
-      
-      const therapistMeta = getCurrentTherapistMetadata();
-      const messagesWithMetadata: ExtendedMessage[] = (data ?? []).map((msg) => {
-        if (msg.role === 'assistant') {
-          return {
-            ...msg,
-            therapist_name: therapistMeta.name,
-            therapist_avatar_source: therapistMeta.avatarSource,
-          };
-        }
-        return msg;
-      });
-      
-      if (isMountedRef.current) {
-        setAllMessages(messagesWithMetadata);
-      }
+      console.log('[ChatScreen] Loaded messages:', data?.length || 0);
+      setAllMessages(data || []);
 
-      backfillSubjects();
-    } catch (err: any) {
-      if (__DEV__) {
-        console.log('[Chat] loadMessages unexpected error:', err);
-      }
-      if (isMountedRef.current) {
-        setError('An unexpected error occurred');
-      }
+      // Update person activity
+      await updatePersonActivity(authUser.id, personId, 'opened');
+    } catch (err) {
+      console.error('[ChatScreen] Unexpected error loading messages:', err);
+      showErrorToast('Failed to load messages');
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [personId, authUser?.id, backfillSubjects, getCurrentTherapistMetadata]);
-
-  useEffect(() => {
-    if (personId && authUser?.id) {
-      loadMessages();
-    } else {
       setLoading(false);
-      if (!personId) {
-        setError('Invalid person ID');
-      } else if (!authUser?.id) {
-        setError('You must be logged in');
-      }
     }
-  }, [personId, authUser?.id, loadMessages]);
+  }, [authUser?.id, personId]);
 
   useEffect(() => {
-    if (personId && authUser?.id) {
-      console.log('[Chat] Chat screen mounted - updating last_opened_at');
-      updatePersonActivity(authUser.id, personId, 'opened');
-    }
-  }, [personId, authUser?.id]);
+    loadMessages();
+  }, [loadMessages]);
 
+  // Set up realtime subscription
   useEffect(() => {
-    if (!authUser?.id || !personId) {
-      console.log('[Realtime] Skipping subscription - missing user or person ID');
-      return;
-    }
+    if (!authUser?.id || !personId) return;
 
-    if (realtimeChannelRef.current?.state === 'subscribed') {
-      console.log('[Realtime] Already subscribed, skipping');
-      return;
-    }
+    console.log('[ChatScreen] Setting up realtime subscription');
 
-    console.log('[Realtime] Setting up subscription for assistant messages');
-    console.log('[Realtime] Filters:', {
-      user_id: authUser.id,
-      person_id: personId,
-      role: 'assistant',
-    });
-
-    const channel = supabase.channel(`chat:${personId}:assistant-messages`, {
-      config: {
-        broadcast: { self: false, ack: false },
-        private: false,
-      },
-    });
-
-    realtimeChannelRef.current = channel;
-
-    channel
+    const channel = supabase
+      .channel(`messages:${personId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `user_id=eq.${authUser.id},person_id=eq.${personId},role=eq.assistant`,
+          filter: `person_id=eq.${personId}`,
         },
         (payload) => {
-          console.log('[Realtime] Received assistant message INSERT:', payload);
-
-          if (!payload.new) {
-            console.warn('[Realtime] No payload.new data');
-            return;
-          }
-
+          console.log('[ChatScreen] Realtime INSERT:', payload.new);
           const newMessage = payload.new as Message;
-
-          const therapistMeta = getCurrentTherapistMetadata();
-          const messageWithMetadata: ExtendedMessage = {
-            ...newMessage,
-            therapist_name: therapistMeta.name,
-            therapist_avatar_source: therapistMeta.avatarSource,
-          };
-
-          console.log('[Realtime] Merging assistant message into state:', newMessage.id);
-
-          if (isMountedRef.current) {
-            setAllMessages((prev) => mergeMessages(prev, [messageWithMetadata]));
-
-            if (isGeneratingRef.current || isGenerating) {
-              console.log('[Realtime] Stopping typing indicator');
-              isGeneratingRef.current = false;
-              setIsGenerating(false);
-            }
-          }
+          
+          setAllMessages((prev) => {
+            const exists = prev.some((m) => m.id === newMessage.id);
+            if (exists) return prev;
+            return mergeMessages(prev, [newMessage]);
+          });
         }
       )
-      .subscribe((status, err) => {
-        console.log('[Realtime] Subscription status:', status);
-        if (err) {
-          console.error('[Realtime] Subscription error:', err);
-        }
-      });
+      .subscribe();
+
+    realtimeChannelRef.current = channel;
 
     return () => {
-      console.log('[Realtime] Cleaning up subscription');
-      if (realtimeChannelRef.current) {
-        supabase.removeChannel(realtimeChannelRef.current);
-        realtimeChannelRef.current = null;
-      }
+      console.log('[ChatScreen] Cleaning up realtime subscription');
+      channel.unsubscribe();
     };
-  }, [authUser?.id, personId, getCurrentTherapistMetadata, isGenerating]);
+  }, [authUser?.id, personId]);
 
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (initialSubject && initialSubject.trim()) {
-      console.log('[Chat] Setting initial subject from params:', initialSubject);
-      
-      setAvailableSubjects((prev) => {
-        if (!prev.includes(initialSubject)) {
-          return [...prev, initialSubject];
-        }
-        return prev;
-      });
-      
-      setCurrentSubject(initialSubject);
-    }
-  }, [initialSubject]);
-
-  const displayedMessages = React.useMemo(() => {
-    return allMessages.filter((msg) => {
-      const msgSubject = msg.subject || 'General';
-      return msgSubject === currentSubject;
-    });
-  }, [allMessages, currentSubject]);
-
-  const messageListItems = React.useMemo(() => {
-    return transformMessagesWithSeparators(displayedMessages);
-  }, [displayedMessages]);
-
-  const scrollToBottom = useCallback((animated: boolean = true) => {
-    if (flatListRef.current && messageListItems.length > 0) {
-      flatListRef.current.scrollToEnd({ animated });
-    }
-  }, [messageListItems.length]);
-
-  useEffect(() => {
-    if (!loading && messageListItems.length > 0 && !hasInitialScrolledRef.current) {
+    if (!loading && messageListItems.length > 0) {
       setTimeout(() => {
-        scrollToBottom(false);
-        hasInitialScrolledRef.current = true;
-      }, 150);
-    }
-  }, [loading, messageListItems.length, scrollToBottom]);
-
-  const handleContentSizeChange = useCallback((width: number, height: number) => {
-    contentSizeRef.current = { width, height };
-    
-    if (isNearBottom || !hasInitialScrolledRef.current) {
-      setTimeout(() => {
-        scrollToBottom(true);
+        flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [isNearBottom, scrollToBottom]);
+  }, [loading, messageListItems.length]);
 
-  const handleLayout = useCallback((event: any) => {
-    const { width, height } = event.nativeEvent.layout;
-    layoutSizeRef.current = { width, height };
-  }, []);
+  // Get current therapist metadata
+  const getCurrentTherapistMetadata = useCallback(() => {
+    const therapistId = preferences.therapist_persona_id || DEFAULT_PERSONA_ID;
+    const persona = getPersonaById(therapistId);
+    return {
+      therapistId,
+      therapistName: persona?.name || 'Dr. Elias',
+      therapistAvatar: persona?.avatar,
+    };
+  }, [preferences.therapist_persona_id]);
 
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
-    
-    const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
-    const nearBottom = distanceFromBottom < 50;
-    
-    setIsNearBottom(nearBottom);
-    
-    const shouldShowArrow = !nearBottom && contentSize.height > layoutMeasurement.height && hasInitialScrolledRef.current;
-    
-    if (shouldShowArrow !== showScrollArrow) {
-      setShowScrollArrow(shouldShowArrow);
+  // Check for therapist switch warning
+  useEffect(() => {
+    const checkTherapistSwitch = async () => {
+      const currentTherapistId = preferences.therapist_persona_id || DEFAULT_PERSONA_ID;
       
-      Animated.timing(scrollArrowOpacity, {
-        toValue: shouldShowArrow ? 1 : 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
+      if (lastTherapistIdRef.current && lastTherapistIdRef.current !== currentTherapistId) {
+        const dismissed = await AsyncStorage.getItem(THERAPIST_SWITCH_WARNING_KEY);
+        if (!dismissed) {
+          setShowTherapistSwitchWarning(true);
+        }
+      }
+      
+      lastTherapistIdRef.current = currentTherapistId;
+    };
+
+    checkTherapistSwitch();
+  }, [preferences.therapist_persona_id]);
+
+  const handleDismissTherapistWarning = async () => {
+    setShowTherapistSwitchWarning(false);
+    await AsyncStorage.setItem(THERAPIST_SWITCH_WARNING_KEY, 'true');
+  };
+
+  // Handle image attachment
+  const handleImageAttachment = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Take Photo', 'Choose from Library'],
+          cancelButtonIndex: 0,
+        },
+        async (buttonIndex) => {
+          if (buttonIndex === 1) {
+            await handleTakePhoto();
+          } else if (buttonIndex === 2) {
+            await handlePickImage();
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Add Image',
+        'Choose an option',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Take Photo', onPress: handleTakePhoto },
+          { text: 'Choose from Library', onPress: handlePickImage },
+        ]
+      );
     }
-  }, [showScrollArrow, scrollArrowOpacity]);
+  };
 
-  const handleRetry = useCallback(() => {
-    loadMessages();
-  }, [loadMessages]);
+  const handleTakePhoto = async () => {
+    if (!authUser?.id || !personId) return;
 
-  const sendMessage = useCallback(async () => {
-    const text = inputText.trim();
-
-    if (isGeneratingRef.current || isGenerating) {
-      console.log('[Chat] sendMessage: Already generating, ignoring duplicate call');
-      return;
-    }
-
-    if (!text || !personId) {
-      console.log('[Chat] sendMessage: validation failed', {
-        hasText: !!text,
-        personId,
-      });
-      return;
-    }
-
-    const userId = authUser?.id;
-    if (!userId) {
-      console.warn('[Chat] sendMessage: No userId available');
-      showErrorToast('You must be logged in to send messages');
-      return;
-    }
-
-    console.log('[Chat] Validating session before Edge Function call...');
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-    if (sessionError) {
-      console.error('[Chat] Session validation error:', sessionError);
-      showErrorToast('Session error. Please try logging in again.');
-      return;
-    }
-
-    if (!session || !session.access_token) {
-      console.error('[Chat] No valid session or access token - user needs to re-authenticate');
-      showErrorToast('Your session has expired. Please log in again.');
-      router.replace('/login');
-      return;
-    }
-
-    const accessToken = session.access_token;
-    console.log('[Chat] Session validated successfully - access token length:', accessToken.length);
-
-    console.log('[Chat] sendMessage: Starting send process');
-    console.log('[Chat] Current subject:', currentSubject);
-    console.log('[Chat] chatId (personId):', personId);
-    
-    const therapistMeta = getCurrentTherapistMetadata();
-    console.log('[Chat] Current therapist:', therapistMeta.name, '(', therapistMeta.personaId, ')');
-    
-    isGeneratingRef.current = true;
-    setIsGenerating(true);
-    setIsSending(true);
-    setError(null);
-    
-    if (__DEV__) {
-      setDebugInfo(null);
-    }
-    
-    const userMessageText = text;
-    setInputText('');
-
+    setUploadingImage(true);
     try {
-      const userMsg: ExtendedMessage = {
-        id: generateTempId(),
-        temp_id: generateTempId(),
-        user_id: userId,
-        person_id: personId,
-        role: 'user',
-        content: userMessageText,
-        subject: currentSubject,
-        created_at: new Date().toISOString(),
-        optimistic: true,
-      };
-
-      if (isMountedRef.current) {
-        setAllMessages((prev) => mergeMessages(prev, [userMsg]));
+      const result = await takePhotoAndUpload(authUser.id, personId);
+      
+      if (!result.success || !result.storagePath) {
+        showErrorToast(result.error || 'Failed to upload photo');
+        return;
       }
 
-      const nextMessages = [...messagesRef.current, userMsg];
+      // Insert image message
+      await insertImageMessage(result.storagePath);
+    } catch (error: any) {
+      console.error('[ChatScreen] Error taking photo:', error);
+      showErrorToast('Failed to upload photo');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
-      console.log('[Chat] User message added optimistically');
-      console.log('[Chat] Total messages in nextMessages:', nextMessages.length);
+  const handlePickImage = async () => {
+    if (!authUser?.id || !personId) return;
 
-      console.log('[Chat] Inserting user message to Supabase...');
-      const { data: insertedMessage, error: insertError } = await supabase
+    setUploadingImage(true);
+    try {
+      const result = await pickAndUploadImage(authUser.id, personId);
+      
+      if (!result.success || !result.storagePath) {
+        showErrorToast(result.error || 'Failed to upload image');
+        return;
+      }
+
+      // Insert image message
+      await insertImageMessage(result.storagePath);
+    } catch (error: any) {
+      console.error('[ChatScreen] Error picking image:', error);
+      showErrorToast('Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const insertImageMessage = async (storagePath: string) => {
+    if (!authUser?.id || !personId) return;
+
+    try {
+      const { data: messageData, error: messageError } = await supabase
         .from('messages')
         .insert({
-          user_id: userId,
+          user_id: authUser.id,
           person_id: personId,
           role: 'user',
-          content: userMessageText,
+          type: 'image',
+          image_url: storagePath,
+          content: '[Image]',
           subject: currentSubject,
           created_at: new Date().toISOString(),
         })
-        .select('*')
+        .select()
         .single();
 
-      if (insertError || !insertedMessage) {
-        if (__DEV__) {
-          console.log('[Chat] Insert user message error:', insertError);
-        }
-        if (isMountedRef.current) {
-          setInputText(userMessageText);
-          setError(insertError?.message || 'Failed to send message. Please try again.');
-        }
+      if (messageError) {
+        console.error('[ChatScreen] Error inserting image message:', messageError);
+        showErrorToast('Failed to save image message');
         return;
       }
 
-      console.log('[Chat] User message inserted:', insertedMessage.id);
+      console.log('[ChatScreen] Image message inserted:', messageData.id);
+
+      // Update person activity
+      await updatePersonActivity(authUser.id, personId, 'message');
+
+      // Generate AI response
+      await generateAIResponse();
       
-      lastProcessedUserMessageIdRef.current = insertedMessage.id;
-
-      if (isMountedRef.current) {
-        setAllMessages((prev) => {
-          return prev.map(m => {
-            if (m.temp_id === userMsg.temp_id) {
-              return insertedMessage;
-            }
-            return m;
-          });
-        });
-      }
-
-      console.log('[Chat] Updating last_activity_at after user message');
-      await updatePersonActivity(userId, personId, 'message', insertedMessage.created_at);
-      
-      memoryCache.setLastActivity(personId, insertedMessage.created_at);
-
-      console.log('[Chat] 🧠 Triggering memory capture...');
-      
-      captureMemoriesFromMessage(
-        userId,
-        personId,
-        userMessageText,
-        personName,
-        currentSubject
-      ).catch((err) => {
-        if (__DEV__) {
-          console.log('[Chat] Memory capture failed (silent):', err?.message || 'unknown');
-        }
-      });
-
-      try {
-        console.log('[Chat] Running local memory extraction...');
-        const extractedMemories = extractMemoriesFromUserText(userMessageText, personName);
-        
-        if (extractedMemories.length > 0) {
-          console.log('[Chat] Extracted', extractedMemories.length, 'memories locally');
-          await upsertPersonMemories(userId, personId, extractedMemories);
-          console.log('[Chat] Local memories upserted successfully');
-        } else {
-          console.log('[Chat] No memories extracted from user text');
-        }
-      } catch (memoryError: any) {
-        console.log('[Chat] Local memory extraction failed (silent):', memoryError?.message || 'unknown');
-      }
-
-      const subjectMessages = nextMessages.filter((msg) => {
-        const msgSubject = msg.subject || 'General';
-        return msgSubject === currentSubject;
-      });
-      
-      const recentMessages = subjectMessages
-        .slice(-20)
-        .map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-          createdAt: msg.created_at,
-        }));
-
-      const aiPayload = {
-        userId,
-        personId,
-        personName,
-        personRelationshipType: relationshipType || 'Unknown',
-        messages: recentMessages,
-        currentSubject: currentSubject,
-        aiToneId: preferences.ai_tone_id,
-        aiScienceMode: preferences.ai_science_mode,
-        therapistPersonaId: therapistMeta.personaId,
-      };
-
-      if (__DEV__) {
-        const lastMessage = aiPayload.messages[aiPayload.messages.length - 1];
-        console.log('[AI_PAYLOAD]', {
-          messageCount: aiPayload.messages.length,
-          lastRole: lastMessage?.role || 'none',
-          hasPersonId: !!aiPayload.personId,
-          hasUserId: !!aiPayload.userId,
-          hasPersonName: !!aiPayload.personName,
-          hasRelationshipType: !!aiPayload.personRelationshipType,
-          hasCurrentSubject: !!aiPayload.currentSubject,
-          hasAiToneId: !!aiPayload.aiToneId,
-          aiScienceMode: aiPayload.aiScienceMode,
-          therapistPersonaId: aiPayload.therapistPersonaId,
-        });
-      }
-
-      console.log('[Chat] Sending to AI:', {
-        chatId: personId,
-        messageCount: recentMessages.length,
-        lastUserMessageId: insertedMessage.id,
-        subject: currentSubject,
-        aiToneId: preferences.ai_tone_id,
-        aiScienceMode: preferences.ai_science_mode,
-        therapistPersonaId: therapistMeta.personaId,
-      });
-
-      console.log('[Chat] Calling Edge Function with explicit Authorization header...');
-      
-      const { data, error } = await supabase.functions.invoke('generate-ai-response', { 
-        body: aiPayload,
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (__DEV__) {
-        console.log('[AI_EDGE_RAW]', {
-          hasData: !!data,
-          hasError: !!error,
-          dataKeys: data ? Object.keys(data) : null,
-          error: error ? {
-            name: (error as any)?.name,
-            message: (error as any)?.message,
-            status: (error as any)?.status,
-          } : null,
-        });
-      }
-
-      // CRITICAL FIX: Check for error in the response first
-      if (error) {
-        const errorMessage = (error as any)?.message || 'Edge invoke error';
-        console.error('[Chat] Edge function error:', errorMessage);
-
-        if (__DEV__) {
-          const debugString = JSON.stringify({
-            functionName: 'generate-ai-response',
-            timestamp: new Date().toISOString(),
-            lastUserMessageId: insertedMessage.id,
-            error,
-          }, null, 2);
-
-          setDebugInfo(debugString);
-        }
-
-        let userErrorMessage = "I'm having trouble responding right now. Please try again.";
-        
-        if ((error as any)?.message?.includes('UNAUTHORIZED') || (error as any)?.message?.includes('401')) {
-          userErrorMessage = "Your session has expired. Please log in again.";
-          setTimeout(() => {
-            router.replace('/login');
-          }, 2000);
-        } else if ((error as any)?.message?.includes('MISSING_API_KEY')) {
-          userErrorMessage = "AI service is not configured. Please contact support.";
-        }
-
-        const tempId = generateTempId();
-        const errorBubble: ExtendedMessage = {
-          id: tempId,
-          temp_id: tempId,
-          user_id: userId,
-          person_id: personId,
-          role: 'assistant',
-          content: userErrorMessage,
-          subject: currentSubject,
-          created_at: new Date().toISOString(),
-          therapist_name: therapistMeta.name,
-          therapist_avatar_source: therapistMeta.avatarSource,
-          optimistic: true,
-          failed_to_send: true,
-          retry_content: userMessageText,
-        };
-
-        if (isMountedRef.current) {
-          setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
-          setError(userErrorMessage);
-        }
-
-        return;
-      }
-
-      console.log('[Chat] Edge Function invoked successfully');
-      console.log('[Chat] Response data:', JSON.stringify(data, null, 2));
-
-      // CRITICAL FIX: Check the response structure from the Edge Function
-      // The Edge Function returns: { ok: true/false, data: { replyText, assistantMessage }, error: {...} }
-      
-      if (!data) {
-        console.error('[Chat] ⚠️ No data returned from Edge Function');
-        
-        const tempId = generateTempId();
-        const errorBubble: ExtendedMessage = {
-          id: tempId,
-          temp_id: tempId,
-          user_id: userId,
-          person_id: personId,
-          role: 'assistant',
-          content: "I'm having trouble responding right now. Please try again.",
-          subject: currentSubject,
-          created_at: new Date().toISOString(),
-          therapist_name: therapistMeta.name,
-          therapist_avatar_source: therapistMeta.avatarSource,
-          optimistic: true,
-          failed_to_send: true,
-          retry_content: userMessageText,
-        };
-
-        if (isMountedRef.current) {
-          setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
-          setError("I'm having trouble responding right now. Please try again.");
-        }
-
-        return;
-      }
-
-      // Check if the Edge Function returned an error in the response body
-      if (data.ok === false || data.error) {
-        console.error('[Chat] ⚠️ Edge Function returned error:', data.error);
-        
-        let userErrorMessage = "I'm having trouble responding right now. Please try again.";
-        
-        // Handle specific error codes
-        if (data.error?.code === 'UNAUTHORIZED') {
-          userErrorMessage = "Your session has expired. Please log in again.";
-          setTimeout(() => {
-            router.replace('/login');
-          }, 2000);
-        } else if (data.error?.code === 'MISSING_API_KEY' || data.error?.code === 'INVALID_API_KEY_FORMAT') {
-          userErrorMessage = "⚠️ AI service configuration error. The administrator needs to set up the OpenAI API key in Supabase.";
-          
-          // Show more detailed error in dev mode
-          if (__DEV__) {
-            console.error('[Chat] 🔑 OpenAI API Key Error:', data.error);
-            console.error('[Chat] 📝 To fix:');
-            console.error('[Chat]    1. Go to https://platform.openai.com/api-keys');
-            console.error('[Chat]    2. Create or copy your API key');
-            console.error('[Chat]    3. Go to Supabase Dashboard > Edge Functions > Secrets');
-            console.error('[Chat]    4. Add/Update OPENAI_API_KEY');
-          }
-        } else if (data.error?.code === 'OPENAI_AUTH_ERROR') {
-          userErrorMessage = "⚠️ The OpenAI API key is invalid or expired. Please contact support to update it.";
-          
-          if (__DEV__) {
-            console.error('[Chat] 🔑 OpenAI Authentication Failed');
-            console.error('[Chat] The API key in Supabase is incorrect or expired');
-            console.error('[Chat] Error details:', data.error);
-          }
-        } else if (data.error?.message) {
-          userErrorMessage = data.error.message;
-        }
-
-        const tempId = generateTempId();
-        const errorBubble: ExtendedMessage = {
-          id: tempId,
-          temp_id: tempId,
-          user_id: userId,
-          person_id: personId,
-          role: 'assistant',
-          content: userErrorMessage,
-          subject: currentSubject,
-          created_at: new Date().toISOString(),
-          therapist_name: therapistMeta.name,
-          therapist_avatar_source: therapistMeta.avatarSource,
-          optimistic: true,
-          failed_to_send: true,
-          retry_content: userMessageText,
-        };
-
-        if (isMountedRef.current) {
-          setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
-          setError(userErrorMessage);
-        }
-
-        return;
-      }
-
-      // Success case: Extract the assistant message
-      if (data.ok && data.data && data.data.assistantMessage) {
-        const assistantMessage = data.data.assistantMessage;
-        
-        console.log('[Chat] ✅ Edge Function returned assistant message:', assistantMessage.id);
-        console.log('[Chat] Assistant message content:', assistantMessage.content);
-        
-        // Update activity tracking
-        if (assistantMessage.created_at) {
-          console.log('[Chat] Updating last_activity_at after assistant message');
-          await updatePersonActivity(userId, personId, 'message', assistantMessage.created_at);
-          memoryCache.setLastActivity(personId, assistantMessage.created_at);
-        }
-
-        // CRITICAL: Add the assistant message to state immediately as a fallback
-        // This ensures the message appears even if realtime subscription doesn't fire
-        const messageWithMetadata: ExtendedMessage = {
-          ...assistantMessage,
-          therapist_name: therapistMeta.name,
-          therapist_avatar_source: therapistMeta.avatarSource,
-        };
-
-        console.log('[Chat] 🔄 Adding assistant message to state as fallback (in case realtime doesn\'t fire)');
-        
-        if (isMountedRef.current) {
-          setAllMessages((prev) => mergeMessages(prev, [messageWithMetadata]));
-          
-          // Stop typing indicator
-          isGeneratingRef.current = false;
-          setIsGenerating(false);
-        }
-      } else {
-        console.warn('[Chat] ⚠️ Edge Function response missing assistantMessage:', data);
-        
-        // If we don't get the expected response, show an error
-        const tempId = generateTempId();
-        const errorBubble: ExtendedMessage = {
-          id: tempId,
-          temp_id: tempId,
-          user_id: userId,
-          person_id: personId,
-          role: 'assistant',
-          content: "I'm having trouble responding right now. Please try again.",
-          subject: currentSubject,
-          created_at: new Date().toISOString(),
-          therapist_name: therapistMeta.name,
-          therapist_avatar_source: therapistMeta.avatarSource,
-          optimistic: true,
-          failed_to_send: true,
-          retry_content: userMessageText,
-        };
-
-        if (isMountedRef.current) {
-          setAllMessages((prev) => mergeMessages(prev, [errorBubble]));
-          setError("I'm having trouble responding right now. Please try again.");
-        }
-      }
-
-      console.log('[Chat] sendMessage: Complete');
-    } catch (err: any) {
-      if (__DEV__) {
-        console.log('[Chat] sendMessage unexpected error:', err);
-      }
-      
-      if (isMountedRef.current) {
-        setInputText(userMessageText);
-        setError(err?.message || 'An unexpected error occurred');
-      }
-    } finally {
-      if (isMountedRef.current) {
-        isGeneratingRef.current = false;
-        setIsGenerating(false);
-        setIsSending(false);
-      }
-      
-      console.log('[Chat] Flags reset - isGenerating:', false, 'isSending:', false);
+      showSuccessToast('Image uploaded');
+    } catch (error: any) {
+      console.error('[ChatScreen] Error in insertImageMessage:', error);
+      showErrorToast('Failed to save image message');
     }
-  }, [
-    authUser?.id,
-    inputText,
-    isGenerating,
-    personId,
-    personName,
-    relationshipType,
-    currentSubject,
-    preferences.ai_science_mode,
-    preferences.ai_tone_id,
-    getCurrentTherapistMetadata,
-  ]);
+  };
 
-  const retryFailedMessage = useCallback(async (messageId: string, retryContent: string) => {
-    if (!authUser?.id || !personId) {
+  const handleSendMessage = async () => {
+    if (!inputText.trim() || !authUser?.id || !personId || isGenerating) {
       return;
     }
 
-    console.log('[Chat] Retrying failed message:', messageId);
+    const messageContent = inputText.trim();
+    setInputText('');
 
-    setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-
-    setInputText(retryContent);
-    
-    setTimeout(() => {
-      sendMessage();
-    }, 100);
-  }, [authUser?.id, personId, sendMessage]);
-
-  const isSendDisabled = !inputText.trim() || isSending || loading || isGenerating;
-
-  const handleBackPress = useCallback(() => {
     try {
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        router.replace('/(tabs)/(home)');
+      // Insert user message
+      const { data: userMessage, error: insertError } = await supabase
+        .from('messages')
+        .insert({
+          user_id: authUser.id,
+          person_id: personId,
+          role: 'user',
+          type: 'text',
+          content: messageContent,
+          subject: currentSubject,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('[ChatScreen] Error inserting message:', insertError);
+        showErrorToast('Failed to send message');
+        setInputText(messageContent);
+        return;
       }
-    } catch (error) {
-      if (__DEV__) {
-        console.log('[Chat] Back navigation error:', error);
+
+      console.log('[ChatScreen] User message inserted:', userMessage.id);
+
+      // Update person activity
+      await updatePersonActivity(authUser.id, personId, 'message');
+
+      // Capture memories in background
+      captureMemoriesFromMessage(authUser.id, personId, messageContent, personName || 'Unknown');
+
+      // Generate AI response
+      await generateAIResponse();
+    } catch (error: any) {
+      console.error('[ChatScreen] Error sending message:', error);
+      showErrorToast('Failed to send message');
+      setInputText(messageContent);
+    }
+  };
+
+  const generateAIResponse = async () => {
+    if (!authUser?.id || !personId || isGenerating) return;
+
+    setIsGenerating(true);
+    try {
+      console.log('[ChatScreen] Generating AI response');
+
+      // Get recent messages (last 10)
+      const { data: recentMessages, error: fetchError } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .eq('person_id', personId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (fetchError) {
+        console.error('[ChatScreen] Error fetching recent messages:', fetchError);
+        showErrorToast('Failed to generate response');
+        return;
       }
-      router.replace('/(tabs)/(home)');
+
+      const messages = (recentMessages || []).reverse();
+
+      // Get person details
+      const { data: personData } = await supabase
+        .from('persons')
+        .select('name, relationship_type')
+        .eq('id', personId)
+        .single();
+
+      const { therapistId } = getCurrentTherapistMetadata();
+
+      // Call edge function
+      const { data: aiData, error: aiError } = await supabase.functions.invoke(
+        'generate-ai-response',
+        {
+          body: {
+            personId,
+            personName: personData?.name || personName || 'Unknown',
+            personRelationshipType: personData?.relationship_type,
+            messages: messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+              type: m.type,
+              image_url: m.image_url,
+              createdAt: m.created_at,
+            })),
+            currentSubject,
+            aiToneId: preferences.ai_tone_id,
+            aiScienceMode: preferences.ai_science_mode,
+            userId: authUser.id,
+            therapistId,
+          },
+        }
+      );
+
+      if (aiError) {
+        console.error('[ChatScreen] Edge function error:', aiError);
+        showErrorToast('Failed to generate response');
+        return;
+      }
+
+      const aiReply = aiData?.reply;
+      if (!aiReply) {
+        console.error('[ChatScreen] No reply from AI');
+        showErrorToast('No response from AI');
+        return;
+      }
+
+      console.log('[ChatScreen] AI reply received, length:', aiReply.length);
+
+      // Insert AI message
+      const { therapistName, therapistAvatar } = getCurrentTherapistMetadata();
+
+      const { error: aiInsertError } = await supabase
+        .from('messages')
+        .insert({
+          user_id: authUser.id,
+          person_id: personId,
+          role: 'assistant',
+          type: 'text',
+          content: aiReply,
+          subject: currentSubject,
+          created_at: new Date().toISOString(),
+        });
+
+      if (aiInsertError) {
+        console.error('[ChatScreen] Error inserting AI message:', aiInsertError);
+        showErrorToast('Failed to save AI response');
+      }
+    } catch (error: any) {
+      console.error('[ChatScreen] Error generating AI response:', error);
+      showErrorToast('Failed to generate response');
+    } finally {
+      setIsGenerating(false);
     }
-  }, []);
+  };
 
-  const handleSubjectPress = useCallback((subject: string) => {
-    console.log('[Chat] Subject selected:', subject);
-    setCurrentSubject(subject);
-  }, []);
-
-  const openAddSubjectModal = useCallback(() => {
-    console.log('[Chat] Opening Add Subject modal');
-    setShowAddSubjectModal(true);
-    setNewSubjectName('');
-  }, []);
-
-  const closeAddSubjectModal = useCallback(() => {
-    console.log('[Chat] Closing Add Subject modal');
-    setShowAddSubjectModal(false);
-    setNewSubjectName('');
-  }, []);
-
-  const addSubject = useCallback(() => {
-    const trimmedSubject = newSubjectName.trim();
-    
-    if (!trimmedSubject) {
-      console.log('[Chat] No subject to add');
-      return;
-    }
-
-    const lowercasedSubject = trimmedSubject.toLowerCase();
-    const isDuplicate = availableSubjects.some(
-      (s) => s.toLowerCase() === lowercasedSubject
-    );
-
-    if (isDuplicate) {
-      console.log('[Chat] Subject already exists:', trimmedSubject);
-      showErrorToast('This subject already exists');
-      return;
-    }
-
-    console.log('[Chat] Adding new subject:', trimmedSubject);
-
-    setAvailableSubjects((prev) => [...prev, trimmedSubject]);
-    setCurrentSubject(trimmedSubject);
-    closeAddSubjectModal();
-  }, [newSubjectName, availableSubjects, closeAddSubjectModal]);
-
-  const handleErrorBannerTap = useCallback(() => {
-    if (error && error.includes('Connection interrupted')) {
-      setError(null);
-      return;
-    }
-    
-    const failedMessage = allMessages
-      .filter((msg) => msg.failed_to_send && msg.retry_content)
-      .slice(-1)[0];
-    
-    if (failedMessage && failedMessage.retry_content) {
-      retryFailedMessage(failedMessage.id, failedMessage.retry_content);
-      setError(null);
-    } else {
-      setError(null);
-    }
-  }, [allMessages, retryFailedMessage, error]);
-
-  const renderListItem = useCallback(({ item }: ListRenderItemInfo<MessageListItem>) => {
-    if (item.type === 'date-separator') {
+  const renderMessage = ({ item }: ListRenderItemInfo<MessageListItem>) => {
+    if ('type' in item && item.type === 'date_separator') {
       return <DateSeparator label={item.label} />;
     }
-    
-    const message = item.data;
-    const isFailed = message.failed_to_send === true;
-    
-    return (
-      <View>
-        <AnimatedChatBubble
-          message={message.content}
-          isUser={message.role === 'user'}
-          timestamp={message.created_at}
-          animate={item.shouldAnimate}
-          therapistName={message.therapist_name}
-          therapistAvatarSource={message.therapist_avatar_source}
-          therapistPersonaId={preferences.therapist_persona_id}
-          isSystemMessage={message.is_system_message}
-        />
-        {isFailed && message.retry_content && (
-          <TouchableOpacity
-            style={[styles.retryButton, { backgroundColor: theme.primary }]}
-            onPress={() => retryFailedMessage(message.id, message.retry_content!)}
-            activeOpacity={0.7}
-          >
-            <IconSymbol
-              ios_icon_name="arrow.clockwise"
-              android_material_icon_name="refresh"
-              size={16}
-              color="#FFFFFF"
-              style={{ marginRight: 6 }}
-            />
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  }, [preferences.therapist_persona_id, theme.primary, retryFailedMessage]);
 
-  const keyExtractor = useCallback((item: MessageListItem, index: number) => {
-    if (item.type === 'date-separator') {
-      return `date-${item.date.toISOString()}-${index}`;
-    }
-    return item.data.temp_id || item.data.id;
-  }, []);
+    const message = item as ExtendedMessage;
+    const isUser = message.role === 'user';
 
-  const renderEmptyList = useCallback(() => {
-    if (loading) return null;
-    
-    return (
-      <View style={styles.emptyChat}>
-        <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
-          <IconSymbol
-            ios_icon_name="bubble.left.and.bubble.right.fill"
-            android_material_icon_name="chat"
-            size={40}
-            color={theme.primary}
-          />
+    // Render image message
+    if (message.type === 'image' && message.image_url) {
+      return (
+        <View style={{ marginBottom: 12 }}>
+          <ChatImageBubble imageUrl={message.image_url} isUser={isUser} />
         </View>
-        <Text style={[styles.emptyText, { color: theme.textPrimary }]}>
-          Start the conversation
-        </Text>
-        <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-          Share your thoughts and feelings about {personName}
-        </Text>
-        {currentSubject !== 'General' && allMessages.length > 0 && (
-          <Text style={[styles.emptyHint, { color: theme.textSecondary }]}>
-            No messages for &quot;{currentSubject}&quot; yet. Switch to &quot;General&quot; to see other messages.
-          </Text>
-        )}
-        {error && (
-          <TouchableOpacity style={{ marginTop: 12 }} onPress={handleRetry} activeOpacity={0.7}>
-            <Text style={{ color: theme.primary, fontWeight: '600' }}>
-              Try loading messages again
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  }, [loading, theme, personName, currentSubject, allMessages.length, error, handleRetry]);
+      );
+    }
 
-  const renderListFooter = useCallback(() => {
-    if (!isGenerating) return null;
-    
-    const therapistMeta = getCurrentTherapistMetadata();
-    
+    // Render text message
     return (
-      <AnimatedTypingIndicator 
-        therapistAvatarSource={therapistMeta.avatarSource}
-        therapistPersonaId={preferences.therapist_persona_id}
-        therapistName={therapistMeta.name}
+      <AnimatedChatBubble
+        message={message.content}
+        isUser={isUser}
+        timestamp={message.created_at}
+        therapistName={message.therapist_name}
+        therapistAvatar={message.therapist_avatar_source}
       />
     );
-  }, [isGenerating, getCurrentTherapistMetadata, preferences.therapist_persona_id]);
+  };
 
-  // NEW: Get suggested therapist name for display
-  const suggestedTherapistName = React.useMemo(() => {
-    if (!suggestedTherapistId) return '';
-    const persona = getPersonaById(suggestedTherapistId);
-    return persona?.name || '';
-  }, [suggestedTherapistId]);
+  const scrollToBottom = () => {
+    flatListRef.current?.scrollToEnd({ animated: true });
+  };
+
+  if (loading) {
+    return <LoadingOverlay visible={loading} />;
+  }
 
   return (
-    <FullScreenSwipeHandler enabled={!isGenerating && !isSending}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
-      >
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
-          <LinearGradient
-            colors={theme.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={[styles.statusBarGradient, { height: insets.top }]}
-            pointerEvents="none"
-          />
-
-          <LinearGradient
-            colors={theme.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={[styles.headerGradient, { paddingTop: insets.top }]}
-            pointerEvents="box-none"
-          >
-            <View style={styles.header}>
-              <TouchableOpacity 
-                onPress={handleBackPress} 
-                style={styles.backButton}
-                activeOpacity={0.7}
-              >
+    <FullScreenSwipeHandler onSwipeRight={() => router.back()}>
+      <LinearGradient colors={[theme.background, theme.background]} style={styles.container}>
+        {/* Header */}
+        <View style={[styles.header, { backgroundColor: theme.background }]}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerLeft}>
+              <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                 <IconSymbol
                   ios_icon_name="chevron.left"
-                  android_material_icon_name="arrow_back"
+                  android_material_icon_name="arrow-back"
                   size={24}
-                  color="#FFFFFF"
+                  color={theme.textPrimary}
                 />
               </TouchableOpacity>
-              <View style={styles.headerCenter}>
-                <View style={styles.headerTitleRow}>
-                  <Text style={styles.headerTitle} numberOfLines={1}>
-                    {personName}
-                  </Text>
-                  {isPremium && !isTopicChat && (
-                    <View style={styles.premiumBadgeSmall}>
-                      <Text style={styles.premiumBadgeSmallText}>⭐</Text>
-                    </View>
-                  )}
-                </View>
-                {relationshipType && (
-                  <Text style={styles.headerSubtitle} numberOfLines={1}>
-                    {relationshipType}
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity 
-                onPress={() => router.push({
-                  pathname: '/(tabs)/(home)/memories',
-                  params: { personId, personName }
-                })} 
-                style={styles.memoriesButton}
-                activeOpacity={0.7}
-              >
-                <IconSymbol
-                  ios_icon_name="brain"
-                  android_material_icon_name="psychology"
-                  size={24}
-                  color="#FFFFFF"
-                />
-              </TouchableOpacity>
+              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+                {personName || 'Chat'}
+              </Text>
             </View>
-          </LinearGradient>
-
-          <View style={[styles.pillsContainer, { backgroundColor: theme.card }]}>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.pillsScrollContent}
-              keyboardShouldPersistTaps="handled"
-              data={[...availableSubjects, '+ Add subject']}
-              renderItem={({ item, index }) => (
-                <SubjectPill
-                  key={`subject-${index}-${item}`}
-                  subject={item}
-                  isSelected={currentSubject === item}
-                  onPress={item === '+ Add subject' ? openAddSubjectModal : handleSubjectPress}
-                  isAddButton={item === '+ Add subject'}
-                />
-              )}
-              keyExtractor={(item, index) => `subject-${index}-${item}`}
-            />
           </View>
 
-          {/* NEW: Therapist Suggestion Banner */}
-          {showTherapistSuggestion && suggestedTherapistName && (
-            <View style={[styles.suggestionBanner, { backgroundColor: theme.primary + '15' }]}>
-              <View style={styles.suggestionContent}>
-                <IconSymbol
-                  ios_icon_name="lightbulb.fill"
-                  android_material_icon_name="lightbulb"
-                  size={20}
-                  color={theme.primary}
-                  style={styles.suggestionIcon}
-                />
-                <View style={styles.suggestionTextContainer}>
-                  <Text style={[styles.suggestionTitle, { color: theme.textPrimary }]}>
-                    Try {suggestedTherapistName}?
-                  </Text>
-                  <Text style={[styles.suggestionReason, { color: theme.textSecondary }]}>
-                    {suggestionReason}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.suggestionButtons}>
-                <TouchableOpacity
-                  onPress={handleDismissTherapistSuggestion}
-                  style={[styles.suggestionButton, styles.suggestionDismissButton]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.suggestionButtonText, { color: theme.textSecondary }]}>
-                    Not now
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleAcceptTherapistSuggestion}
-                  style={[styles.suggestionButton, styles.suggestionAcceptButton, { backgroundColor: theme.primary }]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.suggestionButtonText, { color: '#FFFFFF' }]}>
-                    Switch
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {__DEV__ && debugInfo && (
-            <TouchableOpacity 
-              style={[styles.debugBanner, { backgroundColor: '#FF9500' }]}
-              onPress={() => {
-                if (__DEV__ && debugInfo) {
-                  showErrorToast('Debug info logged to console');
-                  console.log('[DEBUG INFO]', debugInfo);
-                }
-              }}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                ios_icon_name="exclamationmark.triangle.fill"
-                android_material_icon_name="error"
-                size={16}
-                color="#FFFFFF"
-                style={styles.bannerIcon}
+          {/* Subject Pills */}
+          <View style={styles.subjectsContainer}>
+            {subjects.map((subject) => (
+              <SubjectPill
+                key={subject}
+                subject={subject}
+                isSelected={currentSubject === subject}
+                onPress={setCurrentSubject}
               />
-              <Text style={[styles.debugBannerText, { color: '#FFFFFF' }]}>
-                AI error (tap to view in console)
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {error && (
-            <TouchableOpacity 
-              style={[styles.errorBanner, { backgroundColor: '#FF3B30' }]}
-              onPress={handleErrorBannerTap}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                ios_icon_name="exclamationmark.triangle.fill"
-                android_material_icon_name="error"
-                size={16}
-                color="#FFFFFF"
-                style={styles.bannerIcon}
-              />
-              <Text style={[styles.errorBannerText, { color: '#FFFFFF' }]}>
-                {error}
-              </Text>
-              <TouchableOpacity onPress={() => setError(null)} style={styles.dismissButton} activeOpacity={0.7}>
-                <IconSymbol
-                  ios_icon_name="xmark"
-                  android_material_icon_name="close"
-                  size={16}
-                  color="#FFFFFF"
-                />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          )}
-
-          <FlatList
-            ref={flatListRef}
-            data={messageListItems}
-            renderItem={renderListItem}
-            keyExtractor={keyExtractor}
-            inverted={false}
-            contentContainerStyle={styles.messagesContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={renderEmptyList}
-            ListFooterComponent={renderListFooter}
-            removeClippedSubviews={Platform.OS === 'android'}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-            onContentSizeChange={handleContentSizeChange}
-            onLayout={handleLayout}
-            extraData={messageListItems}
-          />
-
-          {showScrollArrow && (
-            <Animated.View
-              style={[
-                styles.scrollArrowContainer,
-                {
-                  opacity: scrollArrowOpacity,
-                  bottom: insets.bottom + 80,
-                },
-              ]}
-              pointerEvents={showScrollArrow ? 'auto' : 'none'}
-            >
-              <TouchableOpacity
-                style={[
-                  styles.scrollArrowButton,
-                  {
-                    backgroundColor: theme.primary,
-                    shadowColor: theme.primary,
-                  },
-                ]}
-                onPress={() => scrollToBottom(true)}
-                activeOpacity={0.8}
-              >
-                <IconSymbol
-                  ios_icon_name="chevron.down"
-                  android_material_icon_name="keyboard_arrow_down"
-                  size={24}
-                  color="#FFFFFF"
-                />
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-
-          <View style={[
-            styles.inputContainer, 
-            { 
-              backgroundColor: theme.card,
-              paddingBottom: insets.bottom || 8,
-            }
-          ]}>
-            <View style={styles.inputRow}>
-              <View style={styles.inputColumn}>
-                <View style={[
-                  styles.inputWrapper, 
-                  { 
-                    backgroundColor: theme.background,
-                    borderWidth: inputFocused ? 2 : 1,
-                    borderColor: inputFocused ? theme.primary : theme.textSecondary + '40',
-                  }
-                ]}>
-                  <TextInput
-                    style={[styles.input, { color: theme.textPrimary }]}
-                    placeholder="Tell me what's going on…"
-                    placeholderTextColor={theme.textSecondary}
-                    value={inputText}
-                    onChangeText={setInputText}
-                    onFocus={() => setInputFocused(true)}
-                    onBlur={() => setInputFocused(false)}
-                    multiline
-                    editable={!isSending && !loading && !isGenerating}
-                    onSubmitEditing={() => {
-                      if (!isSendDisabled && !isGenerating) {
-                        sendMessage();
-                      }
-                    }}
-                    cursorColor={theme.primary}
-                    selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  { backgroundColor: theme.primary },
-                  isSendDisabled && styles.sendButtonDisabled,
-                ]}
-                onPress={sendMessage}
-                disabled={isSendDisabled}
-                activeOpacity={0.7}
-              >
-                <IconSymbol
-                  ios_icon_name="paperplane.fill"
-                  android_material_icon_name="send"
-                  size={20}
-                  color="#FFFFFF"
-                />
-              </TouchableOpacity>
-            </View>
+            ))}
           </View>
         </View>
-      </KeyboardAvoidingView>
 
-      <LoadingOverlay visible={loading && !error} />
-
-      <Modal
-        visible={showAddSubjectModal}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={closeAddSubjectModal}
-      >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={closeAddSubjectModal}
+        {/* Therapist Switch Warning */}
+        {showTherapistSwitchWarning && (
+          <View
+            style={[
+              styles.therapistSwitchBanner,
+              { backgroundColor: theme.card },
+            ]}
           >
-            <TouchableOpacity
-              style={[styles.simpleModalContent, { backgroundColor: theme.card }]}
-              activeOpacity={1}
-              onPress={(e) => e.stopPropagation()}
-            >
-              <Text style={[styles.simpleModalTitle, { color: theme.textPrimary }]}>
-                Add subject
+            <IconSymbol
+              ios_icon_name="info.circle"
+              android_material_icon_name="info"
+              size={20}
+              color={theme.primary}
+            />
+            <View style={styles.therapistSwitchContent}>
+              <Text style={[styles.therapistSwitchTitle, { color: theme.textPrimary }]}>
+                Therapist Changed
               </Text>
-
-              <TextInput
-                style={[
-                  styles.simpleModalInput,
-                  {
-                    backgroundColor: theme.background,
-                    color: theme.textPrimary,
-                    borderColor: theme.textSecondary + '40',
-                  },
-                ]}
-                placeholder="e.g., Friendships"
-                placeholderTextColor={theme.textSecondary}
-                value={newSubjectName}
-                onChangeText={setNewSubjectName}
-                autoFocus={true}
-                autoCapitalize="words"
-                maxLength={50}
-                returnKeyType="done"
-                onSubmitEditing={addSubject}
-                cursorColor={theme.primary}
-                selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}
+              <Text style={[styles.therapistSwitchText, { color: theme.textSecondary }]}>
+                You&apos;ve switched to a different therapist. They&apos;ll have their own unique approach.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.therapistSwitchClose}
+              onPress={handleDismissTherapistWarning}
+            >
+              <IconSymbol
+                ios_icon_name="xmark"
+                android_material_icon_name="close"
+                size={16}
+                color={theme.textSecondary}
               />
-
-              <View style={styles.simpleModalButtons}>
-                <TouchableOpacity
-                  style={[styles.simpleModalButton, { backgroundColor: theme.background }]}
-                  onPress={closeAddSubjectModal}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.simpleModalButtonText, { color: theme.textPrimary }]}>
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.simpleModalButton,
-                    { backgroundColor: theme.primary },
-                    !newSubjectName.trim() && styles.simpleModalButtonDisabled,
-                  ]}
-                  onPress={addSubject}
-                  disabled={!newSubjectName.trim()}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.simpleModalButtonText, { color: '#FFFFFF' }]}>
-                    Add
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </TouchableOpacity>
-          </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Messages List */}
+        <FlatList
+          ref={flatListRef}
+          data={messageListItems}
+          renderItem={renderMessage}
+          keyExtractor={(item) => ('id' in item ? item.id : item.id)}
+          contentContainerStyle={styles.messagesContent}
+          style={styles.messagesList}
+          onContentSizeChange={scrollToBottom}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <IconSymbol
+                ios_icon_name="bubble.left.and.bubble.right"
+                android_material_icon_name="chat"
+                size={48}
+                color={theme.textSecondary}
+              />
+              <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
+                Start a conversation about {personName}
+              </Text>
+            </View>
+          }
+        />
+
+        {/* Typing Indicator */}
+        {isGenerating && (
+          <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+            <AnimatedTypingIndicator />
+          </View>
+        )}
+
+        {/* Uploading Indicator */}
+        {uploadingImage && (
+          <View style={[styles.uploadingIndicator, { backgroundColor: theme.card }]}>
+            <ActivityIndicator size="small" color={theme.primary} />
+            <Text style={[styles.uploadingText, { color: theme.textSecondary }]}>
+              Uploading image...
+            </Text>
+          </View>
+        )}
+
+        {/* Input Container */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                backgroundColor: theme.background,
+                paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
+              },
+            ]}
+          >
+            {/* Image Attachment Button */}
+            <TouchableOpacity
+              style={styles.attachButton}
+              onPress={handleImageAttachment}
+              disabled={isGenerating || uploadingImage}
+            >
+              <Ionicons
+                name="image-outline"
+                size={24}
+                color={isGenerating || uploadingImage ? theme.textSecondary : theme.primary}
+              />
+            </TouchableOpacity>
+
+            {/* Text Input */}
+            <View style={[styles.inputWrapper, { backgroundColor: theme.card }]}>
+              <TextInput
+                style={[styles.input, { color: theme.textPrimary }]}
+                value={inputText}
+                onChangeText={setInputText}
+                placeholder="Type a message..."
+                placeholderTextColor={theme.textSecondary}
+                multiline
+                maxLength={1000}
+                editable={!isGenerating && !uploadingImage}
+              />
+            </View>
+
+            {/* Send Button */}
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                {
+                  backgroundColor:
+                    inputText.trim() && !isGenerating && !uploadingImage
+                      ? theme.primary
+                      : theme.textSecondary + '40',
+                },
+              ]}
+              onPress={handleSendMessage}
+              disabled={!inputText.trim() || isGenerating || uploadingImage}
+            >
+              <IconSymbol
+                ios_icon_name="arrow.up"
+                android_material_icon_name="send"
+                size={20}
+                color={theme.buttonText}
+              />
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
-      </Modal>
+      </LinearGradient>
     </FullScreenSwipeHandler>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  statusBarGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-  },
-  headerGradient: {
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: '5%',
-    paddingVertical: 12,
-    paddingBottom: 16,
-  },
-  backButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  memoriesButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    maxWidth: '100%',
-  },
-  headerTitle: {
-    fontSize: Math.min(SCREEN_WIDTH * 0.06, 24),
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    flexShrink: 1,
-  },
-  premiumBadgeSmall: {
-    marginLeft: 6,
-    backgroundColor: 'rgba(255, 215, 0, 0.3)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  premiumBadgeSmallText: {
-    fontSize: 12,
-  },
-  headerSubtitle: {
-    fontSize: Math.min(SCREEN_WIDTH * 0.035, 14),
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 2,
-    textTransform: 'capitalize',
-  },
-  pillsContainer: {
-    paddingVertical: 12,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  pillsScrollContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  pill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  pillText: {
-    fontSize: 14,
-  },
-  // NEW: Therapist Suggestion Banner Styles
-  suggestionBanner: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  suggestionContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 10,
-  },
-  suggestionIcon: {
-    marginRight: 10,
-    marginTop: 2,
-  },
-  suggestionTextContainer: {
-    flex: 1,
-  },
-  suggestionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  suggestionReason: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  suggestionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  suggestionButton: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  suggestionDismissButton: {
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  suggestionAcceptButton: {
-    // backgroundColor set dynamically
-  },
-  suggestionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  debugBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  debugBannerText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  bannerIcon: {
-    marginRight: 8,
-  },
-  bannerText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 18,
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  errorBannerText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  dismissButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
-  messagesContent: {
-    flexGrow: 1,
-    justifyContent: 'flex-start',
-    paddingHorizontal: '5%',
-    paddingVertical: 16,
-  },
-  dateSeparatorContainer: {
-    alignItems: 'center',
-    marginVertical: 16,
-  },
-  dateSeparatorPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  dateSeparatorText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  emptyChat: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: '10%',
-  },
-  emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: Math.min(SCREEN_WIDTH * 0.06, 24),
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    fontSize: Math.min(SCREEN_WIDTH * 0.035, 14),
-    fontWeight: '500',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  emptyHint: {
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
-    lineHeight: 18,
-    marginTop: 12,
-    fontStyle: 'italic',
-  },
-  scrollArrowContainer: {
-    position: 'absolute',
-    right: 20,
-    zIndex: 100,
-  },
-  scrollArrowButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  inputContainer: {
-    paddingHorizontal: '5%',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.08)',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  inputColumn: {
-    flex: 1,
-  },
-  inputWrapper: {
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    maxHeight: 100,
-  },
-  input: {
-    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
-    lineHeight: 20,
-    minHeight: 24,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  sendButtonDisabled: {
-    opacity: 0.4,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginTop: 8,
-    marginRight: '5%',
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  simpleModalContent: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  simpleModalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  simpleModalInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  simpleModalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  simpleModalButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  simpleModalButtonDisabled: {
-    opacity: 0.4,
-  },
-  simpleModalButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});

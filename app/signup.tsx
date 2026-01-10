@@ -1,439 +1,411 @@
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { SafeSpaceTitle, SafeSpaceCaption } from '@/components/ui/SafeSpaceText';
 import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
-import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
-import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
-import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { useThemeContext } from '@/contexts/ThemeContext';
-import { supabase } from '@/lib/supabase';
+import { showErrorToast, showSuccessToast } from '@/utils/toast';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { signInWithGoogle, signInWithApple } from '@/lib/auth/supabaseOAuth';
-import { showErrorToast, showSuccessToast } from '@/utils/toast';
+import { SafeSpaceTitle, SafeSpaceCaption } from '@/components/ui/SafeSpaceText';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import { router } from 'expo-router';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
+import { supabase } from '@/lib/supabase';
+import { useThemeContext } from '@/contexts/ThemeContext';
+import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
+import React, { useState } from 'react';
+import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 40,
+  },
+  header: {
+    marginBottom: 32,
+    alignItems: 'center',
+  },
+  form: {
+    marginBottom: 24,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    marginRight: 12,
+    marginTop: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  link: {
+    textDecorationLine: 'underline',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    opacity: 0.2,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    opacity: 0.6,
+  },
+  socialButtons: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
+  },
+  socialButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  footerText: {
+    fontSize: 14,
+    marginRight: 4,
+  },
+});
 
 export default function SignupScreen() {
-  const { theme } = useThemeContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const { theme } = useThemeContext();
 
   const handleSignup = async () => {
-    setErrorMessage(null);
-
     // Validation
-    if (!email || !password) {
-      setErrorMessage('Please fill in all fields');
-      return;
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      setErrorMessage('Please enter a valid email address');
+    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
+      showErrorToast('Please fill in all fields');
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage('Passwords do not match');
+      showErrorToast('Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters');
+      showErrorToast('Password must be at least 6 characters');
       return;
     }
 
-    if (!termsAccepted || !privacyAccepted) {
-      setErrorMessage('Please accept Terms and Privacy Policy');
+    if (!acceptedTerms || !acceptedPrivacy) {
+      showErrorToast('Please accept the Terms and Privacy Policy');
       return;
     }
 
     setLoading(true);
-    
     try {
-      const trimmedEmail = email.trim().toLowerCase();
-      console.log('[Signup] Attempting to sign up:', trimmedEmail);
-      
-      // Step 1: Sign up with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password,
-        options: {
-          emailRedirectTo: 'https://natively.dev/email-confirmed',
-          data: {
-            email: trimmedEmail,
-          }
-        }
+      console.log('[Signup] Attempting signup with email:', email);
+
+      // Sign up with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password.trim(),
       });
 
-      if (authError) {
-        console.error('[Signup] Signup error:', authError);
-        
-        // Handle specific error cases with user-friendly messages
-        if (authError.message.includes('User already registered')) {
-          Alert.alert(
-            'Account Exists',
-            'An account with this email already exists. Please log in instead.',
-            [
-              {
-                text: 'Go to Login',
-                onPress: () => router.replace('/login'),
-              },
-            ]
-          );
-          setLoading(false);
-          return;
-        }
-        
-        if (authError.message.includes('Password should be at least')) {
-          setErrorMessage('Password must be at least 6 characters long');
-          setLoading(false);
-          return;
-        }
-
-        setErrorMessage(authError.message || 'An error occurred during signup');
-        setLoading(false);
+      if (error) {
+        console.error('[Signup] Supabase auth error:', error);
+        showErrorToast(error.message || 'Signup failed');
         return;
       }
 
-      if (!authData.user) {
-        console.error('[Signup] No user returned from signup');
-        setErrorMessage('Failed to create account. Please try again.');
-        setLoading(false);
+      if (!data.user) {
+        console.error('[Signup] No user returned from Supabase');
+        showErrorToast('Signup failed - no user data');
         return;
       }
 
-      console.log('[Signup] Auth signup successful:', authData.user.id);
+      console.log('[Signup] Signup successful, user:', data.user.id);
 
-      // Step 2: Insert into public.users
-      // If this fails, log a warning but still treat signup as successful
-      try {
-        console.log('[Signup] Creating user profile...');
-        
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert([{
-            id: authData.user.id,
-            email: authData.user.email,
-            role: 'free',
-          }]);
+      // Create user profile in public.users
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert({
+          user_id: data.user.id,
+          role: 'free',
+        });
 
-        if (insertError) {
-          // Check if it's a duplicate key error (race condition or user already exists)
-          if (insertError.code === '23505') {
-            console.log('[Signup] User profile already exists (this is OK)');
-          } else {
-            console.warn('[Signup] Failed to create user profile:', insertError);
-            // Don't block the user - they can still use the app
-            // The AuthContext will handle creating the profile on next login
-          }
-        } else {
-          console.log('[Signup] User profile created successfully');
-        }
-      } catch (profileError) {
-        console.warn('[Signup] Exception creating user profile:', profileError);
-        // Don't block the user - the AuthContext will handle this
+      if (insertError) {
+        console.error('[Signup] Error creating user profile:', insertError);
+        // Don't block signup if profile creation fails
       }
 
-      // Step 3: Determine if email confirmation is required
-      const needsEmailConfirmation = !authData.session;
-      
-      if (needsEmailConfirmation) {
-        // Email confirmation is required
-        console.log('[Signup] Email confirmation required');
-        Alert.alert(
-          'Verify Your Email',
-          'We\'ve sent a verification link to your email. Please check your inbox and click the link to verify your account.\n\nYou can close this app and come back after verifying.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                console.log('[Signup] Redirecting to login after email verification prompt');
-                router.replace('/login');
-              },
-            },
-          ]
-        );
-      } else {
-        // Email confirmation is disabled or user is auto-confirmed
-        console.log('[Signup] User auto-confirmed, proceeding to app');
-        Alert.alert(
-          'Account Created!',
-          'Welcome to Safe Space! Let\'s personalize your experience.',
-          [
-            {
-              text: 'Continue',
-              onPress: () => {
-                console.log('[Signup] Navigating to AI preferences onboarding');
-                router.replace('/ai-preferences-onboarding');
-              },
-            },
-          ]
-        );
-      }
-    } catch (err: any) {
-      console.error('[Signup] Unexpected signup error:', err);
-      setErrorMessage('An unexpected error occurred. Please try again.');
+      showSuccessToast('Account created successfully!');
+
+      // Navigate to onboarding or home
+      router.replace('/onboarding');
+    } catch (error: any) {
+      console.error('[Signup] Unexpected error:', error);
+      showErrorToast(error.message || 'An unexpected error occurred');
+    } finally {
       setLoading(false);
     }
   };
 
-  async function handleGoogleSignIn() {
-    setOauthLoading('google');
+  const handleGoogleSignIn = async () => {
+    if (!acceptedTerms || !acceptedPrivacy) {
+      showErrorToast('Please accept the Terms and Privacy Policy');
+      return;
+    }
+
+    setGoogleLoading(true);
     try {
       await signInWithGoogle();
-      showSuccessToast('Signed in with Google');
-      router.replace('/ai-preferences-onboarding');
     } catch (error: any) {
-      showErrorToast(error.message || 'Google sign in failed');
+      console.error('[Signup] Google sign-in error:', error);
+      showErrorToast(error.message || 'Google sign-in failed');
     } finally {
-      setOauthLoading(null);
+      setGoogleLoading(false);
     }
-  }
+  };
 
-  async function handleAppleSignIn() {
-    setOauthLoading('apple');
+  const handleAppleSignIn = async () => {
+    if (!acceptedTerms || !acceptedPrivacy) {
+      showErrorToast('Please accept the Terms and Privacy Policy');
+      return;
+    }
+
+    setAppleLoading(true);
     try {
       await signInWithApple();
-      showSuccessToast('Signed in with Apple');
-      router.replace('/ai-preferences-onboarding');
     } catch (error: any) {
-      showErrorToast(error.message || 'Apple sign in failed');
+      console.error('[Signup] Apple sign-in error:', error);
+      showErrorToast(error.message || 'Apple sign-in failed');
     } finally {
-      setOauthLoading(null);
+      setAppleLoading(false);
     }
-  }
-
-  const isFormValid = 
-    email.trim() !== '' && 
-    password.trim() !== '' && 
-    confirmPassword.trim() !== '' && 
-    termsAccepted && 
-    privacyAccepted;
+  };
 
   return (
     <LinearGradient
-      colors={theme.primaryGradient}
-      style={styles.gradientBackground}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
+      colors={[theme.background, theme.background]}
+      style={styles.container}
     >
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.container}>
         <KeyboardAvoider>
           <ScrollView
             contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            bounces={false}
+            showsVerticalScrollIndicator={false}
           >
-            <View style={styles.content}>
-              {/* Theme Preview */}
-              <View style={styles.themePreview}>
-                <SafeSpaceCaption align="center" style={{ color: theme.buttonText, opacity: 0.9 }}>
-                  Your Theme
-                </SafeSpaceCaption>
-                <View style={styles.themePreviewRow}>
-                  <View style={[styles.themeCircle, { backgroundColor: 'rgba(255, 255, 255, 0.8)' }]} />
-                  <View style={[styles.themeCircle, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} />
-                  <View style={[styles.themeCircle, { backgroundColor: 'rgba(255, 255, 255, 0.7)' }]} />
-                </View>
-              </View>
+            <View style={styles.header}>
+              <SafeSpaceTitle>Create Account</SafeSpaceTitle>
+              <SafeSpaceCaption>Join Safe Space today</SafeSpaceCaption>
+            </View>
 
-              <View style={styles.titleContainer}>
-                <SafeSpaceTitle style={{ color: theme.buttonText }}>
-                  Create Account
-                </SafeSpaceTitle>
-              </View>
+            <View style={styles.form}>
+              {/* Email Input with iOS AutoFill Support */}
+              <SafeSpaceTextInput
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="username"
+                autoComplete="email"
+                editable={!loading}
+              />
 
-              <View style={styles.form}>
-                <SafeSpaceTextInput
-                  placeholder="Email"
-                  value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    if (errorMessage) setErrorMessage(null);
-                  }}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  editable={!loading}
-                />
+              {/* Password Input with iOS AutoFill Support for New Password */}
+              <SafeSpaceTextInput
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                textContentType="newPassword"
+                autoComplete="new-password"
+                editable={!loading}
+              />
 
-                <View style={styles.passwordContainer}>
-                  <SafeSpaceTextInput
-                    placeholder="Password (min 6 characters)"
-                    value={password}
-                    onChangeText={(text) => {
-                      setPassword(text);
-                      if (errorMessage) setErrorMessage(null);
-                    }}
-                    secureTextEntry={!showPassword}
-                    editable={!loading}
-                    containerStyle={styles.passwordInputContainer}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeIconContainer}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={24}
-                      color={theme.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
+              {/* Confirm Password with iOS AutoFill Support */}
+              <SafeSpaceTextInput
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                textContentType="newPassword"
+                autoComplete="new-password"
+                editable={!loading}
+              />
 
-                <View style={styles.passwordContainer}>
-                  <SafeSpaceTextInput
-                    placeholder="Confirm Password"
-                    value={confirmPassword}
-                    onChangeText={(text) => {
-                      setConfirmPassword(text);
-                      if (errorMessage) setErrorMessage(null);
-                    }}
-                    secureTextEntry={!showConfirmPassword}
-                    editable={!loading}
-                    containerStyle={styles.passwordInputContainer}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                    style={styles.eyeIconContainer}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={24}
-                      color={theme.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.checkboxSection}>
-                  <TouchableOpacity
-                    style={styles.checkboxContainer}
-                    onPress={() => setTermsAccepted(!termsAccepted)}
-                    disabled={loading}
-                  >
-                    <View
-                      style={[
-                        styles.checkbox,
-                        { borderColor: 'rgba(255, 255, 255, 0.8)' },
-                        termsAccepted && { backgroundColor: 'rgba(255, 255, 255, 0.95)' },
-                      ]}
-                    >
-                      {termsAccepted && <Text style={[styles.checkmark, { color: theme.primary }]}>✓</Text>}
-                    </View>
-                    <Text style={[styles.checkboxLabel, { color: theme.buttonText }]}>
-                      I accept the Terms & Conditions
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.checkboxContainer}
-                    onPress={() => setPrivacyAccepted(!privacyAccepted)}
-                    disabled={loading}
-                  >
-                    <View
-                      style={[
-                        styles.checkbox,
-                        { borderColor: 'rgba(255, 255, 255, 0.8)' },
-                        privacyAccepted && { backgroundColor: 'rgba(255, 255, 255, 0.95)' },
-                      ]}
-                    >
-                      {privacyAccepted && <Text style={[styles.checkmark, { color: theme.primary }]}>✓</Text>}
-                    </View>
-                    <Text style={[styles.checkboxLabel, { color: theme.buttonText }]}>
-                      I accept the Privacy Policy
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {errorMessage && (
-                  <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{errorMessage}</Text>
-                  </View>
-                )}
-
-                <View style={styles.buttonSpacing} />
-
-                <SafeSpaceButton 
-                  onPress={handleSignup} 
-                  loading={loading} 
-                  disabled={loading || oauthLoading !== null || !isFormValid}
+              {/* Terms Checkbox */}
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setAcceptedTerms(!acceptedTerms)}
+                disabled={loading}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    {
+                      borderColor: acceptedTerms ? theme.primary : theme.textSecondary,
+                      backgroundColor: acceptedTerms ? theme.primary : 'transparent',
+                    },
+                  ]}
                 >
-                  {loading ? 'Creating Account…' : 'Sign Up'}
-                </SafeSpaceButton>
-
-                <View style={styles.divider}>
-                  <View style={[styles.dividerLine, { backgroundColor: theme.buttonText, opacity: 0.3 }]} />
-                  <Text style={[styles.dividerText, { color: theme.buttonText }]}>or</Text>
-                  <View style={[styles.dividerLine, { backgroundColor: theme.buttonText, opacity: 0.3 }]} />
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.oauthButton, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}
-                  onPress={handleGoogleSignIn}
-                  disabled={loading || oauthLoading !== null}
-                >
-                  {oauthLoading === 'google' ? (
-                    <ActivityIndicator color={theme.primary} />
-                  ) : (
-                    <>
-                      <Ionicons name="logo-google" size={20} color={theme.primary} />
-                      <Text style={[styles.oauthButtonText, { color: theme.primary }]}>
-                        Continue with Google
-                      </Text>
-                    </>
+                  {acceptedTerms && (
+                    <Ionicons name="checkmark" size={14} color={theme.buttonText} />
                   )}
-                </TouchableOpacity>
+                </View>
+                <Text style={[styles.checkboxText, { color: theme.textPrimary }]}>
+                  I accept the{' '}
+                  <Text
+                    style={[styles.link, { color: theme.primary }]}
+                    onPress={() => router.push('/legal/terms-of-service')}
+                  >
+                    Terms of Service
+                  </Text>
+                </Text>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.oauthButton, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}
-                  onPress={handleAppleSignIn}
-                  disabled={loading || oauthLoading !== null}
+              {/* Privacy Checkbox */}
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setAcceptedPrivacy(!acceptedPrivacy)}
+                disabled={loading}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    {
+                      borderColor: acceptedPrivacy ? theme.primary : theme.textSecondary,
+                      backgroundColor: acceptedPrivacy ? theme.primary : 'transparent',
+                    },
+                  ]}
                 >
-                  {oauthLoading === 'apple' ? (
-                    <ActivityIndicator color={theme.primary} />
+                  {acceptedPrivacy && (
+                    <Ionicons name="checkmark" size={14} color={theme.buttonText} />
+                  )}
+                </View>
+                <Text style={[styles.checkboxText, { color: theme.textPrimary }]}>
+                  I accept the{' '}
+                  <Text
+                    style={[styles.link, { color: theme.primary }]}
+                    onPress={() => router.push('/legal/privacy-policy')}
+                  >
+                    Privacy Policy
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+
+              <SafeSpaceButton
+                title="Create Account"
+                onPress={handleSignup}
+                loading={loading}
+                disabled={loading || googleLoading || appleLoading}
+              />
+            </View>
+
+            {/* Social Sign In Options */}
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: theme.textPrimary }]} />
+              <Text style={[styles.dividerText, { color: theme.textPrimary }]}>
+                or continue with
+              </Text>
+              <View style={[styles.dividerLine, { backgroundColor: theme.textPrimary }]} />
+            </View>
+
+            <View style={styles.socialButtons}>
+              {/* Google Sign In */}
+              <TouchableOpacity
+                style={[
+                  styles.socialButton,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.textSecondary + '40',
+                  },
+                ]}
+                onPress={handleGoogleSignIn}
+                disabled={loading || googleLoading || appleLoading}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator size="small" color={theme.textPrimary} />
+                ) : (
+                  <>
+                    <Ionicons name="logo-google" size={20} color={theme.textPrimary} />
+                    <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
+                      Continue with Google
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Apple Sign In (iOS only) */}
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity
+                  style={[
+                    styles.socialButton,
+                    {
+                      backgroundColor: theme.card,
+                      borderColor: theme.textSecondary + '40',
+                    },
+                  ]}
+                  onPress={handleAppleSignIn}
+                  disabled={loading || googleLoading || appleLoading}
+                >
+                  {appleLoading ? (
+                    <ActivityIndicator size="small" color={theme.textPrimary} />
                   ) : (
                     <>
-                      <Ionicons name="logo-apple" size={20} color={theme.primary} />
-                      <Text style={[styles.oauthButtonText, { color: theme.primary }]}>
+                      <Ionicons name="logo-apple" size={20} color={theme.textPrimary} />
+                      <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
                         Continue with Apple
                       </Text>
                     </>
                   )}
                 </TouchableOpacity>
+              )}
+            </View>
 
-                <View style={styles.linkSpacing} />
-
-                <SafeSpaceLinkButton 
-                  onPress={() => router.replace('/login')} 
-                  disabled={loading || oauthLoading !== null}
-                  style={{ color: theme.buttonText }}
-                >
-                  Already have an account? Log In
-                </SafeSpaceLinkButton>
-              </View>
-
-              {/* Disclaimer */}
-              <View style={styles.disclaimerContainer}>
-                <SafeSpaceCaption align="center" style={{ color: theme.buttonText, opacity: 0.8 }}>
-                  By continuing, you agree this is a supportive AI coach, not a substitute for professional care.
-                </SafeSpaceCaption>
-              </View>
+            <View style={styles.footer}>
+              <Text style={[styles.footerText, { color: theme.textSecondary }]}>
+                Already have an account?
+              </Text>
+              <SafeSpaceLinkButton
+                title="Sign In"
+                onPress={() => router.push('/login')}
+                disabled={loading || googleLoading || appleLoading}
+              />
             </View>
           </ScrollView>
         </KeyboardAvoider>
@@ -441,141 +413,3 @@ export default function SignupScreen() {
     </LinearGradient>
   );
 }
-
-const styles = StyleSheet.create({
-  gradientBackground: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  safeArea: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: Math.min(SCREEN_WIDTH * 0.06, 24),
-    paddingVertical: SCREEN_HEIGHT * 0.025,
-    minHeight: SCREEN_HEIGHT * 0.85,
-  },
-  content: {
-    flex: 1,
-    paddingVertical: SCREEN_HEIGHT * 0.025,
-  },
-  themePreview: {
-    alignItems: 'center',
-    marginBottom: Math.min(SCREEN_HEIGHT * 0.03, 24),
-  },
-  themePreviewRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  themeCircle: {
-    width: Math.min(SCREEN_WIDTH * 0.1, 40),
-    height: Math.min(SCREEN_WIDTH * 0.1, 40),
-    borderRadius: Math.min(SCREEN_WIDTH * 0.05, 20),
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
-  },
-  titleContainer: {
-    marginBottom: Math.min(SCREEN_HEIGHT * 0.03, 24),
-  },
-  form: {
-    width: '100%',
-  },
-  passwordContainer: {
-    position: 'relative',
-    width: '100%',
-  },
-  passwordInputContainer: {
-    marginBottom: 0,
-  },
-  eyeIconContainer: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
-    padding: 4,
-    zIndex: 1,
-  },
-  checkboxSection: {
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    marginRight: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkmark: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  checkboxLabel: {
-    fontSize: 14,
-    flex: 1,
-  },
-  errorContainer: {
-    marginTop: 12,
-    marginBottom: 4,
-    backgroundColor: 'rgba(255, 68, 68, 0.15)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 68, 68, 0.3)',
-  },
-  errorText: {
-    color: '#FF4444',
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-    fontWeight: '500',
-  },
-  buttonSpacing: {
-    height: 8,
-  },
-  linkSpacing: {
-    height: 8,
-  },
-  disclaimerContainer: {
-    marginTop: Math.min(SCREEN_HEIGHT * 0.04, 32),
-    paddingHorizontal: 8,
-    paddingBottom: 16,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: { 
-    flex: 1, 
-    height: 1,
-  },
-  dividerText: { 
-    marginHorizontal: 16, 
-    fontSize: 14,
-  },
-  oauthButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    gap: 12,
-  },
-  oauthButtonText: { 
-    fontSize: 16, 
-    fontWeight: '600',
-  },
-});
