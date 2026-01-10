@@ -1,12 +1,11 @@
 
 {
   "expo": {
-    "name": "Safe Space",
-    "slug": "Safe Space",
+    "name": "Natively",
+    "slug": "Natively",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
-    "scheme": "natively",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -27,21 +26,7 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Natively",
-      "intentFilters": [
-        {
-          "action": "VIEW",
-          "data": [
-            {
-              "scheme": "natively"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        }
-      ]
+      "package": "com.anonymous.Natively"
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
@@ -49,9 +34,9 @@
     },
     "plugins": [
       "expo-font",
-      "expo-router",
-      "expo-web-browser"
+      "expo-router"
     ],
+    "scheme": "natively",
     "experiments": {
       "typedRoutes": true
     },
