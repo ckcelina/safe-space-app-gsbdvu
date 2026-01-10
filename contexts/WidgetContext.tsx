@@ -37,18 +37,18 @@ export function WidgetProvider({ children }: { children: React.ReactNode }) {
 
 /**
  * Hook to access widget context
- * Returns safe fallback if used outside WidgetProvider (prevents crashes)
+ * SAFE: Returns fallback if used outside WidgetProvider
  */
 export const useWidget = () => {
   const context = useContext(WidgetContext);
+  
   if (!context) {
-    console.error('❌ useWidget must be used within WidgetProvider');
-    // Return safe fallback to prevent app crash
+    console.warn("⚠️ useWidget called outside WidgetProvider - returning safe fallback");
+    
     return {
-      refreshWidget: () => {
-        console.warn('WidgetProvider not mounted, cannot refresh widget');
-      },
+      refreshWidget: () => { console.warn("Widget not initialized"); },
     };
   }
+  
   return context;
 };
