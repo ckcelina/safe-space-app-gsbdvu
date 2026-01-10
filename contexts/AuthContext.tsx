@@ -1,174 +1,115 @@
 
 /**
- * Authentication Context for Safe Space
+ * Authentication Context Template
  *
  * Provides authentication state and methods throughout the app.
- * Integrates with Supabase for user management.
+ * Supports:
+ * - Email/password authentication
+ * - Social auth (Google, Apple, GitHub) with popup flow for web
+ * - Session management
+ * - User state
+ *
+ * Usage:
+ * 1. Update imports to match your auth-client.ts path
+ * 2. Wrap your app with <AuthProvider>
+ * 3. Use useAuth() hook in components to access auth methods
+ * 4. Customize user type and auth methods as needed
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase } from "@/lib/supabase";
+import { Platform } from "react-native";
+import { authClient, storeWebBearerToken } from "@/lib/auth";
 
-// User type from Supabase
+// User type - customize based on your backend
 interface User {
   id: string;
   email: string;
   name?: string;
-  role?: string;
+  image?: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  userId: string | null;
-  currentUser: User | null;
-  email: string | null;
-  role: string | null;
-  isPremium: boolean;
   loading: boolean;
-  session: any;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name?: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
+  signInWithGitHub: () => Promise<void>;
   signOut: () => Promise<void>;
   fetchUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Opens OAuth popup for web-based social authentication
+ * Returns a promise that resolves with the token
+ */
+function openOAuthPopup(provider: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const popupUrl = `${window.location.origin}/auth-popup?provider=${provider}`;
+    const width = 500;
+    const height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    const popup = window.open(
+      popupUrl,
+      "oauth-popup",
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+    );
+
+    if (!popup) {
+      reject(new Error("Failed to open popup. Please allow popups."));
+      return;
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "oauth-success" && event.data?.token) {
+        window.removeEventListener("message", handleMessage);
+        clearInterval(checkClosed);
+        resolve(event.data.token);
+      } else if (event.data?.type === "oauth-error") {
+        window.removeEventListener("message", handleMessage);
+        clearInterval(checkClosed);
+        reject(new Error(event.data.error || "OAuth failed"));
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    // Check if popup was closed manually
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosed);
+        window.removeEventListener("message", handleMessage);
+        reject(new Error("Authentication cancelled"));
+      }
+    }, 500);
+  });
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch current user on mount - async and non-blocking
+  // Fetch current user on mount
   useEffect(() => {
-    let mounted = true;
-
-    const initAuth = async () => {
-      try {
-        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error("[Auth] Failed to fetch session:", error);
-          if (mounted) {
-            setSession(null);
-            setUser(null);
-          }
-        } else if (currentSession?.user) {
-          if (mounted) {
-            setSession(currentSession);
-            
-            // Fetch user profile from public.users table
-            const { data: userData, error: userError } = await supabase
-              .from('users')
-              .select('*')
-              .eq('user_id', currentSession.user.id)
-              .maybeSingle();
-            
-            if (userError) {
-              console.error("[Auth] Failed to fetch user profile:", userError);
-            }
-            
-            setUser({
-              id: currentSession.user.id,
-              email: currentSession.user.email || '',
-              name: userData?.name || currentSession.user.user_metadata?.name,
-              role: userData?.role || 'free',
-            });
-          }
-        } else {
-          if (mounted) {
-            setSession(null);
-            setUser(null);
-          }
-        }
-      } catch (error) {
-        console.error("[Auth] Failed to initialize auth:", error);
-        if (mounted) {
-          setSession(null);
-          setUser(null);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    initAuth();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      console.log("[Auth] Auth state changed:", event);
-      
-      if (mounted) {
-        setSession(currentSession);
-        
-        if (currentSession?.user) {
-          // Fetch user profile
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('user_id', currentSession.user.id)
-            .maybeSingle();
-          
-          if (userError) {
-            console.error("[Auth] Failed to fetch user profile:", userError);
-          }
-          
-          setUser({
-            id: currentSession.user.id,
-            email: currentSession.user.email || '',
-            name: userData?.name || currentSession.user.user_metadata?.name,
-            role: userData?.role || 'free',
-          });
-        } else {
-          setUser(null);
-        }
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    fetchUser();
   }, []);
 
   const fetchUser = async () => {
     try {
       setLoading(true);
-      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error("[Auth] Failed to fetch session:", error);
-        setSession(null);
-        setUser(null);
-      } else if (currentSession?.user) {
-        setSession(currentSession);
-        
-        // Fetch user profile
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('user_id', currentSession.user.id)
-          .maybeSingle();
-        
-        if (userError) {
-          console.error("[Auth] Failed to fetch user profile:", userError);
-        }
-        
-        setUser({
-          id: currentSession.user.id,
-          email: currentSession.user.email || '',
-          name: userData?.name || currentSession.user.user_metadata?.name,
-          role: userData?.role || 'free',
-        });
+      const session = await authClient.getSession();
+      if (session?.user) {
+        setUser(session.user as User);
       } else {
-        setSession(null);
         setUser(null);
       }
     } catch (error) {
-      console.error("[Auth] Failed to fetch user:", error);
-      setSession(null);
+      console.error("Failed to fetch user:", error);
       setUser(null);
     } finally {
       setLoading(false);
@@ -177,94 +118,112 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        console.error("[Auth] Email sign in failed:", error);
-        throw error;
-      }
-
+      await authClient.signIn.email({ email, password });
       await fetchUser();
     } catch (error) {
-      console.error("[Auth] Email sign in failed:", error);
+      console.error("Email sign in failed:", error);
       throw error;
     }
   };
 
   const signUpWithEmail = async (email: string, password: string, name?: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
+      await authClient.signUp.email({
         email,
         password,
-        options: {
-          data: {
-            name,
-          },
-        },
+        name,
+        callbackURL: "/profile", // TODO: Update redirect URL
       });
-
-      if (error) {
-        console.error("[Auth] Email sign up failed:", error);
-        throw error;
-      }
-
-      // Create user profile in public.users table
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert([
-            {
-              user_id: data.user.id,
-              role: 'free',
-            },
-          ]);
-
-        if (profileError) {
-          console.error("[Auth] Failed to create user profile:", profileError);
-          // Don't throw - allow signup to succeed even if profile creation fails
-        }
-      }
-
       await fetchUser();
     } catch (error) {
-      console.error("[Auth] Email sign up failed:", error);
+      console.error("Email sign up failed:", error);
+      throw error;
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      if (Platform.OS === "web") {
+        // Web: Use popup flow to avoid cross-origin issues
+        const token = await openOAuthPopup("google");
+        storeWebBearerToken(token);
+        await fetchUser();
+      } else {
+        // Native: Use deep linking (handled by Better Auth)
+        await authClient.signIn.social({
+          provider: "google",
+          callbackURL: "/profile", // TODO: Update redirect URL
+        });
+        await fetchUser();
+      }
+    } catch (error) {
+      console.error("Google sign in failed:", error);
+      throw error;
+    }
+  };
+
+  const signInWithApple = async () => {
+    try {
+      if (Platform.OS === "web") {
+        // Web: Use popup flow
+        const token = await openOAuthPopup("apple");
+        storeWebBearerToken(token);
+        await fetchUser();
+      } else {
+        // Native: Use deep linking
+        await authClient.signIn.social({
+          provider: "apple",
+          callbackURL: "/profile", // TODO: Update redirect URL
+        });
+        await fetchUser();
+      }
+    } catch (error) {
+      console.error("Apple sign in failed:", error);
+      throw error;
+    }
+  };
+
+  const signInWithGitHub = async () => {
+    try {
+      if (Platform.OS === "web") {
+        // Web: Use popup flow
+        const token = await openOAuthPopup("github");
+        storeWebBearerToken(token);
+        await fetchUser();
+      } else {
+        // Native: Use deep linking
+        await authClient.signIn.social({
+          provider: "github",
+          callbackURL: "/profile", // TODO: Update redirect URL
+        });
+        await fetchUser();
+      }
+    } catch (error) {
+      console.error("GitHub sign in failed:", error);
       throw error;
     }
   };
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await authClient.signOut();
       setUser(null);
-      setSession(null);
     } catch (error) {
-      console.error("[Auth] Sign out failed:", error);
-      // Don't throw - allow user to continue even if sign out fails
+      console.error("Sign out failed:", error);
+      throw error;
     }
   };
-
-  const userId = user?.id || null;
-  const currentUser = user;
-  const email = user?.email || null;
-  const role = user?.role || null;
-  const isPremium = role === 'premium' || role === 'admin';
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        userId,
-        currentUser,
-        email,
-        role,
-        isPremium,
         loading,
-        session,
         signInWithEmail,
         signUpWithEmail,
+        signInWithGoogle,
+        signInWithApple,
+        signInWithGitHub,
         signOut,
         fetchUser,
       }}
@@ -277,11 +236,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 /**
  * Hook to access auth context
  * Must be used within AuthProvider
+ * 
+ * SAFETY GUARD: This is a temporary safety guard to prevent app crashes.
+ * Provider order still must be correct - AuthProvider should wrap the entire app.
  */
 export function useAuth() {
   const context = useContext(AuthContext);
+  
   if (context === undefined) {
-    throw new Error("useAuth must be used within AuthProvider");
+    // Log error but don't crash the app
+    console.error(
+      "⚠️ useAuth must be used within AuthProvider. " +
+      "Check that AuthProvider wraps your app in app/_layout.tsx. " +
+      "Returning fallback auth state to prevent crash."
+    );
+    
+    // Return safe fallback object to prevent crashes
+    return {
+      user: null,
+      loading: true,
+      signInWithEmail: async () => {
+        throw new Error("Auth not initialized - AuthProvider missing");
+      },
+      signUpWithEmail: async () => {
+        throw new Error("Auth not initialized - AuthProvider missing");
+      },
+      signInWithGoogle: async () => {
+        throw new Error("Auth not initialized - AuthProvider missing");
+      },
+      signInWithApple: async () => {
+        throw new Error("Auth not initialized - AuthProvider missing");
+      },
+      signInWithGitHub: async () => {
+        throw new Error("Auth not initialized - AuthProvider missing");
+      },
+      signOut: async () => {
+        throw new Error("Auth not initialized - AuthProvider missing");
+      },
+      fetchUser: async () => {
+        throw new Error("Auth not initialized - AuthProvider missing");
+      },
+    };
   }
+  
   return context;
 }
