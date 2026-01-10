@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Safe Space",
@@ -5,6 +6,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
+    "scheme": "natively",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -17,8 +19,7 @@
       "bundleIdentifier": "com.anonymous.Natively",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "scheme": "natively"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -57,6 +58,5 @@
     "extra": {
       "router": {}
     }
-  },
-  "scheme": "Safe Space"
+  }
 }
