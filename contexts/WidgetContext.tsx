@@ -1,3 +1,4 @@
+
 import * as React from "react";
 import { createContext, useCallback, useContext } from "react";
 import { ExtensionStorage } from "@bacons/apple-targets";
@@ -34,10 +35,20 @@ export function WidgetProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Hook to access widget context
+ * Returns safe fallback if used outside WidgetProvider (prevents crashes)
+ */
 export const useWidget = () => {
   const context = useContext(WidgetContext);
   if (!context) {
-    throw new Error("useWidget must be used within a WidgetProvider");
+    console.error('❌ useWidget must be used within WidgetProvider');
+    // Return safe fallback to prevent app crash
+    return {
+      refreshWidget: () => {
+        console.warn('WidgetProvider not mounted, cannot refresh widget');
+      },
+    };
   }
   return context;
 };

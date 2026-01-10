@@ -1,23 +1,7 @@
 
-import { useContext } from 'react';
-import { AuthContext } from '@/contexts/AuthContext';
-import { ThemeContext } from '@/contexts/ThemeContext';
-import { UserPreferencesContext } from '@/contexts/UserPreferencesContext';
-import { DEFAULT_TONE_ID } from '@/constants/AITones';
-
-// Default theme for fallback
-const defaultTheme = {
-  primary: '#1890FF',
-  primaryGradient: ['#0050B3', '#40A9FF'] as [string, string],
-  gradientColors: ['#0050B3', '#40A9FF'] as [string, string],
-  background: '#E6F7FF',
-  card: '#FFFFFF',
-  textPrimary: '#001529',
-  textSecondary: '#595959',
-  buttonText: '#FFFFFF',
-  buttonBackground: '#1890FF',
-  statusBarGradient: ['#F0F9FF', '#E6F7FF'] as [string, string],
-};
+import { useAuth } from '@/contexts/AuthContext';
+import { useThemeContext } from '@/contexts/ThemeContext';
+import { useUserPreferences } from '@/contexts/UserPreferencesContext';
 
 /**
  * Safe Auth Hook
@@ -25,18 +9,15 @@ const defaultTheme = {
  * Prevents app crashes due to missing AuthProvider
  */
 export const useAuthSafe = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
+  try {
+    const context = useAuth();
+    return context;
+  } catch (error) {
     console.warn('⚠️ AuthContext not found, using safe defaults');
     return {
       user: null,
-      userId: null,
-      currentUser: null,
-      email: null,
-      role: null,
-      isPremium: false,
-      loading: true,
       session: null,
+      loading: true,
       signInWithEmail: async () => { 
         throw new Error("Auth not ready"); 
       },
@@ -47,7 +28,6 @@ export const useAuthSafe = () => {
       fetchUser: async () => {},
     };
   }
-  return context;
 };
 
 /**
@@ -56,16 +36,29 @@ export const useAuthSafe = () => {
  * Prevents app crashes due to missing ThemeProvider
  */
 export const useThemeSafe = () => {
-  const context = useContext(ThemeContext);
-  if (!context) {
+  try {
+    const context = useThemeContext();
+    return context;
+  } catch (error) {
     console.warn('⚠️ ThemeContext not found, using safe defaults');
+    const defaultTheme = {
+      primary: '#1890FF',
+      primaryGradient: ['#0050B3', '#40A9FF'] as [string, string],
+      gradientColors: ['#0050B3', '#40A9FF'] as [string, string],
+      background: '#E6F7FF',
+      card: '#FFFFFF',
+      textPrimary: '#001529',
+      textSecondary: '#595959',
+      buttonText: '#FFFFFF',
+      buttonBackground: '#1890FF',
+      statusBarGradient: ['#F0F9FF', '#E6F7FF'] as [string, string],
+    };
     return {
       theme: defaultTheme,
       themeKey: 'OceanBlue' as const,
       setTheme: async () => {},
     };
   }
-  return context;
 };
 
 /**
@@ -74,12 +67,14 @@ export const useThemeSafe = () => {
  * Prevents app crashes due to missing UserPreferencesProvider
  */
 export const useUserPreferencesSafe = () => {
-  const context = useContext(UserPreferencesContext);
-  if (!context) {
+  try {
+    const context = useUserPreferences();
+    return context;
+  } catch (error) {
     console.warn('⚠️ UserPreferencesContext not found, using safe defaults');
     return {
       preferences: {
-        ai_tone_id: DEFAULT_TONE_ID,
+        ai_tone_id: 'balanced',
         ai_science_mode: false,
       },
       loading: false,
@@ -90,5 +85,4 @@ export const useUserPreferencesSafe = () => {
       refreshPreferences: async () => {},
     };
   }
-  return context;
 };
