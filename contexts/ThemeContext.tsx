@@ -1,10 +1,15 @@
 
+/**
+ * Theme Context - Safe Implementation
+ * Provides theme state with safe fallbacks
+ */
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ThemeKey = 'ocean' | 'rose' | 'forest' | 'custom';
 
-interface Theme {
+interface ThemeColors {
   primary: string;
   secondary: string;
   background: string;
@@ -17,67 +22,76 @@ interface Theme {
   warning: string;
 }
 
-const THEMES: Record<ThemeKey, Theme> = {
+interface ThemeContextType {
+  themeKey: ThemeKey;
+  theme: ThemeColors;
+  setTheme: (key: ThemeKey) => void;
+}
+
+const THEME_STORAGE_KEY = '@theme_key';
+
+const THEMES: Record<ThemeKey, ThemeColors> = {
   ocean: {
-    primary: '#0066CC',
-    secondary: '#4A90E2',
-    background: '#F0F4F8',
+    primary: '#007AFF',
+    secondary: '#5AC8FA',
+    background: '#F2F2F7',
     surface: '#FFFFFF',
-    text: '#1A1A1A',
-    textSecondary: '#666666',
-    border: '#E0E0E0',
-    error: '#D32F2F',
-    success: '#388E3C',
-    warning: '#F57C00',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#C6C6C8',
+    error: '#FF3B30',
+    success: '#34C759',
+    warning: '#FF9500',
   },
   rose: {
-    primary: '#E91E63',
-    secondary: '#F48FB1',
-    background: '#FFF0F5',
+    primary: '#FF2D55',
+    secondary: '#FF6482',
+    background: '#FFF5F7',
     surface: '#FFFFFF',
-    text: '#1A1A1A',
-    textSecondary: '#666666',
-    border: '#E0E0E0',
-    error: '#D32F2F',
-    success: '#388E3C',
-    warning: '#F57C00',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#FFD1DC',
+    error: '#FF3B30',
+    success: '#34C759',
+    warning: '#FF9500',
   },
   forest: {
-    primary: '#2E7D32',
-    secondary: '#66BB6A',
-    background: '#F1F8F4',
+    primary: '#30D158',
+    secondary: '#32AE85',
+    background: '#F0F9F4',
     surface: '#FFFFFF',
-    text: '#1A1A1A',
-    textSecondary: '#666666',
-    border: '#E0E0E0',
-    error: '#D32F2F',
-    success: '#388E3C',
-    warning: '#F57C00',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#B8E6CC',
+    error: '#FF3B30',
+    success: '#34C759',
+    warning: '#FF9500',
   },
   custom: {
-    primary: '#6200EE',
-    secondary: '#03DAC6',
-    background: '#F5F5F5',
+    primary: '#007AFF',
+    secondary: '#5AC8FA',
+    background: '#F2F2F7',
     surface: '#FFFFFF',
-    text: '#1A1A1A',
-    textSecondary: '#666666',
-    border: '#E0E0E0',
-    error: '#D32F2F',
-    success: '#388E3C',
-    warning: '#F57C00',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#C6C6C8',
+    error: '#FF3B30',
+    success: '#34C759',
+    warning: '#FF9500',
   },
 };
 
-interface ThemeContextType {
-  theme: Theme;
-  themeKey: ThemeKey;
-  setThemeKey: (key: ThemeKey) => void;
-}
-
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+// Create context with safe default
+const ThemeContext = createContext<ThemeContextType>({
+  themeKey: 'ocean',
+  theme: THEMES.ocean,
+  setTheme: () => {
+    console.warn('ThemeContext: setTheme called outside provider');
+  },
+});
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themeKey, setThemeKeyState] = useState<ThemeKey>('ocean');
+  const [themeKey, setThemeKey] = useState<ThemeKey>('ocean');
 
   useEffect(() => {
     loadTheme();
@@ -85,37 +99,49 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const loadTheme = async () => {
     try {
-      const saved = await AsyncStorage.getItem('theme_key');
-      if (saved && saved in THEMES) {
-        setThemeKeyState(saved as ThemeKey);
+      const saved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+      if (saved && (saved as ThemeKey) in THEMES) {
+        setThemeKey(saved as ThemeKey);
       }
     } catch (error) {
-      console.error('Failed to load theme:', error);
+      console.warn('ThemeContext: Failed to load theme', error);
     }
   };
 
-  const setThemeKey = async (key: ThemeKey) => {
+  const setTheme = async (key: ThemeKey) => {
     try {
-      await AsyncStorage.setItem('theme_key', key);
-      setThemeKeyState(key);
+      setThemeKey(key);
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, key);
     } catch (error) {
-      console.error('Failed to save theme:', error);
+      console.warn('ThemeContext: Failed to save theme', error);
     }
   };
-
-  const theme = THEMES[themeKey];
 
   return (
-    <ThemeContext.Provider value={{ theme, themeKey, setThemeKey }}>
+    <ThemeContext.Provider
+      value={{
+        themeKey,
+        theme: THEMES[themeKey],
+        setTheme,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );
 }
 
+/**
+ * Safe hook - never throws
+ */
 export function useThemeContext() {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error('useThemeContext must be used within ThemeProvider');
+    console.warn('useThemeContext: Used outside ThemeProvider, returning defaults');
+    return {
+      themeKey: 'ocean' as ThemeKey,
+      theme: THEMES.ocean,
+      setTheme: () => {},
+    };
   }
   return context;
 }

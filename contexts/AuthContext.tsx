@@ -1,250 +1,165 @@
 
 /**
- * Authentication Context Template
- *
- * Provides authentication state and methods throughout the app.
- * Supports:
- * - Email/password authentication
- * - Social auth (Google, Apple, GitHub) with popup flow for web
- * - Session management
- * - User state
- *
- * Usage:
- * 1. Update imports to match your auth-client.ts path
- * 2. Wrap your app with <AuthProvider>
- * 3. Use useAuth() hook in components to access auth methods
- * 4. Customize user type and auth methods as needed
+ * Authentication Context - Safe Implementation
+ * Provides authentication state with safe fallbacks
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { Platform } from "react-native";
-import { authClient, storeWebBearerToken } from "@/lib/auth";
-
-// User type - customize based on your backend
-interface User {
-  id: string;
-  email: string;
-  name?: string;
-  image?: string;
-}
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/lib/supabase';
+import type { User, Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, name?: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
-  signInWithGitHub: () => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  fetchUser: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const AuthProviderMountedContext = createContext<boolean>(false);
-
-/**
- * Opens OAuth popup for web-based social authentication
- * Returns a promise that resolves with the token
- */
-function openOAuthPopup(provider: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const popupUrl = `${window.location.origin}/auth-popup?provider=${provider}`;
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-
-    const popup = window.open(
-      popupUrl,
-      "oauth-popup",
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
-    );
-
-    if (!popup) {
-      reject(new Error("Failed to open popup. Please allow popups."));
-      return;
-    }
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === "oauth-success" && event.data?.token) {
-        window.removeEventListener("message", handleMessage);
-        clearInterval(checkClosed);
-        resolve(event.data.token);
-      } else if (event.data?.type === "oauth-error") {
-        window.removeEventListener("message", handleMessage);
-        clearInterval(checkClosed);
-        reject(new Error(event.data.error || "OAuth failed"));
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-
-    // Check if popup was closed manually
-    const checkClosed = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkClosed);
-        window.removeEventListener("message", handleMessage);
-        reject(new Error("Authentication cancelled"));
-      }
-    }, 500);
-  });
-}
+// Create context with safe default
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  session: null,
+  loading: true,
+  signUp: async () => {
+    console.warn('AuthContext: signUp called outside provider');
+  },
+  signIn: async () => {
+    console.warn('AuthContext: signIn called outside provider');
+  },
+  signOut: async () => {
+    console.warn('AuthContext: signOut called outside provider');
+  },
+  refreshSession: async () => {
+    console.warn('AuthContext: refreshSession called outside provider');
+  },
+});
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch current user on mount
   useEffect(() => {
-    fetchUser();
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUser = async () => {
+  const signUp = async (email: string, password: string) => {
     try {
-      setLoading(true);
-      const session = await authClient.getSession();
-      if (session?.user) {
-        setUser(session.user as User);
-      } else {
-        setUser(null);
-      }
-    } catch (error) {
-      console.error("Failed to fetch user:", error);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signInWithEmail = async (email: string, password: string) => {
-    try {
-      await authClient.signIn.email({ email, password });
-      await fetchUser();
-    } catch (error) {
-      console.error("Email sign in failed:", error);
-      throw error;
-    }
-  };
-
-  const signUpWithEmail = async (email: string, password: string, name?: string) => {
-    try {
-      await authClient.signUp.email({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        name,
-        callbackURL: "/profile",
       });
-      await fetchUser();
+
+      if (error) throw error;
+
+      // Create user profile if signup successful
+      if (data.user) {
+        await supabase.from('users').insert({
+          user_id: data.user.id,
+          role: 'free',
+        });
+      }
     } catch (error) {
-      console.error("Email sign up failed:", error);
+      console.error('AuthContext: Sign up failed', error);
       throw error;
     }
   };
 
-  const signInWithGoogle = async () => {
+  const signIn = async (email: string, password: string) => {
     try {
-      if (Platform.OS === "web") {
-        const token = await openOAuthPopup("google");
-        storeWebBearerToken(token);
-        await fetchUser();
-      } else {
-        await authClient.signIn.social({
-          provider: "google",
-          callbackURL: "/profile",
-        });
-        await fetchUser();
-      }
-    } catch (error) {
-      console.error("Google sign in failed:", error);
-      throw error;
-    }
-  };
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-  const signInWithApple = async () => {
-    try {
-      if (Platform.OS === "web") {
-        const token = await openOAuthPopup("apple");
-        storeWebBearerToken(token);
-        await fetchUser();
-      } else {
-        await authClient.signIn.social({
-          provider: "apple",
-          callbackURL: "/profile",
-        });
-        await fetchUser();
-      }
+      if (error) throw error;
     } catch (error) {
-      console.error("Apple sign in failed:", error);
-      throw error;
-    }
-  };
-
-  const signInWithGitHub = async () => {
-    try {
-      if (Platform.OS === "web") {
-        const token = await openOAuthPopup("github");
-        storeWebBearerToken(token);
-        await fetchUser();
-      } else {
-        await authClient.signIn.social({
-          provider: "github",
-          callbackURL: "/profile",
-        });
-        await fetchUser();
-      }
-    } catch (error) {
-      console.error("GitHub sign in failed:", error);
+      console.error('AuthContext: Sign in failed', error);
       throw error;
     }
   };
 
   const signOut = async () => {
     try {
-      await authClient.signOut();
-      setUser(null);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
     } catch (error) {
-      console.error("Sign out failed:", error);
+      console.error('AuthContext: Sign out failed', error);
       throw error;
     }
   };
 
+  const refreshSession = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      setUser(session?.user ?? null);
+    } catch (error) {
+      console.warn('AuthContext: Failed to refresh session', error);
+    }
+  };
+
   return (
-    <AuthProviderMountedContext.Provider value={true}>
-      <AuthContext.Provider
-        value={{
-          user,
-          loading,
-          signInWithEmail,
-          signUpWithEmail,
-          signInWithGoogle,
-          signInWithApple,
-          signInWithGitHub,
-          signOut,
-          fetchUser,
-        }}
-      >
-        {children}
-      </AuthContext.Provider>
-    </AuthProviderMountedContext.Provider>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading,
+        signUp,
+        signIn,
+        signOut,
+        refreshSession,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
 }
 
 /**
- * Hook to access auth context
- * Must be used within AuthProvider
+ * Safe hook - never throws, returns safe defaults
  */
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within AuthProvider");
+  if (!context) {
+    console.warn('useAuth: Used outside AuthProvider, returning safe defaults');
+    return {
+      user: null,
+      session: null,
+      loading: false,
+      signUp: async () => {},
+      signIn: async () => {},
+      signOut: async () => {},
+      refreshSession: async () => {},
+    };
   }
   return context;
 }
 
 /**
  * Hook to check if AuthProvider is mounted
+ * Useful for debugging provider issues
  */
 export function useIsAuthProviderMounted() {
-  return useContext(AuthProviderMountedContext);
+  const context = useContext(AuthContext);
+  return context !== undefined;
 }
