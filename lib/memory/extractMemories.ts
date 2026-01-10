@@ -16,7 +16,7 @@ import { extractMemoriesFromUserText } from './localExtract';
  */
 export async function extractMemories(params: {
   personName: string;
-  recentUserMessages: Array<string>;
+  recentUserMessages: string[];
   lastAssistantMessage?: string;
   existingMemories: Array<{ key: string; value: string; category: string }>;
   userId: string;

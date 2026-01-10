@@ -94,6 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Fetch current user on mount
+  useEffect(() => {
+    fetchUser();
+  }, []);
+
   const fetchUser = async () => {
     try {
       setLoading(true);
@@ -110,11 +115,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   };
-
-  // Fetch current user on mount
-  useEffect(() => {
-    fetchUser();
-  }, []);
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
@@ -246,8 +246,7 @@ export function useAuth() {
 }
 
 /**
- * Hook to check if AuthProvider is mounted
- * FIXED: Renamed from isAuthProviderMounted to follow React Hook naming convention
+ * Hook to check if AuthProvider is mounted (for dev tools)
  */
 export function useIsAuthProviderMounted(): boolean {
   const context = useContext(AuthContext);

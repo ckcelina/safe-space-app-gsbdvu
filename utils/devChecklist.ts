@@ -16,7 +16,7 @@
  * NOTE: Uses static imports instead of dynamic require() to avoid build errors
  */
 
-import * as AuthContext from '@/contexts/AuthContext';
+import { useIsAuthProviderMounted } from '@/contexts/AuthContext';
 import * as TherapistPersonas from '@/constants/TherapistPersonas';
 import * as ThemeContext from '@/contexts/ThemeContext';
 import * as UserPreferencesContext from '@/contexts/UserPreferencesContext';
@@ -37,14 +37,8 @@ export function runDevChecklist() {
   
   // Check 1: AuthProvider mounted
   try {
-    const isMounted = AuthContext.isAuthProviderMounted?.() || false;
-    
-    if (isMounted) {
-      checks.push('✅ AuthProvider mounted');
-    } else {
-      checks.push('⚠️ AuthProvider NOT mounted yet');
-      // Note: This might be OK if called very early, will be mounted soon
-    }
+    // Note: This check is informational only since we can't call hooks here
+    checks.push('⚠️ AuthProvider check skipped (cannot call hooks in non-component)');
   } catch (error: any) {
     checks.push('❌ AuthProvider FAILED');
     hasErrors = true;

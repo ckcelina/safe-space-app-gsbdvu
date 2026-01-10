@@ -166,7 +166,7 @@ export default function SettingsScreen() {
   // Updates Over Time State
   const [showUpdatesModal, setShowUpdatesModal] = useState(false);
   const [showAddUpdateModal, setShowAddUpdateModal] = useState(false);
-  const [updates, setUpdates] = useState<PersonalizationUpdate[]>([]);
+  const [updates, setUpdates] = useState<Array<PersonalizationUpdate>>([]);
   const [isLoadingUpdates, setIsLoadingUpdates] = useState(false);
   const [editingUpdate, setEditingUpdate] = useState<PersonalizationUpdate | null>(null);
   const [expandedUpdateIds, setExpandedUpdateIds] = useState<Set<string>>(new Set());
@@ -989,7 +989,7 @@ export default function SettingsScreen() {
   };
 
   const renderOptionCard = (
-    options: Array<string>,
+    options: string[],
     selectedValue: string,
     onSelect: (value: string) => void
   ) => {

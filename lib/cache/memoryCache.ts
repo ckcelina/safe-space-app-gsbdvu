@@ -118,7 +118,7 @@ class MemoryCache {
   /**
    * Get all keys in the cache
    */
-  keys(): Array<string> {
+  keys(): string[] {
     return Array.from(this.cache.keys());
   }
 
@@ -169,7 +169,7 @@ class MemoryCache {
   /**
    * Set multiple values at once
    */
-  async setMany<T>(entries: { key: string; value: T; options?: CacheOptions }[]): Promise<void> {
+  async setMany<T>(entries: Array<{ key: string; value: T; options?: CacheOptions }>): Promise<void> {
     await Promise.all(
       entries.map(({ key, value, options }) => this.set(key, value, options))
     );
@@ -178,7 +178,7 @@ class MemoryCache {
   /**
    * Get multiple values at once
    */
-  async getMany<T>(keys: Array<string>): Promise<Array<T | null>> {
+  async getMany<T>(keys: string[]): Promise<Array<T | null>> {
     return Promise.all(keys.map(key => this.get<T>(key)));
   }
 

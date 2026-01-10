@@ -14,7 +14,7 @@
 
 import * as TherapistPersonas from '@/constants/TherapistPersonas';
 import * as AITones from '@/constants/AITones';
-import * as AuthContext from '@/contexts/AuthContext';
+import { useIsAuthProviderMounted } from '@/contexts/AuthContext';
 
 interface ScanIssue {
   file: string;
@@ -89,25 +89,22 @@ function verifyAuthProvider(): ScanIssue[] {
   
   try {
     // Check if provider has mount tracking using static import
-    if (!AuthContext.isAuthProviderMounted) {
+    if (!useIsAuthProviderMounted) {
       issues.push({
         file: 'contexts/AuthContext.tsx',
-        issue: 'isAuthProviderMounted function is missing',
+        issue: 'useIsAuthProviderMounted function is missing',
         severity: 'warning',
-        fix: 'Add isAuthProviderMounted export to track provider mounting',
+        fix: 'Add useIsAuthProviderMounted export to track provider mounting',
       });
     }
     
-    // Check if useAuth has safety guard
-    const isMounted = AuthContext.isAuthProviderMounted?.() || false;
-    if (!isMounted) {
-      issues.push({
-        file: 'contexts/AuthContext.tsx',
-        issue: 'AuthProvider is not mounted yet',
-        severity: 'warning',
-        fix: 'This may be OK if called early - provider should mount soon',
-      });
-    }
+    // Note: Cannot call hooks outside of components, so we skip the mounted check
+    issues.push({
+      file: 'contexts/AuthContext.tsx',
+      issue: 'AuthProvider mount check skipped (cannot call hooks in utility)',
+      severity: 'warning',
+      fix: 'This check is informational only',
+    });
   } catch (error: any) {
     issues.push({
       file: 'contexts/AuthContext.tsx',
@@ -129,17 +126,13 @@ function verifyRouteProviderOrder(): ScanIssue[] {
   // Check that _layout.tsx has proper provider order
   try {
     // This is a runtime check - we can't statically analyze the layout
-    // But we can check if the provider is mounted using static import
-    const isMounted = AuthContext.isAuthProviderMounted?.() || false;
-    
-    if (!isMounted) {
-      issues.push({
-        file: 'app/_layout.tsx',
-        issue: 'AuthProvider may not be wrapping all routes',
-        severity: 'warning',
-        fix: 'Ensure AuthProvider wraps the entire Stack in _layout.tsx',
-      });
-    }
+    // Note: Cannot call hooks outside of components
+    issues.push({
+      file: 'app/_layout.tsx',
+      issue: 'Provider order check skipped (cannot call hooks in utility)',
+      severity: 'warning',
+      fix: 'Manually verify AuthProvider wraps all routes in _layout.tsx',
+    });
   } catch (error: any) {
     issues.push({
       file: 'app/_layout.tsx',

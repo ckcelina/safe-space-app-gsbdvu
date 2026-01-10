@@ -15,7 +15,7 @@ const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
 interface RequestBody {
   personName: string;
-  recentUserMessages: Array<string>;
+  recentUserMessages: string[];
   lastAssistantMessage?: string;
   existingMemories: Array<{
     key: string;

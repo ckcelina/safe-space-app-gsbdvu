@@ -34,12 +34,14 @@ export default function ProviderHealthScreen() {
     }
   };
 
+  // Check if AuthProvider is mounted (must be at top level, not in callback)
+  const authMounted = useIsAuthProviderMounted();
+
   const runHealthChecks = useCallback(async () => {
     setLoading(true);
     const results: HealthCheck[] = [];
 
     // Check 1: AuthProvider mounted
-    const authMounted = useIsAuthProviderMounted();
     if (authMounted) {
       results.push({
         name: 'AuthProvider',
@@ -132,7 +134,7 @@ export default function ProviderHealthScreen() {
 
   useEffect(() => {
     runHealthChecks();
-  }, [runHealthChecks]);
+  }, [runHealthChecks, authMounted]);
 
   const handleRunFullScan = () => {
     console.log('\n🔍 Running full scan from Provider Health screen...\n');

@@ -30,7 +30,7 @@ interface DiagnosticReport {
   };
   serverHealth: {
     isHealthy: boolean;
-    errors: Array<string>;
+    errors: string[];
     reconnectAttempts: number;
     lastSuccessfulConnection: string | null;
   };
@@ -40,7 +40,7 @@ interface DiagnosticReport {
     errorPatterns: Array<[string, number]>;
     timeSinceLastSuccess: number | null;
   };
-  recommendations: Array<string>;
+  recommendations: string[];
 }
 
 class Diagnostics {
