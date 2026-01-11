@@ -756,10 +756,11 @@ export default function ChatScreen() {
     setAllMessages((prev) => prev.filter((msg) => msg.id !== messageId));
 
     setInputText(retryContent);
-    
+
     setTimeout(() => {
       sendMessage();
     }, 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.id, personId]);
 
   const sendMessage = useCallback(async () => {
