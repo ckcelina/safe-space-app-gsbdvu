@@ -18,6 +18,7 @@ export interface Theme {
 interface ThemeContextType {
   themeKey: ThemeKey;
   theme: Theme;
+  themeReady: boolean;
   setTheme: (themeKey: ThemeKey) => Promise<void>;
 }
 
@@ -83,6 +84,7 @@ const themes: Record<ThemeKey, Theme> = {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeKey, setThemeKey] = useState<ThemeKey>('OceanBlue');
   const [theme, setThemeState] = useState<Theme>(oceanBlueTheme);
+  const [themeReady, setThemeReady] = useState(false);
 
   const loadTheme = useCallback(async () => {
     try {
@@ -94,6 +96,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Error loading theme:', error);
+    } finally {
+      setThemeReady(true);
     }
   }, []);
 
@@ -112,7 +116,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ themeKey, theme, setTheme }}>
+    <ThemeContext.Provider value={{ themeKey, theme, themeReady, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );

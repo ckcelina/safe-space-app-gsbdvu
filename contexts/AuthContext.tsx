@@ -21,6 +21,7 @@ interface AuthContextType {
   role: 'free' | 'premium' | 'admin';
   isPremium: boolean;
   loading: boolean;
+  isHydrated: boolean;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -324,6 +325,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: userRole,
         isPremium,
         loading,
+        isHydrated: !loading,
         signUp,
         signIn,
         signOut,

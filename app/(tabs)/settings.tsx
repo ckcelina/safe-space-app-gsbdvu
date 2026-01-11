@@ -1044,8 +1044,11 @@ export default function SettingsScreen() {
         end={{ x: 0, y: 1 }}
         pointerEvents="none"
       >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']} pointerEvents="none">
-          <View style={styles.container} pointerEvents="none">
+        {/* FIX: Removed pointerEvents="none" from SafeAreaView and container View.
+             These were blocking all touches to ScrollView and Pressables inside.
+             LinearGradient keeps pointerEvents="none" since it's just decorative background. */}
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <View style={styles.container}>
             {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
             <View style={styles.topHeader}>
               <Pressable 
