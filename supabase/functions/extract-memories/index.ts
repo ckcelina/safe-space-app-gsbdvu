@@ -17,11 +17,11 @@ interface RequestBody {
   personName: string;
   recentUserMessages: string[];
   lastAssistantMessage?: string;
-  existingMemories: {
+  existingMemories: Array<{
     key: string;
     value: string;
     category: string;
-  }[];
+  }>;
   userId?: string;
   personId?: string;
 }

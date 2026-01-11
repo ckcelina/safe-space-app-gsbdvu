@@ -1,3 +1,4 @@
+
 /**
  * useChatMessages Hook
  *
@@ -17,6 +18,9 @@ export interface ExtendedMessage {
   role: 'user' | 'assistant';
   content: string;
   subject?: string | null;
+  type?: 'text' | 'image'; // NEW: Support for image messages
+  image_url?: string; // NEW: Storage path for images
+  caption?: string; // NEW: Optional caption for images
   created_at: string;
   therapist_name?: string;
   therapist_avatar_source?: any;

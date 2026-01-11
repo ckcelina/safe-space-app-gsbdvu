@@ -7,18 +7,18 @@ export default {
     slug: "Natively",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/safe-space-logo-gradient.png",
+    icon: "./assets/images/natively-dark.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
+    platforms: ["ios", "android", "web"],
     splash: {
-      image: "./assets/images/safe-space-logo-black.png",
+      image: "./assets/images/natively-dark.png",
       resizeMode: "contain",
       backgroundColor: "#000000"
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.anonymous.SafeSpace",
-      icon: "./assets/images/safe-space-logo-gradient.png",
+      bundleIdentifier: "com.anonymous.Natively",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         CFBundleDisplayName: "Safe Space"
@@ -26,25 +26,22 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/images/safe-space-logo-gradient.png",
+        foregroundImage: "./assets/images/natively-dark.png",
         backgroundColor: "#000000"
       },
-      icon: "./assets/images/safe-space-logo-gradient.png",
       edgeToEdgeEnabled: true,
-      package: "com.anonymous.SafeSpace",
-      softwareKeyboardLayoutMode: "resize"
+      package: "com.anonymous.Natively"
     },
     web: {
-      favicon: "./assets/images/safe-space-logo-gradient.png",
+      favicon: "./assets/images/final_quest_240x240.png",
       bundler: "metro"
     },
     plugins: [
       "expo-font",
       "expo-router",
-      "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-web-browser"
     ],
-    scheme: "safespace",
+    scheme: "natively",
     experiments: {
       typedRoutes: true
     },

@@ -27,11 +27,24 @@ interface SafeSpaceTextInputProps extends TextInputProps {
  * - Border width increases when focused
  * - Cursor is always visible
  * - User always knows which field is active
+ * 
+ * iOS AUTOFILL SUPPORT:
+ * - Supports textContentType for password autofill (username, password, newPassword)
+ * - Supports autoComplete for email/password hints (email, password, new-password)
+ * - Properly handles secureTextEntry without blocking autofill
+ * - All props are passed through to the underlying TextInput
+ * 
+ * USAGE:
+ * - For login email: textContentType="username" autoComplete="email"
+ * - For login password: textContentType="password" autoComplete="password"
+ * - For signup password: textContentType="newPassword" autoComplete="new-password"
  */
 export function SafeSpaceTextInput({
   containerStyle,
   style,
   showFocusIndicator = true,
+  onFocus,
+  onBlur,
   ...props
 }: SafeSpaceTextInputProps) {
   const { theme } = useThemeContext();
@@ -53,11 +66,11 @@ export function SafeSpaceTextInput({
         placeholderTextColor={theme.textSecondary}
         onFocus={(e) => {
           setIsFocused(true);
-          props.onFocus?.(e);
+          onFocus?.(e);
         }}
         onBlur={(e) => {
           setIsFocused(false);
-          props.onBlur?.(e);
+          onBlur?.(e);
         }}
         cursorColor={theme.primary}
         selectionColor={Platform.OS === 'ios' ? theme.primary : theme.primary + '40'}

@@ -1,667 +1,421 @@
 
-// supabase/functions/generate-ai-response/index.ts
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-// Timeout configuration (in milliseconds)
-const OPENAI_TIMEOUT_MS = 30000; // 30 seconds hard timeout
-const TOTAL_FUNCTION_TIMEOUT_MS = 35000; // 35 seconds total (5s buffer for DB operations)
-
-// ═══════════════════════════════════════════════════════════════════
-// CORS HEADERS - APPLIED TO ALL RESPONSES
-// ═══════════════════════════════════════════════════════════════════
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
-};
-
-// ═══════════════════════════════════════════════════════════════════
-// DEFAULT FALLBACK MESSAGE
-// ═══════════════════════════════════════════════════════════════════
-const DEFAULT_FALLBACK_MESSAGE = "I'm having a little trouble understanding. Could you please rephrase your question?";
-
-// ═══════════════════════════════════════════════════════════════════
-// THERAPIST PERSONA DEFINITIONS
-// ═══════════════════════════════════════════════════════════════════
-const THERAPIST_PERSONAS: Record<string, { name: string; systemPrompt: string }> = {
-  dr_elias: {
-    name: "Dr. Elias",
-    systemPrompt: `You are Dr. Elias. Speak slowly, calmly, and with emotional steadiness. Use grounding language, reassurance, and gentle perspective. Avoid urgency. Prioritize emotional safety and regulation. Do not diagnose or label the user.`,
-  },
-  noah: {
-    name: "Noah",
-    systemPrompt: `You are Noah. Communicate clearly and practically. Ask clarifying questions when needed. Focus on structure, patterns, and actionable reflection. Be supportive but concise. Do not diagnose or label the user.`,
-  },
-  maya: {
-    name: "Maya",
-    systemPrompt: `You are Maya. Lead with empathy and validation. Reflect emotions clearly and warmly. Avoid rushing solutions. Use gentle language and supportive framing. Do not diagnose or label the user.`,
-  },
-  claire: {
-    name: "Claire",
-    systemPrompt: `You are Claire. Ask thoughtful, reflective questions. Highlight patterns gently. Encourage self-awareness without judgment or pressure. Do not diagnose or label the user.`,
-  },
-  ruth: {
-    name: "Ruth",
-    systemPrompt: `You are Ruth. Speak with warmth, care, and emotional steadiness. Offer reassurance and gentle perspective. Avoid being patronizing. Do not diagnose or label the user.`,
-  },
-  jordan: {
-    name: "Jordan",
-    systemPrompt: `You are Jordan. Be encouraging, affirming, and strength-focused. Highlight resilience and growth while staying emotionally respectful. Do not diagnose or label the user.`,
-  },
-  aisha: {
-    name: "Aisha",
-    systemPrompt: `You are Aisha. Lead with curiosity. Ask open-ended questions. Explore perspectives without steering or fixing. Encourage discovery. Do not diagnose or label the user.`,
-  },
-  ken: {
-    name: "Ken",
-    systemPrompt: `You are Ken. Balance emotional awareness with logical clarity. Integrate feelings and reasoning calmly. Maintain a composed, respectful tone. Do not diagnose or label the user.`,
-  },
-};
-
-// ═══════════════════════════════════════════════════════════════════
-// CRITICAL: DR. ELIAS IS THE DEFAULT PERSONA
-// ═══════════════════════════════════════════════════════════════════
-const DEFAULT_PERSONA_ID = "dr_elias";
-
-// Helper to create error response with CORS headers
-function createErrorResponse(
-  code: string,
-  message: string,
-  details?: any,
-  requestId?: string,
-  timestamp?: number
-): Response {
-  const responseBody = {
-    ok: false,
-    data: null,
-    error: {
-      code,
-      message,
-      details: details || {}
-    },
-    requestId: requestId || crypto.randomUUID(),
-    timestamp: timestamp || Date.now()
-  };
-
-  console.error(`[Edge][Chat][${responseBody.requestId}] Error:`, {
-    code,
-    message,
-    details
-  });
-
-  return new Response(
-    JSON.stringify(responseBody),
-    {
-      status: 200, // Always return 200 to prevent 502
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        ...corsHeaders
-      }
-    }
-  );
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  type?: 'text' | 'image';
+  image_url?: string;
 }
 
-Deno.serve(async (req) => {
-  const requestId = crypto.randomUUID();
-  const timestamp = Date.now();
-  const functionStartTime = Date.now();
+interface RequestBody {
+  personId: string;
+  personName: string;
+  personRelationshipType?: string;
+  messages: Message[];
+  currentSubject?: string;
+  aiToneId?: string;
+  aiScienceMode?: boolean;
+  userId: string;
+  therapistId?: string;
+}
 
-  console.log(`[Edge][Chat][${requestId}] Request started`);
+const AI_TONE_INSTRUCTIONS: Record<string, string> = {
+  warm: 'Use a warm, empathetic tone with gentle encouragement.',
+  direct: 'Be direct and straightforward while remaining supportive.',
+  analytical: 'Provide thoughtful, analytical insights with clear reasoning.',
+  playful: 'Use a light, playful tone while maintaining professionalism.',
+};
 
-  // ═══════════════════════════════════════════════════════════════════
-  // CORS PREFLIGHT HANDLING (CRITICAL FOR WEB PREVIEW)
-  // ═══════════════════════════════════════════════════════════════════
-  if (req.method === "OPTIONS") {
-    console.log(`[Edge][Chat][${requestId}] CORS preflight request`);
-    return new Response(null, { 
-      status: 204, 
-      headers: corsHeaders 
-    });
+function getToneSystemInstruction(toneId?: string): string {
+  if (!toneId || !AI_TONE_INSTRUCTIONS[toneId]) {
+    return AI_TONE_INSTRUCTIONS.warm;
+  }
+  return AI_TONE_INSTRUCTIONS[toneId];
+}
+
+function generateAISystemPrompt(params: {
+  personName: string;
+  relationshipType?: string;
+  currentSubject?: string;
+  hasDeathMention?: boolean;
+  aiToneId?: string;
+  aiScienceMode?: boolean;
+  memoryContext?: string;
+}): string {
+  const {
+    personName,
+    relationshipType,
+    currentSubject,
+    hasDeathMention,
+    aiToneId,
+    aiScienceMode,
+    memoryContext,
+  } = params;
+
+  const toneInstruction = getToneSystemInstruction(aiToneId);
+  const scienceNote = aiScienceMode
+    ? ' Include evidence-based insights and psychological frameworks when relevant.'
+    : '';
+
+  let basePrompt = `You are a compassionate AI therapist helping someone process their feelings about ${personName}`;
+  
+  if (relationshipType) {
+    basePrompt += ` (their ${relationshipType})`;
+  }
+  
+  basePrompt += `.${scienceNote} ${toneInstruction}`;
+
+  if (currentSubject) {
+    basePrompt += `\n\nCurrent conversation topic: ${currentSubject}`;
   }
 
-  // Set up function-level timeout
-  const functionTimeoutController = new AbortController();
-  const functionTimeoutId = setTimeout(() => {
-    console.error(`[Edge][Chat][${requestId}] Function timeout after ${TOTAL_FUNCTION_TIMEOUT_MS}ms`);
-    functionTimeoutController.abort();
-  }, TOTAL_FUNCTION_TIMEOUT_MS);
+  if (hasDeathMention) {
+    basePrompt += `\n\nIMPORTANT: This person has passed away. Be especially gentle, validate their grief, and help them process their loss with compassion.`;
+  }
 
+  if (memoryContext) {
+    basePrompt += `\n\n${memoryContext}`;
+  }
+
+  basePrompt += `\n\nProvide supportive, therapeutic responses that help the user process their emotions and gain insights.`;
+
+  return basePrompt;
+}
+
+function detectDeathMention(messages: Message[]): boolean {
+  const deathKeywords = ['passed away', 'died', 'death', 'deceased', 'lost them', 'no longer with us', 'gone'];
+  const recentMessages = messages.slice(-10);
+  
+  return recentMessages.some(msg => {
+    const content = msg.content.toLowerCase();
+    return deathKeywords.some(keyword => content.includes(keyword));
+  });
+}
+
+serve(async (req) => {
   try {
-    // Validate HTTP method
-    if (req.method !== "POST") {
-      clearTimeout(functionTimeoutId);
-      console.log(`[Edge][Chat][${requestId}] Invalid method: ${req.method}`);
-      return createErrorResponse(
-        "METHOD_NOT_ALLOWED",
-        "Only POST requests are allowed",
-        { method: req.method },
-        requestId,
-        timestamp
-      );
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // CRITICAL: VALIDATE OPENAI_API_KEY FIRST
-    // ═══════════════════════════════════════════════════════════════════
-    if (!OPENAI_API_KEY || OPENAI_API_KEY.trim() === '') {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] ❌ CRITICAL: OPENAI_API_KEY is not configured!`);
-      console.error(`[Edge][Chat][${requestId}] 📝 To fix this:`);
-      console.error(`[Edge][Chat][${requestId}]    1. Go to https://platform.openai.com/api-keys`);
-      console.error(`[Edge][Chat][${requestId}]    2. Create or copy your API key`);
-      console.error(`[Edge][Chat][${requestId}]    3. Go to Supabase Dashboard > Project Settings > Edge Functions`);
-      console.error(`[Edge][Chat][${requestId}]    4. Click 'Manage secrets'`);
-      console.error(`[Edge][Chat][${requestId}]    5. Add a new secret: Name = OPENAI_API_KEY, Value = your API key`);
-      console.error(`[Edge][Chat][${requestId}]    6. The key should start with 'sk-proj-' or 'sk-'`);
-      
-      return createErrorResponse(
-        "MISSING_API_KEY",
-        "OpenAI API key is not configured. Please set up the OPENAI_API_KEY in Supabase Edge Functions secrets.",
-        { 
-          env: "OPENAI_API_KEY not set",
-          setupInstructions: [
-            "1. Go to https://platform.openai.com/api-keys",
-            "2. Create or copy your API key",
-            "3. Go to Supabase Dashboard > Project Settings > Edge Functions",
-            "4. Click 'Manage secrets'",
-            "5. Add: OPENAI_API_KEY = your-api-key"
-          ],
-          docsUrl: "https://platform.openai.com/api-keys"
-        },
-        requestId,
-        timestamp
-      );
-    }
-
-    // Validate that the API key looks correct (starts with sk-)
-    if (!OPENAI_API_KEY.startsWith('sk-')) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] ❌ CRITICAL: OPENAI_API_KEY format is invalid!`);
-      console.error(`[Edge][Chat][${requestId}] Expected format: sk-... or sk-proj-...`);
-      console.error(`[Edge][Chat][${requestId}] Current format: ${OPENAI_API_KEY.substring(0, 8)}...`);
-      
-      return createErrorResponse(
-        "INVALID_API_KEY_FORMAT",
-        "OpenAI API key format is invalid. The key should start with 'sk-' or 'sk-proj-'.",
-        { 
-          hint: "OpenAI API keys should start with 'sk-' or 'sk-proj-'",
-          currentPrefix: OPENAI_API_KEY.substring(0, 8),
-          docsUrl: "https://platform.openai.com/api-keys"
-        },
-        requestId,
-        timestamp
-      );
-    }
-
-    console.log(`[Edge][Chat][${requestId}] ✅ OpenAI API key validated (format: ${OPENAI_API_KEY.substring(0, 8)}...)`);
-
-    // Validate Supabase configuration
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] Missing Supabase configuration`);
-      return createErrorResponse(
-        "MISSING_SUPABASE_CONFIG",
-        "Supabase configuration is incomplete",
-        {
-          hasUrl: !!SUPABASE_URL,
-          hasServiceKey: !!SUPABASE_SERVICE_ROLE_KEY
-        },
-        requestId,
-        timestamp
-      );
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // FIXED: PROPER AUTH VALIDATION WITH SERVICE ROLE CLIENT
-    // ═══════════════════════════════════════════════════════════════════
-    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
-    
-    if (!authHeader) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] Missing Authorization header`);
-      console.log(`[Edge][Chat][${requestId}] Available headers:`, Array.from(req.headers.keys()));
-      return createErrorResponse(
-        "UNAUTHORIZED",
-        "Missing Authorization header",
-        { hint: "Please ensure you are logged in" },
-        requestId,
-        timestamp
-      );
-    }
-
-    // Extract token from "Bearer <token>" format
-    let token = authHeader.trim();
-    
-    // Remove "Bearer " prefix if present (case-insensitive)
-    if (token.toLowerCase().startsWith("bearer ")) {
-      token = token.substring(7).trim();
-    }
-    
-    if (!token || token.length < 20) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] Invalid auth token format`);
-      return createErrorResponse(
-        "UNAUTHORIZED",
-        "Invalid Authorization header format",
-        { hint: "Expected format: Bearer <token>" },
-        requestId,
-        timestamp
-      );
-    }
-
-    console.log(`[Edge][Chat][${requestId}] Auth token extracted (length: ${token.length})`);
-
-    // ═══════════════════════════════════════════════════════════════════
-    // CRITICAL FIX: Create Supabase client with BOTH service role AND user token
-    // This allows us to:
-    // 1. Validate the user's JWT token
-    // 2. Use service role permissions for database operations
-    // ═══════════════════════════════════════════════════════════════════
-    
-    // First, create a client to validate the user token
-    const authClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { persistSession: false },
-    });
-    
-    console.log(`[Edge][Chat][${requestId}] Validating user token...`);
-    
-    // Validate the user's token using service role client
-    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
-
-    if (authError || !user) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] Auth validation failed:`, authError?.message);
-      return createErrorResponse(
-        "UNAUTHORIZED",
-        "Invalid or expired authentication token",
-        { 
-          hint: "Please log in again",
-          authError: authError?.message 
-        },
-        requestId,
-        timestamp
-      );
-    }
-
-    console.log(`[Edge][Chat][${requestId}] User authenticated: ${user.id}`);
-
-    // Now create a service role client for database operations
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { persistSession: false },
-    });
-
-    // Parse request body
-    let body: any;
-    try {
-      body = await req.json();
-    } catch (parseError: any) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] JSON parse error:`, parseError?.message);
-      return createErrorResponse(
-        "INVALID_JSON",
-        "Request body must be valid JSON",
-        { parseError: parseError?.message },
-        requestId,
-        timestamp
-      );
-    }
-
     const {
-      messages,
       personId,
       personName,
       personRelationshipType,
+      messages,
       currentSubject,
+      aiToneId,
+      aiScienceMode,
       userId,
-      therapistPersonaId,
-    } = body ?? {};
+      therapistId,
+    }: RequestBody = await req.json();
 
-    // ═══════════════════════════════════════════════════════════════════
-    // VALIDATE REQUIRED INPUTS
-    // ═══════════════════════════════════════════════════════════════════
-    
-    if (!Array.isArray(messages)) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] Invalid messages field:`, typeof messages);
-      return createErrorResponse(
-        "BAD_REQUEST",
-        "messages field must be an array",
-        { messagesType: typeof messages },
-        requestId,
-        timestamp
-      );
-    }
-
-    if (!userId) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] Missing userId`);
-      return createErrorResponse(
-        "BAD_REQUEST",
-        "userId is required",
-        { userId },
-        requestId,
-        timestamp
-      );
-    }
-
-    // Verify userId matches authenticated user
-    if (userId !== user.id) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] userId mismatch: ${userId} !== ${user.id}`);
-      return createErrorResponse(
-        "FORBIDDEN",
-        "User ID does not match authenticated user",
-        { providedUserId: userId, authenticatedUserId: user.id },
-        requestId,
-        timestamp
-      );
-    }
-
-    if (!personId) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] Missing personId`);
-      return createErrorResponse(
-        "BAD_REQUEST",
-        "personId is required",
-        { personId },
-        requestId,
-        timestamp
-      );
-    }
-
-    console.log(`[Edge][Chat][${requestId}] Validated inputs - userId: ${userId}, personId: ${personId}, messages: ${messages.length}`);
-
-    // ═══════════════════════════════════════════════════════════════════
-    // GET THERAPIST PERSONA - DR. ELIAS IS DEFAULT
-    // ═══════════════════════════════════════════════════════════════════
-    const personaId = therapistPersonaId || DEFAULT_PERSONA_ID;
-    const persona = THERAPIST_PERSONAS[personaId] || THERAPIST_PERSONAS[DEFAULT_PERSONA_ID];
-    
-    console.log(`[Edge][Chat][${requestId}] Therapist persona selected:`, {
-      requestedPersonaId: therapistPersonaId,
-      resolvedPersonaId: personaId,
-      personaName: persona.name,
-      isDefault: personaId === DEFAULT_PERSONA_ID,
+    console.log('[generate-ai-response] Request received', {
+      personId,
+      personName,
+      userId,
+      therapistId,
+      messageCount: messages.length,
+      hasImages: messages.some(m => m.type === 'image'),
     });
 
-    // Build comprehensive system prompt
-    let systemPrompt = `You are "${persona.name}," a warm, trauma-aware relationship and emotional support companion.
-
-You're talking about ${personName || 'this person'} (${personRelationshipType || 'relationship'}).
-
-${persona.systemPrompt}
-
-Core rules:
-- Keep replies short (1–3 sentences usually).
-- Validate feelings first.
-- Ask gentle follow-up questions (max 1 per response).
-- Never diagnose.
-- Don't invent facts.
-- Use tentative phrasing: "You might notice...", "It could be helpful to explore...", "What feels right to you?"
-- Support reflection, don't define the user.`;
-
-    // Add subject context if provided
-    if (currentSubject && currentSubject.trim() && currentSubject !== 'General') {
-      systemPrompt += `
-
-Current conversation focus: ${currentSubject}
-Please tailor your response to this specific subject.`;
+    if (!OPENAI_API_KEY) {
+      console.error('[generate-ai-response] OPENAI_API_KEY not configured');
+      return new Response(
+        JSON.stringify({ error: 'OpenAI API key not configured' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    const systemMessage = { role: "system" as const, content: systemPrompt };
+    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_KEY!);
 
-    const openaiMessages = messages.map((msg: any) => ({
-      role: msg.role === "user" ? "user" : "assistant",
-      content: msg.content
-    }));
-
-    // ═══════════════════════════════════════════════════════════════════
-    // CALL OPENAI API WITH TIMEOUT
-    // ═══════════════════════════════════════════════════════════════════
+    // Fetch therapist memory notes if therapistId is provided
+    let memoryContext = '';
+    let existingMemoryNotes = null;
     
-    const openaiStartTime = Date.now();
-    const openaiAbortController = new AbortController();
-    const openaiTimeoutId = setTimeout(() => {
-      console.error(`[Edge][Chat][${requestId}] OpenAI timeout after ${OPENAI_TIMEOUT_MS}ms`);
-      openaiAbortController.abort();
-    }, OPENAI_TIMEOUT_MS);
-
-    let openaiRes: Response;
-    try {
-      console.log(`[Edge][Chat][${requestId}] Calling OpenAI API with persona: ${persona.name}...`);
-      console.log(`[Edge][Chat][${requestId}] Using API key: ${OPENAI_API_KEY.substring(0, 15)}...`);
+    if (therapistId && userId) {
+      console.log('[generate-ai-response] Fetching therapist memory notes', { userId, therapistId });
       
-      openaiRes = await fetch(OPENAI_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [systemMessage, ...openaiMessages],
-          temperature: 0.7,
-          max_tokens: 300
-        }),
-        signal: openaiAbortController.signal
-      });
+      const { data: memoryNotes, error: memoryError } = await supabase
+        .from('therapist_memory_notes')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('therapist_id', therapistId)
+        .single();
 
-      clearTimeout(openaiTimeoutId);
-      const openaiLatency = Date.now() - openaiStartTime;
-      console.log(`[Edge][Chat][${requestId}] OpenAI API responded with status: ${openaiRes.status} (latency: ${openaiLatency}ms)`);
-    } catch (fetchError: any) {
-      clearTimeout(openaiTimeoutId);
-      clearTimeout(functionTimeoutId);
+      if (memoryError && memoryError.code !== 'PGRST116') {
+        console.error('[generate-ai-response] Error fetching memory notes:', memoryError);
+      } else if (memoryNotes) {
+        existingMemoryNotes = memoryNotes;
+        console.log('[generate-ai-response] Memory notes found', {
+          incidents: memoryNotes.recent_incidents?.length || 0,
+          patterns: memoryNotes.recurring_patterns?.length || 0,
+          triggers: memoryNotes.triggers?.length || 0,
+          strategies: memoryNotes.helpful_strategies?.length || 0,
+        });
 
-      if (fetchError.name === "AbortError") {
-        console.error(`[Edge][Chat][${requestId}] OpenAI request aborted (timeout)`);
-        return createErrorResponse(
-          "TIMEOUT",
-          "OpenAI API request timed out",
-          {
-            timeoutMs: OPENAI_TIMEOUT_MS,
-            elapsed: Date.now() - functionStartTime
-          },
-          requestId,
-          timestamp
+        // Build memory context for system prompt
+        const incidents = memoryNotes.recent_incidents?.filter(Boolean).join('; ') || 'None yet';
+        const patterns = memoryNotes.recurring_patterns?.filter(Boolean).join('; ') || 'None identified';
+        const triggers = memoryNotes.triggers?.filter(Boolean).join('; ') || 'None identified';
+        const strategies = memoryNotes.helpful_strategies?.filter(Boolean).join('; ') || 'None identified';
+
+        memoryContext = `**Therapist Memory Context:**
+- Recent incidents: ${incidents}
+- Recurring patterns: ${patterns}
+- Triggers: ${triggers}
+- Helpful strategies: ${strategies}
+
+Use this context to provide more personalized and consistent support. Reference past patterns when relevant.`;
+      } else {
+        console.log('[generate-ai-response] No existing memory notes found');
+      }
+    }
+
+    // Detect if conversation mentions death/loss
+    const hasDeathMention = detectDeathMention(messages);
+
+    // Generate system prompt
+    const systemPrompt = generateAISystemPrompt({
+      personName,
+      relationshipType: personRelationshipType,
+      currentSubject,
+      hasDeathMention,
+      aiToneId,
+      aiScienceMode,
+      memoryContext,
+    });
+
+    // Check if latest message is an image
+    const latestMessage = messages[messages.length - 1];
+    let openaiMessages: any[] = [];
+
+    if (latestMessage.type === 'image' && latestMessage.image_url) {
+      console.log('[generate-ai-response] Processing image message', { image_url: latestMessage.image_url });
+      
+      // Get signed URL for image
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from('chat-images')
+        .createSignedUrl(latestMessage.image_url, 3600);
+
+      if (signedUrlError || !signedUrlData) {
+        console.error('[generate-ai-response] Error creating signed URL:', signedUrlError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to access uploaded image' }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
         );
       }
 
-      console.error(`[Edge][Chat][${requestId}] OpenAI network error:`, fetchError?.message);
-      return createErrorResponse(
-        "OPENAI_NETWORK_ERROR",
-        "Failed to connect to OpenAI API",
+      console.log('[generate-ai-response] Signed URL created for image');
+
+      // Include previous text messages for context (last 5)
+      const previousTextMessages = messages
+        .slice(-6, -1)
+        .filter(m => m.type !== 'image')
+        .map(m => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content,
+        }));
+
+      // Use vision model with image
+      openaiMessages = [
         {
-          error: fetchError?.message,
-          name: fetchError?.name
+          role: 'system',
+          content: systemPrompt,
         },
-        requestId,
-        timestamp
-      );
-    }
-
-    const rawText = await openaiRes.text();
-
-    if (!openaiRes.ok) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] ❌ OpenAI API error: ${openaiRes.status} ${openaiRes.statusText}`);
-      console.error(`[Edge][Chat][${requestId}] Response body:`, rawText.substring(0, 500));
-      
-      // Check if it's an authentication error
-      if (openaiRes.status === 401) {
-        console.error(`[Edge][Chat][${requestId}] 🔑 AUTHENTICATION ERROR - Invalid OpenAI API Key!`);
-        console.error(`[Edge][Chat][${requestId}] 📝 To fix this:`);
-        console.error(`[Edge][Chat][${requestId}]    1. Go to https://platform.openai.com/api-keys`);
-        console.error(`[Edge][Chat][${requestId}]    2. Create a new API key or verify your existing key`);
-        console.error(`[Edge][Chat][${requestId}]    3. Go to Supabase Dashboard > Project Settings > Edge Functions`);
-        console.error(`[Edge][Chat][${requestId}]    4. Click 'Manage secrets'`);
-        console.error(`[Edge][Chat][${requestId}]    5. Update OPENAI_API_KEY with the correct key`);
-        console.error(`[Edge][Chat][${requestId}]    6. The key should start with 'sk-proj-' or 'sk-' and be 50+ characters`);
-        
-        return createErrorResponse(
-          "OPENAI_AUTH_ERROR",
-          "The OpenAI API key is invalid or expired. Please update the OPENAI_API_KEY in Supabase Edge Functions secrets.",
-          {
-            status: 401,
-            statusText: "Unauthorized",
-            setupInstructions: [
-              "1. Go to https://platform.openai.com/api-keys",
-              "2. Create or verify your API key",
-              "3. Go to Supabase Dashboard > Project Settings > Edge Functions",
-              "4. Click 'Manage secrets'",
-              "5. Update: OPENAI_API_KEY = your-api-key"
-            ],
-            docsUrl: "https://platform.openai.com/api-keys",
-            bodyPreview: rawText.substring(0, 200)
-          },
-          requestId,
-          timestamp
-        );
-      }
-      
-      return createErrorResponse(
-        "OPENAI_API_ERROR",
-        `OpenAI API returned ${openaiRes.status}: ${openaiRes.statusText}`,
+        ...previousTextMessages,
         {
-          status: openaiRes.status,
-          statusText: openaiRes.statusText,
-          bodyPreview: rawText.substring(0, 200)
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'I\'ve shared an image with you. Please analyze it and provide supportive insights based on what you see. This might be a screenshot of a conversation, a photo that\'s meaningful to me, or something else I want to discuss.',
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: signedUrlData.signedUrl,
+                detail: 'high',
+              },
+            },
+          ],
         },
-        requestId,
-        timestamp
-      );
-    }
-
-    let data: any = null;
-    try {
-      data = rawText ? JSON.parse(rawText) : null;
-    } catch (parseError: any) {
-      clearTimeout(functionTimeoutId);
-      console.error(`[Edge][Chat][${requestId}] Failed to parse OpenAI response as JSON`);
-      return createErrorResponse(
-        "OPENAI_PARSE_ERROR",
-        "Failed to parse OpenAI response as JSON",
+      ];
+    } else {
+      // Text-only conversation
+      openaiMessages = [
         {
-          parseError: parseError?.message,
-          rawPreview: rawText.substring(0, 200)
+          role: 'system',
+          content: systemPrompt,
         },
-        requestId,
-        timestamp
-      );
+        ...messages.map((m) => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content,
+        })),
+      ];
     }
 
-    // Extract reply text
-    let replyText = data?.choices?.[0]?.message?.content || '';
-
-    // CRITICAL: If reply is empty, use fallback
-    if (!replyText || replyText.trim().length === 0) {
-      console.warn(`[Edge][Chat][${requestId}] Empty reply detected - using fallback message`);
-      replyText = DEFAULT_FALLBACK_MESSAGE;
-    }
-
-    console.log(`[Edge][Chat][${requestId}] Final reply length: ${replyText.length} characters`);
-
-    // ═══════════════════════════════════════════════════════════════════
-    // INSERT ASSISTANT MESSAGE INTO DATABASE (SOURCE OF TRUTH)
-    // ═══════════════════════════════════════════════════════════════════
+    // Call OpenAI with appropriate model
+    const model = latestMessage.type === 'image' ? 'gpt-4o' : 'gpt-4o';
     
-    console.log(`[Edge][Chat][${requestId}] Inserting assistant message into database...`);
-    const dbInsertStartTime = Date.now();
-    
-    const { data: assistantMessage, error: insertError } = await supabase
-      .from("messages")
-      .insert({
-        user_id: userId,
-        person_id: personId,
-        role: "assistant",
-        content: replyText,
-        subject: currentSubject || null,
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    console.log('[generate-ai-response] Calling OpenAI', { model, messageCount: openaiMessages.length });
 
-    const dbInsertLatency = Date.now() - dbInsertStartTime;
-
-    if (insertError) {
-      console.error(`[Edge][Chat][${requestId}] DB insert failed (latency: ${dbInsertLatency}ms):`, insertError);
-      clearTimeout(functionTimeoutId);
-      return createErrorResponse(
-        "DB_INSERT_ERROR",
-        "Failed to save assistant message to database",
-        {
-          error: insertError.message,
-          code: insertError.code,
-          details: insertError.details
-        },
-        requestId,
-        timestamp
-      );
-    }
-
-    console.log(`[Edge][Chat][${requestId}] DB insert success (latency: ${dbInsertLatency}ms) - message ID: ${assistantMessage.id}`);
-
-    clearTimeout(functionTimeoutId);
-
-    const totalLatency = Date.now() - functionStartTime;
-    const openaiLatency = Date.now() - openaiStartTime;
-
-    // ═══════════════════════════════════════════════════════════════════
-    // RETURN GUARANTEED RESPONSE SHAPE
-    // ═══════════════════════════════════════════════════════════════════
-    
-    const responseBody = {
-      ok: true,
-      data: {
-        replyText,
-        assistantMessage
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
       },
-      error: null,
-      requestId,
-      timestamp,
-      latency: {
-        total: totalLatency,
-        openai: openaiLatency,
-        dbInsert: dbInsertLatency
-      }
-    };
+      body: JSON.stringify({
+        model,
+        messages: openaiMessages,
+        temperature: 0.7,
+        max_tokens: 800,
+      }),
+    });
 
-    console.log(`[Edge][Chat][${requestId}] ✅ Success - Total: ${totalLatency}ms, OpenAI: ${openaiLatency}ms, DB: ${dbInsertLatency}ms, Persona: ${persona.name}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[generate-ai-response] OpenAI API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+      });
+      return new Response(
+        JSON.stringify({ error: `OpenAI API error: ${response.statusText}` }),
+        { status: response.status, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const aiData = await response.json();
+    const aiReply = aiData.choices?.[0]?.message?.content;
+
+    if (!aiReply) {
+      console.error('[generate-ai-response] No reply from OpenAI');
+      return new Response(
+        JSON.stringify({ error: 'No response from AI' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[generate-ai-response] AI reply generated', { length: aiReply.length });
+
+    // Extract and update memory notes if therapistId is provided
+    if (therapistId && userId) {
+      console.log('[generate-ai-response] Extracting memory insights');
+      
+      try {
+        // Get recent conversation context (last 5 messages + current AI response)
+        const recentContext = messages
+          .slice(-5)
+          .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+          .join('\n');
+
+        const extractPrompt = `Based on this therapy conversation, extract key information to help provide better ongoing support. Be concise and focus on actionable insights.
+
+Recent conversation:
+${recentContext}
+
+Current AI response:
+${aiReply}
+
+Extract and return ONLY a JSON object with these fields (each should be an array of brief strings, max 3-5 items each):
+{
+  "recent_incidents": ["brief description of recent events or situations mentioned"],
+  "recurring_patterns": ["patterns in thoughts, behaviors, or emotions"],
+  "triggers": ["identified triggers or stressors"],
+  "helpful_strategies": ["strategies or approaches that seem helpful"]
+}
+
+Keep each item brief (under 100 characters). Focus on NEW information not already captured. If nothing new, return empty arrays.`;
+
+        const extractResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: extractPrompt }],
+            response_format: { type: 'json_object' },
+            temperature: 0.3,
+          }),
+        });
+
+        if (extractResponse.ok) {
+          const extractData = await extractResponse.json();
+          const extracted = JSON.parse(extractData.choices[0].message.content);
+
+          console.log('[generate-ai-response] Memory insights extracted', {
+            incidents: extracted.recent_incidents?.length || 0,
+            patterns: extracted.recurring_patterns?.length || 0,
+            triggers: extracted.triggers?.length || 0,
+            strategies: extracted.helpful_strategies?.length || 0,
+          });
+
+          // Merge with existing memory notes (keep most recent 10 of each)
+          const mergedIncidents = [
+            ...(extracted.recent_incidents || []),
+            ...(existingMemoryNotes?.recent_incidents || []),
+          ].filter(Boolean).slice(0, 10);
+
+          const mergedPatterns = [
+            ...(extracted.recurring_patterns || []),
+            ...(existingMemoryNotes?.recurring_patterns || []),
+          ].filter(Boolean).slice(0, 10);
+
+          const mergedTriggers = [
+            ...(extracted.triggers || []),
+            ...(existingMemoryNotes?.triggers || []),
+          ].filter(Boolean).slice(0, 10);
+
+          const mergedStrategies = [
+            ...(extracted.helpful_strategies || []),
+            ...(existingMemoryNotes?.helpful_strategies || []),
+          ].filter(Boolean).slice(0, 10);
+
+          // Upsert memory notes
+          const { error: upsertError } = await supabase
+            .from('therapist_memory_notes')
+            .upsert({
+              user_id: userId,
+              therapist_id: therapistId,
+              recent_incidents: mergedIncidents,
+              recurring_patterns: mergedPatterns,
+              triggers: mergedTriggers,
+              helpful_strategies: mergedStrategies,
+              updated_at: new Date().toISOString(),
+            }, {
+              onConflict: 'user_id,therapist_id',
+            });
+
+          if (upsertError) {
+            console.error('[generate-ai-response] Error upserting memory notes:', upsertError);
+          } else {
+            console.log('[generate-ai-response] Memory notes updated successfully');
+          }
+        } else {
+          console.error('[generate-ai-response] Error extracting memory insights:', await extractResponse.text());
+        }
+      } catch (memoryError) {
+        console.error('[generate-ai-response] Exception during memory extraction:', memoryError);
+        // Don't fail the whole request if memory extraction fails
+      }
+    }
 
     return new Response(
-      JSON.stringify(responseBody),
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          ...corsHeaders
-        }
-      }
+      JSON.stringify({ reply: aiReply }),
+      { headers: { 'Content-Type': 'application/json' } }
     );
-  } catch (e: any) {
-    clearTimeout(functionTimeoutId);
-
-    console.error(`[Edge][Chat][${requestId}] Fatal error:`, {
-      message: e?.message ?? String(e),
-      name: e?.name,
-      stack: e?.stack
-    });
-
-    return createErrorResponse(
-      "UNEXPECTED_ERROR",
-      e?.message ?? "An unexpected error occurred",
-      {
-        name: e?.name,
-        message: e?.message ?? String(e)
-      },
-      requestId,
-      timestamp
+  } catch (error: any) {
+    console.error('[generate-ai-response] Unexpected error:', error);
+    return new Response(
+      JSON.stringify({ error: error.message || 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 });

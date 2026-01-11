@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase';
  */
 export async function generateAIReply(
   personId: string,
-  messages: { sender: 'user' | 'ai'; content: string; createdAt?: string }[]
+  messages: Array<{ sender: 'user' | 'ai'; content: string; createdAt?: string }>
 ): Promise<{ success: true; reply: string } | { success: false; error: string }> {
   const fallbackMessage = "I had trouble replying just now. Please check your connection and try again.";
   

@@ -46,9 +46,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
   // Reset state whenever modal becomes visible
   useEffect(() => {
     if (visible) {
-      if (__DEV__) {
-        console.log('[AddPersonSheet] Modal opened - resetting state');
-      }
+      console.log('[AddPersonSheet] Modal opened - resetting state');
       setName('');
       setRelationshipType('');
       setError('');
@@ -65,15 +63,11 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
    * - No console.error for expected duplicate case
    */
   const handleSave = async () => {
-    if (__DEV__) {
-      console.log('[AddPersonSheet] Save called with name:', name, 'relationship:', relationshipType);
-    }
+    console.log('[AddPersonSheet] Save called with name:', name, 'relationship:', relationshipType);
 
     // Validate name
     if (!name.trim()) {
-      if (__DEV__) {
-        console.log('[AddPersonSheet] Validation failed - name is empty');
-      }
+      console.log('[AddPersonSheet] Validation failed - name is empty');
       setError('Name is required');
       return;
     }
@@ -84,31 +78,23 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
     try {
       // Step 1: Resolve userId
       let resolvedUserId = userId;
-      if (__DEV__) {
-        console.log('[AddPersonSheet] Initial userId from props:', resolvedUserId);
-      }
+      console.log('[AddPersonSheet] Initial userId from props:', resolvedUserId);
 
       if (!resolvedUserId) {
-        if (__DEV__) {
-          console.log('[AddPersonSheet] No userId from props, fetching from supabase.auth.getUser()');
-        }
+        console.log('[AddPersonSheet] No userId from props, fetching from supabase.auth.getUser()');
         const { data: authData, error: authErr } = await supabase.auth.getUser();
         
-        if (authErr && __DEV__) {
+        if (authErr) {
           console.log('[AddPersonSheet] Auth error when fetching user:', authErr);
         }
         
         resolvedUserId = authData?.user?.id;
-        if (__DEV__) {
-          console.log('[AddPersonSheet] Resolved userId from auth:', resolvedUserId);
-        }
+        console.log('[AddPersonSheet] Resolved userId from auth:', resolvedUserId);
       }
 
       // Step 2: Check if we have a valid userId
       if (!resolvedUserId) {
-        if (__DEV__) {
-          console.log('[AddPersonSheet] No resolvedUserId available after fallback');
-        }
+        console.log('[AddPersonSheet] No resolvedUserId available after fallback');
         showErrorToast('Not signed in. Please log in again.');
         setSaving(false);
         return;
@@ -124,9 +110,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         relationship_type: trimmedRelationship || null,
       };
 
-      if (__DEV__) {
-        console.log('[AddPersonSheet] Inserting person with payload:', payload);
-      }
+      console.log('[AddPersonSheet] Inserting person with payload:', payload);
 
       // Step 4: Execute insert with .select().single() to return the inserted row
       const { data, error: insertError } = await supabase
@@ -140,9 +124,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         // Check for duplicate key error (23505)
         if (insertError.code === '23505') {
           // This is an expected case - person with this name already exists
-          if (__DEV__) {
-            console.log('[AddPersonSheet] Duplicate person detected (23505), fetching existing person');
-          }
+          console.log('[AddPersonSheet] Duplicate person detected (23505), fetching existing person');
 
           // Fetch the existing person with case-insensitive match
           const { data: existingPersonData, error: existingPersonError } = await supabase
@@ -155,9 +137,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
 
           if (existingPersonData) {
             // Found the existing person - use it
-            if (__DEV__) {
-              console.log('[AddPersonSheet] Found existing person:', existingPersonData);
-            }
+            console.log('[AddPersonSheet] Found existing person:', existingPersonData);
 
             const existingPerson: Person = {
               ...existingPersonData,
@@ -179,9 +159,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
             return;
           } else {
             // Couldn't find the existing person (shouldn't happen, but handle it)
-            if (__DEV__) {
-              console.log('[AddPersonSheet] Duplicate error but could not fetch existing person:', existingPersonError);
-            }
+            console.log('[AddPersonSheet] Duplicate error but could not fetch existing person:', existingPersonError);
             showErrorToast('Couldn\'t save. Please try again.');
             setSaving(false);
             return;
@@ -189,14 +167,12 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         }
 
         // For other errors, log and show generic message
-        if (__DEV__) {
-          console.log('[AddPersonSheet] Supabase insert error:', {
-            code: insertError.code,
-            message: insertError.message,
-            details: insertError.details,
-            hint: insertError.hint,
-          });
-        }
+        console.log('[AddPersonSheet] Supabase insert error:', {
+          code: insertError.code,
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+        });
 
         setSaving(false);
         showErrorToast('Couldn\'t save. Please try again.');
@@ -204,9 +180,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       }
 
       // Step 6: Success
-      if (__DEV__) {
-        console.log('[AddPersonSheet] Person created successfully:', data);
-      }
+      console.log('[AddPersonSheet] Person created successfully:', data);
       
       // Ensure the new person has the correct structure
       const newPerson: Person = {
@@ -214,9 +188,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
         relationship_type: data.relationship_type || null,
       };
       
-      if (__DEV__) {
-        console.log('[AddPersonSheet] Calling onPersonCreated with new person:', newPerson);
-      }
+      console.log('[AddPersonSheet] Calling onPersonCreated with new person:', newPerson);
       showSuccessToast('Person added successfully!');
       
       // Clear inputs
@@ -232,9 +204,7 @@ const AddPersonSheet: React.FC<AddPersonSheetProps> = ({
       onClose();
     } catch (error: any) {
       // Log unexpected errors for debugging
-      if (__DEV__) {
-        console.log('[AddPersonSheet] Unexpected error:', error?.message);
-      }
+      console.log('[AddPersonSheet] Unexpected error:', error?.message);
 
       // Re-enable Save button and keep modal open
       setSaving(false);

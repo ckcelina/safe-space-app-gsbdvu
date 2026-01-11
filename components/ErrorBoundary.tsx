@@ -1,15 +1,17 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { Component, ReactNode } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: React.ErrorInfo | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -18,28 +20,25 @@ export class ErrorBoundary extends Component<Props, State> {
     this.state = {
       hasError: false,
       error: null,
+      errorInfo: null,
     };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    // Log but don't crash
-    console.log('[Startup] Error boundary caught:', error?.message || error);
-    return {
-      hasError: true,
-      error,
-    };
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Silent logging - no red screen
-    console.log('[Startup] Unhandled error:', error?.message || error);
-    console.log('[Startup] Error info:', errorInfo?.componentStack || 'No stack');
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+    this.setState({ errorInfo });
+    this.props.onError?.(error, errorInfo);
   }
 
   handleReset = () => {
     this.setState({
       hasError: false,
       error: null,
+      errorInfo: null,
     });
   };
 
@@ -52,19 +51,26 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <View style={styles.container}>
           <View style={styles.content}>
-            <Text style={styles.emoji}>😔</Text>
-            <Text style={styles.title}>Something went wrong</Text>
+            <Text style={styles.title}>⚠️ Something went wrong</Text>
             <Text style={styles.message}>
-              We&apos;re sorry, but something unexpected happened. Please try again.
+              {this.state.error?.message || "An unexpected error occurred"}
             </Text>
-            {__DEV__ && this.state.error && (
-              <View style={styles.errorDetails}>
-                <Text style={styles.errorText}>{this.state.error.toString()}</Text>
-              </View>
-            )}
+            
             <TouchableOpacity style={styles.button} onPress={this.handleReset}>
               <Text style={styles.buttonText}>Try Again</Text>
             </TouchableOpacity>
+
+            {__DEV__ && this.state.errorInfo && (
+              <ScrollView style={styles.errorDetails}>
+                <Text style={styles.errorDetailsTitle}>Error Details (Dev Only):</Text>
+                <Text style={styles.errorDetailsText}>
+                  {this.state.error?.stack}
+                </Text>
+                <Text style={styles.errorDetailsText}>
+                  {this.state.errorInfo.componentStack}
+                </Text>
+              </ScrollView>
+            )}
           </View>
         </View>
       );
@@ -77,54 +83,57 @@ export class ErrorBoundary extends Component<Props, State> {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
   },
   content: {
-    alignItems: 'center',
     maxWidth: 400,
-  },
-  emoji: {
-    fontSize: 64,
-    marginBottom: 16,
+    width: "100%",
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-    marginBottom: 12,
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#FF3B30",
+    marginBottom: 16,
+    textAlign: "center",
   },
   message: {
     fontSize: 16,
-    color: '#666666',
-    textAlign: 'center',
+    color: "#333",
+    marginBottom: 24,
+    textAlign: "center",
     lineHeight: 24,
-    marginBottom: 24,
-  },
-  errorDetails: {
-    backgroundColor: '#FFE5E5',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 24,
-    width: '100%',
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#CC0000',
-    fontFamily: 'monospace',
   },
   button: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 24,
+    backgroundColor: "#007AFF",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
+  },
+  errorDetails: {
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    maxHeight: 200,
+  },
+  errorDetailsTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 8,
+    color: "#666",
+  },
+  errorDetailsText: {
+    fontSize: 12,
+    color: "#666",
+    fontFamily: "monospace",
   },
 });

@@ -142,7 +142,7 @@ export default function MemoriesScreen() {
   const personName = Array.isArray(params.personName) ? params.personName[0] : params.personName || 'Person';
 
   const insets = useSafeAreaInsets();
-  const { currentUser } = useAuth();
+  const { user: currentUser } = useAuth();
   const { theme } = useThemeContext();
 
   const [memories, setMemories] = useState<Memory[]>([]);
