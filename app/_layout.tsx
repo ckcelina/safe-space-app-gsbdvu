@@ -1,150 +1,75 @@
 
-import 'react-native-reanimated';
 import React, { useEffect } from 'react';
-import { useFonts } from 'expo-font';
+import { View } from 'react-native';
 import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { SystemBars } from 'react-native-edge-to-edge';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useColorScheme, Alert } from 'react-native';
-import { useNetworkState } from 'expo-network';
-import {
-  DarkTheme,
-  DefaultTheme,
-  Theme,
-  ThemeProvider as NavigationThemeProvider,
-} from '@react-navigation/native';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-
-// Import all context providers
-import { AuthProvider } from '@/contexts/AuthContext';
-import { ThemeProvider } from '@/contexts/ThemeContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ThemeProvider, useThemeContext } from '@/contexts/ThemeContext';
 import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext';
-import { BiometricLockProvider } from '@/contexts/BiometricLockContext';
 import { WidgetProvider } from '@/contexts/WidgetContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { prefetchAllAvatars } from '@/lib/avatarPrefetch';
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+// Hydration gate: prevent screens from rendering before providers are ready
+// This fixes "useAuth must be used within AuthProvider" and LinearGradient crashes
+function NavigationContent() {
+  const { isHydrated } = useAuth();
+  const { themeReady, theme } = useThemeContext();
 
-export const unstable_settings = {
-  initialRouteName: '(tabs)',
-};
-
-const CustomDefaultTheme: Theme = {
-  ...DefaultTheme,
-  dark: false,
-  colors: {
-    primary: 'rgb(0, 122, 255)',
-    background: 'rgb(242, 242, 247)',
-    card: 'rgb(255, 255, 255)',
-    text: 'rgb(0, 0, 0)',
-    border: 'rgb(216, 216, 220)',
-    notification: 'rgb(255, 59, 48)',
-  },
-};
-
-const CustomDarkTheme: Theme = {
-  ...DarkTheme,
-  colors: {
-    primary: 'rgb(10, 132, 255)',
-    background: 'rgb(1, 1, 1)',
-    card: 'rgb(28, 28, 30)',
-    text: 'rgb(255, 255, 255)',
-    border: 'rgb(44, 44, 46)',
-    notification: 'rgb(255, 69, 58)',
-  },
-};
-
-function RootLayoutContent() {
-  const colorScheme = useColorScheme();
-  const networkState = useNetworkState();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  useEffect(() => {
-    if (
-      !networkState.isConnected &&
-      networkState.isInternetReachable === false
-    ) {
-      Alert.alert(
-        '🔌 You are offline',
-        'You can keep using the app! Your changes will be saved locally and synced when you are back online.'
-      );
-    }
-  }, [networkState.isConnected, networkState.isInternetReachable]);
-
-  if (!loaded) {
-    return null;
+  // Show loading screen with safe fallback gradient while providers hydrate
+  if (!isHydrated || !themeReady) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme?.background || '#E6F7FF' }} />
+    );
   }
 
+  // Providers are ready - safe to render navigation
   return (
-    <>
-      <StatusBar style="auto" animated />
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="modal"
-          options={{
-            presentation: 'modal',
-            title: 'Standard Modal',
-          }}
-        />
-        <Stack.Screen
-          name="formsheet"
-          options={{
-            presentation: 'formSheet',
-            title: 'Form Sheet Modal',
-            sheetGrabberVisible: true,
-            sheetAllowedDetents: [0.5, 0.8, 1.0],
-            sheetCornerRadius: 20,
-          }}
-        />
-        <Stack.Screen
-          name="transparent-modal"
-          options={{
-            presentation: 'transparentModal',
-            headerShown: false,
-          }}
-        />
-      </Stack>
-      <SystemBars style="auto" />
-    </>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      <Stack.Screen name="theme-selection" options={{ headerShown: false }} />
+      <Stack.Screen name="ai-preferences-onboarding" options={{ headerShown: false }} />
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="signup" options={{ headerShown: false }} />
+      <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+      <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+      <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+      <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="transparent-modal" options={{ presentation: 'transparentModal', headerShown: false }} />
+      <Stack.Screen name="formsheet" options={{ presentation: 'formSheet', headerShown: false }} />
+      <Stack.Screen name="legal/terms-of-service" options={{ headerShown: false }} />
+      <Stack.Screen name="legal/privacy-policy" options={{ headerShown: false }} />
+      <Stack.Screen name="legal/terms-summary" options={{ headerShown: false }} />
+      <Stack.Screen name="+not-found" />
+    </Stack>
   );
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  // Prefetch all therapist avatars on app start
+  useEffect(() => {
+    console.log('[App] Initializing app...');
+
+    // Prefetch avatars in the background
+    prefetchAllAvatars().catch((error) => {
+      console.warn('[App] Avatar prefetch failed (non-critical):', error);
+    });
+  }, []);
 
   return (
-    <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
-          <NavigationThemeProvider
-            value={colorScheme === 'dark' ? CustomDarkTheme : CustomDefaultTheme}
-          >
-            <AuthProvider>
-              <ThemeProvider>
-                <UserPreferencesProvider>
-                  <BiometricLockProvider>
-                    <WidgetProvider>
-                      <RootLayoutContent />
-                    </WidgetProvider>
-                  </BiometricLockProvider>
-                </UserPreferencesProvider>
-              </ThemeProvider>
-            </AuthProvider>
-          </NavigationThemeProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <ThemeProvider>
+            <UserPreferencesProvider>
+              <WidgetProvider>
+                <NavigationContent />
+              </WidgetProvider>
+            </UserPreferencesProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }

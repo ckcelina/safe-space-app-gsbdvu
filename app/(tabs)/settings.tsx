@@ -1,16 +1,4 @@
 
-// ⚠️⚠️⚠️ DO NOT REDESIGN THIS SCREEN ⚠️⚠️⚠️
-// This Settings screen UI is LOCKED and must be preserved 1:1.
-// ONLY bug fixes for scroll/tap interactions are allowed.
-// DO NOT change:
-// - Layout structure (cards, rows, headers)
-// - Visual design (colors, spacing, shadows, borders)
-// - Component hierarchy (ScrollView, SafeAreaView, modals)
-// - Navigation behavior (back button, modal flows)
-// - Any UI elements or their styling
-// If you need to make changes, consult the original implementation first.
-// ⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -37,7 +25,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { useUserPreferences } from '@/contexts/UserPreferencesContext';
-import { useBiometricLock } from '@/contexts/BiometricLockContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { WidgetPreviewCard } from '@/components/ui/WidgetPreviewCard';
 import { deleteUserAccount } from '@/utils/accountDeletion';
@@ -118,16 +105,10 @@ function formatRelativeDate(dateString: string): string {
   }
 }
 
-// 🔒 DEVELOPER GUARD: This component name and export must remain unchanged
-// to ensure routing always points to this exact Settings screen implementation.
-// DO NOT rename this component or change the default export.
 export default function SettingsScreen() {
-  const { user, signOut } = useAuth();
-  const email = user?.email;
-  const userId = user?.id;
+  const { email, role, userId, signOut } = useAuth();
   const { themeKey, theme, setTheme } = useThemeContext();
   const { preferences, updatePreferences } = useUserPreferences();
-  const { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled } = useBiometricLock();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(themeKey);
@@ -456,18 +437,6 @@ export default function SettingsScreen() {
       showErrorToast('Something went wrong. Please try again.');
     } finally {
       setIsUpdatingPassword(false);
-    }
-  };
-
-  // Face ID / Biometric Lock Handler
-  const handleToggleBiometric = async (value: boolean) => {
-    try {
-      console.log('[Settings] Toggling biometric lock:', value);
-      await setBiometricEnabled(value);
-      showSuccessToast(value ? 'Face ID enabled' : 'Face ID disabled');
-    } catch (error) {
-      console.error('[Settings] Error toggling biometric lock:', error);
-      showErrorToast('Failed to update Face ID setting');
     }
   };
 
@@ -1067,408 +1036,116 @@ export default function SettingsScreen() {
     showAddUpdateModal;
 
   return (
-    <View style={styles.outerContainer}>
-      {/* FIX: Gradient behind everything with pointerEvents="none" */}
+    <>
       <LinearGradient
         colors={theme.primaryGradient}
-        style={StyleSheet.absoluteFill}
+        style={styles.gradientBackground}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         pointerEvents="none"
-      />
-      
-      {/* FIX: SafeAreaView with pointerEvents="box-none" to allow children to receive touches */}
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']} pointerEvents="box-none">
-        <View style={styles.container}>
-          {/* FIX: Header with pointerEvents="box-none" */}
-          <View style={styles.topHeader} pointerEvents="box-none">
-            <Pressable 
-              onPress={handleBack} 
-              style={styles.backButton}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              accessible={true}
-              accessibilityLabel="Go back"
-              accessibilityRole="button"
-              pointerEvents="auto"
-            >
-              <IconSymbol
-                ios_icon_name="chevron.left"
-                android_material_icon_name="arrow_back"
-                size={24}
-                color={theme.buttonText}
-              />
-            </Pressable>
-            
-            <View style={styles.headerSpacer} pointerEvents="none" />
-            
-            <Pressable 
-              onPress={handleInfoPress} 
-              style={styles.infoButton}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              accessible={true}
-              accessibilityLabel="Settings information"
-              accessibilityRole="button"
-              pointerEvents="auto"
-            >
-              <IconSymbol
-                ios_icon_name="info.circle"
-                android_material_icon_name="info"
-                size={24}
-                color={theme.buttonText}
-              />
-            </Pressable>
-          </View>
-
-          {/* FIX: ScrollView with pointerEvents="auto" and keyboardShouldPersistTaps */}
-          <ScrollView
-            contentContainerStyle={[
-              styles.scrollContent,
-              { paddingBottom: 60 + insets.bottom + 16 }
-            ]}
-            showsVerticalScrollIndicator={true}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            pointerEvents="auto"
-            style={styles.scrollView}
-          >
-            {/* Header */}
-            <View style={styles.header} pointerEvents="box-none">
-              <Text style={[styles.title, { color: theme.buttonText }]}>
-                Settings
-              </Text>
-              <Text style={[styles.subtitle, { color: theme.buttonText, opacity: 0.9 }]}>
-                Your account & preferences
-              </Text>
-            </View>
-
-            {/* Card 1: Account */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
-              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                Account
-              </Text>
-
-              {/* Email Row */}
-              <View style={[styles.row, { borderBottomWidth: 0 }]} pointerEvents="box-none">
-                <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
-                  Email
-                </Text>
-                <Text style={[styles.rowValue, { color: theme.textPrimary }]} numberOfLines={1}>
-                  {email || 'Not available'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Card 2: Privacy & Security */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
-              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                Privacy & Security
-              </Text>
-
-              <Text style={[styles.privacyAssurance, { color: theme.textSecondary }]}>
-                🔒 Your chats are private. Messages are encrypted in transit and only you can access your data.
-              </Text>
-
-              <Pressable
-                style={[styles.row, { borderBottomWidth: isBiometricAvailable ? 1 : 0, borderBottomColor: 'rgba(0, 0, 0, 0.05)' }]}
-                onPress={handleOpenChangePasswordModal}
+      >
+        {/* FIX: Removed pointerEvents="none" from SafeAreaView and container View.
+             These were blocking all touches to ScrollView and Pressables inside.
+             LinearGradient keeps pointerEvents="none" since it's just decorative background. */}
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <View style={styles.container}>
+            {/* Header with Back Button on LEFT and Info Icon on RIGHT */}
+            <View style={styles.topHeader}>
+              <Pressable 
+                onPress={handleBack} 
+                style={styles.backButton}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessible={true}
-                accessibilityLabel="Change password"
+                accessibilityLabel="Go back"
                 accessibilityRole="button"
-                pointerEvents="auto"
               >
-                <View style={styles.rowLeft} pointerEvents="none">
-                  <IconSymbol
-                    ios_icon_name="lock.fill"
-                    android_material_icon_name="lock"
-                    size={20}
-                    color={theme.primary}
-                  />
-                  <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
-                    Change password
-                  </Text>
-                </View>
                 <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
-                  size={20}
-                  color={theme.textSecondary}
+                  ios_icon_name="chevron.left"
+                  android_material_icon_name="arrow_back"
+                  size={24}
+                  color={theme.buttonText}
                 />
               </Pressable>
+              
+              <View style={styles.headerSpacer} />
+              
+              <Pressable 
+                onPress={handleInfoPress} 
+                style={styles.infoButton}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessible={true}
+                accessibilityLabel="Settings information"
+                accessibilityRole="button"
+              >
+                <IconSymbol
+                  ios_icon_name="info.circle"
+                  android_material_icon_name="info"
+                  size={24}
+                  color={theme.buttonText}
+                />
+              </Pressable>
+            </View>
 
-              {/* Face ID / Biometric Lock Toggle */}
-              {isBiometricAvailable && (
-                <View style={[styles.row, { borderBottomWidth: 0 }]} pointerEvents="box-none">
-                  <View style={styles.rowLeft} pointerEvents="none">
+            <ScrollView
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingBottom: 60 + insets.bottom + 16 }
+              ]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              pointerEvents="auto"
+            >
+              {/* Header */}
+              <View style={styles.header}>
+                <Text style={[styles.title, { color: theme.buttonText }]}>
+                  Settings
+                </Text>
+                <Text style={[styles.subtitle, { color: theme.buttonText, opacity: 0.9 }]}>
+                  Your account & preferences
+                </Text>
+              </View>
+
+              {/* Card 1: Account */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Account
+                </Text>
+
+                {/* Email Row */}
+                <View style={[styles.row, { borderBottomWidth: 0 }]}>
+                  <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>
+                    Email
+                  </Text>
+                  <Text style={[styles.rowValue, { color: theme.textPrimary }]} numberOfLines={1}>
+                    {email || 'Not available'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Card 2: Account information */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Account information
+                </Text>
+
+                <Pressable
+                  style={[styles.row, { borderBottomWidth: 0 }]}
+                  onPress={handleOpenChangePasswordModal}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessible={true}
+                  accessibilityLabel="Change password"
+                  accessibilityRole="button"
+                >
+                  <View style={styles.rowLeft}>
                     <IconSymbol
-                      ios_icon_name="faceid"
-                      android_material_icon_name="fingerprint"
+                      ios_icon_name="lock.fill"
+                      android_material_icon_name="lock"
                       size={20}
                       color={theme.primary}
                     />
-                    <View style={{ marginLeft: 12, flex: 1 }}>
-                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
-                        Require Face ID to open app
-                      </Text>
-                      <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
-                        Lock app after 30 seconds in background
-                      </Text>
-                    </View>
-                  </View>
-                  <Switch
-                    value={isBiometricEnabled}
-                    onValueChange={handleToggleBiometric}
-                    trackColor={{ false: theme.textSecondary + '40', true: theme.primary + '80' }}
-                    thumbColor={isBiometricEnabled ? theme.primary : '#f4f3f4'}
-                    ios_backgroundColor={theme.textSecondary + '40'}
-                  />
-                </View>
-              )}
-            </View>
-
-            {/* Card 2.5: Therapist Selection (Optional) */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
-              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                Therapist Selection (Optional)
-              </Text>
-
-              <Text style={[styles.cardDescription, { color: theme.textSecondary }]}>
-                Choose a communication style that feels comfortable. You can change or skip this anytime.
-              </Text>
-
-              {/* Therapist Persona Selection */}
-              <Pressable
-                style={[styles.row, { borderBottomWidth: 0, marginTop: 8 }]}
-                onPress={handleOpenPersonaModal}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessible={true}
-                accessibilityLabel={`Therapist selection. Currently ${selectedPersona ? `${selectedPersona.name}, ${selectedPersona.label}` : 'not selected'}`}
-                accessibilityRole="button"
-                pointerEvents="auto"
-              >
-                <View style={styles.rowLeft} pointerEvents="none">
-                  <IconSymbol
-                    ios_icon_name="person.circle.fill"
-                    android_material_icon_name="account_circle"
-                    size={20}
-                    color={theme.primary}
-                  />
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
-                      Therapist
-                    </Text>
-                    <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
-                      {selectedPersona ? `${selectedPersona.name} — ${selectedPersona.label}` : 'Not selected'}
-                    </Text>
-                  </View>
-                </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
-                  size={20}
-                  color={theme.textSecondary}
-                />
-              </Pressable>
-            </View>
-
-            {/* Card 2.6: Personalization (Optional) */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
-              <View style={styles.cardTitleRow} pointerEvents="box-none">
-                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                  Personalization (Optional)
-                </Text>
-                <Pressable
-                  onPress={handleOpenPersonalizationInfoModal}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  style={styles.whyWeAskButton}
-                  accessible={true}
-                  accessibilityLabel="Why we ask for personalization"
-                  accessibilityRole="button"
-                  pointerEvents="auto"
-                >
-                  <Text style={[styles.whyWeAskText, { color: theme.primary }]}>
-                    Why we ask
-                  </Text>
-                </Pressable>
-              </View>
-
-              <Text style={[styles.cardDescription, { color: theme.textSecondary }]}>
-                Share what helps conversations feel natural for you. You can change or remove this anytime.
-              </Text>
-
-              <Pressable
-                style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)', marginTop: 8 }]}
-                onPress={handleOpenPersonalizationModal}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessible={true}
-                accessibilityLabel={`Personalization settings. ${hasPersonalizationData ? 'Configured' : 'Not set'}`}
-                accessibilityRole="button"
-                pointerEvents="auto"
-              >
-                <View style={styles.rowLeft} pointerEvents="none">
-                  <IconSymbol
-                    ios_icon_name="person.fill"
-                    android_material_icon_name="person"
-                    size={20}
-                    color={theme.primary}
-                  />
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
-                      Personalization settings
-                    </Text>
-                    <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
-                      {hasPersonalizationData ? 'Configured' : 'Not set'}
-                    </Text>
-                  </View>
-                </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
-                  size={20}
-                  color={theme.textSecondary}
-                />
-              </Pressable>
-
-              {/* Updates Over Time Section */}
-              <Pressable
-                style={[styles.row, { borderBottomWidth: 0, marginTop: 0 }]}
-                onPress={handleOpenUpdatesModal}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessible={true}
-                accessibilityLabel={`Updates over time. ${updates.length > 0 ? `${updates.length} update${updates.length !== 1 ? 's' : ''}` : 'No updates yet'}`}
-                accessibilityRole="button"
-                pointerEvents="auto"
-              >
-                <View style={styles.rowLeft} pointerEvents="none">
-                  <IconSymbol
-                    ios_icon_name="clock.fill"
-                    android_material_icon_name="schedule"
-                    size={20}
-                    color={theme.primary}
-                  />
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
-                      Updates Over Time
-                    </Text>
-                    <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
-                      {updates.length > 0 ? `${updates.length} update${updates.length !== 1 ? 's' : ''}` : 'No updates yet'}
-                    </Text>
-                  </View>
-                </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
-                  size={20}
-                  color={theme.textSecondary}
-                />
-              </Pressable>
-            </View>
-
-            {/* Card 3: Appearance */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
-              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                Appearance
-              </Text>
-
-              <Text style={[styles.label, { color: theme.textSecondary }]}>
-                Theme
-              </Text>
-
-              <View style={styles.pillContainer} pointerEvents="box-none">
-                {themes.map((themeOption, index) => (
-                  <Pressable
-                    key={index}
-                    style={[
-                      styles.pill,
-                      {
-                        backgroundColor:
-                          selectedTheme === themeOption.key
-                            ? theme.primary
-                            : theme.background,
-                        borderColor: selectedTheme === themeOption.key ? theme.primary : '#E0E0E0',
-                      },
-                    ]}
-                    onPress={() => handleThemeSelect(themeOption.key)}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    accessible={true}
-                    accessibilityLabel={`${themeOption.name} theme. ${selectedTheme === themeOption.key ? 'Selected' : 'Not selected'}`}
-                    accessibilityRole="button"
-                    pointerEvents="auto"
-                  >
-                    <Text
-                      style={[
-                        styles.pillText,
-                        {
-                          color:
-                            selectedTheme === themeOption.key
-                              ? '#FFFFFF'
-                              : theme.textPrimary,
-                        },
-                      ]}
-                    >
-                      {themeOption.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            {/* Widget Preview Card */}
-            <WidgetPreviewCard />
-
-            {/* Card 4: Support */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
-              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                Support
-              </Text>
-
-              <Pressable
-                style={styles.row}
-                onPress={handleSupportPress}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessible={true}
-                accessibilityLabel="Contact support"
-                accessibilityRole="button"
-                pointerEvents="auto"
-              >
-                <View style={styles.rowLeft} pointerEvents="none">
-                  <IconSymbol
-                    ios_icon_name="envelope.fill"
-                    android_material_icon_name="email"
-                    size={20}
-                    color={theme.primary}
-                  />
-                  <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
-                    Contact Support
-                  </Text>
-                </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
-                  size={20}
-                  color={theme.textSecondary}
-                />
-              </Pressable>
-
-              {__DEV__ && (
-                <Pressable
-                  style={[styles.row, { borderBottomWidth: 0 }]}
-                  onPress={() => router.push('/test-ai-response')}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  accessible={true}
-                  accessibilityLabel="Test AI Response (Dev Only)"
-                  accessibilityRole="button"
-                  pointerEvents="auto"
-                >
-                  <View style={styles.rowLeft} pointerEvents="none">
-                    <IconSymbol
-                      ios_icon_name="wrench.and.screwdriver.fill"
-                      android_material_icon_name="build"
-                      size={20}
-                      color="#FF9500"
-                    />
                     <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
-                      Test AI Response (Dev)
+                      Change password
                     </Text>
                   </View>
                   <IconSymbol
@@ -1478,122 +1155,381 @@ export default function SettingsScreen() {
                     color={theme.textSecondary}
                   />
                 </Pressable>
-              )}
-            </View>
+              </View>
 
-            {/* Card 5: Legal */}
-            <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
-              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-                Legal
-              </Text>
+              {/* Card 2.5: Therapist Selection (Optional) */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Therapist Selection (Optional)
+                </Text>
 
-              <Pressable
-                style={styles.row}
-                onPress={handlePrivacyPress}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessible={true}
-                accessibilityLabel="Privacy policy"
-                accessibilityRole="button"
-                pointerEvents="auto"
-              >
-                <View style={styles.rowLeft} pointerEvents="none">
-                  <IconSymbol
-                    ios_icon_name="lock.shield.fill"
-                    android_material_icon_name="shield"
-                    size={20}
-                    color={theme.primary}
-                  />
-                  <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
-                    Privacy Policy
-                  </Text>
-                </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
-                  size={20}
-                  color={theme.textSecondary}
-                />
-              </Pressable>
+                <Text style={[styles.cardDescription, { color: theme.textSecondary }]}>
+                  Choose a communication style that feels comfortable. You can change or skip this anytime.
+                </Text>
 
-              <Pressable
-                style={[styles.row, { borderBottomWidth: 0 }]}
-                onPress={handleTermsPress}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessible={true}
-                accessibilityLabel="Terms and conditions"
-                accessibilityRole="button"
-                pointerEvents="auto"
-              >
-                <View style={styles.rowLeft} pointerEvents="none">
-                  <IconSymbol
-                    ios_icon_name="doc.text.fill"
-                    android_material_icon_name="description"
-                    size={20}
-                    color={theme.primary}
-                  />
-                  <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
-                    Terms and Conditions
-                  </Text>
-                </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow_forward"
-                  size={20}
-                  color={theme.textSecondary}
-                />
-              </Pressable>
-            </View>
-
-            {/* Log Out Button */}
-            <Pressable
-              style={[styles.logoutButton, { backgroundColor: '#FF6B6B' }]}
-              onPress={handleSignOut}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              accessible={true}
-              accessibilityLabel="Log out"
-              accessibilityRole="button"
-              pointerEvents="auto"
-            >
-              <IconSymbol
-                ios_icon_name="arrow.right.square.fill"
-                android_material_icon_name="logout"
-                size={20}
-                color="#FFFFFF"
-              />
-              <Text style={styles.logoutText}>Log Out</Text>
-            </Pressable>
-
-            {/* Account Deletion Section */}
-            <View style={styles.accountSection} pointerEvents="box-none">
-              <Text style={[styles.sectionTitle, { color: theme.buttonText }]}>
-                Account
-              </Text>
-              <View style={[styles.dangerCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} pointerEvents="box-none">
+                {/* Therapist Persona Selection */}
                 <Pressable
-                  style={styles.deleteButton}
-                  onPress={handleDeleteAccount}
+                  style={[styles.row, { borderBottomWidth: 0, marginTop: 8 }]}
+                  onPress={handleOpenPersonaModal}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessible={true}
-                  accessibilityLabel="Delete my account"
+                  accessibilityLabel={`Therapist selection. Currently ${selectedPersona ? `${selectedPersona.name}, ${selectedPersona.label}` : 'not selected'}`}
                   accessibilityRole="button"
-                  pointerEvents="auto"
                 >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="person.circle.fill"
+                      android_material_icon_name="account_circle"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
+                        Therapist
+                      </Text>
+                      <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
+                        {selectedPersona ? `${selectedPersona.name} — ${selectedPersona.label}` : 'Not selected'}
+                      </Text>
+                    </View>
+                  </View>
                   <IconSymbol
-                    ios_icon_name="trash.fill"
-                    android_material_icon_name="delete"
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="arrow_forward"
                     size={20}
-                    color="#FFFFFF"
+                    color={theme.textSecondary}
                   />
-                  <Text style={styles.deleteButtonText}>Delete My Account</Text>
                 </Pressable>
-                <Text style={[styles.helperText, { color: theme.textSecondary }]}>
-                  This will permanently remove your profile and conversations.
-                </Text>
               </View>
-            </View>
-          </ScrollView>
-        </View>
-      </SafeAreaView>
+
+              {/* Card 2.6: Personalization (Optional) */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <View style={styles.cardTitleRow}>
+                  <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                    Personalization (Optional)
+                  </Text>
+                  <Pressable
+                    onPress={handleOpenPersonalizationInfoModal}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    style={styles.whyWeAskButton}
+                    accessible={true}
+                    accessibilityLabel="Why we ask for personalization"
+                    accessibilityRole="button"
+                  >
+                    <Text style={[styles.whyWeAskText, { color: theme.primary }]}>
+                      Why we ask
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <Text style={[styles.cardDescription, { color: theme.textSecondary }]}>
+                  Share what helps conversations feel natural for you. You can change or remove this anytime.
+                </Text>
+
+                <Pressable
+                  style={[styles.row, { borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)', marginTop: 8 }]}
+                  onPress={handleOpenPersonalizationModal}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessible={true}
+                  accessibilityLabel={`Personalization settings. ${hasPersonalizationData ? 'Configured' : 'Not set'}`}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="person.fill"
+                      android_material_icon_name="person"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
+                        Personalization settings
+                      </Text>
+                      <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
+                        {hasPersonalizationData ? 'Configured' : 'Not set'}
+                      </Text>
+                    </View>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="arrow_forward"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
+
+                {/* Updates Over Time Section */}
+                <Pressable
+                  style={[styles.row, { borderBottomWidth: 0, marginTop: 0 }]}
+                  onPress={handleOpenUpdatesModal}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessible={true}
+                  accessibilityLabel={`Updates over time. ${updates.length > 0 ? `${updates.length} update${updates.length !== 1 ? 's' : ''}` : 'No updates yet'}`}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="clock.fill"
+                      android_material_icon_name="schedule"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>
+                        Updates Over Time
+                      </Text>
+                      <Text style={[styles.rowSubtext, { color: theme.textSecondary }]}>
+                        {updates.length > 0 ? `${updates.length} update${updates.length !== 1 ? 's' : ''}` : 'No updates yet'}
+                      </Text>
+                    </View>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="arrow_forward"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
+              </View>
+
+              {/* Card 3: Appearance */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Appearance
+                </Text>
+
+                <Text style={[styles.label, { color: theme.textSecondary }]}>
+                  Theme
+                </Text>
+
+                <View style={styles.pillContainer}>
+                  {themes.map((themeOption, index) => (
+                    <Pressable
+                      key={index}
+                      style={[
+                        styles.pill,
+                        {
+                          backgroundColor:
+                            selectedTheme === themeOption.key
+                              ? theme.primary
+                              : theme.background,
+                          borderColor: selectedTheme === themeOption.key ? theme.primary : '#E0E0E0',
+                        },
+                      ]}
+                      onPress={() => handleThemeSelect(themeOption.key)}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                      accessible={true}
+                      accessibilityLabel={`${themeOption.name} theme. ${selectedTheme === themeOption.key ? 'Selected' : 'Not selected'}`}
+                      accessibilityRole="button"
+                    >
+                      <Text
+                        style={[
+                          styles.pillText,
+                          {
+                            color:
+                              selectedTheme === themeOption.key
+                                ? '#FFFFFF'
+                                : theme.textPrimary,
+                          },
+                        ]}
+                      >
+                        {themeOption.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {/* Widget Preview Card */}
+              <WidgetPreviewCard />
+
+              {/* Card 4: Support */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Support
+                </Text>
+
+                <Pressable
+                  style={styles.row}
+                  onPress={handleSupportPress}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessible={true}
+                  accessibilityLabel="Contact support"
+                  accessibilityRole="button"
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="envelope.fill"
+                      android_material_icon_name="email"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                      Contact Support
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="arrow_forward"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
+
+                {__DEV__ && (
+                  <Pressable
+                    style={[styles.row, { borderBottomWidth: 0 }]}
+                    onPress={() => router.push('/test-ai-response')}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessible={true}
+                    accessibilityLabel="Test AI Response (Dev Only)"
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.rowLeft}>
+                      <IconSymbol
+                        ios_icon_name="wrench.and.screwdriver.fill"
+                        android_material_icon_name="build"
+                        size={20}
+                        color="#FF9500"
+                      />
+                      <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                        Test AI Response (Dev)
+                      </Text>
+                    </View>
+                    <IconSymbol
+                      ios_icon_name="chevron.right"
+                      android_material_icon_name="arrow_forward"
+                      size={20}
+                      color={theme.textSecondary}
+                    />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Card 5: Legal */}
+              <View style={[styles.card, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+                  Legal
+                </Text>
+
+                <Pressable
+                  style={styles.row}
+                  onPress={handlePrivacyPress}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessible={true}
+                  accessibilityLabel="Privacy policy"
+                  accessibilityRole="button"
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="lock.shield.fill"
+                      android_material_icon_name="shield"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                      Privacy Policy
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="arrow_forward"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
+
+                <Pressable
+                  style={[styles.row, { borderBottomWidth: 0 }]}
+                  onPress={handleTermsPress}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessible={true}
+                  accessibilityLabel="Terms and conditions"
+                  accessibilityRole="button"
+                >
+                  <View style={styles.rowLeft}>
+                    <IconSymbol
+                      ios_icon_name="doc.text.fill"
+                      android_material_icon_name="description"
+                      size={20}
+                      color={theme.primary}
+                    />
+                    <Text style={[styles.rowLabel, { color: theme.textPrimary, marginLeft: 12 }]}>
+                      Terms and Conditions
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="arrow_forward"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
+              </View>
+
+              {/* Log Out Button */}
+              <Pressable
+                style={[styles.logoutButton, { backgroundColor: '#FF6B6B' }]}
+                onPress={handleSignOut}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessible={true}
+                accessibilityLabel="Log out"
+                accessibilityRole="button"
+              >
+                <IconSymbol
+                  ios_icon_name="arrow.right.square.fill"
+                  android_material_icon_name="logout"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.logoutText}>Log Out</Text>
+              </Pressable>
+
+              {/* Account Deletion Section */}
+              <View style={styles.accountSection}>
+                <Text style={[styles.sectionTitle, { color: theme.buttonText }]}>
+                  Account
+                </Text>
+                <View style={[styles.dangerCard, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]}>
+                  <Pressable
+                    style={styles.deleteButton}
+                    onPress={handleDeleteAccount}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessible={true}
+                    accessibilityLabel="Delete my account"
+                    accessibilityRole="button"
+                  >
+                    <IconSymbol
+                      ios_icon_name="trash.fill"
+                      android_material_icon_name="delete"
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.deleteButtonText}>Delete My Account</Text>
+                  </Pressable>
+                  <Text style={[styles.helperText, { color: theme.textSecondary }]}>
+                    This will permanently remove your profile and conversations.
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+
+      {/* DEV-ONLY DIAGNOSTIC: Full-screen transparent Pressable to detect overlays */}
+      {__DEV__ && !isAnyModalOpen && (
+        <Pressable
+          style={styles.devDiagnosticOverlay}
+          onPress={(e) => {
+            console.log('[Settings] DEV DIAGNOSTIC: Tap detected on diagnostic overlay at:', {
+              x: e.nativeEvent.pageX,
+              y: e.nativeEvent.pageY,
+              timestamp: new Date().toISOString(),
+            });
+          }}
+          pointerEvents="box-none"
+        />
+      )}
 
       {/* Info Modal - ONLY render when visible */}
       {showInfoModal ? (
@@ -2659,28 +2595,21 @@ export default function SettingsScreen() {
           </KeyboardAvoidingView>
         </Modal>
       ) : null}
-    </View>
+    </>
   );
 }
 
-// 🔒 DEVELOPER GUARD: Verify this is the correct Settings screen component
-// This component must remain the default export for routing to work correctly.
-// Component name: SettingsScreen
-// Export type: default
-// File path: app/(tabs)/settings.tsx
-
 const styles = StyleSheet.create({
-  outerContainer: {
+  gradientBackground: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   safeArea: {
     flex: 1,
     backgroundColor: 'transparent',
   },
   container: {
-    flex: 1,
-  },
-  scrollView: {
     flex: 1,
   },
   topHeader: {
@@ -2751,16 +2680,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 8,
-  },
-  privacyAssurance: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
-    borderRadius: 8,
-    fontWeight: '500',
   },
   row: {
     flexDirection: 'row',
@@ -3255,5 +3174,16 @@ const styles = StyleSheet.create({
   updateCardActionText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+
+  // DEV-ONLY DIAGNOSTIC OVERLAY
+  devDiagnosticOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 9999,
   },
 });
