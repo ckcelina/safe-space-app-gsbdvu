@@ -13,43 +13,42 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
-import { useThemeContext } from '@/contexts/ThemeContext';
+import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
-import { ThemeType } from '@/types/database.types';
 import { colors as oceanBlueColors, softRoseColors, forestGreenColors, sunnyYellowColors } from '@/styles/commonStyles';
 
 export default function ProfileScreen() {
   const { currentUser, email, role, signOut } = useAuth();
-  const { colors, theme, setTheme } = useThemeContext();
+  const { theme, themeKey, setTheme } = useThemeContext();
   const insets = useSafeAreaInsets();
   const [showThemeModal, setShowThemeModal] = useState(false);
-  const [previewTheme, setPreviewTheme] = useState<ThemeType>(theme);
-  const [previewColors, setPreviewColors] = useState(colors);
+  const [previewThemeKey, setPreviewThemeKeyKey] = useState<ThemeKey>(themeKey);
+  const [previewColors, setPreviewColors] = useState(oceanBlueColors);
 
   const themes = [
     { 
-      id: 'ocean-blue' as ThemeType, 
+      id: 'ocean-blue' as ThemeKey, 
       name: 'Ocean Blue', 
       color: '#1890FF',
       colors: oceanBlueColors,
       description: 'Calm and professional'
     },
     { 
-      id: 'soft-rose' as ThemeType, 
+      id: 'soft-rose' as ThemeKey, 
       name: 'Soft Rose', 
       color: '#FF69B4',
       colors: softRoseColors,
       description: 'Warm and gentle'
     },
     { 
-      id: 'forest-green' as ThemeType, 
+      id: 'forest-green' as ThemeKey, 
       name: 'Forest Green', 
       color: '#228B22',
       colors: forestGreenColors,
       description: 'Natural and refreshing'
     },
     { 
-      id: 'sunny-yellow' as ThemeType, 
+      id: 'sunny-yellow' as ThemeKey, 
       name: 'Sunny Yellow', 
       color: '#F59E0B',
       colors: sunnyYellowColors,
@@ -76,14 +75,17 @@ export default function ProfileScreen() {
   };
 
   const handleOpenThemeModal = () => {
-    setPreviewTheme(theme);
-    setPreviewColors(colors);
+    setPreviewThemeKey(themeKey);
+    const selectedTheme = themes.find(t => t.id === themeKey);
+    if (selectedTheme) {
+      setPreviewColors(selectedTheme.colors);
+    }
     setShowThemeModal(true);
   };
 
-  const handleThemePreview = (themeId: ThemeType) => {
+  const handleThemePreview = (themeId: ThemeKey) => {
     console.log('Previewing theme:', themeId);
-    setPreviewTheme(themeId);
+    setPreviewThemeKey(themeId);
     const selectedTheme = themes.find(t => t.id === themeId);
     if (selectedTheme) {
       setPreviewColors(selectedTheme.colors);
@@ -91,21 +93,24 @@ export default function ProfileScreen() {
   };
 
   const handleSaveTheme = async () => {
-    console.log('Saving theme:', previewTheme);
-    await setTheme(previewTheme);
+    console.log('Saving theme:', previewThemeKey);
+    await setTheme(previewThemeKey);
     setShowThemeModal(false);
     Alert.alert('Theme Saved', 'Your theme has been updated successfully!');
   };
 
   const handleCancelTheme = () => {
     console.log('Canceling theme change');
-    setPreviewTheme(theme);
-    setPreviewColors(colors);
+    setPreviewThemeKey(themeKey);
+    const selectedTheme = themes.find(t => t.id === themeKey);
+    if (selectedTheme) {
+      setPreviewColors(selectedTheme.colors);
+    }
     setShowThemeModal(false);
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -114,24 +119,24 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Profile</Text>
         </View>
 
         {/* Plan Card - HIDDEN */}
 
-        <View style={[styles.card, { backgroundColor: colors.card }]}>
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
           <View style={styles.infoRow}>
             <IconSymbol
               ios_icon_name="envelope.fill"
               android_material_icon_name="email"
               size={24}
-              color={colors.primary}
+              color={theme.primary}
             />
             <View style={styles.infoContent}>
-              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+              <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
                 Email
               </Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>
+              <Text style={[styles.infoValue, { color: theme.textPrimary }]}>
                 {email || 'Not available'}
               </Text>
             </View>
@@ -141,33 +146,33 @@ export default function ProfileScreen() {
         {/* Upgrade Card - HIDDEN */}
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
             Settings
           </Text>
 
           <TouchableOpacity
-            style={[styles.settingItem, { backgroundColor: colors.card }]}
+            style={[styles.settingItem, { backgroundColor: theme.card }]}
             onPress={handleOpenThemeModal}
           >
             <IconSymbol
               ios_icon_name="paintbrush.fill"
               android_material_icon_name="palette"
               size={24}
-              color={colors.primary}
+              color={theme.primary}
             />
             <View style={styles.settingContent}>
-              <Text style={[styles.settingText, { color: colors.text }]}>
+              <Text style={[styles.settingText, { color: theme.textPrimary }]}>
                 Theme
               </Text>
-              <Text style={[styles.settingSubtext, { color: colors.textSecondary }]}>
+              <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>
                 {themes.find(t => t.id === theme)?.name}
               </Text>
             </View>
             <IconSymbol
               ios_icon_name="chevron.right"
-              android_material_icon_name="chevron_right"
+              android_material_icon_name="chevron-right"
               size={20}
-              color={colors.textSecondary}
+              color={theme.textSecondary}
             />
           </TouchableOpacity>
         </View>
@@ -193,18 +198,18 @@ export default function ProfileScreen() {
         presentationStyle="pageSheet"
         onRequestClose={handleCancelTheme}
       >
-        <View style={[styles.modalContainer, { backgroundColor: previewColors.background }]}>
-          <View style={[styles.modalHeader, { backgroundColor: previewColors.card }]}>
+        <View style={[styles.modalContainer, { backgroundColor: theme.background }]}>
+          <View style={[styles.modalHeader, { backgroundColor: theme.card }]}>
             <TouchableOpacity onPress={handleCancelTheme} style={styles.modalButton}>
-              <Text style={[styles.modalButtonText, { color: previewColors.text }]}>
+              <Text style={[styles.modalButtonText, { color: theme.textPrimary }]}>
                 Cancel
               </Text>
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: previewColors.text }]}>
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
               Choose Theme
             </Text>
             <TouchableOpacity onPress={handleSaveTheme} style={styles.modalButton}>
-              <Text style={[styles.modalButtonText, { color: previewColors.primary, fontWeight: '600' }]}>
+              <Text style={[styles.modalButtonText, { color: theme.primary, fontWeight: '600' }]}>
                 Save
               </Text>
             </TouchableOpacity>
@@ -214,7 +219,7 @@ export default function ProfileScreen() {
             contentContainerStyle={styles.modalContent}
             showsVerticalScrollIndicator={false}
           >
-            <Text style={[styles.previewLabel, { color: previewColors.textSecondary }]}>
+            <Text style={[styles.previewLabel, { color: theme.textSecondary }]}>
               Tap a theme to preview it
             </Text>
 
@@ -224,9 +229,9 @@ export default function ProfileScreen() {
                 style={[
                   styles.themeCard,
                   {
-                    backgroundColor: previewColors.card,
-                    borderColor: previewTheme === themeOption.id ? previewColors.primary : previewColors.accent,
-                    borderWidth: previewTheme === themeOption.id ? 3 : 1,
+                    backgroundColor: theme.card,
+                    borderColor: previewThemeKey === themeOption.id ? theme.primary : theme.accent,
+                    borderWidth: previewThemeKey === themeOption.id ? 3 : 1,
                   },
                 ]}
                 onPress={() => handleThemePreview(themeOption.id)}
@@ -236,59 +241,59 @@ export default function ProfileScreen() {
                     style={[styles.themeColorCircle, { backgroundColor: themeOption.color }]}
                   />
                   <View style={styles.themeInfo}>
-                    <Text style={[styles.themeCardName, { color: previewColors.text }]}>
+                    <Text style={[styles.themeCardName, { color: theme.textPrimary }]}>
                       {themeOption.name}
                     </Text>
-                    <Text style={[styles.themeDescription, { color: previewColors.textSecondary }]}>
+                    <Text style={[styles.themeDescription, { color: theme.textSecondary }]}>
                       {themeOption.description}
                     </Text>
                   </View>
-                  {previewTheme === themeOption.id && (
+                  {previewThemeKey === themeOption.id && (
                     <IconSymbol
                       ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check_circle"
+                      android_material_icon_name="check-circle"
                       size={28}
-                      color={previewColors.primary}
+                      color={theme.primary}
                     />
                   )}
                 </View>
 
                 {/* Color Palette Preview */}
                 <View style={styles.colorPalette}>
-                  <View style={[styles.colorSwatch, { backgroundColor: themeOption.colors.primary }]} />
-                  <View style={[styles.colorSwatch, { backgroundColor: themeOption.colors.secondary }]} />
-                  <View style={[styles.colorSwatch, { backgroundColor: themeOption.colors.accent }]} />
-                  <View style={[styles.colorSwatch, { backgroundColor: themeOption.colors.highlight }]} />
+                  <View style={[styles.colorSwatch, { backgroundColor: themeOption.theme.primary }]} />
+                  <View style={[styles.colorSwatch, { backgroundColor: themeOption.theme.secondary }]} />
+                  <View style={[styles.colorSwatch, { backgroundColor: themeOption.theme.accent }]} />
+                  <View style={[styles.colorSwatch, { backgroundColor: themeOption.theme.highlight }]} />
                 </View>
               </TouchableOpacity>
             ))}
 
             {/* Preview Section */}
             <View style={styles.previewSection}>
-              <Text style={[styles.previewSectionTitle, { color: previewColors.text }]}>
+              <Text style={[styles.previewSectionTitle, { color: theme.textPrimary }]}>
                 Preview
               </Text>
               
-              <View style={[styles.previewCard, { backgroundColor: previewColors.card }]}>
-                <Text style={[styles.previewCardTitle, { color: previewColors.text }]}>
+              <View style={[styles.previewCard, { backgroundColor: theme.card }]}>
+                <Text style={[styles.previewCardTitle, { color: theme.textPrimary }]}>
                   Sample Card
                 </Text>
-                <Text style={[styles.previewCardText, { color: previewColors.textSecondary }]}>
+                <Text style={[styles.previewCardText, { color: theme.textSecondary }]}>
                   This is how your content will look with this theme.
                 </Text>
                 <TouchableOpacity 
-                  style={[styles.previewButton, { backgroundColor: previewColors.primary }]}
+                  style={[styles.previewButton, { backgroundColor: theme.primary }]}
                   disabled
                 >
                   <Text style={styles.previewButtonText}>Sample Button</Text>
                 </TouchableOpacity>
               </View>
 
-              <View style={[styles.previewCard, { backgroundColor: previewColors.highlight }]}>
-                <Text style={[styles.previewCardTitle, { color: previewColors.text }]}>
+              <View style={[styles.previewCard, { backgroundColor: theme.highlight }]}>
+                <Text style={[styles.previewCardTitle, { color: theme.textPrimary }]}>
                   Highlighted Content
                 </Text>
-                <Text style={[styles.previewCardText, { color: previewColors.textSecondary }]}>
+                <Text style={[styles.previewCardText, { color: theme.textSecondary }]}>
                   Important information will be displayed like this.
                 </Text>
               </View>

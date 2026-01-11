@@ -136,7 +136,7 @@ export default function AIPreferencesOnboardingScreen() {
             {isSelected && (
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={24}
                 color={theme.primary}
               />
@@ -182,7 +182,7 @@ export default function AIPreferencesOnboardingScreen() {
           {selectedToneId === tone.toneId && (
             <IconSymbol
               ios_icon_name="checkmark.circle.fill"
-              android_material_icon_name="check_circle"
+              android_material_icon_name="check-circle"
               size={20}
               color={theme.primary}
             />

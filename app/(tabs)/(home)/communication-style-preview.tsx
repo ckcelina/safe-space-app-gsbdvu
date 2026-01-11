@@ -168,7 +168,7 @@ export default function CommunicationStylePreviewScreen() {
               >
                 <IconSymbol
                   ios_icon_name="chevron.left"
-                  android_material_icon_name="arrow_back"
+                  android_material_icon_name="arrow-back"
                   size={22}
                   color={theme.buttonText}
                 />

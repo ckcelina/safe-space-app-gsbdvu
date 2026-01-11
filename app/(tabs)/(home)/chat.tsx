@@ -1436,7 +1436,7 @@ export default function ChatScreen() {
               >
                 <IconSymbol
                   ios_icon_name="chevron.left"
-                  android_material_icon_name="arrow_back"
+                  android_material_icon_name="arrow-back"
                   size={24}
                   color="#FFFFFF"
                 />
@@ -1590,7 +1590,7 @@ export default function ChatScreen() {
               >
                 <IconSymbol
                   ios_icon_name="chevron.down"
-                  android_material_icon_name="keyboard_arrow_down"
+                  android_material_icon_name="keyboard-arrow-down"
                   size={24}
                   color="#FFFFFF"
                 />

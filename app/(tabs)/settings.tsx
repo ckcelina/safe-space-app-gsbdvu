@@ -921,7 +921,7 @@ export default function SettingsScreen() {
               {isSelected && (
                 <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check_circle"
+                  android_material_icon_name="check-circle"
                   size={24}
                   color={theme.primary}
                 />
@@ -1000,7 +1000,7 @@ export default function SettingsScreen() {
               {selectedValue === option && (
                 <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check_circle"
+                  android_material_icon_name="check-circle"
                   size={18}
                   color={theme.primary}
                 />
@@ -1058,7 +1058,7 @@ export default function SettingsScreen() {
               >
                 <IconSymbol
                   ios_icon_name="chevron.left"
-                  android_material_icon_name="arrow_back"
+                  android_material_icon_name="arrow-back"
                   size={24}
                   color={theme.buttonText}
                 />
