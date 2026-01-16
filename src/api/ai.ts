@@ -29,6 +29,10 @@ export async function generateAIReply(params: {
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
 }): Promise<string> {
   const fallbackMessage = "I'm having trouble replying right now, but your feelings matter. Please try again in a moment.";
+  const logFallback = (reason: string, data?: Record<string, unknown>) => {
+    void reason;
+    void data;
+  };
   
   try {
     console.log('[AI API] Generating AI reply for person:', params.personName);
@@ -66,6 +70,7 @@ export async function generateAIReply(params: {
         console.error('[AI API] Could not parse error response');
       }
       
+      logFallback('http_not_ok', { status: response.status, statusText: response.statusText });
       return fallbackMessage;
     }
     
@@ -75,6 +80,7 @@ export async function generateAIReply(params: {
     // Validate that we received a reply
     if (!data || typeof data.reply !== 'string') {
       console.error('[AI API] Missing or invalid reply in response:', data);
+      logFallback('invalid_reply', { hasData: !!data, replyType: typeof data?.reply });
       return fallbackMessage;
     }
     
@@ -90,6 +96,7 @@ export async function generateAIReply(params: {
       console.error('[AI API] Error stack:', error.stack);
     }
     
+    logFallback('exception', { errorType: error instanceof Error ? error.name : typeof error });
     return fallbackMessage;
   }
 }

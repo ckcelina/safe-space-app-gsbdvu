@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useThemeContext, ThemeKey } from '@/contexts/ThemeContext';
 import { useToast } from '@/hooks/useToast';
-import { THEMES } from '../constants/settingsConstants';
+import { THEMES } from '../constants';
 
 export interface UseThemeSettingsReturn {
   selectedTheme: ThemeKey;

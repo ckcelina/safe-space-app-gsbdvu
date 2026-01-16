@@ -137,17 +137,11 @@ serve(async (req) => {
   }
   
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:106',message:'Parsing request body',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     
     let requestBody: RequestBody;
     try {
       requestBody = await req.json();
     } catch (jsonError: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:114',message:'JSON parsing error',data:{errorMessage:jsonError?.message,errorType:jsonError?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       return new Response(
         JSON.stringify({ error: 'Invalid JSON in request body' }),
         { 
@@ -174,15 +168,9 @@ serve(async (req) => {
       therapistId,
     } = requestBody;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:121',message:'Request body parsed successfully',data:{personId:!!personId,personName:!!personName,userId:!!userId,messageCount:messages?.length||0,hasMessages:!!messages},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
 
     // Validate required fields
     if (!personId || !personName || !userId || !messages || !Array.isArray(messages) || messages.length === 0) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:125',message:'Missing required fields',data:{personId:!!personId,personName:!!personName,userId:!!userId,hasMessages:!!messages,isArray:Array.isArray(messages),messageCount:messages?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       return new Response(
         JSON.stringify({ error: 'Missing required fields: personId, personName, userId, and messages are required' }),
         { 
@@ -206,14 +194,8 @@ serve(async (req) => {
       hasImages: messages.some(m => m.type === 'image'),
     });
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:125',message:'Checking environment variables',data:{hasOpenAIKey:!!OPENAI_API_KEY,hasSupabaseUrl:!!SUPABASE_URL,hasSupabaseKey:!!SUPABASE_SERVICE_KEY},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
 
     if (!OPENAI_API_KEY) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:126',message:'OPENAI_API_KEY missing',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       console.error('[generate-ai-response] OPENAI_API_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'OpenAI API key not configured' }),
@@ -622,9 +604,6 @@ Keep each item brief (under 100 characters). Focus on NEW information not alread
       }
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:410',message:'Returning success response',data:{replyLength:aiReply?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
     
     return new Response(
       JSON.stringify({ reply: aiReply }),
@@ -638,9 +617,6 @@ Keep each item brief (under 100 characters). Focus on NEW information not alread
       }
     );
   } catch (error: any) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:414',message:'Edge function error caught',data:{errorType:error?.constructor?.name,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     console.error('[generate-ai-response] Unexpected error:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),

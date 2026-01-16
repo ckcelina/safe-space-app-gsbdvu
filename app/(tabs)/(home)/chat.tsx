@@ -426,9 +426,6 @@ export default function ChatScreen() {
   }, [allMessages, messageListItems]);
 
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:387',message:'ChatScreen mounted',data:{personId:!!personId,personName:!!personName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
     isMountedRef.current = true;
     
     if (personId && personName) {
@@ -436,31 +433,19 @@ export default function ChatScreen() {
     }
     
     return () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:394',message:'ChatScreen unmounting',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       isMountedRef.current = false;
     };
   }, [personId, personName]);
 
   const loadMessages = useCallback(async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:393',message:'loadMessages called',data:{hasAuthUser:!!authUser?.id,hasPersonId:!!personId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     
     if (!authUser?.id || !personId) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:395',message:'loadMessages early return',data:{hasAuthUser:!!authUser?.id,hasPersonId:!!personId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       console.log('[ChatScreen] loadMessages: Missing authUser or personId');
       return;
     }
 
     try {
       setLoading(true);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:400',message:'setLoading(true) called',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       console.log('[ChatScreen] Loading messages for person:', personId);
 
       const { data, error } = await supabase
@@ -493,9 +478,6 @@ export default function ChatScreen() {
         });
       }
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:461',message:'Messages loaded, updating state',data:{messageCount:data?.length||0,isMounted:isMountedRef.current,sampleMessage:data?.[0]?Object.keys(data[0]):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       
       if (isMountedRef.current) {
         console.log('[DEBUG] Setting allMessages:', {
@@ -508,24 +490,14 @@ export default function ChatScreen() {
           })) || [],
         });
         setAllMessages(data || []);
-      } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:419',message:'Component unmounted, skipping state update',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
       }
 
       // Update person activity
       await updatePersonActivity(authUser.id, personId, 'opened');
     } catch (err) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:422',message:'Error loading messages',data:{errorMessage:err instanceof Error?err.message:'Unknown',isMounted:isMountedRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       console.error('[ChatScreen] Unexpected error loading messages:', err);
       showErrorToast('Failed to load messages');
     } finally {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:425',message:'loadMessages finally block',data:{isMounted:isMountedRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       if (isMountedRef.current) {
         setLoading(false);
       }
@@ -563,17 +535,11 @@ export default function ChatScreen() {
             payloadKeys: payload?.new ? Object.keys(payload.new) : [],
           });
           console.log('[ChatScreen] Realtime INSERT:', payload.new);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:553',message:'Realtime INSERT received',data:{hasPayload:!!payload,hasNew:!!payload?.new,messageId:payload?.new?.id,sender:payload?.new?.sender,hasContent:!!payload?.new?.content},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
           
           const newMessage = payload.new as Message;
           
           if (!newMessage || !newMessage.id) {
             console.log('[DEBUG] Realtime INSERT: Invalid message - missing id or message object');
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:567',message:'Realtime INSERT invalid message',data:{hasMessage:!!newMessage,hasId:!!newMessage?.id,payloadKeys:payload?.new?Object.keys(payload.new):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'D'})}).catch(()=>{});
-            // #endregion
             console.warn('[ChatScreen] Realtime INSERT: Invalid message', payload.new);
             return;
           }
@@ -582,9 +548,6 @@ export default function ChatScreen() {
             // Check if component is still mounted before updating state
             if (!isMountedRef.current) {
               console.log('[DEBUG] Component unmounted, skipping realtime update');
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:577',message:'Component unmounted, skipping realtime update',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'E'})}).catch(()=>{});
-              // #endregion
               return prev;
             }
             
@@ -598,9 +561,6 @@ export default function ChatScreen() {
               sender: newMessage.sender,
               prevCount: prev.length,
             });
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:591',message:'Merging new message from realtime',data:{messageId:newMessage.id,prevCount:prev.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'D'})}).catch(()=>{});
-            // #endregion
             return mergeMessages(prev, [newMessage]);
           });
         }
@@ -820,9 +780,6 @@ export default function ChatScreen() {
       }
       
       console.log('[DEBUG] Insert payload:', JSON.stringify(insertPayload, null, 2));
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:705',message:'Attempting message insert',data:{hasUserId:!!insertPayload.user_id,hasPersonId:!!insertPayload.person_id,sender:insertPayload.sender,contentLength:insertPayload.content?.length,hasSubject:!!insertPayload.subject},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       
       const { data: userMessage, error: insertError } = await supabase
         .from('messages')
@@ -838,18 +795,12 @@ export default function ChatScreen() {
           hint: insertError.hint,
           fullError: JSON.stringify(insertError, Object.getOwnPropertyNames(insertError)),
         });
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:722',message:'Message insert failed',data:{errorMessage:insertError?.message,errorCode:insertError?.code,errorDetails:insertError?.details,errorHint:insertError?.hint},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         console.error('[ChatScreen] Error inserting message:', insertError);
         showErrorToast('Failed to send message');
         setInputText(messageContent);
         return;
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:721',message:'Message insert successful',data:{messageId:userMessage?.id,hasSender:!!userMessage?.sender,sender:userMessage?.sender},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       console.error('🟢 [CRITICAL] User message inserted successfully:', {
         messageId: userMessage.id,
         sender: userMessage.sender,
@@ -905,29 +856,17 @@ export default function ChatScreen() {
 
   const generateAIResponse = async () => {
     console.log('[DEBUG] generateAIResponse called', { hasAuthUser: !!authUser?.id, hasPersonId: !!personId, isGenerating });
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:748',message:'generateAIResponse called',data:{hasAuthUser:!!authUser?.id,hasPersonId:!!personId,isGenerating},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     
     if (!authUser?.id || !personId || isGenerating) {
       console.log('[DEBUG] generateAIResponse early return', { hasAuthUser: !!authUser?.id, hasPersonId: !!personId, isGenerating });
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:675',message:'generateAIResponse early return',data:{hasAuthUser:!!authUser?.id,hasPersonId:!!personId,isGenerating},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       return;
     }
 
     setIsGenerating(true);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:677',message:'setIsGenerating(true) called',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
     
     try {
       console.log('[ChatScreen] Generating AI response');
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:679',message:'Fetching recent messages',data:{userId:authUser.id,personId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
 
       // Get recent messages (last 10)
       const { data: recentMessages, error: fetchError } = await supabase
@@ -939,29 +878,17 @@ export default function ChatScreen() {
         .limit(10);
 
       if (fetchError) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:690',message:'Error fetching recent messages',data:{errorMessage:fetchError?.message,errorCode:fetchError?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         console.error('[ChatScreen] Error fetching recent messages:', fetchError);
         showErrorToast('Failed to generate response');
         return;
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:696',message:'Recent messages fetched',data:{messageCount:recentMessages?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
 
       const messages = (recentMessages || []).reverse();
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:787',message:'Raw messages from DB',data:{messageCount:messages?.length||0,messageSenders:messages?.map((m:any)=>m?.sender),messageIds:messages?.map((m:any)=>m?.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       
       // Validate we have valid messages
       if (!messages || messages.length === 0) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:790',message:'No messages to send',data:{messageCount:messages?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         console.error('[ChatScreen] No messages found for AI response');
         showErrorToast('No messages found');
         return;
@@ -988,9 +915,6 @@ export default function ChatScreen() {
               type: m?.type,
               messageId: m?.id,
             });
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:855',message:'Message filtered out',data:{hasM:!!m,sender:m?.sender,role:m?.role,hasContent:!!m?.content,type:m?.type,messageId:m?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'B'})}).catch(()=>{});
-            // #endregion
           }
           return isValid;
         })
@@ -1007,14 +931,8 @@ export default function ChatScreen() {
           };
         });
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:810',message:'Valid messages after filter',data:{originalCount:messages.length,validCount:validMessages.length,roles:validMessages.map(m=>m.role)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       
       if (validMessages.length === 0) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:795',message:'No valid messages after filtering',data:{originalCount:messages.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         console.error('[ChatScreen] No valid messages after filtering');
         showErrorToast('Invalid message data');
         return;
@@ -1028,18 +946,12 @@ export default function ChatScreen() {
         .maybeSingle();
       
       if (personError) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:802',message:'Error fetching person data',data:{errorMessage:personError?.message,errorCode:personError?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         console.error('[ChatScreen] Error fetching person data:', personError);
         // Continue with fallback values
       }
 
       const { therapistId } = getCurrentTherapistMetadata();
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:813',message:'Invoking edge function',data:{personId,personName:personData?.name||personName,therapistId,messageCount:validMessages.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
 
       // Call edge function
       let aiData: any = null;
@@ -1047,9 +959,6 @@ export default function ChatScreen() {
       
       try {
         console.log('[DEBUG] About to invoke edge function', { personId, therapistId, messageCount: validMessages.length });
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:847',message:'Edge function invoke start',data:{functionName:'generate-ai-response',messageCount:validMessages.length,hasPersonId:!!personId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         
         const result = await supabase.functions.invoke(
           'generate-ai-response',
@@ -1068,16 +977,10 @@ export default function ChatScreen() {
           }
         );
         
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:867',message:'Edge function invoke complete',data:{hasData:!!result?.data,hasError:!!result?.error,errorMessage:result?.error?.message,responseType:typeof result?.data},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         console.log('[DEBUG] Edge function invoke result', { hasResult: !!result, hasData: !!result?.data, hasError: !!result?.error, resultKeys: result ? Object.keys(result) : [] });
         aiData = result?.data;
         aiError = result?.error;
       } catch (invokeException: any) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:841',message:'Edge function invoke exception',data:{errorType:invokeException?.constructor?.name,errorMessage:invokeException?.message,errorStack:invokeException?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         console.error('[ChatScreen] Exception invoking edge function:', invokeException);
         aiError = invokeException;
       }
@@ -1091,9 +994,6 @@ export default function ChatScreen() {
           context: aiError?.context,
           fullError: JSON.stringify(aiError, Object.getOwnPropertyNames(aiError)),
         });
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:858',message:'Edge function error',data:{errorMessage:aiError?.message,errorName:aiError?.name,errorStatus:aiError?.status,hasAiData:!!aiData,errorDetails:aiError},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         console.error('[ChatScreen] Edge function error:', aiError);
         console.error('[ChatScreen] Error details:', {
           name: aiError?.name,
@@ -1105,9 +1005,6 @@ export default function ChatScreen() {
         return;
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:862',message:'Edge function success',data:{hasAiData:!!aiData,hasReply:!!aiData?.reply,replyLength:aiData?.reply?.length||0,aiDataType:typeof aiData,aiDataKeys:aiData?Object.keys(aiData):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
 
       console.log('[DEBUG] Edge function success', { hasAiData: !!aiData, hasReply: !!aiData?.reply, aiDataKeys: aiData ? Object.keys(aiData) : [] });
       
@@ -1121,9 +1018,6 @@ export default function ChatScreen() {
           replyType: typeof aiData?.reply,
           fullAiData: JSON.stringify(aiData).substring(0, 500),
         });
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:902',message:'No reply from AI',data:{hasAiData:!!aiData,aiDataType:typeof aiData,aiDataKeys:aiData?Object.keys(aiData):[],hasReply:!!aiData?.reply,replyType:typeof aiData?.reply,aiDataString:JSON.stringify(aiData).substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         console.error('[ChatScreen] No reply from AI', {
           hasData: !!aiData,
           dataType: typeof aiData,
@@ -1190,15 +1084,9 @@ export default function ChatScreen() {
         });
       }
     } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:765',message:'Error in generateAIResponse catch',data:{errorType:error?.constructor?.name,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       console.error('[ChatScreen] Error generating AI response:', error);
       showErrorToast('Failed to generate response');
     } finally {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chat.tsx:942',message:'generateAIResponse finally block',data:{isMounted:isMountedRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       if (isMountedRef.current) {
         setIsGenerating(false);
       }

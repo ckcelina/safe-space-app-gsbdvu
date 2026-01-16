@@ -55,6 +55,53 @@ export async function signInWithGoogle() {
 }
 
 /**
+ * Sign in with GitHub using Supabase OAuth
+ */
+export async function signInWithGitHub() {
+  try {
+    const redirectUrl = makeRedirectUri({
+      scheme: 'natively',
+      path: 'auth/callback',
+    });
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo: redirectUrl,
+        skipBrowserRedirect: Platform.OS !== 'web',
+      },
+    });
+
+    if (error) throw error;
+
+    if (Platform.OS !== 'web' && data?.url) {
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+      
+      if (result.type === 'success') {
+        const url = result.url;
+        const params = Linking.parse(url);
+        
+        // Extract tokens from URL
+        if (params.queryParams?.access_token) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: params.queryParams.access_token as string,
+            refresh_token: params.queryParams.refresh_token as string,
+          });
+          
+          if (sessionError) throw sessionError;
+          return { success: true };
+        }
+      }
+    }
+
+    return { success: Platform.OS === 'web' };
+  } catch (error) {
+    console.error('GitHub sign in error:', error);
+    throw error;
+  }
+}
+
+/**
  * Sign in with Apple using Supabase OAuth
  */
 export async function signInWithApple() {

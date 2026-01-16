@@ -179,14 +179,15 @@ export function formatAIErrorMessage(error: any, isDev: boolean = false): string
   const status = error?.status || error?.error?.status;
   const code = error?.code || error?.error?.code;
   const message = error?.message || error?.error?.message || 'Unknown error';
-  
   if (isDev) {
     // DEV: Show detailed error with status and code
-    return `Error: ${status || code || 'UNKNOWN'} ${message}`;
+    const formatted = `Error: ${status || code || 'UNKNOWN'} ${message}`;
+    return formatted;
   }
   
   // PROD: Show friendly message
-  return "I'm having trouble responding right now. Tap to retry.";
+  const formatted = "I'm having trouble responding right now. Tap to retry.";
+  return formatted;
 }
 
 /**

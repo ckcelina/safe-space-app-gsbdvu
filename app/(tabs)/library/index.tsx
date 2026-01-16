@@ -6,7 +6,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
-import { libraryTopics, Topic } from './libraryTopics';
+import { libraryTopics, Topic } from '@/lib/library/libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
