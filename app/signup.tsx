@@ -3,7 +3,7 @@ import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { signInWithGoogle, signInWithApple } from '@/lib/auth/supabaseOAuth';
+import { signInWithGoogle, signInWithApple, signInWithGitHub } from '@/lib/auth/supabaseOAuth';
 import { SafeSpaceTitle, SafeSpaceCaption } from '@/components/ui/SafeSpaceText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
@@ -107,6 +107,7 @@ export default function SignupScreen() {
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [githubLoading, setGitHubLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
   const { signUp } = useAuth();
   const { theme } = useThemeContext();
@@ -160,6 +161,24 @@ export default function SignupScreen() {
       showErrorToast(error.message || 'Google sign-in failed');
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleGitHubSignIn = async () => {
+    if (!acceptedTerms || !acceptedPrivacy) {
+      showErrorToast('Please accept the Terms and Privacy Policy');
+      return;
+    }
+
+    setGitHubLoading(true);
+    try {
+      await signInWithGitHub();
+      router.replace('/onboarding');
+    } catch (error: any) {
+      console.error('[Signup] GitHub sign-in error:', error);
+      showErrorToast(error.message || 'GitHub sign-in failed');
+    } finally {
+      setGitHubLoading(false);
     }
   };
 
@@ -293,7 +312,7 @@ export default function SignupScreen() {
                 title="Create Account"
                 onPress={handleSignup}
                 loading={loading}
-                disabled={loading || googleLoading || appleLoading}
+                disabled={loading || googleLoading || githubLoading || appleLoading}
               />
             </View>
 
@@ -315,7 +334,7 @@ export default function SignupScreen() {
                   },
                 ]}
                 onPress={handleGoogleSignIn}
-                disabled={loading || googleLoading || appleLoading}
+                disabled={loading || googleLoading || githubLoading || appleLoading}
               >
                 {googleLoading ? (
                   <ActivityIndicator size="small" color={theme.textPrimary} />
@@ -324,6 +343,29 @@ export default function SignupScreen() {
                     <Ionicons name="logo-google" size={20} color={theme.textPrimary} />
                     <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
                       Continue with Google
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.socialButton,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.textSecondary + '40',
+                  },
+                ]}
+                onPress={handleGitHubSignIn}
+                disabled={loading || googleLoading || githubLoading || appleLoading}
+              >
+                {githubLoading ? (
+                  <ActivityIndicator size="small" color={theme.textPrimary} />
+                ) : (
+                  <>
+                    <Ionicons name="logo-github" size={20} color={theme.textPrimary} />
+                    <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
+                      Continue with GitHub
                     </Text>
                   </>
                 )}
@@ -339,7 +381,7 @@ export default function SignupScreen() {
                     },
                   ]}
                   onPress={handleAppleSignIn}
-                  disabled={loading || googleLoading || appleLoading}
+                  disabled={loading || googleLoading || githubLoading || appleLoading}
                 >
                   {appleLoading ? (
                     <ActivityIndicator size="small" color={theme.textPrimary} />

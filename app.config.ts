@@ -21,7 +21,10 @@ export default {
       bundleIdentifier: "com.anonymous.Natively",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
-        CFBundleDisplayName: "Safe Space"
+        CFBundleDisplayName: "Safe Space",
+        NSAppTransportSecurity: {
+          NSAllowsArbitraryLoads: false
+        }
       }
     },
     android: {
@@ -30,7 +33,8 @@ export default {
         backgroundColor: "#000000"
       },
       edgeToEdgeEnabled: true,
-      package: "com.anonymous.Natively"
+      package: "com.anonymous.Natively",
+      usesCleartextTraffic: false
     },
     web: {
       favicon: "./assets/images/final_quest_240x240.png",

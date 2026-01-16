@@ -262,19 +262,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       console.log('[AuthContext] Signing in user:', email);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:264',message:'Auth signIn start',data:{emailDomain:email.trim().split('@')[1] || null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       });
 
       if (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:271',message:'Auth signIn error response',data:{errorMessage:error?.message,errorName:error?.name,errorStatus:error?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         console.log('[AuthContext] Sign in error:', error.message);
         return { error };
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:276',message:'Auth signIn success',data:{userId:data?.user?.id || null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       console.log('[AuthContext] Sign in successful');
       return { error: null };
     } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:279',message:'Auth signIn exception',data:{errorMessage:error?.message,errorName:error?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       console.log('[AuthContext] Unexpected sign in error:', error?.message || 'Unknown error');
       return { error };
     }
@@ -292,7 +304,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('[AuthContext] Local state cleared');
       
       // Clear in-memory cache
-      memoryCache.clearAll();
+      memoryCache.clearCache();
       console.log('[AuthContext] Memory cache cleared');
       
       // Then call Supabase sign out (this may take time)

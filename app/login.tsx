@@ -2,7 +2,7 @@
 import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { showErrorToast } from '@/utils/toast';
 import { LinearGradient } from 'expo-linear-gradient';
-import { signInWithGoogle, signInWithApple } from '@/lib/auth/supabaseOAuth';
+import { signInWithGoogle, signInWithApple, signInWithGitHub } from '@/lib/auth/supabaseOAuth';
 import { SafeSpaceTitle, SafeSpaceCaption } from '@/components/ui/SafeSpaceText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
@@ -85,6 +85,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [githubLoading, setGitHubLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
   const { signIn } = useAuth();
   const { theme } = useThemeContext();
@@ -97,15 +98,27 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:99',message:'Login submit started',data:{emailProvided:!!email.trim(),emailDomain:email.trim().split('@')[1] || null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const { error } = await signIn(email, password);
       if (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:103',message:'Login signIn returned error',data:{errorMessage:error?.message,errorName:error?.name,errorStatus:error?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         console.error('[Login] Sign in error:', error);
         showErrorToast(error.message || 'Login failed');
       } else {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:106',message:'Login signIn success',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         // Navigation will be handled by auth state change
         router.replace('/(tabs)/(home)');
       }
     } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:110',message:'Login signIn threw exception',data:{errorMessage:error?.message,errorName:error?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       console.error('[Login] Unexpected error:', error);
       showErrorToast(error.message || 'Login failed');
     } finally {
@@ -123,6 +136,19 @@ export default function LoginScreen() {
       showErrorToast(error.message || 'Google sign-in failed');
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleGitHubSignIn = async () => {
+    setGitHubLoading(true);
+    try {
+      await signInWithGitHub();
+      router.replace('/(tabs)/(home)');
+    } catch (error: any) {
+      console.error('[Login] GitHub sign-in error:', error);
+      showErrorToast(error.message || 'GitHub sign-in failed');
+    } finally {
+      setGitHubLoading(false);
     }
   };
 
@@ -189,7 +215,7 @@ export default function LoginScreen() {
                 title="Sign In"
                 onPress={handleLogin}
                 loading={loading}
-                disabled={loading || googleLoading || appleLoading}
+                disabled={loading || googleLoading || githubLoading || appleLoading}
               />
             </View>
 
@@ -211,7 +237,7 @@ export default function LoginScreen() {
                   },
                 ]}
                 onPress={handleGoogleSignIn}
-                disabled={loading || googleLoading || appleLoading}
+                disabled={loading || googleLoading || githubLoading || appleLoading}
               >
                 {googleLoading ? (
                   <ActivityIndicator size="small" color={theme.textPrimary} />
@@ -220,6 +246,29 @@ export default function LoginScreen() {
                     <Ionicons name="logo-google" size={20} color={theme.textPrimary} />
                     <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
                       Continue with Google
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.socialButton,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.textSecondary + '40',
+                  },
+                ]}
+                onPress={handleGitHubSignIn}
+                disabled={loading || googleLoading || githubLoading || appleLoading}
+              >
+                {githubLoading ? (
+                  <ActivityIndicator size="small" color={theme.textPrimary} />
+                ) : (
+                  <>
+                    <Ionicons name="logo-github" size={20} color={theme.textPrimary} />
+                    <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
+                      Continue with GitHub
                     </Text>
                   </>
                 )}
@@ -235,7 +284,7 @@ export default function LoginScreen() {
                     },
                   ]}
                   onPress={handleAppleSignIn}
-                  disabled={loading || googleLoading || appleLoading}
+                  disabled={loading || googleLoading || githubLoading || appleLoading}
                 >
                   {appleLoading ? (
                     <ActivityIndicator size="small" color={theme.textPrimary} />

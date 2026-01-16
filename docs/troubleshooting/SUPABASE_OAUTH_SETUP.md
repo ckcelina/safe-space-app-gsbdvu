@@ -7,6 +7,7 @@ This guide will help you set up Google and Apple Sign-In for the Safe Space app 
 
 The OAuth implementation includes:
 - ✅ Google Sign-In
+- ✅ GitHub Sign-In
 - ✅ Apple Sign-In  
 - ✅ Expo Go compatibility
 - ✅ Deep linking support
@@ -32,6 +33,22 @@ The OAuth implementation includes:
    - Client Secret: From Google Cloud Console
 
 4. **Configure Redirect URLs**
+   - The redirect URL is automatically set by Supabase
+   - It will be: `https://zjzvkxvahrbuuyzjzxol.supabase.co/auth/v1/callback`
+
+### GitHub OAuth Setup
+
+1. **Navigate to Supabase Dashboard**
+   - Go to Authentication → Providers
+   - Find "GitHub" in the provider list
+   - Toggle it to "Enabled"
+
+2. **Add GitHub OAuth Credentials**
+   - Create these in GitHub Developer Settings (see section 3B below)
+   - Client ID: From GitHub OAuth App
+   - Client Secret: From GitHub OAuth App
+
+3. **Configure Redirect URLs**
    - The redirect URL is automatically set by Supabase
    - It will be: `https://zjzvkxvahrbuuyzjzxol.supabase.co/auth/v1/callback`
 
@@ -123,6 +140,33 @@ Follow these steps to create Google OAuth credentials:
    - Copy the "Client ID"
    - Copy the "Client Secret"
    - Go to Supabase Dashboard → Authentication → Providers → Google
+   - Paste the Client ID and Client Secret
+   - Click "Save"
+
+**Important:** Keep your Client Secret secure and never commit it to version control.
+
+## 3B. GitHub Developer Settings Setup
+
+Follow these steps to create GitHub OAuth credentials:
+
+1. **Open GitHub Developer Settings**
+   - Go to https://github.com/settings/developers
+   - Click "New OAuth App"
+
+2. **Register a New OAuth App**
+   - Application name: "Safe Space"
+   - Homepage URL: `https://zjzvkxvahrbuuyzjzxol.supabase.co`
+   - Authorization callback URL:
+     ```
+     https://zjzvkxvahrbuuyzjzxol.supabase.co/auth/v1/callback
+     ```
+   - Click "Register application"
+
+3. **Copy Credentials to Supabase**
+   - Copy the "Client ID"
+   - Click "Generate a new client secret"
+   - Copy the "Client Secret"
+   - Go to Supabase Dashboard → Authentication → Providers → GitHub
    - Paste the Client ID and Client Secret
    - Click "Save"
 

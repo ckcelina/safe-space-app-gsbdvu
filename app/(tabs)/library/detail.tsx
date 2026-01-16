@@ -11,7 +11,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserPreferences } from '@/contexts/UserPreferencesContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
-import { libraryTopics, Topic } from './libraryTopics';
+import { libraryTopics, Topic } from '@/lib/library/libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { supabase } from '@/lib/supabase';
 import { showErrorToast } from '@/utils/toast';
