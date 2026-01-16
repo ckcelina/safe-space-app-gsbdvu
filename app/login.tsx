@@ -97,11 +97,16 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      await signIn(email, password);
-      // Navigation will be handled by auth state change
-      router.replace('/(tabs)/(home)');
+      const { error } = await signIn(email, password);
+      if (error) {
+        console.error('[Login] Sign in error:', error);
+        showErrorToast(error.message || 'Login failed');
+      } else {
+        // Navigation will be handled by auth state change
+        router.replace('/(tabs)/(home)');
+      }
     } catch (error: any) {
-      console.error('[Login] Error:', error);
+      console.error('[Login] Unexpected error:', error);
       showErrorToast(error.message || 'Login failed');
     } finally {
       setLoading(false);

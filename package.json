@@ -5,10 +5,16 @@
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
-    "ios": "EXPO_NO_TELEMETRY=1 expo start --ios",
+    "ios": "node scripts/check-ios-simulator.js && EXPO_NO_TELEMETRY=1 expo start --ios",
     "web": "EXPO_NO_TELEMETRY=1 expo start --web",
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
+    "build:ios": "expo prebuild -p ios",
+    "xcode": "npx expo prebuild -p ios && open ios/Natively.xcworkspace",
+    "simulator": "open -a Simulator",
+    "ios:simulator": "npm run simulator && npm run ios",
+    "check:ios": "node scripts/check-ios-simulator.js",
+    "install:simulator": "node scripts/install-ios-simulator.js",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -20,10 +26,11 @@
     "@expo/ngrok": "^4.1.3",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "@react-native-community/datetimepicker": "^8.3.0",
+    "@react-native-community/datetimepicker": "8.4.4",
     "@react-navigation/drawer": "^7.1.1",
     "@react-navigation/native": "^7.0.14",
     "@react-navigation/native-stack": "^7.2.0",
+    "@supabase/supabase-js": "^2.90.1",
     "@types/difflib": "^0.2.7",
     "better-auth": "^1.3.34",
     "date-fns": "^4.1.0",
@@ -37,6 +44,7 @@
     "expo-font": "^14.0.7",
     "expo-glass-effect": "^0.1.1",
     "expo-haptics": "^15.0.6",
+    "expo-image": "^3.0.11",
     "expo-image-picker": "^17.0.7",
     "expo-linear-gradient": "^15.0.6",
     "expo-linking": "^8.0.7",
@@ -51,18 +59,18 @@
     "expo-web-browser": "^15.0.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-native": "0.81.4",
+    "react-native": "0.81.5",
     "react-native-css-interop": "^0.1.22",
     "react-native-edge-to-edge": "^1.7.0",
-    "react-native-gesture-handler": "^2.24.0",
-    "react-native-maps": "^1.20.1",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-maps": "1.20.1",
     "react-native-reanimated": "~4.1.0",
     "react-native-safe-area-context": "^5.4.0",
     "react-native-screens": "~4.16.0",
-    "react-native-svg": "~15.15.1",
+    "react-native-svg": "15.12.1",
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "~0.21.1",
-    "react-native-webview": "^13.15.0",
+    "react-native-webview": "13.15.0",
     "react-native-worklets": "0.5.1",
     "react-router-dom": "^7.1.3",
     "workbox-cli": "^7.3.0",
@@ -72,6 +80,7 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@eslint/js": "^9.19.0",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.1.12",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
@@ -86,6 +95,9 @@
   },
   "resolutions": {
     "@expo/prebuild-config": "latest"
+  },
+  "overrides": {
+    "tmp": "^0.2.4"
   },
   "private": true
 }

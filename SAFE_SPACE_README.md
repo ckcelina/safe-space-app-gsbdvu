@@ -4,19 +4,35 @@
 ## Overview
 Safe Space is a mobile app built with React Native + Expo 54 that uses Supabase for authentication, database, and AI-powered conversations via Edge Functions.
 
+> 📖 **For complete feature documentation, see [FEATURES.md](FEATURES.md)** - Comprehensive specification of all app features
+
+## Quick Links
+
+- **[Complete Feature Specification](FEATURES.md)** - Full feature documentation
+- **[Implementation Audit Report](IMPLEMENTATION_AUDIT_REPORT.md)** - Codebase audit against FEATURES.md
+- **[Setup Instructions](SETUP-INSTRUCTIONS.md)** - Get started guide
+- **[Quick Start Guide](QUICK-START.md)** - Quick setup
+- **[App Status](APP_STATUS.md)** - Implementation status
+- **[Developer Quick Reference](DEVELOPER_QUICK_REFERENCE.md)** - Developer docs
+
 ## Features
 
 ### Authentication
 - Email/password signup with email verification
+- OAuth login (Google & Apple Sign-In)
+- Password reset flow
 - Secure login with Supabase Auth
 - Automatic user profile creation
 - Role-based access (free, premium, admin)
+- **See [FEATURES.md - Auth & Onboarding](FEATURES.md#auth--onboarding)** for details
 
 ### Core Functionality
-1. **Onboarding**: Theme selection (Ocean Blue, Soft Rose, Forest Green)
+1. **Onboarding**: Theme selection (4 themes: Ocean Blue, Soft Rose, Forest Green, Sunny Yellow) + AI Preferences
 2. **Home Screen**: List of people you want to talk about
-3. **Chat Screen**: AI-powered conversations about specific people
-4. **Profile Screen**: View account details, change theme, sign out
+3. **Chat Screen**: AI-powered conversations with subject tags, image support, real-time updates
+4. **Memories**: Automatic memory extraction and continuity tracking
+5. **Profile/Settings Screen**: View account details, change theme, AI preferences, sign out
+- **See [FEATURES.md](FEATURES.md)** for complete feature list
 
 ## Database Schema
 

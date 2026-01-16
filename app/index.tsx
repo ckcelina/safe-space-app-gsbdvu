@@ -18,9 +18,9 @@ export default function IndexScreen() {
         console.log('[Index] Redirecting to home...');
         router.replace('/(tabs)/(home)');
       } else {
-        // User is not logged in, go to login
-        console.log('[Index] Redirecting to login...');
-        router.replace('/login');
+        // User is not logged in, go to onboarding
+        console.log('[Index] Redirecting to onboarding...');
+        router.replace('/onboarding');
       }
     }
   }, [user, loading]);

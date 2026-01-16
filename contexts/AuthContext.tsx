@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: existingUser, error: selectError } = await supabase
           .from('users')
           .select('*')
-          .eq('id', authUserId)
+          .eq('user_id', authUserId)
           .maybeSingle();
 
         if (selectError && selectError.code !== 'PGRST116') {
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: newUser, error: insertError } = await supabase
           .from('users')
           .insert([{ 
-            id: authUserId, 
+            user_id: authUserId, 
             email: authUser.user?.email || null,
             role: 'free' 
           }])
@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const { data: retryUser, error: retrySelectError } = await supabase
               .from('users')
               .select('*')
-              .eq('id', authUserId)
+              .eq('user_id', authUserId)
               .maybeSingle();
 
             if (retrySelectError) {

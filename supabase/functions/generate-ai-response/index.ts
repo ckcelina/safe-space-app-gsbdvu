@@ -90,17 +90,78 @@ function generateAISystemPrompt(params: {
 }
 
 function detectDeathMention(messages: Message[]): boolean {
+  if (!messages || messages.length === 0) {
+    return false;
+  }
+  
   const deathKeywords = ['passed away', 'died', 'death', 'deceased', 'lost them', 'no longer with us', 'gone'];
   const recentMessages = messages.slice(-10);
   
   return recentMessages.some(msg => {
+    if (!msg || !msg.content || typeof msg.content !== 'string') {
+      return false;
+    }
     const content = msg.content.toLowerCase();
     return deathKeywords.some(keyword => content.includes(keyword));
   });
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+  
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed. Use POST.' }),
+      { 
+        status: 405, 
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+        } 
+      }
+    );
+  }
+  
   try {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:106',message:'Parsing request body',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    let requestBody: RequestBody;
+    try {
+      requestBody = await req.json();
+    } catch (jsonError: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:114',message:'JSON parsing error',data:{errorMessage:jsonError?.message,errorType:jsonError?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { 
+          status: 400, 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+          } 
+        }
+      );
+    }
+    
     const {
       personId,
       personName,
@@ -111,7 +172,30 @@ serve(async (req) => {
       aiScienceMode,
       userId,
       therapistId,
-    }: RequestBody = await req.json();
+    } = requestBody;
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:121',message:'Request body parsed successfully',data:{personId:!!personId,personName:!!personName,userId:!!userId,messageCount:messages?.length||0,hasMessages:!!messages},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
+    // Validate required fields
+    if (!personId || !personName || !userId || !messages || !Array.isArray(messages) || messages.length === 0) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:125',message:'Missing required fields',data:{personId:!!personId,personName:!!personName,userId:!!userId,hasMessages:!!messages,isArray:Array.isArray(messages),messageCount:messages?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: personId, personName, userId, and messages are required' }),
+        { 
+          status: 400, 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+          } 
+        }
+      );
+    }
 
     console.log('[generate-ai-response] Request received', {
       personId,
@@ -122,15 +206,50 @@ serve(async (req) => {
       hasImages: messages.some(m => m.type === 'image'),
     });
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:125',message:'Checking environment variables',data:{hasOpenAIKey:!!OPENAI_API_KEY,hasSupabaseUrl:!!SUPABASE_URL,hasSupabaseKey:!!SUPABASE_SERVICE_KEY},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+
     if (!OPENAI_API_KEY) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:126',message:'OPENAI_API_KEY missing',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       console.error('[generate-ai-response] OPENAI_API_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'OpenAI API key not configured' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { 
+          status: 500, 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+          } 
+        }
       );
     }
 
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_KEY!);
+    // Validate Supabase environment variables
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+      console.error('[generate-ai-response] Missing Supabase environment variables', {
+        hasUrl: !!SUPABASE_URL,
+        hasKey: !!SUPABASE_SERVICE_KEY,
+      });
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { 
+          status: 500, 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+          } 
+        }
+      );
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
     // Fetch therapist memory notes if therapistId is provided
     let memoryContext = '';
@@ -191,6 +310,23 @@ Use this context to provide more personalized and consistent support. Reference 
 
     // Check if latest message is an image
     const latestMessage = messages[messages.length - 1];
+    
+    if (!latestMessage) {
+      console.error('[generate-ai-response] No messages found after validation');
+      return new Response(
+        JSON.stringify({ error: 'Invalid message data' }),
+        { 
+          status: 400, 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+          } 
+        }
+      );
+    }
+    
     let openaiMessages: any[] = [];
 
     if (latestMessage.type === 'image' && latestMessage.image_url) {
@@ -205,7 +341,15 @@ Use this context to provide more personalized and consistent support. Reference 
         console.error('[generate-ai-response] Error creating signed URL:', signedUrlError);
         return new Response(
           JSON.stringify({ error: 'Failed to access uploaded image' }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
+          { 
+            status: 500, 
+            headers: { 
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'POST, OPTIONS',
+              'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+            } 
+          }
         );
       }
 
@@ -214,10 +358,10 @@ Use this context to provide more personalized and consistent support. Reference 
       // Include previous text messages for context (last 5)
       const previousTextMessages = messages
         .slice(-6, -1)
-        .filter(m => m.type !== 'image')
+        .filter(m => m && m.type !== 'image' && m.content && typeof m.content === 'string')
         .map(m => ({
           role: m.role === 'user' ? 'user' : 'assistant',
-          content: m.content,
+          content: m.content as string,
         }));
 
       // Use vision model with image
@@ -246,14 +390,21 @@ Use this context to provide more personalized and consistent support. Reference 
       ];
     } else {
       // Text-only conversation
+      // Filter and validate messages before mapping
+      const validMessages = messages.filter(m => 
+        m && 
+        (m.role === 'user' || m.role === 'assistant') &&
+        (m.content && typeof m.content === 'string' || m.type === 'image')
+      );
+      
       openaiMessages = [
         {
           role: 'system',
           content: systemPrompt,
         },
-        ...messages.map((m) => ({
+        ...validMessages.map((m) => ({
           role: m.role === 'user' ? 'user' : 'assistant',
-          content: m.content,
+          content: m.type === 'image' ? '[Image]' : (m.content as string),
         })),
       ];
     }
@@ -286,18 +437,61 @@ Use this context to provide more personalized and consistent support. Reference 
       });
       return new Response(
         JSON.stringify({ error: `OpenAI API error: ${response.statusText}` }),
-        { status: response.status, headers: { 'Content-Type': 'application/json' } }
+        { 
+          status: response.status, 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+          } 
+        }
       );
     }
 
-    const aiData = await response.json();
-    const aiReply = aiData.choices?.[0]?.message?.content;
-
-    if (!aiReply) {
-      console.error('[generate-ai-response] No reply from OpenAI');
+    let aiData: any;
+    try {
+      aiData = await response.json();
+    } catch (jsonError: any) {
+      console.error('[generate-ai-response] Failed to parse OpenAI response JSON:', jsonError);
+      const responseText = await response.text().catch(() => 'Unable to read response');
+      console.error('[generate-ai-response] Response text:', responseText.substring(0, 500));
       return new Response(
-        JSON.stringify({ error: 'No response from AI' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Failed to parse OpenAI response' }),
+        { 
+          status: 500, 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+          } 
+        }
+      );
+    }
+    
+    const aiReply = aiData?.choices?.[0]?.message?.content;
+
+    if (!aiReply || typeof aiReply !== 'string') {
+      console.error('[generate-ai-response] No valid reply from OpenAI', {
+        hasData: !!aiData,
+        hasChoices: !!aiData?.choices,
+        choicesLength: aiData?.choices?.length || 0,
+        hasMessage: !!aiData?.choices?.[0]?.message,
+        hasContent: !!aiData?.choices?.[0]?.message?.content,
+        contentType: typeof aiData?.choices?.[0]?.message?.content,
+      });
+      return new Response(
+        JSON.stringify({ error: 'No valid response from AI' }),
+        { 
+          status: 500, 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+          } 
+        }
       );
     }
 
@@ -311,6 +505,7 @@ Use this context to provide more personalized and consistent support. Reference 
         // Get recent conversation context (last 5 messages + current AI response)
         const recentContext = messages
           .slice(-5)
+          .filter(m => m && m.content && typeof m.content === 'string')
           .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
           .join('\n');
 
@@ -347,8 +542,28 @@ Keep each item brief (under 100 characters). Focus on NEW information not alread
         });
 
         if (extractResponse.ok) {
-          const extractData = await extractResponse.json();
-          const extracted = JSON.parse(extractData.choices[0].message.content);
+          let extractData: any;
+          try {
+            extractData = await extractResponse.json();
+          } catch (jsonError: any) {
+            console.error('[generate-ai-response] Failed to parse memory extraction response:', jsonError);
+            // Continue without memory extraction - non-fatal
+            return;
+          }
+          
+          if (!extractData?.choices?.[0]?.message?.content) {
+            console.error('[generate-ai-response] Memory extraction response missing content');
+            return;
+          }
+          
+          let extracted: any;
+          try {
+            extracted = JSON.parse(extractData.choices[0].message.content);
+          } catch (parseError: any) {
+            console.error('[generate-ai-response] Failed to parse extracted memory JSON:', parseError);
+            // Continue without memory extraction - non-fatal
+            return;
+          }
 
           console.log('[generate-ai-response] Memory insights extracted', {
             incidents: extracted.recent_incidents?.length || 0,
@@ -407,15 +622,37 @@ Keep each item brief (under 100 characters). Focus on NEW information not alread
       }
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:410',message:'Returning success response',data:{replyLength:aiReply?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
+    
     return new Response(
       JSON.stringify({ reply: aiReply }),
-      { headers: { 'Content-Type': 'application/json' } }
+      { 
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+        } 
+      }
     );
   } catch (error: any) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'generate-ai-response/index.ts:414',message:'Edge function error caught',data:{errorType:error?.constructor?.name,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     console.error('[generate-ai-response] Unexpected error:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { 
+        status: 500, 
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+        } 
+      }
     );
   }
 });
