@@ -24,65 +24,34 @@ import { SwipeableModal } from '@/components/ui/SwipeableModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { showErrorToast, showSuccessToast } from '@/utils/toast';
 import { getPersonContinuity, setContinuityEnabled } from '@/lib/memory/personContinuity';
-import { useFocusEffect } from '@react-navigation/native';
-
-// Memory type from the person_memories table
-interface Memory {
-  id: string;
-  user_id: string;
-  person_id: string;
-  category: string;
-  key: string;
-  value: string;
-  importance: number | null;
-  confidence: number | null;
-  last_mentioned_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// Grouped memories by group key
-interface MemoryGroup {
-  groupKey: string;
-  memories: Memory[];
-}
+import { mergeMemoriesForDisplay, DisplayMemory, DisplaySection, RawMemory } from '@/lib/memory/mergeMemoriesForDisplay';
 
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, { ios: string; android: string; emoji: string }> = {
-  'health': { ios: 'heart.text.square.fill', android: 'medical_services', emoji: '🩺' },
-  'family': { ios: 'person.3.fill', android: 'family_restroom', emoji: '👨‍👩‍👧' },
-  'mental_health': { ios: 'brain.head.profile', android: 'psychology', emoji: '🧠' },
-  'timeline': { ios: 'clock.fill', android: 'schedule', emoji: '⏳' },
-  'relationships': { ios: 'heart.fill', android: 'favorite', emoji: '❤️' },
-  'loss_grief': { ios: 'heart.slash.fill', android: 'heart_broken', emoji: '💔' },
-  'identity': { ios: 'person.fill', android: 'person', emoji: '👤' },
-  'preferences': { ios: 'star.fill', android: 'star', emoji: '⭐' },
-  'boundaries': { ios: 'hand.raised.fill', android: 'back_hand', emoji: '✋' },
-  'patterns': { ios: 'arrow.triangle.2.circlepath', android: 'sync', emoji: '🔄' },
-  'goals': { ios: 'flag.fill', android: 'flag', emoji: '🎯' },
-  'context': { ios: 'info.circle.fill', android: 'info', emoji: 'ℹ️' },
-  'personal_details': { ios: 'person.text.rectangle.fill', android: 'badge', emoji: '📋' },
-  'work_career': { ios: 'briefcase.fill', android: 'work', emoji: '💼' },
-  'interests_hobbies': { ios: 'gamecontroller.fill', android: 'sports_esports', emoji: '🎮' },
-  'communication': { ios: 'bubble.left.and.bubble.right.fill', android: 'chat', emoji: '💬' },
-  'general': { ios: 'square.grid.2x2.fill', android: 'apps', emoji: '📦' },
-  'history': { ios: 'book.fill', android: 'history', emoji: '📖' },
-  'location': { ios: 'location.fill', android: 'location_on', emoji: '📍' },
-  'friends': { ios: 'person.2.fill', android: 'group', emoji: '👥' },
+  'Health': { ios: 'heart.text.square.fill', android: 'medical_services', emoji: '🩺' },
+  'Family': { ios: 'person.3.fill', android: 'family_restroom', emoji: '👨‍👩‍👧' },
+  'Mental Health': { ios: 'brain.head.profile', android: 'psychology', emoji: '🧠' },
+  'Timeline': { ios: 'clock.fill', android: 'schedule', emoji: '⏳' },
+  'Relationships': { ios: 'heart.fill', android: 'favorite', emoji: '❤️' },
+  'Loss & Grief': { ios: 'heart.slash.fill', android: 'heart_broken', emoji: '💔' },
+  'Identity': { ios: 'person.fill', android: 'person', emoji: '👤' },
+  'Preferences': { ios: 'star.fill', android: 'star', emoji: '⭐' },
+  'Boundaries': { ios: 'hand.raised.fill', android: 'back_hand', emoji: '✋' },
+  'Patterns': { ios: 'arrow.triangle.2.circlepath', android: 'sync', emoji: '🔄' },
+  'Goals': { ios: 'flag.fill', android: 'flag', emoji: '🎯' },
+  'Context': { ios: 'info.circle.fill', android: 'info', emoji: 'ℹ️' },
+  'Personal Details': { ios: 'person.text.rectangle.fill', android: 'badge', emoji: '📋' },
+  'Work & Career': { ios: 'briefcase.fill', android: 'work', emoji: '💼' },
+  'Interests & Hobbies': { ios: 'gamecontroller.fill', android: 'sports_esports', emoji: '🎮' },
+  'Communication': { ios: 'bubble.left.and.bubble.right.fill', android: 'chat', emoji: '💬' },
+  'General': { ios: 'square.grid.2x2.fill', android: 'apps', emoji: '📦' },
+  'History': { ios: 'book.fill', android: 'history', emoji: '📖' },
+  'Location': { ios: 'location.fill', android: 'location_on', emoji: '📍' },
 };
 
 // Get icon for category
 function getCategoryIcon(category: string): { ios: string; android: string; emoji: string } {
-  const normalizedCategory = category.toLowerCase().replace(/\s+/g, '_');
-  return CATEGORY_ICONS[normalizedCategory] || { ios: 'square.fill', android: 'square', emoji: '📦' };
-}
-
-// Format category name for display
-function formatCategoryName(category: string): string {
-  return category
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  return CATEGORY_ICONS[category] || { ios: 'square.fill', android: 'square', emoji: '📦' };
 }
 
 // Format date for display
@@ -106,30 +75,28 @@ function formatDate(dateString: string): string {
   }
 }
 
-/**
- * Determine the group key for a memory using the pattern:
- * group_key || category || 'general'
- * 
- * In person_memories table, we don't have a group_key column,
- * so we use: key (if it looks like a group) || category || 'general'
- */
-function getMemoryGroupKey(memory: Memory): string {
-  // If key exists and contains a colon (e.g., "medical_history:cancer"),
-  // extract the prefix as the group key
-  if (memory.key && memory.key.includes(':')) {
-    const prefix = memory.key.split(':')[0];
-    if (prefix) {
-      return prefix;
-    }
+// Friendly labels for memory keys
+const FRIENDLY_KEY_LABELS: Record<string, string> = {
+  is_deceased: 'Deceased',
+  time_of_death: 'Time since passing',
+  cause_of_death: 'Cause of passing',
+  age: 'Age',
+  birthday: 'Birthday',
+  occupation: 'Occupation',
+  location: 'Location',
+  relationship_type: 'Relationship',
+  health_conditions: 'Health conditions',
+  hobbies: 'Hobbies',
+  interests: 'Interests',
+};
+
+function getFriendlyLabel(key: string): string {
+  if (key.startsWith('medical_history:')) {
+    const condition = key.replace('medical_history:', '').replace(/_/g, ' ');
+    return condition.replace(/\b\w/g, (l) => l.toUpperCase());
   }
   
-  // Otherwise, use category if available
-  if (memory.category && memory.category.trim()) {
-    return memory.category.trim();
-  }
-  
-  // Default to 'general'
-  return 'general';
+  return FRIENDLY_KEY_LABELS[key.toLowerCase()] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
 export default function MemoriesScreen() {
@@ -142,11 +109,11 @@ export default function MemoriesScreen() {
   const personName = Array.isArray(params.personName) ? params.personName[0] : params.personName || 'Person';
 
   const insets = useSafeAreaInsets();
-  const { user: currentUser } = useAuth();
+  const { currentUser } = useAuth();
   const { theme } = useThemeContext();
 
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [groupedMemories, setGroupedMemories] = useState<MemoryGroup[]>([]);
+  const [rawMemories, setRawMemories] = useState<RawMemory[]>([]);
+  const [displaySections, setDisplaySections] = useState<DisplaySection[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -160,7 +127,7 @@ export default function MemoriesScreen() {
 
   // Edit modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
+  const [editingMemory, setEditingMemory] = useState<DisplayMemory | null>(null);
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -180,21 +147,15 @@ export default function MemoriesScreen() {
     }
 
     try {
-      if (__DEV__) {
-        console.log('[Memories] Fetching continuity setting for person:', personId);
-      }
+      console.log('[Memories] Fetching continuity setting for person:', personId);
       const continuityData = await getPersonContinuity(currentUser.id, personId);
       
       if (isMountedRef.current) {
         setContinuityEnabledState(continuityData.continuity_enabled);
-        if (__DEV__) {
-          console.log('[Memories] Continuity enabled:', continuityData.continuity_enabled);
-        }
+        console.log('[Memories] Continuity enabled:', continuityData.continuity_enabled);
       }
     } catch (err) {
-      if (__DEV__) {
-        console.error('[Memories] Error fetching continuity setting:', err);
-      }
+      console.error('[Memories] Error fetching continuity setting:', err);
     }
   }, [personId, currentUser?.id]);
 
@@ -204,29 +165,21 @@ export default function MemoriesScreen() {
       return;
     }
 
-    if (__DEV__) {
-      console.log('[Memories] Toggling continuity to:', value);
-      console.log('[Memories] ⚠️  NOTE: This toggle ONLY affects saving NEW memories.');
-      console.log('[Memories]    Existing memories will ALWAYS be displayed regardless of toggle state.');
-    }
+    console.log('[Memories] Toggling continuity to:', value);
     setContinuityLoading(true);
 
     try {
       setContinuityEnabledState(value);
       await setContinuityEnabled(currentUser.id, personId, value);
       
-      if (__DEV__) {
-        console.log('[Memories] Continuity setting updated successfully');
-      }
+      console.log('[Memories] Continuity setting updated successfully');
       showSuccessToast(
         value 
-          ? 'Memory saving enabled' 
-          : 'Memory saving paused'
+          ? 'Conversation continuity enabled' 
+          : 'Conversation continuity disabled'
       );
     } catch (err) {
-      if (__DEV__) {
-        console.error('[Memories] Error updating continuity setting:', err);
-      }
+      console.error('[Memories] Error updating continuity setting:', err);
       setContinuityEnabledState(!value);
       showErrorToast('Failed to update setting');
     } finally {
@@ -236,61 +189,10 @@ export default function MemoriesScreen() {
     }
   }, [personId, currentUser?.id]);
 
-  /**
-   * Group memories by their group key (key prefix || category || 'general')
-   * and sort within each group by date
-   */
-  const groupMemoriesByKey = useCallback((memoriesData: Memory[]): MemoryGroup[] => {
-    const groupMap = new Map<string, Memory[]>();
-    
-    memoriesData.forEach((memory) => {
-      const groupKey = getMemoryGroupKey(memory);
-      if (!groupMap.has(groupKey)) {
-        groupMap.set(groupKey, []);
-      }
-      groupMap.get(groupKey)!.push(memory);
-    });
-    
-    // Convert to array and sort memories within each group by date (newest first)
-    const grouped = Array.from(groupMap.entries()).map(([groupKey, memories]) => ({
-      groupKey,
-      memories: memories.sort((a, b) => {
-        // Sort by updated_at first (if available), then created_at
-        const aDate = a.updated_at ? new Date(a.updated_at).getTime() : new Date(a.created_at).getTime();
-        const bDate = b.updated_at ? new Date(b.updated_at).getTime() : new Date(b.created_at).getTime();
-        return bDate - aDate; // Descending order (newest first)
-      }),
-    }));
-    
-    // Sort groups alphabetically, but keep 'general' last
-    grouped.sort((a, b) => {
-      if (a.groupKey === 'general') return 1;
-      if (b.groupKey === 'general') return -1;
-      return a.groupKey.localeCompare(b.groupKey);
-    });
-    
-    return grouped;
-  }, []);
-
-  /**
-   * CRITICAL: Fetch memories from Supabase
-   * 
-   * This query INTENTIONALLY does NOT filter by continuity_enabled.
-   * The continuity toggle ONLY affects saving NEW memories, not displaying existing ones.
-   * ALL existing memories are ALWAYS displayed regardless of toggle state.
-   * 
-   * Query pattern:
-   * - Filter by user_id and person_id (BOTH ARE UUIDs)
-   * - Order by updated_at DESC NULLS LAST, then created_at DESC NULLS LAST
-   * - NO FILTER on continuity_enabled (this is stored in person_chat_summaries, not person_memories)
-   */
+  // Fetch memories
   const fetchMemories = useCallback(async (isRefresh = false) => {
     if (!personId || !currentUser?.id) {
-      if (__DEV__) {
-        console.warn('[Memories] ⚠️  Missing personId or userId');
-        console.warn('[Memories]   - personId:', personId || 'MISSING');
-        console.warn('[Memories]   - userId:', currentUser?.id || 'MISSING');
-      }
+      console.warn('[Memories] Missing personId or userId');
       if (isMountedRef.current) {
         setLoading(false);
         setError('Invalid parameters');
@@ -306,111 +208,43 @@ export default function MemoriesScreen() {
       }
       
       setError(null);
-      
-      if (__DEV__) {
-        console.log('');
-        console.log('═══════════════════════════════════════════════════════');
-        console.log('[Memories] 📖 LOADING MEMORIES');
-        console.log('═══════════════════════════════════════════════════════');
-        console.log('[Memories] User ID:', currentUser.id);
-        console.log('[Memories] Person ID:', personId);
-        console.log('[Memories] Person Name:', personName);
-        console.log('[Memories] Continuity Enabled:', continuityEnabled);
-        console.log('[Memories] ⚠️  IMPORTANT: Query does NOT filter by continuity_enabled');
-        console.log('[Memories]    ALL memories are fetched regardless of toggle state');
-        console.log('[Memories] Query filters:');
-        console.log('[Memories]   - user_id =', currentUser.id);
-        console.log('[Memories]   - person_id =', personId);
-        console.log('[Memories]   - table = person_memories');
-        console.log('[Memories]   - order = updated_at DESC NULLS LAST, created_at DESC NULLS LAST');
-        console.log('───────────────────────────────────────────────────────');
-      }
+      console.log('[Memories] Fetching memories for person:', personId, 'user:', currentUser.id);
 
-      // CRITICAL: This query does NOT filter by continuity_enabled
-      // The continuity toggle ONLY affects saving NEW memories
-      // ALL existing memories are ALWAYS displayed
       const { data, error: fetchError } = await supabase
         .from('person_memories')
         .select('*')
         .eq('user_id', currentUser.id)
         .eq('person_id', personId)
-        .order('updated_at', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false, nullsFirst: false });
-
-      if (__DEV__) {
-        console.log('[Memories] Query executed');
-        console.log('[Memories] Response:');
-        console.log('[Memories]   - Error:', fetchError ? fetchError.message : 'None');
-        console.log('[Memories]   - Row count:', data?.length ?? 0);
-      }
+        .order('importance', { ascending: false })
+        .order('last_mentioned_at', { ascending: false, nullsFirst: false })
+        .order('updated_at', { ascending: false })
+        .limit(50);
 
       if (fetchError) {
-        if (__DEV__) {
-          console.error('[Memories] ❌ Error fetching memories:', {
-            message: fetchError.message,
-            code: fetchError.code,
-            details: fetchError.details,
-            hint: fetchError.hint,
-          });
-        }
+        console.log('[Memories] Error fetching memories:', {
+          message: fetchError.message,
+          code: fetchError.code,
+        });
         if (isMountedRef.current) {
           setError('Failed to load memories');
-        }
-        if (__DEV__) {
-          console.log('═══════════════════════════════════════════════════════');
         }
         return;
       }
 
-      if (__DEV__) {
-        console.log('[Memories] ✅ Loaded', data?.length || 0, 'memories');
-        
-        if (data && data.length > 0) {
-          console.log('[Memories] Sample memories:');
-          data.slice(0, 3).forEach((mem, idx) => {
-            const groupKey = getMemoryGroupKey(mem);
-            console.log(`[Memories]   ${idx + 1}. [${groupKey}] ${mem.value}`);
-            console.log(`[Memories]      person_id: ${mem.person_id}`);
-          });
-        } else {
-          console.log('[Memories] ⚠️  No memories found for this person');
-          console.log('[Memories]   - This could mean:');
-          console.log('[Memories]     1. No memories have been saved yet');
-          console.log('[Memories]     2. The person_id does not match any records');
-          console.log('[Memories]     3. RLS policies are blocking access');
-          console.log('[Memories]   - NOTE: The continuity toggle does NOT affect this query');
-        }
-      }
+      console.log('[Memories] Loaded memories:', data?.length || 0);
       
       if (isMountedRef.current && data !== null) {
-        setMemories(data);
-        const grouped = groupMemoriesByKey(data);
-        setGroupedMemories(grouped);
-        if (__DEV__) {
-          console.log('[Memories] Grouped into', grouped.length, 'groups');
-          grouped.forEach((group) => {
-            console.log(`[Memories]   - ${group.groupKey}: ${group.memories.length} memories`);
-          });
-        }
-      }
-      
-      if (__DEV__) {
-        console.log('═══════════════════════════════════════════════════════');
-        console.log('');
+        setRawMemories(data);
+        
+        // Transform using merge logic
+        const sections = mergeMemoriesForDisplay(data);
+        setDisplaySections(sections);
+        console.log('[Memories] Transformed into', sections.length, 'sections');
       }
     } catch (err: any) {
-      if (__DEV__) {
-        console.error('[Memories] ❌ Unexpected error:', {
-          message: err?.message || 'unknown',
-          name: err?.name || 'unknown',
-          stack: err?.stack?.substring(0, 200),
-        });
-      }
+      console.log('[Memories] Unexpected error:', err);
       if (isMountedRef.current) {
         setError('An unexpected error occurred');
-      }
-      if (__DEV__) {
-        console.log('═══════════════════════════════════════════════════════');
       }
     } finally {
       if (isMountedRef.current) {
@@ -418,23 +252,12 @@ export default function MemoriesScreen() {
         setRefreshing(false);
       }
     }
-  }, [personId, personName, currentUser?.id, continuityEnabled, groupMemoriesByKey]);
+  }, [personId, currentUser?.id]);
 
-  // Fetch on mount
   useEffect(() => {
     fetchMemories(false);
     fetchContinuitySetting();
   }, [fetchMemories, fetchContinuitySetting]);
-
-  // Refetch when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      if (__DEV__) {
-        console.log('[Memories] Screen focused, refreshing memories');
-      }
-      fetchMemories(true);
-    }, [fetchMemories])
-  );
 
   // Handle back press
   const handleBackPress = useCallback(() => {
@@ -445,31 +268,27 @@ export default function MemoriesScreen() {
         router.replace('/(tabs)/(home)');
       }
     } catch (error) {
-      if (__DEV__) {
-        console.error('[Memories] Back navigation error:', error);
-      }
+      console.error('[Memories] Back navigation error:', error);
       router.replace('/(tabs)/(home)');
     }
   }, []);
 
   // Toggle section collapse
-  const toggleSection = useCallback((groupKey: string) => {
+  const toggleSection = useCallback((category: string) => {
     setCollapsedSections((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(groupKey)) {
-        newSet.delete(groupKey);
+      if (newSet.has(category)) {
+        newSet.delete(category);
       } else {
-        newSet.add(groupKey);
+        newSet.add(category);
       }
       return newSet;
     });
   }, []);
 
   // Open edit modal
-  const handleEditPress = useCallback((memory: Memory) => {
-    if (__DEV__) {
-      console.log('[Memories] Opening edit modal for:', memory.id);
-    }
+  const handleEditPress = useCallback((memory: DisplayMemory) => {
+    console.log('[Memories] Opening edit modal for:', memory.key);
     setEditingMemory(memory);
     setEditValue(memory.value);
     setEditModalVisible(true);
@@ -499,12 +318,11 @@ export default function MemoriesScreen() {
       return;
     }
 
-    if (__DEV__) {
-      console.log('[Memories] Saving edit for:', editingMemory.id);
-    }
+    console.log('[Memories] Saving edit for:', editingMemory.key);
     setSaving(true);
 
     try {
+      // Update primary memory
       const { error: updateError } = await supabase
         .from('person_memories')
         .update({
@@ -515,9 +333,7 @@ export default function MemoriesScreen() {
         .eq('user_id', currentUser.id);
 
       if (updateError) {
-        if (__DEV__) {
-          console.error('[Memories] Error updating memory:', updateError);
-        }
+        console.error('[Memories] Error updating memory:', updateError);
         showErrorToast('Failed to update memory');
         return;
       }
@@ -526,9 +342,7 @@ export default function MemoriesScreen() {
       handleCloseEditModal();
       fetchMemories(true);
     } catch (err: any) {
-      if (__DEV__) {
-        console.error('[Memories] Unexpected error saving edit:', err);
-      }
+      console.error('[Memories] Unexpected error saving edit:', err);
       showErrorToast('An unexpected error occurred');
     } finally {
       setSaving(false);
@@ -536,14 +350,14 @@ export default function MemoriesScreen() {
   }, [editingMemory, editValue, currentUser?.id, handleCloseEditModal, fetchMemories]);
 
   // Delete memory
-  const handleDeletePress = useCallback((memory: Memory) => {
+  const handleDeletePress = useCallback((memory: DisplayMemory) => {
     if (!currentUser?.id) {
       return;
     }
 
     Alert.alert(
       'Delete Memory',
-      `Are you sure you want to delete this memory?`,
+      `Are you sure you want to delete "${getFriendlyLabel(memory.key)}"?`,
       [
         {
           text: 'Cancel',
@@ -553,11 +367,10 @@ export default function MemoriesScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            if (__DEV__) {
-              console.log('[Memories] Deleting memory:', memory.id);
-            }
+            console.log('[Memories] Deleting memory:', memory.key);
 
             try {
+              // Delete primary memory
               const { error: deleteError } = await supabase
                 .from('person_memories')
                 .delete()
@@ -565,9 +378,7 @@ export default function MemoriesScreen() {
                 .eq('user_id', currentUser.id);
 
               if (deleteError) {
-                if (__DEV__) {
-                  console.error('[Memories] Error deleting memory:', deleteError);
-                }
+                console.error('[Memories] Error deleting memory:', deleteError);
                 showErrorToast('Failed to delete memory');
                 return;
               }
@@ -575,9 +386,7 @@ export default function MemoriesScreen() {
               showSuccessToast('Memory deleted');
               fetchMemories(true);
             } catch (err: any) {
-              if (__DEV__) {
-                console.error('[Memories] Unexpected error deleting:', err);
-              }
+              console.error('[Memories] Unexpected error deleting:', err);
               showErrorToast('An unexpected error occurred');
             }
           },
@@ -585,12 +394,6 @@ export default function MemoriesScreen() {
       ]
     );
   }, [currentUser?.id, fetchMemories]);
-
-  // Retry loading on error
-  const handleRetry = useCallback(() => {
-    setError(null);
-    fetchMemories(false);
-  }, [fetchMemories]);
 
   return (
     <KeyboardAvoider>
@@ -646,9 +449,6 @@ export default function MemoriesScreen() {
               style={styles.bannerIcon}
             />
             <Text style={styles.errorBannerText}>{error}</Text>
-            <TouchableOpacity onPress={handleRetry} style={styles.retryButton} activeOpacity={0.7}>
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
             <TouchableOpacity onPress={() => setError(null)} style={styles.dismissButton} activeOpacity={0.7}>
               <IconSymbol
                 ios_icon_name="xmark"
@@ -668,7 +468,7 @@ export default function MemoriesScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Conversation Continuity Toggle Section */}
+          {/* Conversation Continuity Toggle Section - Slimmer */}
           <View style={[
             styles.continuitySection,
             {
@@ -699,7 +499,7 @@ export default function MemoriesScreen() {
                   style={styles.continuityIcon}
                 />
                 <Text style={[styles.continuityTitle, { color: theme.textPrimary }]}>
-                  Save new memories
+                  Continue conversations
                 </Text>
               </View>
               <Switch
@@ -714,25 +514,9 @@ export default function MemoriesScreen() {
                 ios_backgroundColor={theme.textSecondary + '40'}
               />
             </View>
-            <Text style={[styles.continuityDescription, { color: theme.textSecondary }]}>
-              {continuityEnabled 
-                ? 'The AI will save important details from your conversations as memories.'
-                : 'Memory saving is paused. Your existing memories below remain visible and can be edited.'}
-            </Text>
           </View>
 
-          {/* Loading State */}
-          {loading && memories.length === 0 && !error && (
-            <View style={styles.loadingState}>
-              <ActivityIndicator size="large" color={theme.primary} />
-              <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
-                Loading memories...
-              </Text>
-            </View>
-          )}
-
-          {/* Empty State */}
-          {!loading && !refreshing && memories.length === 0 && !error && (
+          {displaySections.length === 0 && !loading && !refreshing ? (
             <View style={styles.emptyState}>
               <View style={[styles.emptyIconContainer, { backgroundColor: theme.card }]}>
                 <Text style={styles.emptyEmoji}>🧠</Text>
@@ -741,37 +525,31 @@ export default function MemoriesScreen() {
                 No memories saved yet
               </Text>
               <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-                {continuityEnabled 
-                  ? 'As you chat, the AI will save important details here.'
-                  : 'Memory saving is currently paused. Turn it on to start saving new memories.'}
+                As you chat, the AI will save important details here.
               </Text>
             </View>
-          )}
-
-          {/* Memory Groups */}
-          {memories.length > 0 && (
+          ) : (
             <>
-              {groupedMemories.map((memoryGroup) => {
-                const icon = getCategoryIcon(memoryGroup.groupKey);
-                const isCollapsed = collapsedSections.has(memoryGroup.groupKey);
-                const displayName = formatCategoryName(memoryGroup.groupKey);
+              {displaySections.map((section) => {
+                const icon = getCategoryIcon(section.category);
+                const isCollapsed = collapsedSections.has(section.category);
                 
                 return (
-                  <View key={memoryGroup.groupKey} style={styles.categorySection}>
-                    {/* Group Header - Collapsible */}
+                  <View key={section.category} style={styles.categorySection}>
+                    {/* Category Header - Collapsible */}
                     <TouchableOpacity
                       style={styles.categoryHeaderButton}
-                      onPress={() => toggleSection(memoryGroup.groupKey)}
+                      onPress={() => toggleSection(section.category)}
                       activeOpacity={0.7}
                     >
                       <View style={styles.categoryHeaderLeft}>
                         <Text style={styles.categoryEmoji}>{icon.emoji}</Text>
                         <Text style={[styles.categoryTitle, { color: theme.textPrimary }]}>
-                          {displayName}
+                          {section.category}
                         </Text>
                         <View style={[styles.countBadge, { backgroundColor: theme.primary + '20' }]}>
                           <Text style={[styles.countText, { color: theme.primary }]}>
-                            {memoryGroup.memories.length}
+                            {section.memories.length}
                           </Text>
                         </View>
                       </View>
@@ -786,7 +564,7 @@ export default function MemoriesScreen() {
                     {/* Memory Items */}
                     {!isCollapsed && (
                       <View style={styles.memoriesContainer}>
-                        {memoryGroup.memories.map((memory) => (
+                        {section.memories.map((memory) => (
                           <View
                             key={memory.id}
                             style={[
@@ -822,14 +600,25 @@ export default function MemoriesScreen() {
                                 />
                               </View>
 
-                              {/* Center: Content & Date */}
+                              {/* Center: Title & Subtitle */}
                               <View style={styles.memoryTextContainer}>
-                                <Text style={[styles.memoryContent, { color: theme.textPrimary }]} numberOfLines={3}>
+                                <Text style={[styles.memoryTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                                  {getFriendlyLabel(memory.key)}
+                                </Text>
+                                <Text style={[styles.memorySubtitle, { color: theme.textSecondary }]} numberOfLines={2}>
                                   {memory.value}
                                 </Text>
-                                <Text style={[styles.memoryDate, { color: theme.textSecondary }]}>
-                                  {formatDate(memory.updated_at || memory.created_at)}
-                                </Text>
+                                {memory.mergedAges && memory.mergedAges.length > 0 && (
+                                  <View style={styles.ageBadgesContainer}>
+                                    {memory.mergedAges.map((age, idx) => (
+                                      <View key={idx} style={[styles.ageBadge, { backgroundColor: theme.accent + '30' }]}>
+                                        <Text style={[styles.ageBadgeText, { color: theme.primary }]}>
+                                          {age}
+                                        </Text>
+                                      </View>
+                                    ))}
+                                  </View>
+                                )}
                               </View>
 
                               {/* Right: Actions */}
@@ -883,6 +672,11 @@ export default function MemoriesScreen() {
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                 Edit Memory
               </Text>
+              {editingMemory && (
+                <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
+                  {getFriendlyLabel(editingMemory.key)}
+                </Text>
+              )}
 
               <View style={styles.modalInputContainer}>
                 <TextInput
@@ -894,7 +688,7 @@ export default function MemoriesScreen() {
                       borderColor: theme.textSecondary + '40',
                     },
                   ]}
-                  placeholder="Enter memory content..."
+                  placeholder="Enter value..."
                   placeholderTextColor={theme.textSecondary}
                   value={editValue}
                   onChangeText={setEditValue}
@@ -937,7 +731,7 @@ export default function MemoriesScreen() {
         </SwipeableModal>
       </View>
 
-      <LoadingOverlay visible={loading && !error && memories.length === 0} />
+      <LoadingOverlay visible={loading && !error && displaySections.length === 0} />
     </KeyboardAvoider>
   );
 }
@@ -1003,18 +797,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: '#FFFFFF',
   },
-  retryButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  retryButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
   dismissButton: {
     padding: 4,
     marginLeft: 8,
@@ -1026,6 +808,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: '5%',
     paddingTop: 20,
   },
+  // Slimmer continuity section
   continuitySection: {
     borderRadius: 12,
     padding: 14,
@@ -1035,7 +818,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
   continuityTitleRow: {
     flex: 1,
@@ -1052,23 +834,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
     flex: 1,
   },
-  continuityDescription: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '400',
-    marginTop: 4,
-  },
-  loadingState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 80,
-  },
-  loadingText: {
-    fontSize: 15,
-    fontWeight: '500',
-    marginTop: 16,
-  },
+  // Empty state
   emptyState: {
     flex: 1,
     alignItems: 'center',
@@ -1114,6 +880,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
+  // Category section
   categorySection: {
     marginBottom: 24,
   },
@@ -1151,9 +918,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  // Memory items container
   memoriesContainer: {
     gap: 10,
   },
+  // Memory chip (compact card)
   memoryChip: {
     borderRadius: 12,
     borderWidth: 1,
@@ -1175,15 +944,31 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
-  memoryContent: {
+  memoryTitle: {
     fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '500',
-    marginBottom: 6,
+    fontWeight: '700',
+    marginBottom: 4,
+    letterSpacing: 0.1,
   },
-  memoryDate: {
-    fontSize: 12,
+  memorySubtitle: {
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '400',
+  },
+  ageBadgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  ageBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  ageBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   memoryActions: {
     flexDirection: 'row',
@@ -1192,6 +977,7 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 4,
   },
+  // Modal styles
   modalContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -1200,6 +986,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    fontWeight: '500',
     marginBottom: 20,
     textAlign: 'center',
   },

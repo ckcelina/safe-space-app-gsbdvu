@@ -1,41 +1,30 @@
-
-/**
- * Widget Context - Safe Implementation
- * Provides widget refresh functionality with safe fallbacks
- */
-
-import React, { createContext, useCallback, useContext, useEffect } from 'react';
-import { ExtensionStorage } from '@bacons/apple-targets';
+import * as React from "react";
+import { createContext, useCallback, useContext } from "react";
+import { ExtensionStorage } from "@bacons/apple-targets";
 
 // Initialize storage with your group ID
-const storage = new ExtensionStorage('group.com.<user_name>.<app_name>');
+const storage = new ExtensionStorage(
+  "group.com.<user_name>.<app_name>"
+);
 
 type WidgetContextType = {
   refreshWidget: () => void;
 };
 
-// Create context with safe default
-const WidgetContext = createContext<WidgetContextType>({
-  refreshWidget: () => {
-    console.warn('WidgetContext: refreshWidget called outside provider');
-  },
-});
+const WidgetContext = createContext<WidgetContextType | null>(null);
 
 export function WidgetProvider({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    try {
-      ExtensionStorage.reloadWidget();
-    } catch (error) {
-      console.warn('WidgetContext: Failed to reload widget', error);
-    }
+  // Update widget state whenever what we want to show changes
+  React.useEffect(() => {
+    // set widget_state to null if we want to reset the widget
+    // storage.set("widget_state", null);
+
+    // Refresh widget
+    ExtensionStorage.reloadWidget();
   }, []);
 
   const refreshWidget = useCallback(() => {
-    try {
-      ExtensionStorage.reloadWidget();
-    } catch (error) {
-      console.warn('WidgetContext: Failed to refresh widget', error);
-    }
+    ExtensionStorage.reloadWidget();
   }, []);
 
   return (
@@ -45,16 +34,10 @@ export function WidgetProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Safe hook - never throws
- */
 export const useWidget = () => {
   const context = useContext(WidgetContext);
   if (!context) {
-    console.warn('useWidget: Used outside WidgetProvider, returning safe default');
-    return {
-      refreshWidget: () => {},
-    };
+    throw new Error("useWidget must be used within a WidgetProvider");
   }
   return context;
 };

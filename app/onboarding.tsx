@@ -22,7 +22,7 @@ export default function OnboardingScreen() {
   // Skip onboarding if user is already authenticated
   useEffect(() => {
     if (!loading && session) {
-      console.log('[Onboarding] User already authenticated, redirecting to home');
+      console.log('User already authenticated, skipping onboarding');
       router.replace('/(tabs)/(home)');
     }
   }, [session, loading]);
@@ -41,20 +41,26 @@ export default function OnboardingScreen() {
     
     if (newCount >= 5) {
       setShowReviewerModal(true);
-      setTapCount(0);
+      setTapCount(0); // Reset counter
     }
   };
 
   const handleReviewerLogin = async () => {
     setIsLoggingIn(true);
     try {
-      await signIn('apple_reviewer@safespace.com', 'AppleTest123');
-      console.log('[Onboarding] Reviewer login successful');
-      setShowReviewerModal(false);
-      router.replace('/(tabs)/(home)');
-    } catch (error: any) {
-      console.error('[Onboarding] Reviewer login failed:', error);
-      alert('Login failed. Please try again.');
+      const { error } = await signIn('apple_reviewer@safespace.com', 'AppleTest123');
+      
+      if (error) {
+        console.error('Reviewer login failed:', error);
+        alert('Login failed. Please try again.');
+      } else {
+        console.log('Reviewer login successful');
+        setShowReviewerModal(false);
+        router.replace('/(tabs)/(home)');
+      }
+    } catch (error) {
+      console.error('Unexpected error during reviewer login:', error);
+      alert('An unexpected error occurred.');
     } finally {
       setIsLoggingIn(false);
     }
@@ -65,6 +71,7 @@ export default function OnboardingScreen() {
     setTapCount(0);
   };
 
+  // Don't render onboarding if user is authenticated
   if (loading) {
     return null;
   }
@@ -76,6 +83,7 @@ export default function OnboardingScreen() {
   return (
     <SafeSpaceScreen scrollable={true} keyboardAware={false} useGradient={true}>
       <View style={styles.content}>
+        {/* App Icon - with hidden tap gesture - now using gradient version like widget/app icon */}
         <View style={styles.iconContainer}>
           <TouchableOpacity 
             onPress={handleLogoTap}
@@ -85,12 +93,15 @@ export default function OnboardingScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Title */}
         <SafeSpaceTitle style={styles.title}>Safe Space</SafeSpaceTitle>
 
+        {/* Subtitle */}
         <SafeSpaceSubtitle style={styles.subtitle}>
           Your private emotional sanctuary for healing and growth.
         </SafeSpaceSubtitle>
 
+        {/* Buttons */}
         <View style={styles.buttonContainer}>
           <SafeSpaceButton onPress={handleCreateSpace}>
             Create My Safe Space
@@ -102,6 +113,7 @@ export default function OnboardingScreen() {
         </View>
       </View>
 
+      {/* Apple Reviewer Login Modal */}
       <Modal
         visible={showReviewerModal}
         transparent={true}

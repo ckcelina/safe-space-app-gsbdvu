@@ -1,411 +1,276 @@
 
-import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
-import { showErrorToast, showSuccessToast } from '@/utils/toast';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { signInWithGoogle, signInWithApple, signInWithGitHub } from '@/lib/auth/supabaseOAuth';
-import { SafeSpaceTitle, SafeSpaceCaption } from '@/components/ui/SafeSpaceText';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
-import { router } from 'expo-router';
-import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { useAuth } from '@/contexts/AuthContext';
-import { useThemeContext } from '@/contexts/ThemeContext';
-import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
 import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Alert, Dimensions } from 'react-native';
+import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeSpaceTitle, SafeSpaceCaption } from '@/components/ui/SafeSpaceText';
+import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
+import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
+import { useThemeContext } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase';
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 32,
-    alignItems: 'center',
-  },
-  form: {
-    marginBottom: 24,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    marginRight: 12,
-    marginTop: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  link: {
-    textDecorationLine: 'underline',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    opacity: 0.2,
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 14,
-    opacity: 0.6,
-  },
-  socialButtons: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  socialButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 12,
-  },
-  socialButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  footerText: {
-    fontSize: 14,
-    marginRight: 4,
-  },
-});
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function SignupScreen() {
+  const { theme } = useThemeContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [githubLoading, setGitHubLoading] = useState(false);
-  const [appleLoading, setAppleLoading] = useState(false);
-  const { signUp } = useAuth();
-  const { theme } = useThemeContext();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSignup = async () => {
-    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
-      showErrorToast('Please fill in all fields');
+    setErrorMessage(null);
+
+    // Validation
+    if (!email || !password) {
+      setErrorMessage('Please fill in all fields');
       return;
     }
 
     if (password !== confirmPassword) {
-      showErrorToast('Passwords do not match');
+      setErrorMessage('Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
-      showErrorToast('Password must be at least 6 characters');
+      setErrorMessage('Password must be at least 6 characters');
       return;
     }
 
-    if (!acceptedTerms || !acceptedPrivacy) {
-      showErrorToast('Please accept the Terms and Privacy Policy');
+    if (!termsAccepted || !privacyAccepted) {
+      setErrorMessage('Please accept Terms and Privacy Policy');
       return;
     }
 
     setLoading(true);
+    
     try {
-      await signUp(email, password);
-      showSuccessToast('Account created successfully!');
-      router.replace('/onboarding');
-    } catch (error: any) {
-      console.error('[Signup] Error:', error);
-      showErrorToast(error.message || 'Signup failed');
+      console.log('Attempting to sign up:', email);
+      
+      // Step 1: Sign up with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: 'https://natively.dev/email-confirmed'
+        }
+      });
+
+      if (authError) {
+        console.error('Signup error:', authError);
+        setErrorMessage(authError.message || 'An error occurred during signup');
+        return;
+      }
+
+      if (!authData.user) {
+        console.error('No user returned from signup');
+        setErrorMessage('Failed to create account. Please try again.');
+        return;
+      }
+
+      console.log('Auth signup successful:', authData.user.id);
+
+      // Step 2: Insert into public.users
+      // If this fails, log a warning but still treat signup as successful
+      try {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: authData.user.id,
+              email: authData.user.email,
+              role: 'free',
+            },
+          ]);
+
+        if (insertError) {
+          console.warn('Warning: Failed to insert user profile:', insertError);
+          // Don't block the user - they can still use the app
+        } else {
+          console.log('User profile created successfully');
+        }
+      } catch (profileError) {
+        console.warn('Warning: Exception creating user profile:', profileError);
+        // Don't block the user
+      }
+
+      // Step 3: Show success message and navigate to AI preferences
+      Alert.alert(
+        'Account Created!',
+        'Please check your email to verify your account. You can still use the app while waiting for verification.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              console.log('Navigating to AI preferences onboarding');
+              router.replace('/ai-preferences-onboarding');
+            },
+          },
+        ]
+      );
+    } catch (err: any) {
+      console.error('Unexpected signup error:', err);
+      setErrorMessage('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    if (!acceptedTerms || !acceptedPrivacy) {
-      showErrorToast('Please accept the Terms and Privacy Policy');
-      return;
-    }
-
-    setGoogleLoading(true);
-    try {
-      await signInWithGoogle();
-      router.replace('/onboarding');
-    } catch (error: any) {
-      console.error('[Signup] Google sign-in error:', error);
-      showErrorToast(error.message || 'Google sign-in failed');
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  const handleGitHubSignIn = async () => {
-    if (!acceptedTerms || !acceptedPrivacy) {
-      showErrorToast('Please accept the Terms and Privacy Policy');
-      return;
-    }
-
-    setGitHubLoading(true);
-    try {
-      await signInWithGitHub();
-      router.replace('/onboarding');
-    } catch (error: any) {
-      console.error('[Signup] GitHub sign-in error:', error);
-      showErrorToast(error.message || 'GitHub sign-in failed');
-    } finally {
-      setGitHubLoading(false);
-    }
-  };
-
-  const handleAppleSignIn = async () => {
-    if (!acceptedTerms || !acceptedPrivacy) {
-      showErrorToast('Please accept the Terms and Privacy Policy');
-      return;
-    }
-
-    setAppleLoading(true);
-    try {
-      await signInWithApple();
-      router.replace('/onboarding');
-    } catch (error: any) {
-      console.error('[Signup] Apple sign-in error:', error);
-      showErrorToast(error.message || 'Apple sign-in failed');
-    } finally {
-      setAppleLoading(false);
-    }
-  };
+  const isFormValid = 
+    email.trim() !== '' && 
+    password.trim() !== '' && 
+    confirmPassword.trim() !== '' && 
+    termsAccepted && 
+    privacyAccepted;
 
   return (
     <LinearGradient
-      colors={[theme.background, theme.background]}
-      style={styles.container}
+      colors={theme.primaryGradient}
+      style={styles.gradientBackground}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
     >
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <KeyboardAvoider>
           <ScrollView
             contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
           >
-            <View style={styles.header}>
-              <SafeSpaceTitle>Create Account</SafeSpaceTitle>
-              <SafeSpaceCaption>Join Safe Space today</SafeSpaceCaption>
-            </View>
-
-            <View style={styles.form}>
-              <SafeSpaceTextInput
-                placeholder="Email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="username"
-                autoComplete="email"
-                editable={!loading}
-              />
-
-              <SafeSpaceTextInput
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                textContentType="newPassword"
-                autoComplete="new-password"
-                editable={!loading}
-              />
-
-              <SafeSpaceTextInput
-                placeholder="Confirm Password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-                textContentType="newPassword"
-                autoComplete="new-password"
-                editable={!loading}
-              />
-
-              <TouchableOpacity
-                style={styles.checkboxContainer}
-                onPress={() => setAcceptedTerms(!acceptedTerms)}
-                disabled={loading}
-              >
-                <View
-                  style={[
-                    styles.checkbox,
-                    {
-                      borderColor: acceptedTerms ? theme.primary : theme.textSecondary,
-                      backgroundColor: acceptedTerms ? theme.primary : 'transparent',
-                    },
-                  ]}
-                >
-                  {acceptedTerms && (
-                    <Ionicons name="checkmark" size={14} color={theme.buttonText} />
-                  )}
+            <View style={styles.content}>
+              {/* Theme Preview */}
+              <View style={styles.themePreview}>
+                <SafeSpaceCaption align="center" style={{ color: theme.buttonText, opacity: 0.9 }}>
+                  Your Theme
+                </SafeSpaceCaption>
+                <View style={styles.themePreviewRow}>
+                  <View style={[styles.themeCircle, { backgroundColor: 'rgba(255, 255, 255, 0.8)' }]} />
+                  <View style={[styles.themeCircle, { backgroundColor: 'rgba(255, 255, 255, 0.95)' }]} />
+                  <View style={[styles.themeCircle, { backgroundColor: 'rgba(255, 255, 255, 0.7)' }]} />
                 </View>
-                <Text style={[styles.checkboxText, { color: theme.textPrimary }]}>
-                  I accept the{' '}
-                  <Text
-                    style={[styles.link, { color: theme.primary }]}
-                    onPress={() => router.push('/legal/terms-of-service')}
-                  >
-                    Terms of Service
-                  </Text>
-                </Text>
-              </TouchableOpacity>
+              </View>
 
-              <TouchableOpacity
-                style={styles.checkboxContainer}
-                onPress={() => setAcceptedPrivacy(!acceptedPrivacy)}
-                disabled={loading}
-              >
-                <View
-                  style={[
-                    styles.checkbox,
-                    {
-                      borderColor: acceptedPrivacy ? theme.primary : theme.textSecondary,
-                      backgroundColor: acceptedPrivacy ? theme.primary : 'transparent',
-                    },
-                  ]}
-                >
-                  {acceptedPrivacy && (
-                    <Ionicons name="checkmark" size={14} color={theme.buttonText} />
-                  )}
+              <View style={styles.titleContainer}>
+                <SafeSpaceTitle style={{ color: theme.buttonText }}>
+                  Create Account
+                </SafeSpaceTitle>
+              </View>
+
+              <View style={styles.form}>
+                <SafeSpaceTextInput
+                  placeholder="Email"
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  editable={!loading}
+                />
+
+                <SafeSpaceTextInput
+                  placeholder="Password"
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  secureTextEntry
+                  editable={!loading}
+                />
+
+                <SafeSpaceTextInput
+                  placeholder="Confirm Password"
+                  value={confirmPassword}
+                  onChangeText={(text) => {
+                    setConfirmPassword(text);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  secureTextEntry
+                  editable={!loading}
+                />
+
+                <View style={styles.checkboxSection}>
+                  <TouchableOpacity
+                    style={styles.checkboxContainer}
+                    onPress={() => setTermsAccepted(!termsAccepted)}
+                    disabled={loading}
+                  >
+                    <View
+                      style={[
+                        styles.checkbox,
+                        { borderColor: 'rgba(255, 255, 255, 0.8)' },
+                        termsAccepted && { backgroundColor: 'rgba(255, 255, 255, 0.95)' },
+                      ]}
+                    >
+                      {termsAccepted && <Text style={[styles.checkmark, { color: theme.primary }]}>✓</Text>}
+                    </View>
+                    <Text style={[styles.checkboxLabel, { color: theme.buttonText }]}>
+                      I accept the Terms & Conditions
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.checkboxContainer}
+                    onPress={() => setPrivacyAccepted(!privacyAccepted)}
+                    disabled={loading}
+                  >
+                    <View
+                      style={[
+                        styles.checkbox,
+                        { borderColor: 'rgba(255, 255, 255, 0.8)' },
+                        privacyAccepted && { backgroundColor: 'rgba(255, 255, 255, 0.95)' },
+                      ]}
+                    >
+                      {privacyAccepted && <Text style={[styles.checkmark, { color: theme.primary }]}>✓</Text>}
+                    </View>
+                    <Text style={[styles.checkboxLabel, { color: theme.buttonText }]}>
+                      I accept the Privacy Policy
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={[styles.checkboxText, { color: theme.textPrimary }]}>
-                  I accept the{' '}
-                  <Text
-                    style={[styles.link, { color: theme.primary }]}
-                    onPress={() => router.push('/legal/privacy-policy')}
-                  >
-                    Privacy Policy
-                  </Text>
-                </Text>
-              </TouchableOpacity>
 
-              <SafeSpaceButton
-                title="Create Account"
-                onPress={handleSignup}
-                loading={loading}
-                disabled={loading || googleLoading || githubLoading || appleLoading}
-              />
-            </View>
-
-            <View style={styles.divider}>
-              <View style={[styles.dividerLine, { backgroundColor: theme.textPrimary }]} />
-              <Text style={[styles.dividerText, { color: theme.textPrimary }]}>
-                or continue with
-              </Text>
-              <View style={[styles.dividerLine, { backgroundColor: theme.textPrimary }]} />
-            </View>
-
-            <View style={styles.socialButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.socialButton,
-                  {
-                    backgroundColor: theme.card,
-                    borderColor: theme.textSecondary + '40',
-                  },
-                ]}
-                onPress={handleGoogleSignIn}
-                disabled={loading || googleLoading || githubLoading || appleLoading}
-              >
-                {googleLoading ? (
-                  <ActivityIndicator size="small" color={theme.textPrimary} />
-                ) : (
-                  <>
-                    <Ionicons name="logo-google" size={20} color={theme.textPrimary} />
-                    <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
-                      Continue with Google
-                    </Text>
-                  </>
+                {errorMessage && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{errorMessage}</Text>
+                  </View>
                 )}
-              </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[
-                  styles.socialButton,
-                  {
-                    backgroundColor: theme.card,
-                    borderColor: theme.textSecondary + '40',
-                  },
-                ]}
-                onPress={handleGitHubSignIn}
-                disabled={loading || googleLoading || githubLoading || appleLoading}
-              >
-                {githubLoading ? (
-                  <ActivityIndicator size="small" color={theme.textPrimary} />
-                ) : (
-                  <>
-                    <Ionicons name="logo-github" size={20} color={theme.textPrimary} />
-                    <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
-                      Continue with GitHub
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                <View style={styles.buttonSpacing} />
 
-              {Platform.OS === 'ios' && (
-                <TouchableOpacity
-                  style={[
-                    styles.socialButton,
-                    {
-                      backgroundColor: theme.card,
-                      borderColor: theme.textSecondary + '40',
-                    },
-                  ]}
-                  onPress={handleAppleSignIn}
-                  disabled={loading || googleLoading || githubLoading || appleLoading}
+                <SafeSpaceButton 
+                  onPress={handleSignup} 
+                  loading={loading} 
+                  disabled={loading || !isFormValid}
                 >
-                  {appleLoading ? (
-                    <ActivityIndicator size="small" color={theme.textPrimary} />
-                  ) : (
-                    <>
-                      <Ionicons name="logo-apple" size={20} color={theme.textPrimary} />
-                      <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
-                        Continue with Apple
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
+                  {loading ? 'Creating Account…' : 'Sign Up'}
+                </SafeSpaceButton>
 
-            <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-                Already have an account?
-              </Text>
-              <SafeSpaceLinkButton
-                title="Sign In"
-                onPress={() => router.push('/login')}
-                disabled={loading || googleLoading || appleLoading}
-              />
+                <View style={styles.linkSpacing} />
+
+                <SafeSpaceLinkButton 
+                  onPress={() => router.replace('/login')} 
+                  disabled={loading}
+                  style={{ color: theme.buttonText }}
+                >
+                  Already have an account? Log In
+                </SafeSpaceLinkButton>
+              </View>
+
+              {/* Disclaimer */}
+              <View style={styles.disclaimerContainer}>
+                <SafeSpaceCaption align="center" style={{ color: theme.buttonText, opacity: 0.8 }}>
+                  By continuing, you agree this is a supportive AI coach, not a substitute for professional care.
+                </SafeSpaceCaption>
+              </View>
             </View>
           </ScrollView>
         </KeyboardAvoider>
@@ -413,3 +278,101 @@ export default function SignupScreen() {
     </LinearGradient>
   );
 }
+
+const styles = StyleSheet.create({
+  gradientBackground: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: Math.min(SCREEN_WIDTH * 0.06, 24),
+    paddingVertical: SCREEN_HEIGHT * 0.025,
+    minHeight: SCREEN_HEIGHT * 0.85,
+  },
+  content: {
+    flex: 1,
+    paddingVertical: SCREEN_HEIGHT * 0.025,
+  },
+  themePreview: {
+    alignItems: 'center',
+    marginBottom: Math.min(SCREEN_HEIGHT * 0.03, 24),
+  },
+  themePreviewRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  themeCircle: {
+    width: Math.min(SCREEN_WIDTH * 0.1, 40),
+    height: Math.min(SCREEN_WIDTH * 0.1, 40),
+    borderRadius: Math.min(SCREEN_WIDTH * 0.05, 20),
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
+  },
+  titleContainer: {
+    marginBottom: Math.min(SCREEN_HEIGHT * 0.03, 24),
+  },
+  form: {
+    width: '100%',
+  },
+  checkboxSection: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkmark: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    flex: 1,
+  },
+  errorContainer: {
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: 'rgba(255, 68, 68, 0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 68, 68, 0.3)',
+  },
+  errorText: {
+    color: '#FF4444',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  buttonSpacing: {
+    height: 8,
+  },
+  linkSpacing: {
+    height: 8,
+  },
+  disclaimerContainer: {
+    marginTop: Math.min(SCREEN_HEIGHT * 0.04, 32),
+    paddingHorizontal: 8,
+    paddingBottom: 16,
+  },
+});
