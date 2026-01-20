@@ -1,318 +1,473 @@
 
-import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
-import { showErrorToast } from '@/utils/toast';
-import { LinearGradient } from 'expo-linear-gradient';
-import { signInWithGoogle, signInWithApple, signInWithGitHub } from '@/lib/auth/supabaseOAuth';
-import { SafeSpaceTitle, SafeSpaceCaption } from '@/components/ui/SafeSpaceText';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Alert, Dimensions, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { useAuth } from '@/contexts/AuthContext';
-import { useThemeContext } from '@/contexts/ThemeContext';
-import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
-import React, { useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { SafeSpaceTitle } from '@/components/ui/SafeSpaceText';
+import { SafeSpaceTextInput } from '@/components/ui/SafeSpaceTextInput';
 import { SafeSpaceButton } from '@/components/ui/SafeSpaceButton';
+import { SafeSpaceLinkButton } from '@/components/ui/SafeSpaceLinkButton';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
+import { supabase } from '@/lib/supabase';
+import { useThemeContext } from '@/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { signInWithGoogle } from '@/lib/auth/oauth';
+import { signInWithApple, isAppleSignInAvailable } from '@/lib/auth/apple';
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 60,
-  },
-  header: {
-    marginBottom: 48,
-    alignItems: 'center',
-  },
-  form: {
-    marginBottom: 24,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginTop: -8,
-    marginBottom: 24,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 32,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    opacity: 0.2,
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 14,
-    opacity: 0.6,
-  },
-  socialButtons: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  socialButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 12,
-  },
-  socialButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  footerText: {
-    fontSize: 14,
-    marginRight: 4,
-  },
-});
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function LoginScreen() {
+  const { theme } = useThemeContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [githubLoading, setGitHubLoading] = useState(false);
-  const [appleLoading, setAppleLoading] = useState(false);
-  const { signIn } = useAuth();
-  const { theme } = useThemeContext();
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const [appleSignInAvailable, setAppleSignInAvailable] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  // Check if Apple Sign-In is available on mount
+  useEffect(() => {
+    const checkAppleAvailability = async () => {
+      if (isAppleSignInAvailable()) {
+        try {
+          const available = await AppleAuthentication.isAvailableAsync();
+          setAppleSignInAvailable(available);
+          console.debug('[Login] Apple Sign-In available:', available);
+        } catch (error) {
+          console.debug('[Login] Error checking Apple Sign-In availability:', error);
+          setAppleSignInAvailable(false);
+        }
+      } else {
+        setAppleSignInAvailable(false);
+      }
+    };
+    
+    checkAppleAvailability();
+  }, []);
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      showErrorToast('Please enter email and password');
+    if (!email || !password) {
+      setError('Please enter your email and password');
       return;
     }
 
-    setLoading(true);
+    setIsLoading(true);
+    setError(null);
+
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:99',message:'Login submit started',data:{emailProvided:!!email.trim(),emailDomain:email.trim().split('@')[1] || null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      const { error } = await signIn(email, password);
-      if (error) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:103',message:'Login signIn returned error',data:{errorMessage:error?.message,errorName:error?.name,errorStatus:error?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        console.error('[Login] Sign in error:', error);
-        showErrorToast(error.message || 'Login failed');
-      } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:106',message:'Login signIn success',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        // Navigation will be handled by auth state change
-        router.replace('/(tabs)/(home)');
+      console.log('Attempting to sign in:', email);
+      
+      // Step 1: Sign in with Supabase Auth
+      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        console.error('Sign in error:', signInError);
+        setError('Invalid email or password. Please try again.');
+        setIsLoading(false);
+        return;
       }
-    } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:110',message:'Login signIn threw exception',data:{errorMessage:error?.message,errorName:error?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      console.error('[Login] Unexpected error:', error);
-      showErrorToast(error.message || 'Login failed');
-    } finally {
-      setLoading(false);
+
+      if (!authData.user) {
+        console.error('No user returned from sign in');
+        setError('Login failed. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Sign in successful:', authData.user.email);
+
+      // Step 2: Fetch or create user profile in public.users
+      const userId = authData.user.id;
+      console.log('Fetching user profile for:', userId);
+
+      const { data: userProfile, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        // PGRST116 is "not found" error, which is expected for new users
+        console.error('Error fetching user profile:', fetchError);
+      }
+
+      // Step 3: If user profile doesn't exist, create it
+      if (!userProfile) {
+        console.log('User profile not found, creating one...');
+        const { data: newProfile, error: insertError } = await supabase
+          .from('users')
+          .insert([{
+            id: userId,
+            email: authData.user.email,
+            role: 'free',
+          }])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.warn('Failed to create user profile:', insertError);
+          // Don't block login if profile creation fails
+        } else {
+          console.log('User profile created successfully:', newProfile);
+        }
+      } else {
+        console.log('User profile found:', userProfile);
+      }
+
+      // Step 4: Navigate to Home screen
+      console.log('Navigating to Home screen...');
+      router.replace('/(tabs)/(home)/');
+      
+    } catch (err: any) {
+      console.error('Unexpected login error:', err);
+      setError('An unexpected error occurred. Please try again.');
+      setIsLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
+    setIsGoogleLoading(true);
+    setError(null);
+    
     try {
       await signInWithGoogle();
-      router.replace('/(tabs)/(home)');
+      // The AuthProvider will handle navigation via onAuthStateChange
     } catch (error: any) {
-      console.error('[Login] Google sign-in error:', error);
-      showErrorToast(error.message || 'Google sign-in failed');
+      console.debug('Google sign-in error:', error.message);
+      // Error is already handled in signInWithGoogle with user-friendly alerts
     } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  const handleGitHubSignIn = async () => {
-    setGitHubLoading(true);
-    try {
-      await signInWithGitHub();
-      router.replace('/(tabs)/(home)');
-    } catch (error: any) {
-      console.error('[Login] GitHub sign-in error:', error);
-      showErrorToast(error.message || 'GitHub sign-in failed');
-    } finally {
-      setGitHubLoading(false);
+      setIsGoogleLoading(false);
     }
   };
 
   const handleAppleSignIn = async () => {
-    setAppleLoading(true);
+    setIsAppleLoading(true);
+    setError(null);
+    
     try {
       await signInWithApple();
-      router.replace('/(tabs)/(home)');
+      // The AuthProvider will handle navigation via onAuthStateChange
     } catch (error: any) {
-      console.error('[Login] Apple sign-in error:', error);
-      showErrorToast(error.message || 'Apple sign-in failed');
+      console.debug('Apple sign-in error:', error.message);
+      // Error is already handled in signInWithApple with user-friendly alerts
     } finally {
-      setAppleLoading(false);
+      setIsAppleLoading(false);
+    }
+  };
+
+  const handleForgotPassword = () => {
+    // Pre-fill with the email from the login form if available
+    const emailToReset = email || '';
+    
+    Alert.prompt(
+      'Reset Password',
+      'Enter your email address to receive a password reset link.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Send Reset Link',
+          onPress: async (inputEmail) => {
+            const emailAddress = inputEmail?.trim() || emailToReset;
+            if (!emailAddress) {
+              Alert.alert('Error', 'Please enter a valid email address.');
+              return;
+            }
+            await sendPasswordResetEmail(emailAddress);
+          },
+        },
+      ],
+      'plain-text',
+      emailToReset,
+      'email-address'
+    );
+  };
+
+  const sendPasswordResetEmail = async (emailAddress: string) => {
+    setIsResettingPassword(true);
+    console.log('Sending password reset email to:', emailAddress);
+
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(emailAddress, {
+        redirectTo: 'https://natively.dev/reset-password',
+      });
+
+      if (error) {
+        console.error('Password reset error:', error);
+        Alert.alert(
+          'Error',
+          'Failed to send password reset email. Please check your email address and try again.'
+        );
+      } else {
+        console.log('Password reset email sent successfully');
+        Alert.alert(
+          'Check Your Email',
+          'If an account exists with this email, you will receive a password reset link shortly.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (err: any) {
+      console.error('Unexpected password reset error:', err);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
   return (
     <LinearGradient
-      colors={[theme.background, theme.background]}
-      style={styles.container}
+      colors={theme.primaryGradient}
+      style={styles.gradientBackground}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
     >
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <KeyboardAvoider>
-          <View style={styles.content}>
-            <View style={styles.header}>
-              <SafeSpaceTitle>Welcome Back</SafeSpaceTitle>
-              <SafeSpaceCaption>Sign in to continue</SafeSpaceCaption>
-            </View>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <View style={styles.content}>
+              <View style={styles.titleContainer}>
+                <SafeSpaceTitle style={{ color: theme.buttonText }}>
+                  Welcome Back
+                </SafeSpaceTitle>
+              </View>
 
-            <View style={styles.form}>
-              <SafeSpaceTextInput
-                placeholder="Email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="username"
-                autoComplete="email"
-                editable={!loading}
-              />
+              <View style={styles.form}>
+                <SafeSpaceTextInput
+                  placeholder="Email"
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (error) setError(null);
+                  }}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  editable={!isLoading && !isGoogleLoading && !isAppleLoading}
+                />
 
-              <SafeSpaceTextInput
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                textContentType="password"
-                autoComplete="password"
-                editable={!loading}
-              />
+                <View style={styles.passwordContainer}>
+                  <SafeSpaceTextInput
+                    placeholder="Password"
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (error) setError(null);
+                    }}
+                    secureTextEntry={!showPassword}
+                    editable={!isLoading && !isGoogleLoading && !isAppleLoading}
+                    containerStyle={styles.passwordInputContainer}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeIconContainer}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={24}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
 
-              <TouchableOpacity
-                style={styles.forgotPassword}
-                onPress={() => router.push('/forgot-password')}
-                disabled={loading}
-              >
-                <Text style={[styles.footerText, { color: theme.primary }]}>
-                  Forgot Password?
-                </Text>
-              </TouchableOpacity>
-
-              <SafeSpaceButton
-                title="Sign In"
-                onPress={handleLogin}
-                loading={loading}
-                disabled={loading || googleLoading || githubLoading || appleLoading}
-              />
-            </View>
-
-            <View style={styles.divider}>
-              <View style={[styles.dividerLine, { backgroundColor: theme.textPrimary }]} />
-              <Text style={[styles.dividerText, { color: theme.textPrimary }]}>
-                or continue with
-              </Text>
-              <View style={[styles.dividerLine, { backgroundColor: theme.textPrimary }]} />
-            </View>
-
-            <View style={styles.socialButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.socialButton,
-                  {
-                    backgroundColor: theme.card,
-                    borderColor: theme.textSecondary + '40',
-                  },
-                ]}
-                onPress={handleGoogleSignIn}
-                disabled={loading || googleLoading || githubLoading || appleLoading}
-              >
-                {googleLoading ? (
-                  <ActivityIndicator size="small" color={theme.textPrimary} />
-                ) : (
-                  <>
-                    <Ionicons name="logo-google" size={20} color={theme.textPrimary} />
-                    <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
-                      Continue with Google
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.socialButton,
-                  {
-                    backgroundColor: theme.card,
-                    borderColor: theme.textSecondary + '40',
-                  },
-                ]}
-                onPress={handleGitHubSignIn}
-                disabled={loading || googleLoading || githubLoading || appleLoading}
-              >
-                {githubLoading ? (
-                  <ActivityIndicator size="small" color={theme.textPrimary} />
-                ) : (
-                  <>
-                    <Ionicons name="logo-github" size={20} color={theme.textPrimary} />
-                    <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
-                      Continue with GitHub
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {Platform.OS === 'ios' && (
-                <TouchableOpacity
-                  style={[
-                    styles.socialButton,
-                    {
-                      backgroundColor: theme.card,
-                      borderColor: theme.textSecondary + '40',
-                    },
-                  ]}
-                  onPress={handleAppleSignIn}
-                  disabled={loading || googleLoading || githubLoading || appleLoading}
+                <TouchableOpacity 
+                  onPress={handleForgotPassword}
+                  disabled={isLoading || isResettingPassword || isGoogleLoading || isAppleLoading}
+                  style={styles.forgotPasswordContainer}
                 >
-                  {appleLoading ? (
-                    <ActivityIndicator size="small" color={theme.textPrimary} />
-                  ) : (
-                    <>
-                      <Ionicons name="logo-apple" size={20} color={theme.textPrimary} />
-                      <Text style={[styles.socialButtonText, { color: theme.textPrimary }]}>
-                        Continue with Apple
-                      </Text>
-                    </>
-                  )}
+                  <Text style={[styles.forgotPasswordText, { color: theme.buttonText }]}>
+                    Forgot Password?
+                  </Text>
                 </TouchableOpacity>
-              )}
-            </View>
 
-            <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-                Don&apos;t have an account?
-              </Text>
-              <SafeSpaceLinkButton
-                title="Sign Up"
-                onPress={() => router.push('/signup')}
-                disabled={loading || googleLoading || appleLoading}
-              />
+                {error && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
+
+                <View style={styles.buttonSpacing} />
+
+                <SafeSpaceButton 
+                  onPress={handleLogin} 
+                  loading={isLoading} 
+                  disabled={isLoading || isGoogleLoading || isAppleLoading}
+                >
+                  {isLoading ? 'Logging in…' : 'Log In'}
+                </SafeSpaceButton>
+
+                <View style={styles.dividerContainer}>
+                  <View style={[styles.dividerLine, { backgroundColor: theme.buttonText }]} />
+                  <Text style={[styles.dividerText, { color: theme.buttonText }]}>or</Text>
+                  <View style={[styles.dividerLine, { backgroundColor: theme.buttonText }]} />
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleGoogleSignIn}
+                  disabled={isLoading || isGoogleLoading || isAppleLoading}
+                  style={[
+                    styles.googleButton,
+                    { 
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      opacity: (isLoading || isGoogleLoading || isAppleLoading) ? 0.6 : 1,
+                    }
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="logo-google" size={20} color="#DB4437" />
+                  <Text style={styles.googleButtonText}>
+                    {isGoogleLoading ? 'Signing in…' : 'Continue with Google'}
+                  </Text>
+                </TouchableOpacity>
+
+                {appleSignInAvailable && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={12}
+                    style={[
+                      styles.appleButton,
+                      { opacity: (isLoading || isGoogleLoading || isAppleLoading) ? 0.6 : 1 }
+                    ]}
+                    onPress={handleAppleSignIn}
+                  />
+                )}
+
+                <View style={styles.linkSpacing} />
+
+                <SafeSpaceLinkButton 
+                  onPress={() => router.replace('/signup')} 
+                  disabled={isLoading || isGoogleLoading || isAppleLoading}
+                  style={{ color: theme.buttonText }}
+                >
+                  Don&apos;t have an account? Sign Up
+                </SafeSpaceLinkButton>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </KeyboardAvoider>
       </SafeAreaView>
     </LinearGradient>
   );
 }
+
+const styles = StyleSheet.create({
+  gradientBackground: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: Math.min(SCREEN_WIDTH * 0.06, 24),
+    paddingVertical: SCREEN_HEIGHT * 0.025,
+    minHeight: SCREEN_HEIGHT * 0.85,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: SCREEN_HEIGHT * 0.05,
+  },
+  titleContainer: {
+    marginBottom: Math.min(SCREEN_HEIGHT * 0.04, 32),
+  },
+  form: {
+    width: '100%',
+  },
+  passwordContainer: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInputContainer: {
+    marginBottom: 0,
+  },
+  eyeIconContainer: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 4,
+    zIndex: 1,
+  },
+  forgotPasswordContainer: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 4,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
+  errorContainer: {
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  errorText: {
+    color: '#FF4444',
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  buttonSpacing: {
+    height: 8,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    opacity: 0.3,
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 14,
+    fontWeight: '500',
+    opacity: 0.7,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 10,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
+  },
+  appleButton: {
+    width: '100%',
+    height: 48,
+    marginTop: 12,
+  },
+  linkSpacing: {
+    height: 8,
+  },
+});

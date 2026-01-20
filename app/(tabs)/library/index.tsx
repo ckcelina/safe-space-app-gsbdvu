@@ -1,12 +1,12 @@
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, useWindowDimensions, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Animated, Image, PanResponder, TextInput, FlatList, Dimensions, Keyboard } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { StatusBarGradient } from '@/components/ui/StatusBarGradient';
-import { libraryTopics, Topic } from '@/lib/library/libraryTopics';
+import { libraryTopics, Topic } from './libraryTopics';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,19 +15,13 @@ import * as Haptics from 'expo-haptics';
 
 const SAVED_TOPICS_KEY = '@library_saved_topics';
 
-// Responsive layout constants
-const TAB_BAR_HEIGHT = 60;
-const HORIZONTAL_PADDING_PERCENT = 0.05; // 5% on each side
-const CARD_GAP = 16;
-const IMAGE_ASPECT_RATIO = 16 / 10; // Consistent aspect ratio for images
-
-// Calculate number of columns based on screen width
-function getNumColumns(width: number): number {
-  if (width < 420) return 2;
-  if (width < 768) return 2;
-  if (width < 1024) return 3;
-  return 4;
-}
+// Calculate responsive card width
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const NUM_COLUMNS = 2;
+const HORIZONTAL_PADDING = 32; // 16px on each side
+const GUTTER = 16; // space between cards
+const AVAILABLE_WIDTH = SCREEN_WIDTH - HORIZONTAL_PADDING - GUTTER;
+const CARD_WIDTH = AVAILABLE_WIDTH / NUM_COLUMNS;
 
 // Topic bubble component with animations and heart icon
 function TopicBubble({ 
@@ -37,7 +31,6 @@ function TopicBubble({
   onPress,
   isSaved,
   onToggleSave,
-  cardWidth,
 }: { 
   topic: Topic; 
   index: number; 
@@ -45,7 +38,6 @@ function TopicBubble({
   onPress: () => void;
   isSaved: boolean;
   onToggleSave: () => void;
-  cardWidth: number;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -95,7 +87,7 @@ function TopicBubble({
       style={[
         styles.bubbleWrapper,
         {
-          width: cardWidth,
+          width: CARD_WIDTH,
           opacity: fadeAnim,
           transform: [
             { scale: scaleAnim },
@@ -112,7 +104,7 @@ function TopicBubble({
         style={styles.bubbleTouchable}
       >
         <View style={[styles.bubble, { backgroundColor: theme.card }]}>
-          <View style={[styles.imageContainer, { aspectRatio: IMAGE_ASPECT_RATIO }]}>
+          <View style={styles.imageContainer}>
             <Image
               source={{ uri: topic.imageUrl }}
               style={styles.bubbleImage}
@@ -136,20 +128,10 @@ function TopicBubble({
             </TouchableOpacity>
           </View>
           <View style={styles.bubbleContent}>
-            <Text 
-              style={[styles.bubbleTitle, { color: theme.textPrimary }]} 
-              numberOfLines={2}
-              ellipsizeMode="tail"
-              allowFontScaling={true}
-            >
+            <Text style={[styles.bubbleTitle, { color: theme.textPrimary }]} numberOfLines={2}>
               {topic.title}
             </Text>
-            <Text 
-              style={[styles.bubbleDescription, { color: theme.textSecondary }]} 
-              numberOfLines={3}
-              ellipsizeMode="tail"
-              allowFontScaling={true}
-            >
+            <Text style={[styles.bubbleDescription, { color: theme.textSecondary }]} numberOfLines={3}>
               {topic.shortDescription}
             </Text>
           </View>
@@ -165,7 +147,6 @@ export default function LibraryScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const searchInputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
 
   // FIXED: Two-state approach for search
   // draftQuery updates on every keystroke (TextInput value)
@@ -175,14 +156,6 @@ export default function LibraryScreen() {
   const [savedTopicIds, setSavedTopicIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-
-  // Calculate responsive layout values
-  const numColumns = useMemo(() => getNumColumns(windowWidth), [windowWidth]);
-  const horizontalPadding = useMemo(() => windowWidth * HORIZONTAL_PADDING_PERCENT, [windowWidth]);
-  const cardWidth = useMemo(() => {
-    const availableWidth = windowWidth - (horizontalPadding * 2) - (CARD_GAP * (numColumns - 1));
-    return availableWidth / numColumns;
-  }, [windowWidth, horizontalPadding, numColumns]);
 
   // Load saved topics on mount
   useEffect(() => {
@@ -305,7 +278,6 @@ export default function LibraryScreen() {
       onPress={() => handleTopicPress(item.id)}
       isSaved={savedTopicIds.includes(item.id)}
       onToggleSave={() => toggleSaveTopic(item.id)}
-      cardWidth={cardWidth}
     />
   );
 
@@ -358,7 +330,7 @@ export default function LibraryScreen() {
             keyboardShouldPersistTaps="handled"
           >
             {savedTopics.map((topic, index) => (
-              <View key={topic.id} style={[styles.savedTopicWrapper, { width: Math.min(cardWidth, 180) }]}>
+              <View key={topic.id} style={styles.savedTopicWrapper}>
                 <TopicBubble
                   topic={topic}
                   index={index}
@@ -366,7 +338,6 @@ export default function LibraryScreen() {
                   onPress={() => handleTopicPress(topic.id)}
                   isSaved={true}
                   onToggleSave={() => toggleSaveTopic(topic.id)}
-                  cardWidth={Math.min(cardWidth, 180)}
                 />
               </View>
             ))}
@@ -381,7 +352,7 @@ export default function LibraryScreen() {
         </Text>
       )}
     </>
-  ), [theme, draftQuery, isLoading, savedTopics, appliedQuery, handleSearchFocus, handleSearchBlur, handleSearchSubmit, handleClearSearch, handleTopicPress, toggleSaveTopic, cardWidth]);
+  ), [theme, draftQuery, isLoading, savedTopics, appliedQuery, handleSearchFocus, handleSearchBlur, handleSearchSubmit, handleClearSearch, handleTopicPress, toggleSaveTopic]);
 
   const renderEmptyComponent = () => (
     <View style={styles.noResultsContainer}>
@@ -395,9 +366,6 @@ export default function LibraryScreen() {
     </View>
   );
 
-  // Key extractor for FlatList
-  const keyExtractor = useCallback((item: Topic) => item.id, []);
-
   return (
     <>
       <LinearGradient
@@ -410,21 +378,17 @@ export default function LibraryScreen() {
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <View style={styles.container} {...panResponder.panHandlers}>
             <FlatList
-              key={`flatlist-${numColumns}`}
               data={filteredTopics}
               renderItem={renderTopicItem}
-              keyExtractor={keyExtractor}
-              numColumns={numColumns}
+              keyExtractor={(item) => item.id}
+              numColumns={NUM_COLUMNS}
               ListHeaderComponent={renderListHeader}
               ListEmptyComponent={renderEmptyComponent}
               contentContainerStyle={[
                 styles.flatListContent,
-                { 
-                  paddingHorizontal: horizontalPadding,
-                  paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 16
-                }
+                { paddingBottom: 60 + insets.bottom + 16 } // TAB_BAR_HEIGHT = 60
               ]}
-              columnWrapperStyle={numColumns > 1 ? { gap: CARD_GAP } : undefined}
+              columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
@@ -469,19 +433,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   flatListContent: {
+    paddingHorizontal: '5%',
     paddingTop: Platform.OS === 'android' ? 16 : 8,
+  },
+  columnWrapper: {
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
   header: {
     marginBottom: 20,
     paddingHorizontal: 8,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: Math.min(SCREEN_WIDTH * 0.08, 32),
     fontWeight: 'bold',
     marginBottom: 8,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 22,
   },
   searchContainer: {
@@ -519,7 +488,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   savedTopicWrapper: {
-    // Width is set dynamically
+    width: 180,
   },
   allTopicsTitle: {
     fontSize: 20,
@@ -528,7 +497,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   bubbleWrapper: {
-    marginBottom: CARD_GAP,
+    marginBottom: 0,
   },
   bubbleTouchable: {
     width: '100%',
@@ -541,6 +510,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
+    aspectRatio: 1.2,
     position: 'relative',
   },
   bubbleImage: {
@@ -565,19 +535,16 @@ const styles = StyleSheet.create({
   bubbleContent: {
     padding: 16,
     paddingTop: 12,
-    minHeight: 90,
   },
   bubbleTitle: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     fontWeight: '700',
     marginBottom: 8,
     lineHeight: 20,
-    minHeight: 40,
   },
   bubbleDescription: {
     fontSize: 13,
     lineHeight: 18,
-    minHeight: 54,
   },
   noResultsContainer: {
     alignItems: 'center',
@@ -590,13 +557,13 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   noResultsTitle: {
-    fontSize: 22,
+    fontSize: Math.min(SCREEN_WIDTH * 0.055, 22),
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',
   },
   noResultsText: {
-    fontSize: 16,
+    fontSize: Math.min(SCREEN_WIDTH * 0.04, 16),
     lineHeight: 24,
     textAlign: 'center',
   },

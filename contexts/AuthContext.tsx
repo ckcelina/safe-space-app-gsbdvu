@@ -2,7 +2,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { memoryCache } from '@/lib/cache/memoryCache';
 
 interface UserProfile {
   id: string;
@@ -21,7 +20,6 @@ interface AuthContextType {
   role: 'free' | 'premium' | 'admin';
   isPremium: boolean;
   loading: boolean;
-  isHydrated: boolean;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -36,9 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (authUserId: string, retryCount = 0) => {
-    const MAX_RETRIES = 2;
-    
+  const fetchUserProfile = async (authUserId: string) => {
     // Wrap in timeout to prevent blocking startup
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
@@ -53,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: existingUser, error: selectError } = await supabase
           .from('users')
           .select('*')
-          .eq('user_id', authUserId)
+          .eq('id', authUserId)
           .maybeSingle();
 
         if (selectError && selectError.code !== 'PGRST116') {
@@ -74,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: newUser, error: insertError } = await supabase
           .from('users')
           .insert([{ 
-            user_id: authUserId, 
+            id: authUserId, 
             email: authUser.user?.email || null,
             role: 'free' 
           }])
@@ -91,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const { data: retryUser, error: retrySelectError } = await supabase
               .from('users')
               .select('*')
-              .eq('user_id', authUserId)
+              .eq('id', authUserId)
               .maybeSingle();
 
             if (retrySelectError) {
@@ -120,14 +116,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             // Real error - log it but don't block the user
             console.log('[AuthContext] Error creating user profile:', insertError.message);
-            
-            // Retry logic for transient errors
-            if (retryCount < MAX_RETRIES && insertError.message.includes('network')) {
-              console.log(`[AuthContext] Retrying profile creation (${retryCount + 1}/${MAX_RETRIES})...`);
-              await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-              return fetchUserProfile(authUserId, retryCount + 1);
-            }
-            
             setUser({ 
               id: authUserId, 
               email: authUser.user?.email || null,
@@ -211,13 +199,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       console.log('[AuthContext] Auth state changed:', _event, session?.user?.email || 'No session');
       setSession(session);
       setCurrentUser(session?.user ?? null);
-      
       if (session?.user) {
-        await fetchUserProfile(session.user.id);
+        fetchUserProfile(session.user.id);
       } else {
         setUser(null);
       }
@@ -232,13 +219,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('[AuthContext] Signing up user:', email);
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email,
         password,
         options: {
-          emailRedirectTo: 'https://natively.dev/email-confirmed',
-          data: {
-            email: email.trim().toLowerCase(),
-          }
+          emailRedirectTo: 'https://natively.dev/email-confirmed'
         }
       });
 
@@ -262,31 +246,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       console.log('[AuthContext] Signing in user:', email);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:264',message:'Auth signIn start',data:{emailDomain:email.trim().split('@')[1] || null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email,
         password,
       });
 
       if (error) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:271',message:'Auth signIn error response',data:{errorMessage:error?.message,errorName:error?.name,errorStatus:error?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         console.log('[AuthContext] Sign in error:', error.message);
         return { error };
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:276',message:'Auth signIn success',data:{userId:data?.user?.id || null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       console.log('[AuthContext] Sign in successful');
       return { error: null };
     } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/86105c35-01e6-4810-8ad5-4dfce4695369',{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:279',message:'Auth signIn exception',data:{errorMessage:error?.message,errorName:error?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       console.log('[AuthContext] Unexpected sign in error:', error?.message || 'Unknown error');
       return { error };
     }
@@ -302,10 +274,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       
       console.log('[AuthContext] Local state cleared');
-      
-      // Clear in-memory cache
-      memoryCache.clearCache();
-      console.log('[AuthContext] Memory cache cleared');
       
       // Then call Supabase sign out (this may take time)
       const { error } = await supabase.auth.signOut();
@@ -337,7 +305,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: userRole,
         isPremium,
         loading,
-        isHydrated: !loading,
         signUp,
         signIn,
         signOut,
